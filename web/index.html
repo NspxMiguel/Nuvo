@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101014" />
+    <title>IAUnifier</title>
+    <!-- iOS ignora o manifest pra tela cheia: precisa destas três. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="IAUnifier" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <header class="side-head">
+          <strong>IAUnifier</strong>
+          <button id="btn-close-side" class="icon" title="fechar">✕</button>
+        </header>
+
+        <button id="btn-new-chat" class="primary">+ Nova conversa</button>
+
+        <nav id="nav">
+          <button data-view="chat" class="nav-item active">💬 Conversas</button>
+          <button data-view="projects" class="nav-item">📁 Projetos</button>
+          <button data-view="gems" class="nav-item">💎 Gems</button>
+          <button data-view="memory" class="nav-item">🧠 Memória</button>
+          <button data-view="providers" class="nav-item">🔌 Provedores</button>
+          <button data-view="settings" class="nav-item">⚙️ Config</button>
+        </nav>
+
+        <div id="chat-list"></div>
+      </aside>
+
+      <main id="main">
+        <header id="topbar">
+          <button id="btn-open-side" class="icon" title="menu">☰</button>
+          <select id="sel-model" title="modelo"></select>
+          <select id="sel-gem" title="gem"></select>
+          <select id="sel-project" title="projeto"></select>
+          <span id="chat-title"></span>
+        </header>
+
+        <section id="view-chat" class="view">
+          <div id="messages"></div>
+          <form id="composer">
+            <textarea
+              id="input"
+              rows="1"
+              placeholder="Fale com a IA"
+            ></textarea>
+            <button id="btn-send" class="primary" type="submit">Enviar</button>
+            <button id="btn-stop" type="button" hidden>Parar</button>
+          </form>
+        </section>
+
+        <section id="view-projects" class="view" hidden></section>
+        <section id="view-gems" class="view" hidden></section>
+        <section id="view-memory" class="view" hidden></section>
+        <section id="view-providers" class="view" hidden></section>
+        <section id="view-settings" class="view" hidden></section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

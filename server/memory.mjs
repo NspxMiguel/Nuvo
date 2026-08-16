@@ -1,0 +1,342 @@
+// Memória compartilhada — o núcleo do IAUnifier.
+//
+// Um único banco de fatos que qualquer modelo lê e qualquer modelo escreve.
+// É o que faz o que foi dito pro Claude aparecer na conversa com o GPT.
+//
+// Busca híbrida: FTS5 sempre, embeddings quando houver um modelo de embedding
+// configurado. Sem embedding o app continua funcionando, só com menos precisão.
+
+import { all, one, run, uid, now } from './db.mjs';
+import { loadConfig } from './config.mjs';
+import { adapterFor, contextFor, getProvider, parseRef } from './providers/index.mjs';
+
+const STOPWORDS = new Set([
+  'a', 'o', 'e', 'de', 'do', 'da', 'em', 'um', 'uma', 'que', 'para', 'com', 'no',
+  'na', 'os', 'as', 'dos', 'das', 'por', 'se', 'mais', 'como', 'the', 'and', 'of',
+  'to', 'in', 'is', 'it', 'for', 'on', 'with', 'my', 'me', 'i', 'you'
+]);
+
+// ---------------------------------------------------------------- embeddings
+
+function toBlob(vector) {
+  const arr = Float32Array.from(vector);
+  return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+
+function fromBlob(blob) {
+  if (!blob) return null;
+  const buf = Buffer.isBuffer(blob) ? blob : Buffer.from(blob);
+  return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+}
+
+function cosine(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (!na || !nb) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+export function embeddingAvailable() {
+  return Boolean(loadConfig().memory.embeddingModel);
+}
+
+async function embedTexts(texts) {
+  const cfg = loadConfig();
+  const ref = cfg.memory.embeddingModel;
+  if (!ref || !texts.length) return null;
+  try {
+    const { providerId, modelId } = parseRef(ref);
+    const provider = getProvider(providerId);
+    const adapter = adapterFor(provider.kind);
+    if (!adapter.embed) return null;
+    return await adapter.embed(contextFor(provider), { model: modelId, input: texts });
+  } catch {
+    return null; // embedding é opcional: sem ele a busca vira só FTS
+  }
+}
+
+// ------------------------------------------------------------------ escrita
+
+export async function addMemory({
+  text,
+  kind = 'fact',
+  scope = 'global',
+  projectId = null,
+  source = 'manual',
+  sourceRef = null,
+  pinned = 0
+}) {
+  const clean = String(text || '').trim();
+  if (!clean) return null;
+
+  // Fato repetido só atualiza o carimbo, não vira linha nova.
+  const duplicate = one(
+    "SELECT id FROM memories WHERE lower(text) = lower(?) AND IFNULL(project_id, '') = IFNULL(?, '')",
+    clean,
+    projectId
+  );
+  if (duplicate) {
+    run('UPDATE memories SET updated_at = ?, active = 1 WHERE id = ?', now(), duplicate.id);
+    return one('SELECT * FROM memories WHERE id = ?', duplicate.id);
+  }
+
+  const id = uid();
+  const stamp = now();
+  run(
+    `INSERT INTO memories (id, text, kind, scope, project_id, source, source_ref, pinned, active,
+                           use_count, embedding, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NULL, ?, ?)`,
+    id,
+    clean,
+    kind,
+    scope,
+    projectId,
+    source,
+    sourceRef,
+    pinned ? 1 : 0,
+    stamp,
+    stamp
+  );
+
+  const vectors = await embedTexts([clean]);
+  if (vectors?.[0]) run('UPDATE memories SET embedding = ? WHERE id = ?', toBlob(vectors[0]), id);
+
+  return one('SELECT * FROM memories WHERE id = ?', id);
+}
+
+export function updateMemory(id, patch) {
+  const current = one('SELECT * FROM memories WHERE id = ?', id);
+  if (!current) return null;
+  run(
+    `UPDATE memories SET text = ?, kind = ?, scope = ?, project_id = ?, pinned = ?, active = ?, updated_at = ?
+     WHERE id = ?`,
+    patch.text ?? current.text,
+    patch.kind ?? current.kind,
+    patch.scope ?? current.scope,
+    patch.projectId !== undefined ? patch.projectId : current.project_id,
+    patch.pinned !== undefined ? (patch.pinned ? 1 : 0) : current.pinned,
+    patch.active !== undefined ? (patch.active ? 1 : 0) : current.active,
+    now(),
+    id
+  );
+  return one('SELECT * FROM memories WHERE id = ?', id);
+}
+
+export function deleteMemory(id) {
+  run('DELETE FROM memories WHERE id = ?', id);
+}
+
+export function listMemories({ projectId = null, includeInactive = false, limit = 500 } = {}) {
+  const clauses = [];
+  const params = [];
+  if (!includeInactive) clauses.push('active = 1');
+  if (projectId) {
+    clauses.push('(scope = ? OR project_id = ?)');
+    params.push('global', projectId);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  return all(
+    `SELECT * FROM memories ${where} ORDER BY pinned DESC, updated_at DESC LIMIT ?`,
+    ...params,
+    limit
+  );
+}
+
+// -------------------------------------------------------------------- busca
+
+function ftsQuery(text) {
+  const terms = String(text || '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length > 2 && !STOPWORDS.has(t))
+    .slice(0, 12);
+  if (!terms.length) return null;
+  return terms.map((t) => `"${t.replace(/"/g, '')}"`).join(' OR ');
+}
+
+/**
+ * Fatos relevantes pra uma mensagem. Fixados entram sempre; o resto disputa
+ * por pontuação híbrida.
+ */
+export async function recall(query, { projectId = null, limit = null } = {}) {
+  const cfg = loadConfig();
+  if (!cfg.memory.enabled) return [];
+  const max = limit ?? cfg.memory.maxInjected;
+
+  const pinned = all(
+    `SELECT * FROM memories
+     WHERE active = 1 AND pinned = 1 AND (scope = 'global' OR project_id = ?)
+     ORDER BY updated_at DESC LIMIT ?`,
+    projectId,
+    max
+  );
+
+  const scores = new Map();
+  const byId = new Map();
+
+  const q = ftsQuery(query);
+  if (q) {
+    const rows = all(
+      `SELECT m.*, bm25(memories_fts) AS rank
+       FROM memories_fts JOIN memories m ON m.rowid = memories_fts.rowid
+       WHERE memories_fts MATCH ? AND m.active = 1 AND (m.scope = 'global' OR m.project_id = ?)
+       ORDER BY rank LIMIT 60`,
+      q,
+      projectId
+    );
+    rows.forEach((row, index) => {
+      byId.set(row.id, row);
+      // Posição no ranking vira score em [0,1] — comparável com a similaridade.
+      scores.set(row.id, (scores.get(row.id) || 0) + 0.6 * (1 - index / Math.max(rows.length, 1)));
+    });
+  }
+
+  const vectors = await embedTexts([query]);
+  if (vectors?.[0]) {
+    const target = Float32Array.from(vectors[0]);
+    const candidates = all(
+      `SELECT * FROM memories
+       WHERE active = 1 AND embedding IS NOT NULL AND (scope = 'global' OR project_id = ?)`,
+      projectId
+    );
+    for (const row of candidates) {
+      const sim = cosine(target, fromBlob(row.embedding));
+      if (sim <= 0) continue;
+      byId.set(row.id, row);
+      scores.set(row.id, (scores.get(row.id) || 0) + sim);
+    }
+  }
+
+  const ranked = [...scores.entries()]
+    .filter(([, score]) => score >= cfg.memory.minScore)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => byId.get(id))
+    .filter(Boolean);
+
+  const out = [];
+  const seen = new Set();
+  for (const row of [...pinned, ...ranked]) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+    if (out.length >= max) break;
+  }
+
+  if (out.length) {
+    const marks = out.map(() => '?').join(',');
+    run(`UPDATE memories SET use_count = use_count + 1 WHERE id IN (${marks})`, ...out.map((m) => m.id));
+  }
+  return out;
+}
+
+/** Bloco de texto que entra no system prompt de qualquer modelo. */
+export function renderForPrompt(memories) {
+  if (!memories.length) return '';
+  const lines = memories.map((m) => `- ${m.text}`).join('\n');
+  return [
+    '# O que você já sabe sobre esta pessoa',
+    'Estes fatos vieram de conversas anteriores, possivelmente com outra IA.',
+    'Use quando fizer sentido, sem anunciar que veio da memória.',
+    '',
+    lines
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------- extração
+
+const HEURISTICS = [
+  /\b(?:eu\s+)?(?:me\s+chamo|meu\s+nome\s+(?:é|e))\s+[^.!?\n]{2,60}/gi,
+  /\b(?:eu\s+)?(?:gosto|amo|odeio|detesto|prefiro)\s+(?:de\s+)?[^.!?\n]{3,90}/gi,
+  /\b(?:eu\s+)?(?:moro|trabalho|estudo)\s+(?:em|na|no|com|para)\s+[^.!?\n]{2,80}/gi,
+  /\b(?:meu|minha)\s+(?:projeto|empresa|time|cachorro|gato|carro|site|dominio|domínio)\s+[^.!?\n]{2,80}/gi,
+  /\b(?:sempre|nunca)\s+(?:me|use|usa|faça|faz|responda)\s+[^.!?\n]{3,90}/gi,
+  /\bmy\s+name\s+is\s+[^.!?\n]{2,60}/gi,
+  /\bi\s+(?:like|love|hate|prefer|work|live)\s+[^.!?\n]{3,90}/gi
+];
+
+/** Extração sem modelo: pega padrões óbvios de preferência e identidade. */
+export function extractHeuristic(text) {
+  const out = [];
+  for (const re of HEURISTICS) {
+    for (const match of String(text || '').matchAll(re)) {
+      const fact = match[0].trim().replace(/\s+/g, ' ');
+      if (fact.length >= 8 && !out.includes(fact)) out.push(fact);
+    }
+  }
+  // Os padrões se sobrepõem: "gosto de X e trabalho com Y" casa duas vezes.
+  // Fica só o mais longo de cada par contido no outro.
+  const kept = out.filter(
+    (fact) => !out.some((other) => other !== fact && other.toLowerCase().includes(fact.toLowerCase()))
+  );
+  return kept.slice(0, 5);
+}
+
+const EXTRACTOR_PROMPT = `Você extrai fatos duradouros sobre o usuário a partir de uma conversa.
+
+Devolva SOMENTE um array JSON de strings, sem comentários e sem cercas de código.
+Cada string é um fato curto, em terceira pessoa, que continue verdadeiro daqui a meses.
+
+Inclua: nome, preferências, gostos, aversões, ferramentas que usa, projetos,
+decisões tomadas, como quer ser respondido.
+Ignore: o assunto pontual da conversa, perguntas, o que a IA respondeu, datas relativas.
+
+Se não houver nada duradouro, devolva [].`;
+
+/** Extração com modelo. Cai na heurística se não houver extrator configurado. */
+export async function extractWithModel(conversationText) {
+  const cfg = loadConfig();
+  const ref = cfg.memory.extractorModel;
+  if (!ref) return extractHeuristic(conversationText);
+
+  try {
+    const { providerId, modelId } = parseRef(ref);
+    const provider = getProvider(providerId);
+    const adapter = adapterFor(provider.kind);
+    let out = '';
+    for await (const chunk of adapter.stream(contextFor(provider), {
+      model: modelId,
+      system: EXTRACTOR_PROMPT,
+      messages: [{ role: 'user', content: conversationText.slice(0, 12000) }],
+      temperature: 0,
+      maxTokens: 1000
+    })) {
+      if (chunk.delta) out += chunk.delta;
+    }
+    const match = out.match(/\[[\s\S]*\]/);
+    if (!match) return extractHeuristic(conversationText);
+    const parsed = JSON.parse(match[0]);
+    return Array.isArray(parsed)
+      ? parsed.filter((f) => typeof f === 'string' && f.trim().length > 4).slice(0, 8)
+      : extractHeuristic(conversationText);
+  } catch {
+    return extractHeuristic(conversationText);
+  }
+}
+
+/** Roda depois de cada troca, sem travar a resposta do chat. */
+export async function learnFromExchange({ userText, assistantText, chatId, projectId, model }) {
+  const cfg = loadConfig();
+  if (!cfg.memory.enabled || !cfg.memory.autoExtract) return [];
+  const conversation = `Usuário: ${userText}\n\nAssistente: ${assistantText}`;
+  const facts = await extractWithModel(conversation);
+  const saved = [];
+  for (const fact of facts) {
+    const row = await addMemory({
+      text: fact,
+      kind: 'fact',
+      scope: projectId ? 'project' : 'global',
+      projectId: projectId || null,
+      source: 'auto',
+      sourceRef: `${model || 'modelo'} · chat ${chatId || '?'}`
+    });
+    if (row) saved.push(row);
+  }
+  return saved;
+}

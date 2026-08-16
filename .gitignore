@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+*.log
+
+# Dados do usuário: banco, chaves e uploads moram em ~/.iaunifier, mas se
+# alguém apontar IAUNIFIER_HOME pra cá, nada disso pode ir pro repositório.
+.iaunifier/
+*.db
+*.db-wal
+*.db-shm
