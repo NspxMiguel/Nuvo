@@ -134,3 +134,45 @@ test('o tipo declarado no mime vale mesmo sem extensão', () => {
   assert.equal(out.kind, 'pdf');
   assert.match(out.text, /conteudo do arquivo/);
 });
+
+test('fonte embutida e imagem não entram como texto do PDF', () => {
+  // Binário que, descomprimido, tem os bytes dos operadores de texto — é
+  // exatamente o que fazia fonte e imagem virarem "frase" no prompt do modelo.
+  const lixo = Buffer.concat([
+    Buffer.from('\x00\x01\x02(nao sou frase)Tj [(nem eu)]TJ\x00\xff', 'latin1'),
+    Buffer.from(Array.from({ length: 400 }, (_, i) => i % 256))
+  ]);
+  const fonte = deflateRawSync(lixo);
+  const imagem = deflateRawSync(lixo);
+  const conteudo = 'BT /F1 12 Tf (Relatorio de verdade) Tj ET';
+
+  const pdf = Buffer.concat([
+    Buffer.from('%PDF-1.4\n'),
+    Buffer.from(`1 0 obj\n<< /Length ${conteudo.length} >>\nstream\n${conteudo}\nendstream\nendobj\n`),
+    Buffer.from(`2 0 obj\n<< /Filter /FlateDecode /Length1 54132 /Length ${fonte.length} >>\nstream\n`),
+    fonte,
+    Buffer.from('\nendstream\nendobj\n'),
+    Buffer.from(
+      `3 0 obj\n<< /Type /XObject /Subtype /Image /Filter /FlateDecode /Length ${imagem.length} >>\nstream\n`
+    ),
+    imagem,
+    Buffer.from('\nendstream\nendobj\n%%EOF')
+  ]);
+
+  const out = extractText(pdf, 'misto.pdf', 'application/pdf');
+  assert.equal(out.text, 'Relatorio de verdade');
+  assert.ok(!/nao sou frase|nem eu/.test(out.text), 'operador dentro de binário não é texto de página');
+});
+
+test('PDF sem bloco de texto admite que não tem texto', () => {
+  // Digitalização: o fluxo abre, mas não é página — não pode virar frase.
+  const so_imagem = deflateRawSync(Buffer.from('(parece texto)Tj sem abrir bloco nenhum', 'latin1'));
+  const pdf = Buffer.concat([
+    Buffer.from('%PDF-1.4\n1 0 obj\n<< /Filter /FlateDecode /Length 10 >>\nstream\n'),
+    so_imagem,
+    Buffer.from('\nendstream\nendobj\n%%EOF')
+  ]);
+  const out = extractText(pdf, 'scan.pdf', 'application/pdf');
+  assert.equal(out.text, '');
+  assert.match(out.note, /digitalização em imagem/);
+});

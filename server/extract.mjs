@@ -68,9 +68,12 @@ function unzip(buffer, wanted) {
     const start = localOffset + 30 + localNameLen + localExtraLen;
     const raw = buffer.subarray(start, start + compressed);
     try {
-      out.set(name, method === 0 ? raw : inflateRawSync(raw));
+      // Teto de saída: um docx de 400 kB pode declarar entradas que abrem em
+      // centenas de MB, e sem limite o processo morre antes de qualquer
+      // validação. Entrada acima do teto simplesmente não entra.
+      out.set(name, method === 0 ? raw : inflateRawSync(raw, { maxOutputLength: MAX_INFLADO }));
     } catch {
-      /* entrada corrompida ou método não suportado: pula */
+      /* entrada corrompida, grande demais ou método não suportado: pula */
     }
   }
   return out;
@@ -154,6 +157,17 @@ function textFromContentStream(content) {
   return out.join('\n');
 }
 
+// Fluxo do PDF que não é página. Fonte embutida, perfil de cor, mapa de
+// caracteres, metadados, imagem e o objeto que guarda outros objetos abrem com
+// o mesmo FlateDecode do conteúdo — e descomprimidos viram binário que passava
+// por "texto do documento" e ia parar no prompt do modelo.
+const FLUXO_SEM_TEXTO =
+  /\/(?:FontFile\d?|Length1|ToUnicode|ICCBased)\b|\/Subtype\s*\/(?:Type1C|TrueType|OpenType|CIDFontType0C|CIDFontType2|Image|XML)\b|\/Type\s*\/(?:Metadata|ObjStm|XRef|EmbeddedFile|Font|FontDescriptor)\b/;
+
+// Teto de descompressão por fluxo: zip e PDF podem declarar poucos kB e abrir
+// centenas de MB, e o processo morre antes de chegar a qualquer validação.
+const MAX_INFLADO = 64 * 1024 * 1024;
+
 function fromPdf(buffer) {
   const parts = [];
   let streams = 0;
@@ -179,13 +193,15 @@ function fromPdf(buffer) {
     cursor = end + endMarker.length;
     streams++;
 
+    if (FLUXO_SEM_TEXTO.test(header)) continue;
+
     let data = raw;
     if (/FlateDecode/.test(header)) {
       try {
-        data = inflateSync(raw);
+        data = inflateSync(raw, { maxOutputLength: MAX_INFLADO });
       } catch {
         try {
-          data = inflateRawSync(raw);
+          data = inflateRawSync(raw, { maxOutputLength: MAX_INFLADO });
         } catch {
           failed++;
           continue;
@@ -195,7 +211,12 @@ function fromPdf(buffer) {
       continue; // imagem
     }
 
-    const text = textFromContentStream(data.toString('latin1'));
+    const conteudo = data.toString('latin1');
+    // Página de verdade abre bloco de texto. Sem esta conferência, binário que
+    // por acaso tivesse os bytes de `Tj` era lido como se fosse frase.
+    if (!/\bBT\b/.test(conteudo)) continue;
+
+    const text = textFromContentStream(conteudo);
     // Basta ter palavra de verdade: um corte por tamanho descartaria a página
     // que só tem um título curto.
     if (/\p{L}{2,}/u.test(text)) parts.push(text);
