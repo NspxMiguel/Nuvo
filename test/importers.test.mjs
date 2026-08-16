@@ -209,3 +209,126 @@ test('export grande avisa quando corta, em vez de fingir que leu tudo', async ()
   assert.equal(resultado.total, 12, 'quem chamou precisa saber quantas existiam');
   assert.equal(resultado.skipped, 7, 'e quantas ficaram de fora');
 });
+
+test('export do ChatGPT: ramo abandonado e saída de ferramenta ficam de fora', () => {
+  // Árvore como o ChatGPT exporta de verdade: a pergunta foi editada (ramo
+  // "b-velho" ficou pendurado) e houve uma busca na web (papel "tool").
+  const raw = JSON.stringify([
+    {
+      title: 'Com edição',
+      current_node: 'd',
+      mapping: {
+        raiz: { id: 'raiz', message: null, parent: null, children: ['sis'] },
+        sis: {
+          id: 'sis',
+          parent: 'raiz',
+          children: ['b-velho', 'b'],
+          message: {
+            author: { role: 'system' },
+            create_time: 1,
+            content: { parts: ['Você é um assistente.'] }
+          }
+        },
+        'b-velho': {
+          id: 'b-velho',
+          parent: 'sis',
+          children: ['c-velho'],
+          message: {
+            author: { role: 'user' },
+            create_time: 2,
+            content: { parts: ['Eu odeio café, nunca me ofereça isso.'] }
+          }
+        },
+        'c-velho': {
+          id: 'c-velho',
+          parent: 'b-velho',
+          children: [],
+          message: {
+            author: { role: 'assistant' },
+            create_time: 3,
+            content: { parts: ['Combinado, nada de café.'] }
+          }
+        },
+        b: {
+          id: 'b',
+          parent: 'sis',
+          children: ['ferramenta'],
+          message: {
+            author: { role: 'user' },
+            create_time: 4,
+            content: { parts: ['Na verdade eu prefiro café coado.'] }
+          }
+        },
+        ferramenta: {
+          id: 'ferramenta',
+          parent: 'b',
+          children: ['d'],
+          message: {
+            author: { role: 'tool' },
+            create_time: 5,
+            content: { parts: ['Resultado da busca: o melhor café do mundo é o expresso italiano.'] }
+          }
+        },
+        d: {
+          id: 'd',
+          parent: 'ferramenta',
+          children: [],
+          message: {
+            author: { role: 'assistant' },
+            create_time: 6,
+            content: { parts: ['Anotado: coado.'] }
+          }
+        }
+      }
+    }
+  ]);
+
+  const [conversa] = parseExport(raw, 'conversations.json');
+  const textos = conversa.turns.map((t) => t.text);
+
+  assert.deepEqual(conversa.turns.map((t) => t.role), ['user', 'assistant']);
+  assert.equal(textos[0], 'Na verdade eu prefiro café coado.');
+  assert.ok(
+    !textos.some((t) => /odeio café/.test(t)),
+    'a versão que o usuário substituiu não pode voltar como memória permanente'
+  );
+  assert.ok(
+    !textos.some((t) => /Resultado da busca/.test(t)),
+    'saída de ferramenta não é fala do usuário'
+  );
+});
+
+test('export do ChatGPT: mensagem escondida na interface não é fala', () => {
+  const raw = JSON.stringify([
+    {
+      title: 'Com contexto injetado',
+      current_node: 'b',
+      mapping: {
+        a: {
+          id: 'a',
+          parent: null,
+          children: ['b'],
+          message: {
+            author: { role: 'user' },
+            create_time: 1,
+            metadata: { is_visually_hidden_from_conversation: true },
+            content: { parts: ['O usuário está em São Paulo e usa o plano Plus.'] }
+          }
+        },
+        b: {
+          id: 'b',
+          parent: 'a',
+          children: [],
+          message: {
+            author: { role: 'user' },
+            create_time: 2,
+            content: { parts: ['Eu toco baixo desde 2015.'] }
+          }
+        }
+      }
+    }
+  ]);
+
+  const [conversa] = parseExport(raw, 'conversations.json');
+  assert.deepEqual(conversa.turns.map((t) => t.text), ['Eu toco baixo desde 2015.']);
+});

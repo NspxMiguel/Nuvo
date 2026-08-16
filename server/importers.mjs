@@ -9,6 +9,54 @@
 
 import { extractWithModel, addMemory } from './memory.mjs';
 
+/**
+ * As mensagens que a conversa do ChatGPT realmente mostra, na ordem.
+ *
+ * `mapping` guarda a árvore inteira: cada pergunta editada e cada resposta
+ * refeita deixam o ramo antigo lá dentro. Ler todos os nós traz de volta o que
+ * o usuário mandou substituir — e como esse texto vira memória permanente,
+ * seria a versão descartada que ficaria valendo. O caminho certo sai do nó
+ * atual e sobe pelos pais.
+ *
+ * Export sem árvore (ou recortado à mão) cai na ordem por horário, que era o
+ * que existia antes.
+ */
+function chatgptMessages(conv) {
+  const mapping = conv.mapping || {};
+  const temArvore =
+    (conv.current_node && mapping[conv.current_node]) ||
+    Object.values(mapping).some((node) => node?.parent);
+
+  if (!temArvore) {
+    return Object.values(mapping)
+      .map((node) => node?.message)
+      .filter(Boolean)
+      .sort((a, b) => (a.create_time || 0) - (b.create_time || 0));
+  }
+
+  let id = conv.current_node;
+  if (!id || !mapping[id]) {
+    // Sem ponteiro do fim: a folha com a mensagem mais recente é o melhor palpite.
+    let melhor = null;
+    for (const [key, node] of Object.entries(mapping)) {
+      if (!node?.message || (node.children || []).length) continue;
+      if (!melhor || (node.message.create_time || 0) > (melhor.tempo || 0)) {
+        melhor = { key, tempo: node.message.create_time || 0 };
+      }
+    }
+    id = melhor?.key;
+  }
+
+  const caminho = [];
+  const visto = new Set();
+  while (id && mapping[id] && !visto.has(id)) {
+    visto.add(id);
+    if (mapping[id].message) caminho.push(mapping[id].message);
+    id = mapping[id].parent;
+  }
+  return caminho.reverse();
+}
+
 /** Vira uma lista de {title, turns:[{role, text}]}. */
 export function parseExport(raw, filename = '') {
   const text = String(raw);
@@ -23,12 +71,15 @@ export function parseExport(raw, filename = '') {
   if (Array.isArray(data) && data.some((c) => c && c.mapping)) {
     return data.map((conv) => ({
       title: conv.title || 'conversa',
-      turns: Object.values(conv.mapping || {})
-        .map((node) => node?.message)
-        .filter((m) => m && m.author?.role !== 'system')
-        .sort((a, b) => (a.create_time || 0) - (b.create_time || 0))
+      turns: chatgptMessages(conv)
+        // Só fala de gente e de modelo. O papel "tool" é saída de ferramenta —
+        // resultado de busca, retorno de código, descrição de imagem — e virava
+        // fala do usuário, entrando na memória como se fosse preferência dele.
+        .filter((m) => m.author?.role === 'user' || m.author?.role === 'assistant')
+        // Mensagem que a própria interface esconde é contexto injetado, não fala.
+        .filter((m) => !m.metadata?.is_visually_hidden_from_conversation)
         .map((m) => ({
-          role: m.author?.role === 'assistant' ? 'assistant' : 'user',
+          role: m.author.role,
           text: (m.content?.parts || [])
             .map((p) => (typeof p === 'string' ? p : p?.text || ''))
             .join('\n')
