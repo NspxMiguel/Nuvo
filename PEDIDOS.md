@@ -154,8 +154,15 @@ funcionamento e teste.
 
 ## Pendências abertas
 
-- [ ] Empacotar como app nativo (Electron no PC, Capacitor no celular) — hoje
-      é PWA instalável, que já cobre celular e desktop.
+- [x] Empacotar como app nativo (Electron no PC, Capacitor no celular) —
+      resolvido de outro jeito em 16/08/2026, sem Electron nem Capacitor:
+      `iaunifier instalar-app` cria o atalho com ícone (`IAUnifier.app` no
+      macOS, `.desktop` no Linux, Menu Iniciar no Windows) e abre o navegador
+      da máquina em modo aplicativo — janela sem abas e sem barra de endereço.
+      Empacotar um Chromium custaria centenas de megabytes e a primeira
+      dependência do projeto, num app cuja interface é a mesma no PC e no
+      celular. A janela pertence ao navegador: é a diferença que sobra, e está
+      escrita no README.
 - [x] Portar a landing pra `https://www.nspx.dev/IAUnifier/` — feito em
       16/08/2026: página em `docs/`, GitHub Pages ligado no repositório
       `NspxMiguel/IAUnifier`, endereço conferido no domínio (200, sem link

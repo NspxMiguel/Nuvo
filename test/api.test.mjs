@@ -556,3 +556,24 @@ test('saúde marca provedor desligado sem tentar falar com ele', async () => {
     await app.api(`/providers/${fakeProviderId}`, { method: 'PATCH', body: { enabled: true } });
   }
 });
+
+// -------------------------------------------------------------------- ping
+
+test('ping responde sem token e não conta como tentativa errada', async () => {
+  const semToken = await app.raw('/api/ping');
+  assert.equal(semToken.status, 200);
+  assert.deepEqual(await semToken.json(), { app: 'iaunifier' });
+
+  // Vinte pings não podem gastar a cota de tentativas de token — senão abrir o
+  // atalho do dock várias vezes trancaria o próprio usuário do lado de fora.
+  for (let i = 0; i < 20; i++) await app.raw('/api/ping');
+  const depois = await app.api('/state');
+  assert.equal(depois.status, 200, 'o token bom tem que continuar valendo');
+});
+
+test('ping não vaza nada além da identidade', async () => {
+  const res = await app.raw('/api/ping');
+  const texto = await res.text();
+  assert.ok(!texto.includes(app.token), 'o token não pode sair numa rota sem autenticação');
+  assert.equal(Object.keys(JSON.parse(texto)).length, 1);
+});

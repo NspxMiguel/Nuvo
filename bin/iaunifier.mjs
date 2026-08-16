@@ -30,6 +30,9 @@ function mostrarAjuda() {
   iaunifier remover-servico       desfaz o de cima
   iaunifier servico               diz se está instalado e rodando
 
+  iaunifier instalar-app          ícone no dock / menu, em janela sem abas
+  iaunifier remover-app           desfaz o de cima
+
   dados em ${DATA_DIR}
 `);
 }
@@ -116,6 +119,35 @@ if (command === 'remover-servico' || command === 'uninstall-service') {
   process.exit(0);
 }
 
+if (command === 'instalar-app' || command === 'install-app') {
+  const { installDesktopApp, appUrl } = await import('../server/desktop.mjs');
+  try {
+    const done = installDesktopApp();
+    console.log(`atalho criado em ${done.path}`);
+    console.log(`abre em: ${done.browser}${done.icon ? ' · com ícone próprio' : ''}`);
+    console.log(`endereço: ${appUrl()}`);
+    if (done.browser === 'navegador padrão') {
+      console.log('sem Chrome/Edge/Brave por aqui: abre numa aba normal em vez de janela sem abas.');
+    }
+  } catch (err) {
+    console.error(`não deu: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (command === 'remover-app' || command === 'uninstall-app') {
+  const { uninstallDesktopApp } = await import('../server/desktop.mjs');
+  try {
+    const done = uninstallDesktopApp();
+    console.log(`removido: ${done.path}`);
+  } catch (err) {
+    console.error(`não deu: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (command === 'servico' || command === 'service') {
   const { serviceStatus, servicePlan } = await import('../server/service.mjs');
   const plano = servicePlan();
@@ -128,6 +160,13 @@ if (command === 'servico' || command === 'service') {
   console.log(`arquivo:   ${plano.file}`);
   console.log(`instalado: ${estado.installed ? 'sim' : 'não'}`);
   if (estado.installed) console.log(`rodando:   ${estado.running ? 'sim' : 'não'}`);
+
+  const { desktopStatus } = await import('../server/desktop.mjs');
+  const atalho = desktopStatus();
+  if (atalho.supported) {
+    console.log(`atalho:    ${atalho.installed ? atalho.path : 'não instalado'}`);
+    if (atalho.browser) console.log(`janela:    ${atalho.browser}`);
+  }
   process.exit(0);
 }
 

@@ -186,6 +186,15 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
       return res.end();
     }
 
+    // Identificação, sem token: diz apenas que é um IAUnifier que atende aqui.
+    // O atalho do dock precisa disso antes de abrir a janela — checar só "tem
+    // algo escutando nesta porta" faria ele mandar o token do usuário pra
+    // qualquer programa que tivesse tomado a porta.
+    if (url.pathname === '/api/ping') {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(JSON.stringify({ app: 'iaunifier' }));
+    }
+
     if (url.pathname.startsWith('/api/')) {
       if (origin) {
         res.setHeader('access-control-allow-origin', origin);

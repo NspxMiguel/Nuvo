@@ -53,6 +53,26 @@ tudo no escopo do usuário, sem pedir senha de administrador. No Linux o comando
 tenta `loginctl enable-linger`; sem ele o servidor só fica de pé enquanto houver
 sessão aberta, e isso é dito na saída.
 
+### Ícone no dock
+
+```bash
+node bin/iaunifier.mjs instalar-app   # atalho com ícone, janela sem abas
+node bin/iaunifier.mjs remover-app
+```
+
+Não é Electron: empacotar um Chromium por aparência custaria centenas de
+megabytes e a primeira dependência do projeto. O atalho abre o navegador que
+você já tem em modo aplicativo — janela sem barra de endereço e sem abas —
+apontado pro servidor, subindo ele antes se não estiver de pé. No macOS sai um
+`IAUnifier.app` em `~/Applications` com ícone próprio; no Linux, um `.desktop`
+no menu; no Windows, um atalho no Menu Iniciar. Sem Chrome/Edge/Brave instalado,
+abre numa aba comum do navegador padrão.
+
+O atalho confirma que quem atende na porta é mesmo o IAUnifier (`GET /api/ping`,
+a única rota sem token) antes de abrir a janela — o endereço carrega o token de
+acesso, e mandá-lo pra qualquer programa que tenha tomado a porta seria entregar
+a chave da casa.
+
 ### Backup
 
 ```bash
@@ -92,7 +112,7 @@ chegado é gravado como resposta interrompida. Os dois prazos ficam em
 npm test
 ```
 
-159 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
+189 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
 roda num `IAUNIFIER_HOME` temporário e substitui o `fetch` global, então nada
 toca o banco real nem a rede.
 
@@ -214,6 +234,7 @@ server/
   discovery.mjs        varredura de portas e binários
   backup.mjs           zip escrito à mão, cópia e restauração
   service.mjs          launchd, systemd e Agendador de Tarefas
+  desktop.mjs          atalho com ícone, em janela de aplicativo
   errors.mjs           erro do provedor traduzido em instrução
   providers/           um adaptador por tipo de provedor
 web/
@@ -250,6 +271,7 @@ Todas as rotas exigem o cabeçalho `x-iaunifier-token` (ou `?token=`).
 | `POST /api/providers/:id/pull` | baixa modelo do Ollama (SSE) |
 | `GET /api/search` | busca em mensagens e memória |
 | `GET/PATCH /api/settings` | configuração de memória e acesso |
+| `GET /api/ping` | única rota sem token: diz só que é um IAUnifier |
 | `GET /api/health` | testa cada provedor e diz o que está errado |
 | `GET /api/backup` | baixa o zip com banco, configuração e anexos |
 | `POST /api/restore` | restaura de um zip (corpo cru); pede reinício |
