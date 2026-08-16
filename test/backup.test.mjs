@@ -164,3 +164,18 @@ test('backup automático roda uma vez por dia e guarda sete', () => {
   assert.equal(guardados.length, 7);
   assert.ok(guardados[0].bytes > 0);
 });
+
+test('zip que abre gigante é recusado em vez de derrubar o processo', () => {
+  // 64 MB de zeros comprimem pra alguns kB. Sem teto, o `inflate` aloca tudo
+  // antes de qualquer validação — e num app que aceita zip do usuário isso é
+  // uma queda garantida.
+  const bomba = backup.zip([
+    {
+      name: 'manifest.json',
+      data: Buffer.from(JSON.stringify({ signature: 'iaunifier-backup', version: 1 }))
+    },
+    { name: 'data.db', data: Buffer.alloc(600 * 1024 * 1024) }
+  ]);
+  assert.ok(bomba.length < 2 * 1024 * 1024, 'o zip da bomba tem que ser pequeno');
+  assert.throws(() => backup.restoreBackup(bomba));
+});

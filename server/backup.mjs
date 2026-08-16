@@ -14,6 +14,10 @@ import { db } from './db.mjs';
 
 const SIGNATURE = 'iaunifier-backup';
 
+// Teto de descompressão por entrada do zip, contra o arquivo pequeno que abre
+// gigante. O banco inteiro de um uso caseiro cabe muito abaixo disso.
+const MAX_INFLADO = 512 * 1024 * 1024;
+
 // ------------------------------------------------------------------- escrita
 
 /** Data no formato do MS-DOS, que é o que o cabeçalho do ZIP guarda. */
@@ -117,7 +121,13 @@ export function unzip(buffer) {
     const localExtraLength = buffer.readUInt16LE(localOffset + 28);
     const start = localOffset + 30 + localNameLength + localExtraLength;
     const body = buffer.subarray(start, start + compressed);
-    files.set(name, method === 0 ? Buffer.from(body) : inflateRawSync(body));
+    // Teto por entrada: um zip de poucos kB pode abrir em centenas de MB, e a
+    // restauração aceita arquivo de qualquer origem. Estourar aqui vira erro
+    // tratado ("não deu pra restaurar"), não processo morto.
+    files.set(
+      name,
+      method === 0 ? Buffer.from(body) : inflateRawSync(body, { maxOutputLength: MAX_INFLADO })
+    );
 
     pointer += 46 + nameLength + extraLength + commentLength;
   }
