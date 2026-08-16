@@ -59,16 +59,17 @@ export function fakeResponse(body, { ok = true, status = 200, headers = {} } = {
 /**
  * Troca o fetch global por uma função controlada; devolve o restaurador.
  *
- * O próprio teste fala com o servidor por fetch, então o pedido que vai pro
- * `127.0.0.1` continua indo pra rede de verdade — só a chamada do servidor ao
- * provedor é que cai no handler.
+ * Por padrão o pedido que vai pro `127.0.0.1` continua indo pra rede de
+ * verdade: o próprio teste fala com o servidor por fetch, e interceptar isso
+ * quebraria o teste em vez do provedor. Quem testa descoberta de IA local
+ * precisa do contrário — aí passa `passthroughLocalhost: false`.
  */
-export function stubFetch(handler) {
+export function stubFetch(handler, { passthroughLocalhost = true } = {}) {
   const original = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (url, options) => {
     const target = String(url);
-    if (/^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(target)) {
+    if (passthroughLocalhost && /^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(target)) {
       return original(url, options);
     }
     calls.push({ url: target, options });
