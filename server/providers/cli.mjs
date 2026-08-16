@@ -90,20 +90,51 @@ export async function* stream(ctx, req) {
     args.push(prompt);
   }
 
+  // Grupo próprio de processos: `claude` e `codex` chamam outros binários, e
+  // matar só o filho direto deixaria o neto rodando com o modelo pago aberto.
+  // No Windows não existe grupo assim; lá o `taskkill` do `kill` já cobre.
+  const emGrupo = process.platform !== 'win32';
+
   const child = spawn(command, args.filter((a) => a !== ''), {
     cwd: req.workdir || cfg.cwd || undefined,
     env: { ...process.env, ...(cfg.env || {}) },
-    stdio: ['pipe', 'pipe', 'pipe']
+    stdio: ['pipe', 'pipe', 'pipe'],
+    detached: emGrupo
   });
 
-  if (useStdin) {
-    child.stdin.write(prompt);
-    child.stdin.end();
-  } else {
-    child.stdin.end();
-  }
+  let fim = false;
 
-  const abort = () => child.kill('SIGTERM');
+  /** Mata a árvore inteira; ESRCH só quer dizer que já tinha morrido. */
+  const matar = (sinal) => {
+    try {
+      if (emGrupo && child.pid) process.kill(-child.pid, sinal);
+      else child.kill(sinal);
+    } catch {
+      try {
+        child.kill(sinal);
+      } catch {
+        /* já morreu */
+      }
+    }
+  };
+
+  const encerrar = () => {
+    if (fim) return;
+    matar('SIGTERM');
+    // Quem ignora SIGTERM — e há CLI que ignora enquanto escreve — leva SIGKILL.
+    const forca = setTimeout(() => {
+      if (!fim) matar('SIGKILL');
+    }, 3000);
+    forca.unref?.();
+  };
+
+  // Prompt grande não cabe no cano (uns 64 kB) e fica esperando o outro lado
+  // ler. Se o comando sair antes disso, o cano quebra: sem este ouvinte o EPIPE
+  // sobe como erro sem dono e derruba o servidor inteiro, não só a conversa.
+  child.stdin.on('error', () => {});
+  child.stdin.end(useStdin ? prompt : undefined);
+
+  const abort = () => encerrar();
   req.signal?.addEventListener('abort', abort, { once: true });
 
   const chunks = [];
@@ -132,17 +163,19 @@ export async function* stream(ctx, req) {
   child.on('error', (err) => {
     failure = err;
     done = true;
+    fim = true;
     resolveNext?.();
     resolveNext = null;
   });
   child.on('close', (code) => {
-    if (code && code !== 0 && !failure) {
+    if (code && code !== 0 && !failure && !req.signal?.aborted) {
       const motivo = erroDoComando.trim().split('\n').filter(Boolean).at(-1);
       failure = new Error(
         motivo ? `${command} saiu com código ${code}: ${motivo}` : `${command} saiu com código ${code}`
       );
     }
     done = true;
+    fim = true;
     resolveNext?.();
     resolveNext = null;
   });
@@ -159,5 +192,8 @@ export async function* stream(ctx, req) {
     if (failure) throw failure;
   } finally {
     req.signal?.removeEventListener('abort', abort);
+    // Sair daqui por qualquer motivo — cancelamento, prazo vencido, erro de
+    // quem lê — não pode deixar o processo do modelo rodando sozinho.
+    encerrar();
   }
 }

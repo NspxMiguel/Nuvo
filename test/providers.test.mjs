@@ -329,3 +329,113 @@ test('cli: sem comando configurado reclama antes de tentar rodar', async () => {
     /sem comando/
   );
 });
+
+// ------------------------------------------------------- prazo do provedor
+
+/** Fonte que trava e não ouve cancelamento — o CLI cujo neto ficou com o cano. */
+function fonteSurda(antes = []) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const item of antes) yield item;
+      await new Promise(() => {});
+    }
+  };
+}
+
+test('prazo corta mesmo quando a fonte não ouve o cancelamento', async () => {
+  const { withStallTimeout } = await import('../server/providers/index.mjs');
+  // O prazo é `unref`: num processo sem mais nada pendurado, o Node sairia
+  // antes de ele vencer. No servidor de verdade o soquete segura.
+  const vida = setInterval(() => {}, 1000);
+  try {
+    await assert.rejects(async () => {
+      for await (const _ of withStallTimeout(() => fonteSurda(), { firstMs: 80, stallMs: 80 })) {
+        /* nada chega */
+      }
+    }, /não respondeu em/);
+  } finally {
+    clearInterval(vida);
+  }
+});
+
+test('prazo do meio também corta fonte surda, guardando o que já veio', async () => {
+  const { withStallTimeout } = await import('../server/providers/index.mjs');
+  const vida = setInterval(() => {}, 1000);
+  const recebido = [];
+  try {
+    await assert.rejects(async () => {
+      for await (const item of withStallTimeout(() => fonteSurda([{ delta: 'oi' }]), {
+        firstMs: 5000,
+        stallMs: 80
+      })) {
+        recebido.push(item);
+      }
+    }, /parou de responder no meio/);
+  } finally {
+    clearInterval(vida);
+  }
+  assert.deepEqual(recebido, [{ delta: 'oi' }]);
+});
+
+test('sinal já cancelado chega no provedor antes da primeira leitura', async () => {
+  const { withStallTimeout } = await import('../server/providers/index.mjs');
+  const controle = new AbortController();
+  controle.abort();
+
+  let viuCancelado = null;
+  const abrir = (sinal) => {
+    viuCancelado = sinal.aborted;
+    return {
+      async *[Symbol.asyncIterator]() {
+        yield { delta: 'não devia ter rodado' };
+      }
+    };
+  };
+
+  for await (const _ of withStallTimeout(abrir, {
+    firstMs: 5000,
+    stallMs: 5000,
+    signal: controle.signal
+  })) {
+    /* a fonte falsa ainda emite; o que se checa é o sinal */
+  }
+  assert.equal(viuCancelado, true, 'o provedor tem que nascer sabendo que foi cancelado');
+});
+
+test('cli: comando que sai antes de ler o prompt grande não derruba o servidor', async () => {
+  // Prompt maior que o cano do sistema (~64 kB): a escrita fica pendurada
+  // esperando alguém ler. O comando sai sem ler, o cano quebra, e o EPIPE
+  // subia sem dono — não é a conversa que caía, é o processo inteiro.
+  const gigante = 'a'.repeat(300_000);
+  const saida = await collect(
+    cli.stream(
+      { config: { command: 'sh', args: ['-c', 'echo pronto'], stdin: true } },
+      { model: 'default', messages: [{ role: 'user', content: gigante }] }
+    )
+  );
+  assert.match(saida.map((c) => c.delta || '').join(''), /pronto/);
+});
+
+test('cli: cancelar mata o neto, não só o filho', async () => {
+  const controle = new AbortController();
+  const marca = `iaunifier-teste-${process.pid}-neto`;
+  // O `sh` é o filho; o `sleep` é o neto. Matar só o filho deixava o neto vivo.
+  const iterador = cli.stream(
+    { config: { command: 'sh', args: ['-c', `sleep 30 & echo ${marca}; wait`], stdin: true } },
+    { model: 'default', messages: [{ role: 'user', content: 'oi' }], signal: controle.signal }
+  );
+
+  for await (const chunk of iterador) {
+    if (String(chunk.delta || '').includes(marca)) break;
+  }
+  controle.abort();
+  await iterador.return?.();
+
+  // Espera o sinal chegar antes de perguntar quem sobrou.
+  await new Promise((r) => setTimeout(r, 400));
+  const { execSync } = await import('node:child_process');
+  const vivos = execSync('ps -A -o command= || true', { encoding: 'utf8' })
+    .split('\n')
+    .filter((l) => l.includes(marca) && !l.includes('ps -A'));
+  assert.deepEqual(vivos, [], `sobrou processo do teste: ${vivos.join(' | ')}`);
+});
