@@ -161,3 +161,19 @@ funcionamento e teste.
       `NspxMiguel/IAUnifier`, endereço conferido no domínio (200, sem link
       absoluto pro github.io). O app em si roda no servidor da casa, não em
       host estático.
+
+### Conferido rodando de verdade (16/08/2026)
+
+Não é só teste automatizado: o app foi exercido contra modelo e web reais.
+
+- **memória compartilhada, que é a ideia do projeto** — contei ao Claude Code
+  CLI que meu domínio é `nspx.dev`; numa conversa nova, com o Codex CLI (outro
+  modelo, outro fornecedor), a pergunta "qual é o meu domínio?" foi respondida
+  com "Seu domínio é nspx.dev";
+- **conselho** — os dois CLIs responderam em paralelo à mesma pergunta;
+- **pesquisa profunda** — planejou duas consultas, leu três de quatro páginas
+  (a quarta devolveu 403 e apareceu como não aberta) e citou as fontes;
+- **instalação limpa** — sobe, descobre os provedores da máquina, semeia as
+  gems, exige token e devolve 401 sem ele;
+- **interface** — todos os painéis, tema claro e escuro, gaveta do celular, sem
+  erro de console.
