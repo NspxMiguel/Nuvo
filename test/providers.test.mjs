@@ -303,6 +303,26 @@ test('cli: código de saída diferente de zero vira erro', async () => {
   );
 });
 
+test('cli: o motivo que o comando escreveu no stderr entra no erro', async () => {
+  // É o caso real do `codex exec` fora de repositório git: só o código de
+  // saída não diz nada, e o stderr diz exatamente o que fazer.
+  await assert.rejects(
+    collect(
+      cli.stream(
+        {
+          config: {
+            command: 'sh',
+            args: ['-c', 'echo "Not inside a trusted directory" >&2; exit 1'],
+            stdin: true
+          }
+        },
+        { model: 'default', messages: [{ role: 'user', content: 'oi' }] }
+      )
+    ),
+    /Not inside a trusted directory/
+  );
+});
+
 test('cli: sem comando configurado reclama antes de tentar rodar', async () => {
   await assert.rejects(
     collect(cli.stream({ config: {} }, { model: 'default', messages: [] })),

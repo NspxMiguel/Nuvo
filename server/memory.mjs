@@ -197,15 +197,23 @@ export function renderForPrompt(memories) {
 
 // ---------------------------------------------------------------- extração
 
+/**
+ * "Até o fim da frase", com o cuidado de não confundir ponto de frase com
+ * ponto de endereço ou de número: `[^.!?]` cortava "nspx.dev" em "nspx", e
+ * "versão 3.5" em "versão 3". Só termina o ponto que vem seguido de espaço ou
+ * de fim de texto.
+ */
+const ateOFimDaFrase = (min, max) => `(?:(?!\\s*[.!?](?:\\s|$))[^\\n]){${min},${max}}`;
+
 const HEURISTICS = [
-  /\b(?:eu\s+)?(?:me\s+chamo|meu\s+nome\s+(?:é|e))\s+[^.!?\n]{2,60}/gi,
-  /\b(?:eu\s+)?(?:gosto|amo|odeio|detesto|prefiro)\s+(?:de\s+)?[^.!?\n]{3,90}/gi,
-  /\b(?:eu\s+)?(?:moro|trabalho|estudo)\s+(?:em|na|no|com|para)\s+[^.!?\n]{2,80}/gi,
-  /\b(?:meu|minha)\s+(?:projeto|empresa|time|cachorro|gato|carro|site|dominio|domínio)\s+[^.!?\n]{2,80}/gi,
-  /\b(?:sempre|nunca)\s+(?:me|use|usa|faça|faz|responda)\s+[^.!?\n]{3,90}/gi,
-  /\bmy\s+name\s+is\s+[^.!?\n]{2,60}/gi,
-  /\bi\s+(?:like|love|hate|prefer|work|live)\s+[^.!?\n]{3,90}/gi
-];
+  `\\b(?:eu\\s+)?(?:me\\s+chamo|meu\\s+nome\\s+(?:é|e))\\s+${ateOFimDaFrase(2, 60)}`,
+  `\\b(?:eu\\s+)?(?:gosto|amo|odeio|detesto|prefiro)\\s+(?:de\\s+)?${ateOFimDaFrase(3, 90)}`,
+  `\\b(?:eu\\s+)?(?:moro|trabalho|estudo)\\s+(?:em|na|no|com|para)\\s+${ateOFimDaFrase(2, 80)}`,
+  `\\b(?:meu|minha)\\s+(?:projeto|empresa|time|cachorro|gato|carro|site|dominio|domínio)\\s+${ateOFimDaFrase(2, 80)}`,
+  `\\b(?:sempre|nunca)\\s+(?:me|use|usa|faça|faz|responda)\\s+${ateOFimDaFrase(3, 90)}`,
+  `\\bmy\\s+name\\s+is\\s+${ateOFimDaFrase(2, 60)}`,
+  `\\bi\\s+(?:like|love|hate|prefer|work|live)\\s+${ateOFimDaFrase(3, 90)}`
+].map((source) => new RegExp(source, 'gi'));
 
 /** Extração sem modelo: pega padrões óbvios de preferência e identidade. */
 export function extractHeuristic(text) {

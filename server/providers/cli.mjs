@@ -117,10 +117,18 @@ export async function* stream(ctx, req) {
     resolveNext = null;
   };
 
+  // O stderr vira "raciocínio" enquanto roda, mas também é guardado: quando o
+  // comando falha, é ele que diz o motivo. "codex saiu com código 1" não ajuda
+  // ninguém; "Not inside a trusted directory" resolve o problema.
+  let erroDoComando = '';
+
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (d) => push({ delta: d }));
   child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (d) => push({ reasoning: d }));
+  child.stderr.on('data', (d) => {
+    erroDoComando = (erroDoComando + d).slice(-500);
+    push({ reasoning: d });
+  });
   child.on('error', (err) => {
     failure = err;
     done = true;
@@ -129,7 +137,10 @@ export async function* stream(ctx, req) {
   });
   child.on('close', (code) => {
     if (code && code !== 0 && !failure) {
-      failure = new Error(`${command} saiu com código ${code}`);
+      const motivo = erroDoComando.trim().split('\n').filter(Boolean).at(-1);
+      failure = new Error(
+        motivo ? `${command} saiu com código ${code}: ${motivo}` : `${command} saiu com código ${code}`
+      );
     }
     done = true;
     resolveNext?.();

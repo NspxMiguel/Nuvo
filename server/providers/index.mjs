@@ -177,7 +177,7 @@ export const PRESETS = [
     key: 'codex-cli',
     name: 'Codex (CLI)',
     kind: 'cli',
-    config: { command: 'codex', args: ['exec', '-'], stdin: true, models: ['default'] }
+    config: { command: 'codex', args: ['exec', '--skip-git-repo-check', '-'], stdin: true, models: ['default'] }
   },
   {
     key: 'opencode-cli',

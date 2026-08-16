@@ -281,6 +281,22 @@ function migrate() {
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_memories_norm ON memories(norm, project_id)');
 
+  // O `codex exec` recusa rodar fora de repositório git ("Not inside a trusted
+  // directory"), e o servidor sobe de onde o usuário mandar. Quem já tinha o
+  // provedor cadastrado sem a flag ganha ela aqui.
+  for (const provider of all("SELECT id, config FROM providers WHERE kind = 'cli'")) {
+    let cfg;
+    try {
+      cfg = JSON.parse(provider.config);
+    } catch {
+      continue;
+    }
+    if (cfg.command !== 'codex' || !Array.isArray(cfg.args)) continue;
+    if (cfg.args.includes('--skip-git-repo-check')) continue;
+    cfg.args = ['exec', '--skip-git-repo-check', '-'];
+    run('UPDATE providers SET config = ? WHERE id = ?', JSON.stringify(cfg), provider.id);
+  }
+
   // Índice de mensagens antigo não existia: preenche uma vez.
   const indexed = one('SELECT COUNT(*) AS n FROM messages_fts').n;
   const total = one('SELECT COUNT(*) AS n FROM messages').n;

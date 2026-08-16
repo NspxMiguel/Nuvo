@@ -132,3 +132,24 @@ test('caractere especial de consulta FTS não quebra a busca', async () => {
   const hits = await recall('aspas "duplas" AND OR NOT * ^ :');
   assert.ok(Array.isArray(hits), 'a busca tem que sobreviver a sintaxe de FTS na pergunta');
 });
+
+test('ponto de endereço e de número não corta o fato no meio', () => {
+  const fatos = extractHeuristic('Meu nome é Miguel e meu domínio é nspx.dev. Responda só: anotado.');
+  assert.ok(
+    fatos.some((f) => f.includes('nspx.dev')),
+    `o domínio tinha que sobreviver inteiro, veio: ${JSON.stringify(fatos)}`
+  );
+  assert.ok(!fatos.some((f) => /Responda só/.test(f)), 'a frase seguinte não entra no fato');
+});
+
+test('versão com decimal não vira número truncado', () => {
+  const fatos = extractHeuristic('Eu prefiro o Node 22.5 pra tudo. O resto tanto faz.');
+  assert.ok(fatos.some((f) => f.includes('22.5')), JSON.stringify(fatos));
+  assert.ok(!fatos.some((f) => /tanto faz/.test(f)));
+});
+
+test('ponto final continua terminando a frase', () => {
+  const fatos = extractHeuristic('Eu moro em Florianópolis. Eu gosto de café.');
+  assert.ok(fatos.some((f) => /Florian[oó]polis$/.test(f)), JSON.stringify(fatos));
+  assert.ok(fatos.some((f) => /café$/.test(f)), JSON.stringify(fatos));
+});
