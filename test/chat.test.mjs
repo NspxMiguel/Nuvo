@@ -428,3 +428,99 @@ test('apagar conversa leva as mensagens junto', async () => {
   run('DELETE FROM chats WHERE id = ?', c.id);
   assert.equal(all('SELECT id FROM messages WHERE chat_id = ?', c.id).length, 0);
 });
+
+// ------------------------------------------------------------- travamento
+
+test('modelo que nunca responde é cortado, e a conversa não fica presa', async () => {
+  const { patchConfig } = await import('../server/config.mjs');
+  patchConfig({ limits: { firstChunkSeconds: 0.15, stallSeconds: 0.15 } });
+
+  const c = chat.createChat({ title: 'x', model: REF });
+  // Conexão aceita, resposta que nunca vem — igual ao fetch de verdade, a
+  // leitura só termina quando o sinal aborta.
+  const stub = stubFetch(async (_url, options) => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    async text() {
+      return '';
+    },
+    body: {
+      getReader() {
+        return {
+          read() {
+            return new Promise((_, reject) => {
+              options.signal?.addEventListener(
+                'abort',
+                () => reject(Object.assign(new Error('abortado'), { name: 'AbortError' })),
+                { once: true }
+              );
+            });
+          }
+        };
+      }
+    }
+  }));
+
+  try {
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'oi' }));
+    const erro = eventos.find((e) => e.type === 'error');
+    assert.ok(erro, 'o turno tinha que terminar em erro em vez de pendurar');
+    assert.match(erro.message, /não respondeu/);
+    assert.ok(!eventos.some((e) => e.type === 'done'), 'sem resposta, nada a gravar');
+  } finally {
+    stub.restore();
+    patchConfig({ limits: { firstChunkSeconds: 240, stallSeconds: 120 } });
+  }
+});
+
+test('modelo que para no meio grava o pedaço e explica', async () => {
+  const { patchConfig } = await import('../server/config.mjs');
+  patchConfig({ limits: { firstChunkSeconds: 5, stallSeconds: 0.15 } });
+
+  const c = chat.createChat({ title: 'x', model: REF });
+  const stub = stubFetch(async (_url, options) => {
+    const encoder = new TextEncoder();
+    let primeiro = true;
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      async text() {
+        return '';
+      },
+      body: {
+        getReader() {
+          return {
+            read() {
+              if (primeiro) {
+                primeiro = false;
+                return Promise.resolve({
+                  done: false,
+                  value: encoder.encode('data: {"choices":[{"delta":{"content":"comecei e travei"}}]}\n\n')
+                });
+              }
+              return new Promise((_, reject) => {
+                options.signal?.addEventListener(
+                  'abort',
+                  () => reject(Object.assign(new Error('abortado'), { name: 'AbortError' })),
+                  { once: true }
+                );
+              });
+            }
+          };
+        }
+      }
+    };
+  });
+
+  try {
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'oi' }));
+    const fim = eventos.find((e) => e.type === 'done');
+    assert.equal(fim.message.content, 'comecei e travei', 'o que chegou não pode se perder');
+    assert.match(eventos.find((e) => e.type === 'error').message, /parou de responder no meio/);
+  } finally {
+    stub.restore();
+    patchConfig({ limits: { firstChunkSeconds: 240, stallSeconds: 120 } });
+  }
+});

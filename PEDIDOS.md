@@ -122,18 +122,32 @@ função e estrutura, não desenho.
 > praticamente pronto pra producao, tudo funcionando e testado. pra dai eu fazer
 > o desing com claude desing"
 
-- [ ] 19. Bateria de testes automatizados de verdade (`node --test`), cobrindo
+- [x] 19. Bateria de testes automatizados de verdade (`node --test`), cobrindo
       extração de arquivo, memória, chunking, rotas da API, adaptadores,
-      conselho e pesquisa.
-- [ ] 20. Robustez: limite de tamanho, tempo máximo, provedor que cai no meio
+      conselho e pesquisa. — 155 testes, `npm test`, sem dependência de teste.
+      Acharam quatro defeitos reais: página de PDF curta descartada, dedupe de
+      memória que não enxergava acento, último resultado da busca web engolido
+      pelo regex, e "regenerar" apagando a pergunta junto com a resposta.
+- [x] 20. Robustez: limite de tamanho, tempo máximo, provedor que cai no meio
       da resposta, duas requisições na mesma conversa, transação onde importa.
-- [ ] 21. Segurança de rede local: restringir CORS, proteger o token contra
-      tentativa repetida, revisar caminho de arquivo.
-- [ ] 22. Operação: subir sozinho junto com a máquina (launchd, systemd,
-      agendador do Windows), backup e restauração dos dados.
-- [ ] 23. Arremates de produto: renomear conversa, ver arquivadas, primeira
+      — corpo limitado a 64 MB; vigia que corta modelo travado (240 s até o
+      primeiro pedaço, 120 s entre pedaços) e grava o que já tinha chegado;
+      uma resposta por conversa, com 409 na segunda; anexo e trechos em
+      transação; ping SSE a cada 15 s.
+- [x] 21. Segurança de rede local: restringir CORS, proteger o token contra
+      tentativa repetida, revisar caminho de arquivo. — origem aceita só a
+      própria máquina e a LAN; token comparado em tempo constante, com 20
+      tentativas por minuto por IP; caminho de estático e de anexo restaurado
+      não escapa da pasta.
+- [x] 22. Operação: subir sozinho junto com a máquina (launchd, systemd,
+      agendador do Windows), backup e restauração dos dados. — `iaunifier
+      instalar-servico`; backup em zip com banco, config e anexos, com cópia
+      automática diária (sete guardadas) e restauração validada.
+- [x] 23. Arremates de produto: renomear conversa, ver arquivadas, primeira
       abertura guiada, checar saúde do provedor, mensagem de erro que explica
-      o que fazer.
+      o que fazer. — todos entregues; a saúde do CLI dispara o binário de
+      verdade, e o erro do provedor vira instrução ("abra o Ollama", "gere uma
+      chave nova", "espere ou troque de modelo").
 
 O desenho continua sendo dele com o Claude Design — o que entra aqui é
 funcionamento e teste.

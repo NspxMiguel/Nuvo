@@ -5,7 +5,8 @@
 // pode mudar no meio da conversa: o histórico é do chat, não do provedor.
 
 import { all, one, run, uid, now, parseJSON } from './db.mjs';
-import { adapterFor, contextFor, getProvider, parseRef } from './providers/index.mjs';
+import { adapterFor, contextFor, getProvider, parseRef, withStallTimeout } from './providers/index.mjs';
+import { loadConfig } from './config.mjs';
 import { recall, renderForPrompt, learnFromExchange } from './memory.mjs';
 import { renderDocuments } from './documents.mjs';
 import { searchAndRead, renderWebBlock } from './web.mjs';
@@ -212,16 +213,25 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
   const started = Date.now();
   let firstToken = null;
 
+  const limits = loadConfig().limits;
+
   try {
-    for await (const chunk of adapter.stream(contextFor(provider), {
-      model: modelId,
-      system,
-      messages: history,
-      temperature: chat.temperature ?? gem?.temperature ?? null,
-      topP: chat.top_p ?? null,
-      maxTokens: chat.max_tokens ?? null,
-      unfiltered: Boolean(gem?.unfiltered),
-      workdir: project?.workdir || null,
+    const open = (watchdog) =>
+      adapter.stream(contextFor(provider), {
+        model: modelId,
+        system,
+        messages: history,
+        temperature: chat.temperature ?? gem?.temperature ?? null,
+        topP: chat.top_p ?? null,
+        maxTokens: chat.max_tokens ?? null,
+        unfiltered: Boolean(gem?.unfiltered),
+        workdir: project?.workdir || null,
+        signal: watchdog
+      });
+
+    for await (const chunk of withStallTimeout(open, {
+      firstMs: limits.firstChunkSeconds * 1000,
+      stallMs: limits.stallSeconds * 1000,
       signal
     })) {
       if (chunk.reasoning) {

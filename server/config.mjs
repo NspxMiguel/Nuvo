@@ -29,6 +29,14 @@ const DEFAULTS = {
     minScore: 0.12,
     embeddingModel: null, // ex.: { provider: 'lmstudio', model: 'text-embedding-nomic-embed-text-v1.5' }
     extractorModel: null // ex.: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' }
+  },
+  limits: {
+    // Segundos até o primeiro pedaço da resposta. Modelo local grande demora
+    // de verdade pra carregar na memória, daí o valor folgado.
+    firstChunkSeconds: 240,
+    // Segundos entre um pedaço e o seguinte. Aqui pode ser curto: se o modelo
+    // já começou a escrever e parou, ele travou.
+    stallSeconds: 120
   }
 };
 
@@ -54,6 +62,7 @@ export function loadConfig() {
     ...DEFAULTS,
     ...stored,
     memory: { ...DEFAULTS.memory, ...(stored.memory || {}) },
+    limits: { ...DEFAULTS.limits, ...(stored.limits || {}) },
     secrets: { ...(stored.secrets || {}) }
   };
   if (!cache.accessToken) {
@@ -79,6 +88,7 @@ export function patchConfig(patch) {
   const cfg = loadConfig();
   const next = { ...cfg, ...patch };
   if (patch.memory) next.memory = { ...cfg.memory, ...patch.memory };
+  if (patch.limits) next.limits = { ...cfg.limits, ...patch.limits };
   if (patch.secrets) next.secrets = { ...cfg.secrets, ...patch.secrets };
   return saveConfig(next);
 }

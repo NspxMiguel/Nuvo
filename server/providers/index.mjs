@@ -27,6 +27,67 @@ export function contextFor(provider) {
   };
 }
 
+/**
+ * Corta o stream que parou de emitir.
+ *
+ * Sem isso, um provedor que aceita a conexão e nunca responde deixa o turno
+ * pendurado pra sempre — e como a conversa fica trancada enquanto responde,
+ * ela nunca mais aceitaria pergunta. O primeiro pedaço ganha prazo maior:
+ * modelo local grande demora pra subir na memória antes de escrever a primeira
+ * palavra.
+ *
+ * O corte é feito por `abort`, não por `return()` no gerador: um gerador
+ * assíncrono parado num `await` só executa o `return` quando esse await
+ * resolver — e é justamente ele que nunca resolve. Abortar faz a leitura
+ * falhar, e aí o gerador desmonta sozinho, fechando a conexão HTTP ou matando
+ * o processo do CLI.
+ *
+ * @param {(signal: AbortSignal) => AsyncIterable} open recebe o sinal e devolve o stream
+ * @param {{firstMs: number, stallMs: number, signal?: AbortSignal}} limits
+ */
+export async function* withStallTimeout(open, { firstMs, stallMs, signal }) {
+  const controller = new AbortController();
+  const forward = () => controller.abort();
+  signal?.addEventListener('abort', forward, { once: true });
+
+  const source = open(controller.signal)[Symbol.asyncIterator]();
+  let started = false;
+  let expired = null;
+
+  try {
+    while (true) {
+      const limit = started ? stallMs : firstMs;
+      const timer = setTimeout(() => {
+        expired = new Error(
+          started
+            ? `o modelo parou de responder no meio (${Math.round(limit / 1000)}s sem nada)`
+            : `o modelo não respondeu em ${Math.round(limit / 1000)}s`
+        );
+        controller.abort();
+      }, limit);
+      timer.unref?.();
+
+      let step;
+      try {
+        step = await source.next();
+      } catch (err) {
+        // Erro depois do estouro é consequência do abort, não a causa.
+        throw expired || err;
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (expired) throw expired;
+      if (step.done) return;
+      started = true;
+      yield step.value;
+    }
+  } finally {
+    signal?.removeEventListener('abort', forward);
+    controller.abort();
+  }
+}
+
 export function getProvider(id) {
   const row = one('SELECT * FROM providers WHERE id = ?', id);
   if (!row) throw new Error(`provedor não encontrado: ${id}`);
