@@ -30,7 +30,12 @@ import {
   embeddingAvailable
 } from './memory.mjs';
 import { importConversations } from './importers.mjs';
-import { addAttachment, listAttachments, deleteAttachment } from './documents.mjs';
+import {
+  addAttachment,
+  listAttachments,
+  deleteAttachment,
+  deleteAttachmentsOf
+} from './documents.mjs';
 import { runResearch } from './research.mjs';
 import { runCouncil } from './council.mjs';
 import { ftsQuery } from './vectors.mjs';
@@ -439,6 +444,9 @@ export async function handleApi(req, res, url) {
   if (seg[0] === 'projects' && seg[1]) {
     const id = seg[1];
     if (method === 'DELETE') {
+      // Antes do DELETE: o cascade leva a linha do anexo e o arquivo no disco
+      // ficaria órfão, com o documento inteiro dentro.
+      deleteAttachmentsOf({ projectId: id });
       run('DELETE FROM projects WHERE id = ?', id);
       return json(res, { ok: true });
     }
@@ -489,6 +497,7 @@ export async function handleApi(req, res, url) {
       });
     }
     if (method === 'DELETE' && seg.length === 2) {
+      deleteAttachmentsOf({ chatId: id });
       run('DELETE FROM chats WHERE id = ?', id);
       return json(res, { ok: true });
     }

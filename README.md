@@ -125,7 +125,7 @@ chegado é gravado como resposta interrompida. Os dois prazos ficam em
 npm test
 ```
 
-199 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
+203 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
 roda num `IAUNIFIER_HOME` temporário e substitui o `fetch` global, então nada
 toca o banco real nem a rede.
 

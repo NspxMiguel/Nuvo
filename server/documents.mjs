@@ -4,8 +4,8 @@
 // em FTS5 (mais embeddings quando houver) e só o trecho relevante entra no
 // prompt — com o nome do arquivo junto, pra resposta poder citar a fonte.
 
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { writeFileSync, unlinkSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
+import { join, basename } from 'node:path';
 import { all, one, run, tx, uid, now } from './db.mjs';
 import { UPLOAD_DIR } from './config.mjs';
 import { extractText } from './extract.mjs';
@@ -55,6 +55,9 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
 
   let path = null;
   try {
+    // A pasta pode não existir ainda: quem chama `addAttachment` sem ter
+    // passado pelo start do servidor perderia a cópia crua em silêncio.
+    mkdirSync(UPLOAD_DIR, { recursive: true });
     path = join(UPLOAD_DIR, `${id}-${name.replace(/[^\w.\-]+/g, '_')}`.slice(0, 180));
     writeFileSync(path, buffer);
   } catch {
@@ -142,6 +145,53 @@ export function deleteAttachment(id) {
       /* já sumiu */
     }
   }
+}
+
+/**
+ * Apaga os arquivos dos anexos de uma conversa ou projeto.
+ *
+ * Precisa ser chamado ANTES do DELETE da conversa: o `ON DELETE CASCADE` leva a
+ * linha do anexo junto, e sem a linha ninguém sabe mais qual arquivo no disco
+ * era daquela conversa. O documento ficaria lá pra sempre, com o conteúdo
+ * dentro, depois de o usuário achar que tinha apagado.
+ */
+export function deleteAttachmentsOf({ chatId = null, projectId = null } = {}) {
+  if (!chatId && !projectId) return 0;
+  const rows = chatId
+    ? all('SELECT id FROM attachments WHERE chat_id = ?', chatId)
+    : all('SELECT id FROM attachments WHERE project_id = ?', projectId);
+  for (const row of rows) deleteAttachment(row.id);
+  return rows.length;
+}
+
+/**
+ * Arquivo em `uploads/` que nenhuma linha do banco reclama.
+ *
+ * Sobra de versão anterior, de restauração de backup mais antiga que os anexos,
+ * ou de queda no meio da gravação. Roda na subida do servidor.
+ */
+export function sweepOrphanUploads() {
+  if (!existsSync(UPLOAD_DIR)) return { removed: 0, bytes: 0 };
+  const conhecidos = new Set(
+    all('SELECT path FROM attachments WHERE path IS NOT NULL').map((r) => basename(r.path))
+  );
+
+  let removed = 0;
+  let bytes = 0;
+  for (const nome of readdirSync(UPLOAD_DIR)) {
+    if (conhecidos.has(nome)) continue;
+    const caminho = join(UPLOAD_DIR, nome);
+    try {
+      const info = statSync(caminho);
+      if (!info.isFile()) continue;
+      unlinkSync(caminho);
+      removed += 1;
+      bytes += info.size;
+    } catch {
+      /* sumiu no meio do caminho, ou é de outro dono */
+    }
+  }
+  return { removed, bytes };
 }
 
 /**

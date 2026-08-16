@@ -11,6 +11,7 @@ import { seed, one } from './db.mjs';
 import { handleApi } from './api.mjs';
 import { discover, providerCount } from './discovery.mjs';
 import { autoBackup } from './backup.mjs';
+import { sweepOrphanUploads } from './documents.mjs';
 
 const WEB_DIR = fileURLToPath(new URL('../web/', import.meta.url));
 
@@ -170,6 +171,17 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
     if (found.length && !quiet) {
       console.log(`descoberto: ${found.map((f) => f.name).join(', ')}`);
     }
+  }
+
+  // Arquivo de anexo sem dono no banco: sobra de versão anterior, de queda no
+  // meio da gravação, ou de restauração de backup mais antiga que os anexos.
+  try {
+    const varrido = sweepOrphanUploads();
+    if (!quiet && varrido.removed) {
+      console.log(`limpeza: ${varrido.removed} anexo(s) órfão(s), ${Math.round(varrido.bytes / 1024)} kB`);
+    }
+  } catch {
+    /* limpeza é higiene, não requisito pra subir */
   }
 
   const server = createServer(async (req, res) => {

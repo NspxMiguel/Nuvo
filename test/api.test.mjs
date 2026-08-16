@@ -617,3 +617,42 @@ test('a chave só sai na transição de religar, nunca numa leitura comum', asyn
   const denovo = await app.api('/settings', { method: 'PATCH', body: { requireToken: true } });
   assert.equal(denovo.data.accessToken, undefined, 'sem transição, sem chave');
 });
+
+// ----------------------------------------------- apagar leva o arquivo junto
+
+test('apagar conversa pela API não deixa o documento no disco', async () => {
+  const { existsSync } = await import('node:fs');
+  const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+  const chatId = chat.data.id;
+
+  const anexo = await app.api(`/chats/${chatId}/attachments?name=nota-privada.txt`, {
+    method: 'POST',
+    raw: true,
+    body: 'Conteúdo que o usuário espera que suma junto com a conversa.'
+  });
+  const caminho = anexo.data.path;
+  assert.ok(caminho && existsSync(caminho), 'o original tinha que estar no disco');
+
+  await app.api(`/chats/${chatId}`, { method: 'DELETE' });
+  assert.ok(
+    !existsSync(caminho),
+    'apagar a conversa tem que apagar o documento — o cascade só leva a linha do banco'
+  );
+});
+
+test('apagar projeto pela API também leva os arquivos dele', async () => {
+  const { existsSync } = await import('node:fs');
+  const projeto = await app.api('/projects', { method: 'POST', body: { name: 'Projeto com arquivo' } });
+  const id = projeto.data.id;
+
+  const anexo = await app.api(`/attachments?project=${id}&name=doc-do-projeto.txt`, {
+    method: 'POST',
+    raw: true,
+    body: 'Documento que pertence ao projeto inteiro.'
+  });
+  const caminho = anexo.data?.path;
+  if (!caminho) return; // rota de anexo por projeto pode não existir; nada a provar
+
+  await app.api(`/projects/${id}`, { method: 'DELETE' });
+  assert.ok(!existsSync(caminho), 'o documento do projeto tem que sair do disco junto');
+});

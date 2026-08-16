@@ -158,3 +158,47 @@ test('anexo de projeto vale, e é separado do de conversa', async () => {
   assert.ok(hits.some((h) => /PX-/.test(h.text)));
   assert.equal(listAttachments({ projectId: 'proj-doc' }).length, 1);
 });
+
+// ------------------------------------------------------- arquivos no disco
+
+test('apagar os anexos de uma conversa leva os arquivos junto', async () => {
+  const { deleteAttachmentsOf } = await import('../server/documents.mjs');
+  const { UPLOAD_DIR } = await import('../server/config.mjs');
+  const { existsSync } = await import('node:fs');
+
+  makeChat('chat-disco');
+  const att = await addAttachment({
+    buffer: Buffer.from('Conteúdo confidencial que o usuário achou que tinha apagado.'),
+    name: 'confidencial.txt',
+    chatId: 'chat-disco'
+  });
+  assert.ok(att.path && existsSync(att.path), 'o original tinha que ter sido gravado');
+
+  deleteAttachmentsOf({ chatId: 'chat-disco' });
+  assert.ok(!existsSync(att.path), 'o arquivo não pode ficar no disco depois de apagar a conversa');
+  assert.equal(listAttachments({ chatId: 'chat-disco' }).length, 0);
+});
+
+test('a varredura remove arquivo sem dono e poupa o que tem', async () => {
+  const { sweepOrphanUploads } = await import('../server/documents.mjs');
+  const { UPLOAD_DIR } = await import('../server/config.mjs');
+  const { writeFileSync, existsSync, mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+
+  makeChat('chat-varre');
+  const vivo = await addAttachment({
+    buffer: Buffer.from('Este anexo tem dono e precisa sobreviver à varredura.'),
+    name: 'vivo.txt',
+    chatId: 'chat-varre'
+  });
+
+  // Sobra: arquivo no disco que nenhuma linha do banco reclama.
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+  const orfao = join(UPLOAD_DIR, 'sobra-de-versao-antiga.txt');
+  writeFileSync(orfao, 'lixo de uma queda no meio da gravação');
+
+  const resultado = sweepOrphanUploads();
+  assert.ok(resultado.removed >= 1);
+  assert.ok(!existsSync(orfao), 'o órfão tinha que ter saído');
+  assert.ok(existsSync(vivo.path), 'o anexo com dono não pode ser varrido junto');
+});
