@@ -3,7 +3,6 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { loadConfig, patchConfig, DATA_DIR } from '../server/config.mjs';
 
 const args = process.argv.slice(2);
 const command = args[0] && !args[0].startsWith('-') ? args[0] : null;
@@ -13,6 +12,13 @@ function flag(name) {
   return idx >= 0 ? args[idx + 1] : null;
 }
 
+// A pasta de dados é lida no import do módulo de configuração, então `--home`
+// precisa valer antes dele — daí o import dinâmico logo abaixo. Serve pra subir
+// uma segunda instância (teste, perfil separado) sem encostar na de verdade.
+if (flag('home')) process.env.IAUNIFIER_HOME = resolve(flag('home'));
+
+const { loadConfig, patchConfig, DATA_DIR } = await import('../server/config.mjs');
+
 function mostrarAjuda() {
   console.log(`IAUnifier — servidor de IA da sua casa
 
@@ -20,6 +26,7 @@ function mostrarAjuda() {
   iaunifier --port 4747           troca a porta
   iaunifier --host 0.0.0.0        troca o endereço de escuta
   iaunifier --token               mostra o token de acesso
+  iaunifier --home ~/.outra       usa outra pasta de dados (instância separada)
   iaunifier --no-token            desliga o token (só em rede confiável)
   iaunifier --com-token           religa o token, e gera um novo se preciso
 

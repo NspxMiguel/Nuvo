@@ -302,12 +302,30 @@ function migrate() {
     run('UPDATE providers SET config = ? WHERE id = ?', JSON.stringify(cfg), provider.id);
   }
 
-  // Índice de mensagens antigo não existia: preenche uma vez.
-  const indexed = one('SELECT COUNT(*) AS n FROM messages_fts').n;
-  const total = one('SELECT COUNT(*) AS n FROM messages').n;
-  if (total > 0 && indexed === 0) {
-    db.exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')");
+  // Índices de busca criados depois dos dados ficam vazios: o FTS5 com
+  // `content=` só é alimentado pelos gatilhos, que não existiam quando as
+  // linhas antigas foram gravadas. Conversa de meses simplesmente não aparecia
+  // na busca.
+  //
+  // A conferência não pode ser por contagem: `COUNT(*)` numa tabela FTS5 com
+  // conteúdo externo devolve o número de linhas da tabela de origem, e não o do
+  // índice — dá o total certo mesmo com o índice zerado, e por isso a migração
+  // nunca rodava. Quem diz se ela já rodou é a versão gravada no banco.
+  if (schemaVersion() < 1) {
+    for (const tabela of ['memories_fts', 'chunks_fts', 'messages_fts']) {
+      db.exec(`INSERT INTO ${tabela}(${tabela}) VALUES('rebuild')`);
+    }
+    setSchemaVersion(1);
   }
+}
+
+/** Versão do esquema, guardada no próprio arquivo do banco. */
+function schemaVersion() {
+  return one('PRAGMA user_version').user_version ?? 0;
+}
+
+function setSchemaVersion(v) {
+  db.exec(`PRAGMA user_version = ${Number(v)}`);
 }
 
 migrate();

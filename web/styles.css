@@ -647,7 +647,15 @@ button.ghost { background: none; }
   #topbar { padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
   /* No celular só cabe o modelo; gem e projeto ficam no painel de ajustes. */
   #sel-gem, #sel-project { display: none; }
-  #topbar select { max-width: 42vw; font-size: 13px; }
+  /* Com gem e projeto fora, o modelo fica com a sobra da barra. Preso em 42vw
+     ele cortava o nome no meio, e o corte caía embaixo da setinha. */
+  #topbar select {
+    flex: 1 1 auto;
+    max-width: none;
+    min-width: 0;
+    font-size: 16px; /* abaixo de 16 o iOS dá zoom sozinho ao tocar no campo */
+    text-overflow: ellipsis;
+  }
   #chat-title { display: none; }
   .panel { padding: 14px 12px; }
   #messages { padding: 14px 12px; }

@@ -4,7 +4,16 @@
     {
       "name": "iaunifier",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["bin/iaunifier.mjs", "--port", "4788", "--no-token"],
+      "runtimeArgs": [
+        "bin/iaunifier.mjs",
+        "--home",
+        "../.iaunifier-preview",
+        "--port",
+        "4788",
+        "--host",
+        "127.0.0.1",
+        "--no-token"
+      ],
       "port": 4788
     }
   ]

@@ -10,12 +10,28 @@ import { views } from './views.js';
 
 // -------------------------------------------------------------------- tema
 
-function applyTheme(theme) {
+const doSistema = matchMedia('(prefers-color-scheme: dark)');
+
+function applyTheme(theme, { guardar = true } = {}) {
   document.documentElement.dataset.theme = theme;
-  localStorage.setItem('iaunifier.theme', theme);
+  if (guardar) localStorage.setItem('iaunifier.theme', theme);
   $('#btn-theme').innerHTML = icon(theme === 'light' ? 'sun' : 'moon', 18);
+  // A cor da barra do navegador vem daqui. Fixa no HTML, o celular ficava com a
+  // barra escura por cima da página clara — a emenda aparece o tempo todo.
+  const cor = getComputedStyle(document.body).backgroundColor;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta && cor) meta.setAttribute('content', cor);
 }
-applyTheme(localStorage.getItem('iaunifier.theme') || 'dark');
+
+// Enquanto ninguém escolheu, o tema é o do aparelho: abrir o app de madrugada
+// não pode dar um clarão. A escolha manual, quando existe, ganha do sistema.
+const escolhido = localStorage.getItem('iaunifier.theme');
+applyTheme(escolhido || (doSistema.matches ? 'dark' : 'light'), { guardar: false });
+doSistema.addEventListener('change', (e) => {
+  if (!localStorage.getItem('iaunifier.theme')) {
+    applyTheme(e.matches ? 'dark' : 'light', { guardar: false });
+  }
+});
 
 // -------------------------------------------------------------------- boot
 
