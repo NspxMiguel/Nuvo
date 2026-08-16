@@ -289,18 +289,34 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
   yield { type: 'done', message: assistantMessage };
 
   if (gem?.memory_write !== 0) {
-    try {
-      const learned = await learnFromExchange({
+    // Aprender é a última etapa do turno, e o turno segura a tranca da conversa
+    // e o stream aberto enquanto não termina. Prazo aqui é o que garante que a
+    // conversa volte a aceitar pergunta mesmo com o extrator pendurado.
+    const learned = await comPrazo(
+      learnFromExchange({
         userText: userContent,
         assistantText: answer,
         chatId,
         projectId: chat.project_id,
         // Nome legível: a origem do fato aparece na tela de memória.
-        model: `${provider.name} · ${modelId}`
-      });
-      if (learned.length) yield { type: 'memory-new', items: learned };
-    } catch {
-      /* aprender é bônus: falhar aqui não estraga a resposta */
-    }
+        model: `${provider.name} · ${modelId}`,
+        signal
+      }),
+      limits.learnSeconds * 1000
+    );
+    if (learned.length) yield { type: 'memory-new', items: learned };
   }
+}
+
+/** Devolve `[]` quando a promessa estoura o prazo ou falha — aprender é bônus. */
+function comPrazo(promessa, ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve([]), ms);
+    timer.unref?.();
+    const fim = (valor) => {
+      clearTimeout(timer);
+      resolve(Array.isArray(valor) ? valor : []);
+    };
+    promessa.then(fim, () => fim([]));
+  });
 }

@@ -36,7 +36,11 @@ const DEFAULTS = {
     firstChunkSeconds: 240,
     // Segundos entre um pedaço e o seguinte. Aqui pode ser curto: se o modelo
     // já começou a escrever e parou, ele travou.
-    stallSeconds: 120
+    stallSeconds: 120,
+    // Segundos para o extrator de memória. Roda depois de a resposta já estar
+    // na tela e segura a tranca da conversa enquanto não volta, então o prazo
+    // é curto de propósito: perder um fato é barato, travar o chat não é.
+    learnSeconds: 90
   }
 };
 

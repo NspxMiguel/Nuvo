@@ -563,3 +563,38 @@ test('conversa curta não anuncia corte nenhum', async () => {
     stub.restore();
   }
 });
+
+test('extrator pendurado não segura a conversa depois da resposta', async () => {
+  // Aprender roda depois do 'done', mas ainda dentro do turno — e é o turno que
+  // segura a tranca da conversa e o stream. Extrator que não volta deixava a
+  // conversa recusando pergunta com 409 pra sempre.
+  const { patchConfig, loadConfig } = await import('../server/config.mjs');
+  const cliId = uid();
+  run(
+    `INSERT INTO providers (id, name, kind, base_url, secret_name, config, enabled, auto, created_at)
+     VALUES (?, 'Extrator travado', 'cli', NULL, NULL, ?, 1, 0, ?)`,
+    cliId,
+    JSON.stringify({ command: 'sh', args: ['-c', 'sleep 30'], stdin: true }),
+    now()
+  );
+
+  const memoriaAntes = loadConfig().memory;
+  const limitesAntes = loadConfig().limits;
+  patchConfig({
+    memory: { enabled: true, autoExtract: true, extractorModel: `${cliId}:default` },
+    limits: { learnSeconds: 0.3 }
+  });
+
+  const c = chat.createChat({ title: 'x', model: REF });
+  const stub = stubFetch(async () => respostaEm(['pronto']));
+  try {
+    const comecou = Date.now();
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'oi' }));
+    const gasto = Date.now() - comecou;
+    assert.ok(eventos.find((e) => e.type === 'done'), 'a resposta tinha que ficar gravada');
+    assert.ok(gasto < 5000, `o turno levou ${gasto}ms esperando o extrator`);
+  } finally {
+    stub.restore();
+    patchConfig({ memory: memoriaAntes, limits: limitesAntes });
+  }
+});

@@ -8,7 +8,13 @@
 
 import { all, one, run, uid, now, normalizeText } from './db.mjs';
 import { loadConfig } from './config.mjs';
-import { adapterFor, contextFor, getProvider, parseRef } from './providers/index.mjs';
+import {
+  adapterFor,
+  contextFor,
+  getProvider,
+  parseRef,
+  withStallTimeout
+} from './providers/index.mjs';
 import { toBlob, fromBlob, cosine, embedTexts, embeddingAvailable, ftsQuery } from './vectors.mjs';
 
 export { embeddingAvailable };
@@ -244,7 +250,7 @@ Ignore: o assunto pontual da conversa, perguntas, o que a IA respondeu, datas re
 Se não houver nada duradouro, devolva [].`;
 
 /** Extração com modelo. Cai na heurística se não houver extrator configurado. */
-export async function extractWithModel(conversationText) {
+export async function extractWithModel(conversationText, { signal } = {}) {
   const cfg = loadConfig();
   const ref = cfg.memory.extractorModel;
   if (!ref) return extractHeuristic(conversationText);
@@ -254,12 +260,23 @@ export async function extractWithModel(conversationText) {
     const provider = getProvider(providerId);
     const adapter = adapterFor(provider.kind);
     let out = '';
-    for await (const chunk of adapter.stream(contextFor(provider), {
-      model: modelId,
-      system: EXTRACTOR_PROMPT,
-      messages: [{ role: 'user', content: conversationText.slice(0, 12000) }],
-      temperature: 0,
-      maxTokens: 1000
+    // Com prazo, como qualquer outra chamada a modelo. Sem isso, um extrator
+    // que não volta — CLI que fica esperando entrada, servidor local que
+    // aceitou a conexão e emudeceu — segurava o turno inteiro depois de a
+    // resposta já ter sido gravada, e com ela a tranca da conversa.
+    const abrir = (watchdog) =>
+      adapter.stream(contextFor(provider), {
+        model: modelId,
+        system: EXTRACTOR_PROMPT,
+        messages: [{ role: 'user', content: conversationText.slice(0, 12000) }],
+        temperature: 0,
+        maxTokens: 1000,
+        signal: watchdog
+      });
+    for await (const chunk of withStallTimeout(abrir, {
+      firstMs: cfg.limits.learnSeconds * 1000,
+      stallMs: cfg.limits.stallSeconds * 1000,
+      signal
     })) {
       if (chunk.delta) out += chunk.delta;
     }
@@ -275,11 +292,18 @@ export async function extractWithModel(conversationText) {
 }
 
 /** Roda depois de cada troca, sem travar a resposta do chat. */
-export async function learnFromExchange({ userText, assistantText, chatId, projectId, model }) {
+export async function learnFromExchange({
+  userText,
+  assistantText,
+  chatId,
+  projectId,
+  model,
+  signal
+}) {
   const cfg = loadConfig();
   if (!cfg.memory.enabled || !cfg.memory.autoExtract) return [];
   const conversation = `Usuário: ${userText}\n\nAssistente: ${assistantText}`;
-  const facts = await extractWithModel(conversation);
+  const facts = await extractWithModel(conversation, { signal });
   const saved = [];
   for (const fact of facts) {
     const row = await addMemory({
