@@ -577,3 +577,43 @@ test('ping não vaza nada além da identidade', async () => {
   assert.ok(!texto.includes(app.token), 'o token não pode sair numa rota sem autenticação');
   assert.equal(Object.keys(JSON.parse(texto)).length, 1);
 });
+
+// -------------------------------------------------- religar e desligar token
+
+test('token pode ser desligado e religado pela API, sem trancar ninguém fora', async () => {
+  // Desliga: as rotas passam a responder sem cabeçalho nenhum.
+  const desliga = await app.api('/settings', { method: 'PATCH', body: { requireToken: false } });
+  assert.equal(desliga.status, 200);
+  assert.equal(desliga.data.requireToken, false);
+
+  const semNada = await app.raw('/api/state');
+  assert.equal(semNada.status, 200, 'com o token desligado a rota tem que abrir');
+
+  // Religa — e é preciso conseguir religar SEM token, senão desligar seria
+  // porta de mão única: o app ficaria aberto pra sempre.
+  const religa = await app.api('/settings', { method: 'PATCH', body: { requireToken: true }, token: '' });
+  assert.equal(religa.status, 200);
+  assert.equal(religa.data.requireToken, true);
+  assert.equal(
+    religa.data.accessToken,
+    app.token,
+    'a chave vai junto ao religar, senão quem apertou o botão fica trancado do lado de fora'
+  );
+
+  const semTokenAgora = await app.raw('/api/state');
+  assert.equal(semTokenAgora.status, 401, 'religado, a tranca volta na hora');
+  const comToken = await app.api('/state');
+  assert.equal(comToken.status, 200, 'e o token de sempre continua valendo');
+});
+
+test('a chave só sai na transição de religar, nunca numa leitura comum', async () => {
+  const leitura = await app.api('/settings');
+  assert.equal(leitura.data.accessToken, undefined, 'GET /settings não pode devolver o token');
+
+  const outroPatch = await app.api('/settings', { method: 'PATCH', body: { memory: { maxInjected: 9 } } });
+  assert.equal(outroPatch.data.accessToken, undefined, 'salvar memória não é transição de tranca');
+
+  // Já estando ligado, religar de novo também não devolve nada.
+  const denovo = await app.api('/settings', { method: 'PATCH', body: { requireToken: true } });
+  assert.equal(denovo.data.accessToken, undefined, 'sem transição, sem chave');
+});

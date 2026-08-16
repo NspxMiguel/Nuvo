@@ -243,11 +243,27 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
 
   if (!quiet) {
     const port = server.address().port;
+    const enderecos = lanAddresses(port);
+    // Sem token o endereço não leva `?token=`, e mostrá-lo assim daria a
+    // impressão errada de que ainda existe uma tranca.
+    const sufixo = cfg.requireToken ? `/?token=${cfg.accessToken}` : '/';
+
     console.log('\n  IAUnifier no ar');
-    console.log(`  local:  http://localhost:${port}/?token=${cfg.accessToken}`);
-    for (const addr of lanAddresses(port)) {
-      console.log(`  rede:   ${addr}/?token=${cfg.accessToken}`);
+    console.log(`  local:  http://localhost:${port}${sufixo}`);
+    for (const addr of enderecos) console.log(`  rede:   ${addr}${sufixo}`);
+
+    if (!cfg.requireToken) {
+      // `--no-token` grava na configuração e vale nas próximas subidas também.
+      // Quem passou o sinalizador uma vez precisa ver que ele continua valendo.
+      console.log('\n  ATENÇÃO: o token está desligado.');
+      console.log(
+        enderecos.length
+          ? '  Qualquer aparelho na sua rede abre este app, lê suas conversas e usa suas chaves de API.'
+          : '  Qualquer programa desta máquina abre este app sem se identificar.'
+      );
+      console.log('  Religar: node bin/iaunifier.mjs --com-token');
     }
+
     console.log('\n  abra o endereço de rede no celular pra instalar como app.\n');
   }
 

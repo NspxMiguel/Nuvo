@@ -707,9 +707,18 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
      </div>
      <div class="card">
        <h3>${icon('key', 15)} Acesso</h3>
-       <div class="meta">Token exigido: ${settings.requireToken ? 'sim' : 'não'} · escutando em ${settings.host}:${settings.port}</div>
+       <div class="meta">Escutando em ${settings.host}:${settings.port}</div>
        <div class="meta">Chaves guardadas: ${settings.secrets.join(', ') || 'nenhuma'}</div>
        <div class="meta">Busca semântica: ${settings.embeddingAvailable ? 'ligada' : 'desligada (só busca por palavra)'}</div>
+       <label class="check" style="margin-top:10px">
+         <input type="checkbox" id="s-token" ${settings.requireToken ? 'checked' : ''} />
+         exigir token de acesso
+       </label>
+       ${
+         settings.requireToken
+           ? ''
+           : `<div class="health erro">${icon('alert', 14)} Sem token, qualquer aparelho da sua rede abre este app, lê suas conversas e usa suas chaves de API.</div>`
+       }
      </div>
      <div class="card">
        <h3>${icon('save', 15)} Backup</h3>
@@ -751,6 +760,31 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
   for (const btn of inner.querySelectorAll('[data-theme]')) {
     btn.onclick = () => applyTheme(btn.dataset.theme);
   }
+
+  // Desligar o token é decisão de rede, não de gosto: pede confirmação e diz o
+  // que muda. Religar não pergunta nada — voltar a trancar não faz estrago.
+  inner.querySelector('#s-token').onchange = async (ev) => {
+    const marcado = ev.target.checked;
+    if (!marcado && !confirm('Desligar o token?\n\nQualquer aparelho na sua rede vai poder abrir este app, ler suas conversas e usar suas chaves de API.')) {
+      ev.target.checked = true;
+      return;
+    }
+    try {
+      const out = await api('/settings', { method: 'PATCH', body: { requireToken: marcado } });
+      // Religando, o servidor devolve a chave junto: sem guardá-la, o próximo
+      // pedido desta aba levaria 401 e o botão teria trancado o próprio dono.
+      if (out.accessToken) {
+        localStorage.setItem('iaunifier.token', out.accessToken);
+        toast('token religado — este aparelho já está com a chave; os outros precisam dela');
+        return location.reload();
+      }
+      toast(marcado ? 'token religado' : 'token desligado — cuidado', marcado ? 'ok' : 'err');
+      switchView('settings');
+    } catch (err) {
+      ev.target.checked = !marcado;
+      toast(err.message, 'err');
+    }
+  };
 
   // --- backup ---------------------------------------------------------------
 

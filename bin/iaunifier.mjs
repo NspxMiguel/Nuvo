@@ -21,6 +21,7 @@ function mostrarAjuda() {
   iaunifier --host 0.0.0.0        troca o endereço de escuta
   iaunifier --token               mostra o token de acesso
   iaunifier --no-token            desliga o token (só em rede confiável)
+  iaunifier --com-token           religa o token, e gera um novo se preciso
 
   iaunifier backup [arquivo.zip]  cópia de tudo: banco, config e anexos
   iaunifier restore arquivo.zip   restaura por cima (guarda o banco anterior)
@@ -182,10 +183,26 @@ const patch = {};
 if (flag('port')) patch.port = Number(flag('port'));
 if (flag('host')) patch.host = flag('host');
 if (args.includes('--no-token')) patch.requireToken = false;
+if (args.includes('--com-token')) patch.requireToken = true;
 if (Object.keys(patch).length) patchConfig(patch);
 
 const { start } = await import('../server/index.mjs');
 start().catch((err) => {
-  console.error('falhou ao subir:', err);
+  // Pilha de erro do Node não serve pra quem só quer abrir o app. Os dois
+  // casos que acontecem de verdade em casa ganham a instrução junto.
+  const cfg = loadConfig();
+  if (err.code === 'EADDRINUSE') {
+    console.error(`a porta ${cfg.port} já está ocupada por outro programa.`);
+    console.error(`Suba em outra: node bin/iaunifier.mjs --port ${cfg.port + 1}`);
+    console.error('Se for outro IAUnifier já rodando, é ele que está no ar — abra o endereço.');
+  } else if (err.code === 'EACCES') {
+    console.error(`o sistema não deixou escutar na porta ${cfg.port}.`);
+    console.error('Portas abaixo de 1024 pedem administrador; escolha uma acima disso com --port.');
+  } else if (err.code === 'EADDRNOTAVAIL') {
+    console.error(`o endereço ${cfg.host} não existe nesta máquina.`);
+    console.error('Use --host 0.0.0.0 pra escutar em tudo, ou 127.0.0.1 pra só esta máquina.');
+  } else {
+    console.error('falhou ao subir:', err);
+  }
   process.exit(1);
 });

@@ -35,6 +35,7 @@ como app.
 | `--host 0.0.0.0` | troca o endereço de escuta |
 | `--token` | imprime o token e sai |
 | `--no-token` | desliga o token (só em rede confiável) |
+| `--com-token` | religa o token |
 
 Tudo do usuário fica em `~/.iaunifier`: banco (`data.db`), configuração
 (`config.json`, criado com permissão 600), anexos (`uploads/`) e as cópias
@@ -90,6 +91,18 @@ assinatura e cabeçalho antes de tocar em qualquer coisa, guarda o banco atual
 como `data.db.antes-da-restauracao` e pede reinício — o processo em execução
 ainda tem o banco antigo aberto.
 
+### Token de acesso
+
+O token é exigido por padrão e vale para tudo, menos `GET /api/ping`. Desligar é
+possível — `--no-token`, ou a chave em Config → Acesso — mas a decisão fica
+gravada e vale nas próximas subidas, então o servidor avisa em todo start
+enquanto estiver desligado. Religar: `--com-token` ou a mesma chave na tela.
+
+Religando pela tela, o servidor devolve o token na resposta e o navegador o
+guarda. Sem isso o botão seria armadilha: o pedido seguinte da própria aba que
+apertou o botão levaria 401. Os outros aparelhos precisam do token, que aparece
+no terminal e em `iaunifier --token`.
+
 ### Quando não vem resposta
 
 Em Provedores, **Testar todos** fala com cada um e escreve o resultado no
@@ -112,7 +125,7 @@ chegado é gravado como resposta interrompida. Os dois prazos ficam em
 npm test
 ```
 
-189 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
+191 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
 roda num `IAUNIFIER_HOME` temporário e substitui o `fetch` global, então nada
 toca o banco real nem a rede.
 

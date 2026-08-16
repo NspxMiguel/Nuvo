@@ -760,8 +760,20 @@ export async function handleApi(req, res, url) {
     // Só repassa o que veio: `requireToken: undefined` desligaria o token.
     const patch = {};
     if (b.memory) patch.memory = b.memory;
+    if (b.limits) patch.limits = b.limits;
+
+    const antes = loadConfig().requireToken;
     if (b.requireToken !== undefined) patch.requireToken = !!b.requireToken;
     patchConfig(patch);
+
+    // Religando a tranca, a chave vai junto nesta resposta — quem estava
+    // navegando sem token seria trancado do lado de fora no pedido seguinte, e
+    // o botão viraria armadilha. Só aqui, e só nesta transição: quem já
+    // navegava sem token tinha acesso a tudo de qualquer jeito, então não há o
+    // que proteger dele neste instante.
+    if (!antes && patch.requireToken) {
+      return json(res, { ...settingsView(), accessToken: loadConfig().accessToken });
+    }
     return json(res, settingsView());
   }
   if (method === 'POST' && path === '/secrets') {
