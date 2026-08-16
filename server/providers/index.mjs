@@ -48,36 +48,48 @@ export function contextFor(provider) {
 export async function* withStallTimeout(open, { firstMs, stallMs, signal }) {
   const controller = new AbortController();
   const forward = () => controller.abort();
-  signal?.addEventListener('abort', forward, { once: true });
+  // Sinal que já veio cancelado nunca dispara `abort` de novo: sem esta linha o
+  // provedor era aberto e o cancelamento só chegava nele no próximo evento.
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener('abort', forward, { once: true });
 
   const source = open(controller.signal)[Symbol.asyncIterator]();
   let started = false;
-  let expired = null;
 
   try {
     while (true) {
       const limit = started ? stallMs : firstMs;
-      const timer = setTimeout(() => {
-        expired = new Error(
-          started
-            ? `o modelo parou de responder no meio (${Math.round(limit / 1000)}s sem nada)`
-            : `o modelo não respondeu em ${Math.round(limit / 1000)}s`
-        );
-        controller.abort();
-      }, limit);
-      timer.unref?.();
+      let timer;
+      const prazo = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              started
+                ? `o modelo parou de responder no meio (${Math.round(limit / 1000)}s sem nada)`
+                : `o modelo não respondeu em ${Math.round(limit / 1000)}s`
+            )
+          );
+          controller.abort();
+        }, limit);
+        timer.unref?.();
+      });
+
+      // Corrida, e não só `abort`: abortar só funciona se o outro lado reagir, e
+      // o CLI cujo neto herdou o cano de saída não reage — o `close` do processo
+      // nunca chega e este `await` ficaria parado pra sempre, com o prazo já
+      // vencido. A corrida corta mesmo quando o abort não é ouvido.
+      const proximo = source.next();
+      // O lado perdedor da corrida ainda vai falhar por causa do abort; sem este
+      // ouvinte a falha vira "unhandled rejection" e derruba o servidor inteiro.
+      proximo.catch(() => {});
 
       let step;
       try {
-        step = await source.next();
-      } catch (err) {
-        // Erro depois do estouro é consequência do abort, não a causa.
-        throw expired || err;
+        step = await Promise.race([proximo, prazo]);
       } finally {
         clearTimeout(timer);
       }
 
-      if (expired) throw expired;
       if (step.done) return;
       started = true;
       yield step.value;
@@ -85,6 +97,9 @@ export async function* withStallTimeout(open, { firstMs, stallMs, signal }) {
   } finally {
     signal?.removeEventListener('abort', forward);
     controller.abort();
+    // Fecha a fonte quando ela ainda responde. Não dá pra esperar: gerador
+    // parado num `await` só roda o `return` quando o await resolver.
+    Promise.resolve(source.return?.()).catch(() => {});
   }
 }
 
