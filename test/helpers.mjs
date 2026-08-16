@@ -95,7 +95,7 @@ export async function startServer() {
   const { start } = await import('../server/index.mjs');
   const { loadConfig, patchConfig } = await import('../server/config.mjs');
   patchConfig({ port: 0, host: '127.0.0.1' });
-  const server = await start({ quiet: true, discover: false });
+  const server = await start({ quiet: true, discover: false, backup: false });
   const { port } = server.address();
   const token = loadConfig().accessToken;
 

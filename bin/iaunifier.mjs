@@ -1,25 +1,41 @@
 #!/usr/bin/env node
-// Entrada do servidor.
+// Entrada do servidor e dos comandos de operação.
 
-import { start } from '../server/index.mjs';
-import { loadConfig, patchConfig } from '../server/config.mjs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { loadConfig, patchConfig, DATA_DIR } from '../server/config.mjs';
 
 const args = process.argv.slice(2);
+const command = args[0] && !args[0].startsWith('-') ? args[0] : null;
 
 function flag(name) {
   const idx = args.indexOf(`--${name}`);
   return idx >= 0 ? args[idx + 1] : null;
 }
 
-if (args.includes('--help') || args.includes('-h')) {
+function mostrarAjuda() {
   console.log(`IAUnifier — servidor de IA da sua casa
 
-  iaunifier                  sobe o servidor
-  iaunifier --port 4747      troca a porta
-  iaunifier --host 0.0.0.0   troca o endereço de escuta
-  iaunifier --token          mostra o token de acesso
-  iaunifier --no-token       desliga o token (só faça isso em rede confiável)
+  iaunifier                       sobe o servidor
+  iaunifier --port 4747           troca a porta
+  iaunifier --host 0.0.0.0        troca o endereço de escuta
+  iaunifier --token               mostra o token de acesso
+  iaunifier --no-token            desliga o token (só em rede confiável)
+
+  iaunifier backup [arquivo.zip]  cópia de tudo: banco, config e anexos
+  iaunifier restore arquivo.zip   restaura por cima (guarda o banco anterior)
+  iaunifier backups               lista as cópias automáticas
+
+  iaunifier instalar-servico      sobe junto com a máquina
+  iaunifier remover-servico       desfaz o de cima
+  iaunifier servico               diz se está instalado e rodando
+
+  dados em ${DATA_DIR}
 `);
+}
+
+if (args.includes('--help') || args.includes('-h') || command === 'ajuda') {
+  mostrarAjuda();
   process.exit(0);
 }
 
@@ -28,12 +44,108 @@ if (args.includes('--token')) {
   process.exit(0);
 }
 
+function tamanho(bytes) {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+  if (bytes >= 1e3) return `${Math.round(bytes / 1e3)} kB`;
+  return `${bytes} B`;
+}
+
+// ---------------------------------------------------------------- comandos
+
+if (command === 'backup') {
+  const { createBackup, backupName } = await import('../server/backup.mjs');
+  const destino = resolve(args[1] || backupName());
+  const { buffer, files } = createBackup();
+  writeFileSync(destino, buffer);
+  console.log(`backup em ${destino} — ${files} arquivos, ${tamanho(buffer.length)}`);
+  process.exit(0);
+}
+
+if (command === 'restore' || command === 'restaurar') {
+  const origem = args[1];
+  if (!origem) {
+    console.error('falta o arquivo: iaunifier restore arquivo.zip');
+    process.exit(1);
+  }
+  const { restoreBackup } = await import('../server/backup.mjs');
+  try {
+    const done = restoreBackup(readFileSync(resolve(origem)));
+    console.log(`restaurado: banco${done.config ? ', config' : ''}, ${done.uploads} anexo(s)`);
+    if (done.previous) console.log(`o banco anterior ficou em ${done.previous}`);
+    console.log('suba o servidor de novo pra carregar os dados restaurados.');
+  } catch (err) {
+    console.error(`não deu pra restaurar: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (command === 'backups') {
+  const { listBackups } = await import('../server/backup.mjs');
+  const lista = listBackups();
+  if (!lista.length) console.log('nenhuma cópia automática ainda — ela é feita na subida do servidor.');
+  for (const item of lista) console.log(`${item.at}  ${tamanho(item.bytes).padStart(8)}  ${item.path}`);
+  process.exit(0);
+}
+
+if (command === 'instalar-servico' || command === 'install-service') {
+  const { installService } = await import('../server/service.mjs');
+  try {
+    const done = installService();
+    console.log(`instalado em ${done.system}`);
+    console.log(`arquivo: ${done.file}`);
+    if (done.logs) console.log(`log: ${done.logs.join(' e ')}`);
+    if (done.note) console.log(`atenção: ${done.note}`);
+  } catch (err) {
+    console.error(`não deu: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (command === 'remover-servico' || command === 'uninstall-service') {
+  const { uninstallService } = await import('../server/service.mjs');
+  try {
+    const done = uninstallService();
+    console.log(`removido de ${done.system}`);
+  } catch (err) {
+    console.error(`não deu: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (command === 'servico' || command === 'service') {
+  const { serviceStatus, servicePlan } = await import('../server/service.mjs');
+  const plano = servicePlan();
+  const estado = serviceStatus();
+  if (!plano.supported) {
+    console.log(`subir sozinho não é suportado em ${plano.platform}`);
+    process.exit(0);
+  }
+  console.log(`sistema:   ${plano.platform}`);
+  console.log(`arquivo:   ${plano.file}`);
+  console.log(`instalado: ${estado.installed ? 'sim' : 'não'}`);
+  if (estado.installed) console.log(`rodando:   ${estado.running ? 'sim' : 'não'}`);
+  process.exit(0);
+}
+
+if (command) {
+  console.error(`não conheço o comando "${command}".\n`);
+  mostrarAjuda();
+  process.exit(1);
+}
+
+// ------------------------------------------------------------------ servidor
+
 const patch = {};
 if (flag('port')) patch.port = Number(flag('port'));
 if (flag('host')) patch.host = flag('host');
 if (args.includes('--no-token')) patch.requireToken = false;
 if (Object.keys(patch).length) patchConfig(patch);
 
+const { start } = await import('../server/index.mjs');
 start().catch((err) => {
   console.error('falhou ao subir:', err);
   process.exit(1);

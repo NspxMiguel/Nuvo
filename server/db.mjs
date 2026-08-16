@@ -188,6 +188,29 @@ export function run(sql, ...params) {
   return db.prepare(sql).run(...params);
 }
 
+/**
+ * Roda várias escritas como uma coisa só: ou tudo entra, ou nada entra.
+ *
+ * Vale onde uma linha sozinha é lixo — anexo sem trecho, trecho sem anexo. A
+ * função tem que ser síncrona: `await` no meio deixaria a transação aberta
+ * enquanto outra requisição escreve.
+ */
+export function tx(fn) {
+  db.exec('BEGIN');
+  try {
+    const out = fn();
+    db.exec('COMMIT');
+    return out;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      /* transação já desfeita pelo próprio SQLite */
+    }
+    throw err;
+  }
+}
+
 export function parseJSON(value, fallback = {}) {
   if (!value) return fallback;
   try {

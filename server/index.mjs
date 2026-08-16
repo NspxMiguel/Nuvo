@@ -10,6 +10,7 @@ import { loadConfig } from './config.mjs';
 import { seed } from './db.mjs';
 import { handleApi } from './api.mjs';
 import { discover, providerCount } from './discovery.mjs';
+import { autoBackup } from './backup.mjs';
 
 const WEB_DIR = fileURLToPath(new URL('../web/', import.meta.url));
 
@@ -147,9 +148,20 @@ function lanAddresses(port) {
  *   `quiet` cala o banner (usado pelos testes); `discover: false` pula a
  *   varredura da máquina, que é lenta e não faz sentido em teste.
  */
-export async function start({ quiet = false, discover: shouldDiscover = true } = {}) {
+export async function start({ quiet = false, discover: shouldDiscover = true, backup = true } = {}) {
   const cfg = loadConfig();
   seed();
+
+  // Uma cópia por dia, na subida. Ninguém em casa configura cron, e o que este
+  // app guarda — anos de memória — não se refaz.
+  if (backup) {
+    try {
+      const done = autoBackup();
+      if (!quiet && !done.skipped) console.log(`backup do dia: ${done.dir}/${done.name}`);
+    } catch (err) {
+      if (!quiet) console.error(`backup automático falhou: ${err.message}`);
+    }
+  }
 
   // Primeiro start: caça o que já existe na máquina antes de mostrar a tela.
   if (shouldDiscover && providerCount() === 0) {

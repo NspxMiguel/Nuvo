@@ -9,6 +9,7 @@ import { adapterFor, contextFor, getProvider, parseRef } from './providers/index
 import { recall, renderForPrompt, learnFromExchange } from './memory.mjs';
 import { renderDocuments } from './documents.mjs';
 import { searchAndRead, renderWebBlock } from './web.mjs';
+import { explainProviderError } from './errors.mjs';
 
 const HISTORY_LIMIT = 40;
 
@@ -243,7 +244,7 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
       });
       yield { type: 'done', message: partial };
     }
-    yield { type: 'error', message: err.message };
+    yield { type: 'error', message: explainProviderError(err, provider) };
     return;
   }
 

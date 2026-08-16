@@ -6,7 +6,7 @@
 
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { all, one, run, uid, now } from './db.mjs';
+import { all, one, run, tx, uid, now } from './db.mjs';
 import { UPLOAD_DIR } from './config.mjs';
 import { extractText } from './extract.mjs';
 import { toBlob, fromBlob, cosine, embedTexts, ftsQuery } from './vectors.mjs';
@@ -61,36 +61,41 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
     path = null; // guardar o original é conveniência, não requisito
   }
 
-  run(
-    `INSERT INTO attachments (id, chat_id, project_id, name, mime, bytes, chars, path, status, note, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id,
-    chatId,
-    projectId,
-    name,
-    mime || kind,
-    buffer.length,
-    text.length,
-    path,
-    text.trim() ? 'ok' : 'erro',
-    note || null,
-    now()
-  );
-
   const pieces = chunkText(text);
-  const stamp = now();
-  for (const [ord, piece] of pieces.entries()) {
+
+  // Anexo e trechos entram juntos: anexo sem trecho aparece na lista como se
+  // fosse pesquisável e nunca devolve nada.
+  tx(() => {
     run(
-      'INSERT INTO chunks (id, attachment_id, chat_id, project_id, ord, text, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
-      uid(),
+      `INSERT INTO attachments (id, chat_id, project_id, name, mime, bytes, chars, path, status, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       chatId,
       projectId,
-      ord,
-      piece,
-      stamp
+      name,
+      mime || kind,
+      buffer.length,
+      text.length,
+      path,
+      text.trim() ? 'ok' : 'erro',
+      note || null,
+      now()
     );
-  }
+
+    const stamp = now();
+    for (const [ord, piece] of pieces.entries()) {
+      run(
+        'INSERT INTO chunks (id, attachment_id, chat_id, project_id, ord, text, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+        uid(),
+        id,
+        chatId,
+        projectId,
+        ord,
+        piece,
+        stamp
+      );
+    }
+  });
 
   // Embedding em lote, e só se houver modelo — a indexação por palavra já
   // funciona sozinha.

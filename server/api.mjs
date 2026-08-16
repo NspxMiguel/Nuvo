@@ -35,6 +35,8 @@ import { runResearch } from './research.mjs';
 import { runCouncil } from './council.mjs';
 import { ftsQuery } from './vectors.mjs';
 import { search as webSearch, readPage } from './web.mjs';
+import { createBackup, restoreBackup, listBackups, backupName } from './backup.mjs';
+import { explainProviderError } from './errors.mjs';
 
 // ------------------------------------------------------------------ helpers
 
@@ -68,6 +70,10 @@ async function readJSON(req) {
   return JSON.parse(raw);
 }
 
+// Um comentário SSE a cada 15 s. Modelo local pensando, pesquisa lendo página:
+// há minutos sem nenhum byte, e celular em Wi‑Fi derruba conexão parada.
+const PING_MS = 15_000;
+
 /** Abre um stream SSE e devolve o par (enviar, encerrar). */
 function openStream(req, res) {
   res.writeHead(200, {
@@ -78,14 +84,52 @@ function openStream(req, res) {
   });
   const controller = new AbortController();
   req.on('close', () => controller.abort());
+
+  let last = Date.now();
+  const ping = setInterval(() => {
+    if (Date.now() - last >= PING_MS && !res.writableEnded) res.write(': ping\n\n');
+  }, PING_MS);
+  ping.unref?.();
+
+  let closed = false;
+  const finish = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(ping);
+  };
+  req.on('close', finish);
+
   return {
     signal: controller.signal,
-    send: (event) => res.write(`data: ${JSON.stringify(event)}\n\n`),
-    end: () => {
+    send(event) {
+      last = Date.now();
+      if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
+    },
+    end() {
+      finish();
+      if (res.writableEnded) return;
       res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
       res.end();
     }
   };
+}
+
+// Um turno por conversa. Dois streams no mesmo chat leriam o mesmo histórico e
+// gravariam duas respostas para a mesma pergunta — a segunda aba do navegador,
+// o toque duplo no botão de enviar, o "regenerar" enquanto ainda escreve.
+const busyChats = new Set();
+
+function chatBusy(chatId) {
+  return busyChats.has(chatId);
+}
+
+async function withChatLock(chatId, fn) {
+  busyChats.add(chatId);
+  try {
+    return await fn();
+  } finally {
+    busyChats.delete(chatId);
+  }
 }
 
 /** Bombeia um gerador assíncrono pra dentro do SSE, com erro virando evento. */
@@ -192,6 +236,34 @@ export async function handleApi(req, res, url) {
 
   if (method === 'GET' && path === '/providers') {
     return json(res, listProviders().map(providerView));
+  }
+
+  // Saúde: um por um, em paralelo. É o que responde "por que a resposta não
+  // vem?" antes de o usuário ter que adivinhar.
+  if (method === 'GET' && path === '/health') {
+    const checked = await Promise.all(
+      listProviders().map(async (provider) => {
+        const base = {
+          id: provider.id,
+          name: provider.name,
+          kind: provider.kind,
+          enabled: !!provider.enabled,
+          models: all('SELECT COUNT(*) AS n FROM models WHERE provider_id = ?', provider.id)[0].n
+        };
+        if (!provider.enabled) return { ...base, status: 'off', message: 'desligado nas configurações' };
+        if (provider.secret_name && !listSecretNames().includes(provider.secret_name)) {
+          return { ...base, status: 'erro', message: `falta a chave "${provider.secret_name}"` };
+        }
+        const started = Date.now();
+        try {
+          const models = await adapterFor(provider.kind).listModels(contextFor(provider));
+          return { ...base, status: 'ok', ms: Date.now() - started, models: models.length };
+        } catch (err) {
+          return { ...base, status: 'erro', ms: Date.now() - started, message: explainProviderError(err, provider) };
+        }
+      })
+    );
+    return json(res, checked);
   }
 
   if (method === 'POST' && path === '/providers') {
@@ -469,16 +541,21 @@ export async function handleApi(req, res, url) {
     // Streaming da resposta.
     if (method === 'POST' && seg[2] === 'stream') {
       const b = await readJSON(req);
+      if (chatBusy(id)) {
+        return json(res, { error: 'essa conversa já está respondendo — espere terminar ou pare a resposta' }, 409);
+      }
       const stream = openStream(req, res);
-      await pump(
-        stream,
-        runTurn({
-          chatId: id,
-          userContent: b.content || '',
-          modelRef: b.model || null,
-          useWeb: b.web === undefined ? null : Boolean(b.web),
-          signal: stream.signal
-        })
+      await withChatLock(id, () =>
+        pump(
+          stream,
+          runTurn({
+            chatId: id,
+            userContent: b.content || '',
+            modelRef: b.model || null,
+            useWeb: b.web === undefined ? null : Boolean(b.web),
+            signal: stream.signal
+          })
+        )
       );
       return;
     }
@@ -486,6 +563,9 @@ export async function handleApi(req, res, url) {
     // Regenerar: apaga da mensagem indicada em diante e refaz o último turno.
     if (method === 'POST' && seg[2] === 'regenerate') {
       const b = await readJSON(req);
+      if (chatBusy(id)) {
+        return json(res, { error: 'essa conversa já está respondendo — pare a resposta antes de refazer' }, 409);
+      }
       const messages = listMessages(id);
       const target = b.from
         ? messages.find((m) => m.id === b.from)
@@ -499,16 +579,18 @@ export async function handleApi(req, res, url) {
 
       const stream = openStream(req, res);
       stream.send({ type: 'reset', keep: remaining.map((m) => m.id) });
-      await pump(
-        stream,
-        runTurn({
-          chatId: id,
-          userContent: lastUser.content,
-          modelRef: b.model || null,
-          useWeb: b.web === undefined ? null : Boolean(b.web),
-          resend: true,
-          signal: stream.signal
-        })
+      await withChatLock(id, () =>
+        pump(
+          stream,
+          runTurn({
+            chatId: id,
+            userContent: lastUser.content,
+            modelRef: b.model || null,
+            useWeb: b.web === undefined ? null : Boolean(b.web),
+            resend: true,
+            signal: stream.signal
+          })
+        )
       );
       return;
     }
@@ -681,6 +763,35 @@ export async function handleApi(req, res, url) {
     const b = await readJSON(req);
     setSecret(b.name, b.value);
     return json(res, { ok: true, secrets: listSecretNames() });
+  }
+
+  // --- backup --------------------------------------------------------------
+  if (method === 'GET' && path === '/backup') {
+    const { buffer } = createBackup();
+    res.writeHead(200, {
+      'content-type': 'application/zip',
+      'content-length': buffer.length,
+      'content-disposition': `attachment; filename="${backupName()}"`
+    });
+    return res.end(buffer);
+  }
+  if (method === 'GET' && path === '/backups') {
+    return json(res, listBackups());
+  }
+  if (method === 'POST' && path === '/restore') {
+    const buffer = await readBuffer(req);
+    try {
+      const done = restoreBackup(buffer, { keepSecrets: url.searchParams.get('keep-secrets') === '1' });
+      // O banco restaurado só passa a valer no próximo start: este processo
+      // ainda tem o antigo aberto, com o WAL dele em memória.
+      return json(res, {
+        ...done,
+        restart: true,
+        message: 'restaurado — reinicie o servidor pra carregar os dados'
+      });
+    } catch (err) {
+      return json(res, { error: err.message }, 400);
+    }
   }
 
   return json(res, { error: `rota não encontrada: ${method} ${path}` }, 404);

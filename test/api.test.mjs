@@ -385,3 +385,118 @@ test('rota inexistente devolve 404 com mensagem', async () => {
   assert.equal(res.status, 404);
   assert.match(res.data.error, /rota não encontrada/);
 });
+
+// ------------------------------------------------------------- concorrência
+
+test('dois streams na mesma conversa: o segundo é recusado com 409', async () => {
+  const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+  const chatId = chat.data.id;
+
+  // Resposta lenta de propósito: o primeiro stream fica aberto enquanto o
+  // segundo pedido chega.
+  let liberar;
+  const espera = new Promise((resolve) => {
+    liberar = resolve;
+  });
+  const stub = stubFetch(async () => {
+    const encoder = new TextEncoder();
+    let etapa = 0;
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      async text() {
+        return '';
+      },
+      body: {
+        getReader() {
+          return {
+            async read() {
+              if (etapa === 0) {
+                etapa++;
+                return {
+                  done: false,
+                  value: encoder.encode('data: {"choices":[{"delta":{"content":"devagar"}}]}\n\n')
+                };
+              }
+              if (etapa === 1) {
+                etapa++;
+                await espera;
+                return { done: false, value: encoder.encode('data: [DONE]\n\n') };
+              }
+              return { done: true, value: undefined };
+            }
+          };
+        }
+      }
+    };
+  });
+
+  try {
+    const primeiro = app.raw(`/api/chats/${chatId}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'pergunta lenta', model: fakeRef })
+    }).then((r) => r.text());
+
+    // Dá tempo do primeiro pegar a trava antes de tentar o segundo.
+    await new Promise((r) => setTimeout(r, 60));
+
+    const segundo = await app.api(`/chats/${chatId}/stream`, {
+      method: 'POST',
+      body: { content: 'pergunta atropelando', model: fakeRef }
+    });
+    assert.equal(segundo.status, 409);
+    assert.match(segundo.data.error, /já está respondendo/);
+
+    liberar();
+    await primeiro;
+
+    // E depois que solta, o mesmo pedido passa.
+    const terceiro = await app.raw(`/api/chats/${chatId}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'agora vai', model: fakeRef })
+    });
+    assert.equal(terceiro.status, 200);
+    await terceiro.text();
+  } finally {
+    stub.restore();
+  }
+});
+
+// ------------------------------------------------------------------ backup
+
+test('backup baixa um zip com o banco dentro', async () => {
+  const res = await app.raw(`/api/backup?token=${app.token}`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /zip/);
+  assert.match(res.headers.get('content-disposition'), /iaunifier-.*\.zip/);
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const { unzip } = await import('../server/backup.mjs');
+  const dentro = unzip(buffer);
+  assert.ok(dentro.has('data.db'));
+  assert.equal(dentro.get('data.db').toString('utf8', 0, 15), 'SQLite format 3');
+});
+
+test('restaurar arquivo que não é backup devolve 400 explicado', async () => {
+  const res = await app.api('/restore', {
+    method: 'POST',
+    raw: true,
+    body: Buffer.from('isso aqui é um txt qualquer')
+  });
+  assert.equal(res.status, 400);
+  assert.match(res.data.error, /zip/);
+});
+
+test('restaurar backup de verdade responde pedindo reinício', async () => {
+  const zipRes = await app.raw(`/api/backup?token=${app.token}`);
+  const buffer = Buffer.from(await zipRes.arrayBuffer());
+
+  const res = await app.api('/restore', { method: 'POST', raw: true, body: buffer });
+  assert.equal(res.status, 200);
+  assert.equal(res.data.restart, true);
+  assert.equal(res.data.db, true);
+  assert.match(res.data.message, /reinicie/);
+});
