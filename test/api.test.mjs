@@ -1,0 +1,387 @@
+// A API inteira, com o servidor de pé numa porta livre. Um provedor falso
+// entra no banco pra que o chat possa ser exercido sem chamar modelo de
+// verdade.
+
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { useTempHome, stubFetch, fakeResponse } from './helpers.mjs';
+
+const home = useTempHome();
+const { startServer } = await import('./helpers.mjs');
+const { run, now, uid } = await import('../server/db.mjs');
+
+let app;
+let fakeProviderId;
+let fakeRef;
+
+before(async () => {
+  app = await startServer();
+
+  // Provedor OpenAI-compatível apontando pra lugar nenhum: o fetch é trocado
+  // nos testes que precisam de resposta.
+  fakeProviderId = uid();
+  run(
+    `INSERT INTO providers (id, name, kind, base_url, secret_name, config, enabled, auto, created_at)
+     VALUES (?, ?, 'openai', 'http://modelo.invalido/v1', NULL, '{}', 1, 0, ?)`,
+    fakeProviderId,
+    'Provedor de teste',
+    now()
+  );
+  run(
+    'INSERT INTO models (id, provider_id, model_id, label, kind, seen_at) VALUES (?,?,?,?,?,?)',
+    uid(), fakeProviderId, 'modelo-teste', 'modelo-teste', 'chat', now()
+  );
+  fakeRef = `${fakeProviderId}:modelo-teste`;
+});
+
+after(async () => {
+  await app.close();
+  home.cleanup();
+});
+
+// ------------------------------------------------------------------ acesso
+
+test('sem token devolve 401', async () => {
+  const res = await app.api('/state', { token: '' });
+  assert.equal(res.status, 401);
+  assert.match(res.data.error, /token/);
+});
+
+test('token errado devolve 401 e não vaza o certo', async () => {
+  const res = await app.api('/state', { token: 'chute-errado-aqui' });
+  assert.equal(res.status, 401);
+  assert.ok(!res.text.includes(app.token));
+});
+
+test('com token devolve o estado completo', async () => {
+  const res = await app.api('/state');
+  assert.equal(res.status, 200);
+  for (const chave of ['providers', 'gems', 'projects', 'chats', 'settings']) {
+    assert.ok(chave in res.data, `faltou ${chave}`);
+  }
+});
+
+test('o segredo do provedor nunca sai pela API', async () => {
+  await app.api('/providers', {
+    method: 'POST',
+    body: {
+      name: 'Com chave',
+      kind: 'openai',
+      baseUrl: 'http://exemplo.invalido/v1',
+      secretName: 'CHAVE_DE_TESTE',
+      secretValue: 'valor-super-secreto-123'
+    }
+  });
+  const estado = await app.api('/state');
+  assert.ok(!estado.text.includes('valor-super-secreto-123'), 'o valor da chave vazou');
+  const criado = estado.data.providers.find((p) => p.name === 'Com chave');
+  assert.equal(criado.has_secret, true, 'mas a interface precisa saber que existe chave');
+  const config = await app.api('/settings');
+  assert.ok(!config.text.includes('valor-super-secreto-123'));
+  assert.ok(config.data.secrets.includes('CHAVE_DE_TESTE'), 'o nome pode aparecer');
+});
+
+test('arquivo estático é servido e não dá pra sair da pasta web', async () => {
+  const index = await app.raw('/');
+  assert.equal(index.status, 200);
+  assert.match(index.headers.get('content-type'), /text\/html/);
+
+  for (const tentativa of ['/../server/config.mjs', '/..%2f..%2fetc%2fpasswd', '/....//server/db.mjs']) {
+    const res = await app.raw(tentativa);
+    assert.ok(res.status === 404 || res.status === 403, `${tentativa} devia ser barrado, veio ${res.status}`);
+    const corpo = await res.text();
+    assert.ok(!corpo.includes('accessToken'), 'nunca pode servir a configuração');
+  }
+});
+
+// ------------------------------------------------------------------- gems
+
+test('gem: cria, edita e apaga', async () => {
+  const criada = await app.api('/gems', {
+    method: 'POST',
+    body: { name: 'Revisor', icon: 'book', color: 'teal', system_prompt: 'Revise o texto.' }
+  });
+  assert.equal(criada.status, 200);
+  assert.equal(criada.data.icon, 'book');
+
+  const editada = await app.api(`/gems/${criada.data.id}`, {
+    method: 'PATCH',
+    body: { name: 'Revisor sênior', unfiltered: true }
+  });
+  assert.equal(editada.data.name, 'Revisor sênior');
+  assert.equal(editada.data.unfiltered, 1);
+  assert.equal(editada.data.icon, 'book', 'campo não enviado não pode ser zerado');
+
+  await app.api(`/gems/${criada.data.id}`, { method: 'DELETE' });
+  const lista = await app.api('/gems');
+  assert.ok(!lista.data.some((g) => g.id === criada.data.id));
+});
+
+test('gem inexistente devolve 404 em vez de 500', async () => {
+  const res = await app.api('/gems/nao-existe', { method: 'PATCH', body: { name: 'x' } });
+  assert.equal(res.status, 404);
+});
+
+// --------------------------------------------------------------- conversas
+
+test('conversa: cria, ajusta e apaga', async () => {
+  const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+  assert.equal(chat.status, 200);
+  const id = chat.data.id;
+
+  const ajustada = await app.api(`/chats/${id}`, {
+    method: 'PATCH',
+    body: { title: 'Nome novo', temperature: 0.3, top_p: 0.9, max_tokens: 500, pinned: true }
+  });
+  assert.equal(ajustada.data.title, 'Nome novo');
+  assert.equal(ajustada.data.temperature, 0.3);
+  assert.equal(ajustada.data.pinned, 1);
+
+  const aberta = await app.api(`/chats/${id}`);
+  assert.equal(aberta.data.chat.id, id);
+  assert.ok(Array.isArray(aberta.data.messages));
+  assert.ok(Array.isArray(aberta.data.attachments));
+
+  await app.api(`/chats/${id}`, { method: 'DELETE' });
+  assert.equal((await app.api(`/chats/${id}`)).status, 404);
+});
+
+test('conversa arquivada some da lista mas continua existindo', async () => {
+  const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+  await app.api(`/chats/${chat.data.id}`, { method: 'PATCH', body: { archived: true } });
+
+  const normal = await app.api('/chats');
+  assert.ok(!normal.data.some((c) => c.id === chat.data.id));
+
+  const todas = await app.api('/chats?all=1');
+  assert.ok(todas.data.some((c) => c.id === chat.data.id));
+});
+
+// ------------------------------------------------------------------- chat
+
+test('turno de conversa: stream completo com modelo falso', async () => {
+  const stub = stubFetch(async () =>
+    fakeResponse([
+      'data: {"choices":[{"delta":{"content":"Oi, "}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"tudo certo."}}]}\n\n',
+      'data: {"usage":{"prompt_tokens":10,"completion_tokens":4}}\n\n',
+      'data: [DONE]\n\n'
+    ])
+  );
+  try {
+    const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+    const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'oi tudo bem?', model: fakeRef })
+    });
+    const texto = await res.text();
+    const eventos = texto
+      .split('\n\n')
+      .filter((l) => l.startsWith('data: '))
+      .map((l) => JSON.parse(l.slice(6)));
+
+    const tipos = eventos.map((e) => e.type);
+    assert.ok(tipos.includes('user'), 'faltou o evento da mensagem do usuário');
+    assert.ok(tipos.includes('delta'), 'faltou o texto da resposta');
+    assert.ok(tipos.includes('stats'), 'faltou a medição');
+    assert.ok(tipos.includes('done'), 'faltou o fechamento');
+    assert.equal(tipos.at(-1), 'end');
+
+    const resposta = eventos.find((e) => e.type === 'done').message;
+    assert.equal(resposta.content, 'Oi, tudo certo.');
+
+    const stats = eventos.find((e) => e.type === 'stats');
+    assert.equal(stats.tokens, 4, 'a contagem do provedor tem que ser usada');
+    assert.equal(stats.estimated, false);
+
+    // A conversa ganha título a partir da primeira frase.
+    const aberta = await app.api(`/chats/${chat.data.id}`);
+    assert.equal(aberta.data.chat.title, 'oi tudo bem?');
+    assert.equal(aberta.data.messages.length, 2);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('provedor fora do ar vira evento de erro, não derruba o servidor', async () => {
+  const stub = stubFetch(async () => {
+    throw new Error('conexão recusada');
+  });
+  try {
+    const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+    const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'oi', model: fakeRef })
+    });
+    const texto = await res.text();
+    assert.match(texto, /"type":"error"/);
+    assert.match(texto, /conexão recusada/);
+    assert.match(texto, /"type":"end"/, 'mesmo com erro o stream tem que fechar direito');
+  } finally {
+    stub.restore();
+  }
+  // o servidor continua respondendo
+  assert.equal((await app.api('/state')).status, 200);
+});
+
+test('resposta cortada no meio é gravada como interrompida', async () => {
+  const stub = stubFetch(async () => {
+    const original = fakeResponse(['data: {"choices":[{"delta":{"content":"comecei mas"}}]}\n\n']);
+    let entregue = false;
+    return {
+      ...original,
+      body: {
+        getReader() {
+          return {
+            async read() {
+              if (entregue) throw new Error('conexão caiu no meio');
+              entregue = true;
+              return {
+                done: false,
+                value: new TextEncoder().encode('data: {"choices":[{"delta":{"content":"comecei mas"}}]}\n\n')
+              };
+            }
+          };
+        }
+      }
+    };
+  });
+  try {
+    const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+    const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'teste de queda', model: fakeRef })
+    });
+    await res.text();
+
+    const aberta = await app.api(`/chats/${chat.data.id}`);
+    const resposta = aberta.data.messages.find((m) => m.role === 'assistant');
+    assert.ok(resposta, 'o pedaço que chegou tinha que ter sido gravado');
+    assert.match(resposta.content, /comecei mas/);
+    assert.match(resposta.meta, /interrupted/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('conversa sem modelo escolhido explica o problema', async () => {
+  const chat = await app.api('/chats', { method: 'POST', body: {} });
+  const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+    body: JSON.stringify({ content: 'oi' })
+  });
+  const texto = await res.text();
+  assert.match(texto, /nenhum modelo/);
+});
+
+// ---------------------------------------------------------------- memória
+
+test('memória pela API: grava, fixa, busca e apaga', async () => {
+  const criada = await app.api('/memories', {
+    method: 'POST',
+    body: { text: 'Miguel programa em JavaScript e Swift' }
+  });
+  assert.equal(criada.status, 200);
+
+  await app.api(`/memories/${criada.data.id}`, { method: 'PATCH', body: { pinned: true } });
+  const lista = await app.api('/memories');
+  assert.equal(lista.data.find((m) => m.id === criada.data.id).pinned, 1);
+
+  const busca = await app.api('/search?q=JavaScript Swift');
+  assert.ok(busca.data.memories.some((m) => m.id === criada.data.id));
+
+  await app.api(`/memories/${criada.data.id}`, { method: 'DELETE' });
+  assert.ok(!(await app.api('/memories')).data.some((m) => m.id === criada.data.id));
+});
+
+test('busca acha dentro das mensagens, não só no título', async () => {
+  const stub = stubFetch(async () =>
+    fakeResponse(['data: {"choices":[{"delta":{"content":"O jabuticabeira floresce no tronco."}}]}\n\n', 'data: [DONE]\n\n'])
+  );
+  try {
+    const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+    await app.raw(`/api/chats/${chat.data.id}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'me fala de arvores', model: fakeRef })
+    }).then((r) => r.text());
+
+    const busca = await app.api('/search?q=jabuticabeira');
+    assert.ok(busca.data.chats.some((c) => c.chat_id === chat.data.id), 'devia achar pela palavra da resposta');
+  } finally {
+    stub.restore();
+  }
+});
+
+// ----------------------------------------------------------------- anexos
+
+test('anexo pela API entra na conversa e some ao apagar', async () => {
+  const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+  const enviado = await app.api(`/chats/${chat.data.id}/attachments?name=notas.txt`, {
+    method: 'POST',
+    body: 'O prazo do contrato Delta é de noventa dias.',
+    raw: true
+  });
+  assert.equal(enviado.status, 200);
+  assert.equal(enviado.data.status, 'ok');
+
+  const aberta = await app.api(`/chats/${chat.data.id}`);
+  assert.equal(aberta.data.attachments.length, 1);
+
+  await app.api(`/attachments/${enviado.data.id}`, { method: 'DELETE' });
+  assert.equal((await app.api(`/chats/${chat.data.id}`)).data.attachments.length, 0);
+});
+
+// -------------------------------------------------------------- exportação
+
+test('exportar em markdown e em json', async () => {
+  const stub = stubFetch(async () =>
+    fakeResponse(['data: {"choices":[{"delta":{"content":"Resposta exportada."}}]}\n\n', 'data: [DONE]\n\n'])
+  );
+  let chatId;
+  try {
+    const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+    chatId = chat.data.id;
+    await app.raw(`/api/chats/${chatId}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'pergunta exportada', model: fakeRef })
+    }).then((r) => r.text());
+  } finally {
+    stub.restore();
+  }
+
+  const md = await app.raw(`/api/chats/${chatId}/export?format=md&token=${app.token}`);
+  const texto = await md.text();
+  assert.match(md.headers.get('content-type'), /markdown/);
+  assert.match(texto, /pergunta exportada/);
+  assert.match(texto, /Resposta exportada\./);
+
+  const json = await app.api(`/chats/${chatId}/export?format=json`);
+  assert.equal(json.data.messages.length, 2);
+  assert.equal(typeof json.data.messages[0].meta, 'object', 'o meta tem que vir já lido');
+});
+
+// ------------------------------------------------------------ configuração
+
+test('salvar memória não desliga a exigência de token', async () => {
+  const antes = await app.api('/settings');
+  assert.equal(antes.data.requireToken, true);
+
+  await app.api('/settings', { method: 'PATCH', body: { memory: { maxInjected: 7 } } });
+
+  const depois = await app.api('/settings');
+  assert.equal(depois.data.requireToken, true, 'o token não pode cair sozinho');
+  assert.equal(depois.data.memory.maxInjected, 7);
+  assert.equal(depois.data.memory.enabled, true, 'o resto da configuração tem que sobreviver');
+});
+
+test('rota inexistente devolve 404 com mensagem', async () => {
+  const res = await app.api('/nao/existe');
+  assert.equal(res.status, 404);
+  assert.match(res.data.error, /rota não encontrada/);
+});

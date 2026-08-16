@@ -212,6 +212,20 @@ function addColumn(table, name, definition) {
   return true;
 }
 
+/**
+ * Chave de comparação de texto. O `lower()` do SQLite só cobre ASCII, então
+ * "DOMÍNIO" e "domínio" passariam como fatos diferentes — a normalização é
+ * feita aqui e gravada junto.
+ */
+export function normalizeText(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function migrate() {
   // Ícone e cor no lugar do emoji.
   addColumn('gems', 'icon', "TEXT NOT NULL DEFAULT 'sparkle'");
@@ -235,6 +249,14 @@ function migrate() {
       run('UPDATE gems SET icon = ? WHERE id = ?', map[gem.emoji] || 'sparkle', gem.id);
     }
   }
+
+  // Chave de desduplicação da memória.
+  if (addColumn('memories', 'norm', 'TEXT')) {
+    for (const row of all('SELECT id, text FROM memories')) {
+      run('UPDATE memories SET norm = ? WHERE id = ?', normalizeText(row.text), row.id);
+    }
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_memories_norm ON memories(norm, project_id)');
 
   // Índice de mensagens antigo não existia: preenche uma vez.
   const indexed = one('SELECT COUNT(*) AS n FROM messages_fts').n;

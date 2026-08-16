@@ -1,0 +1,134 @@
+// Memória compartilhada: o núcleo do produto. O que precisa valer sempre é
+// que o fato gravado por um modelo seja recuperável por outro, que fato
+// repetido não vire linha nova, e que fixado entre sempre.
+
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { useTempHome } from './helpers.mjs';
+
+const home = useTempHome();
+const { addMemory, recall, listMemories, updateMemory, deleteMemory, renderForPrompt, extractHeuristic } =
+  await import('../server/memory.mjs');
+const { run } = await import('../server/db.mjs');
+
+after(() => home.cleanup());
+
+test('grava e lista', async () => {
+  const row = await addMemory({ text: 'Miguel prefere respostas curtas' });
+  assert.ok(row.id);
+  assert.equal(row.source, 'manual');
+  assert.equal(row.active, 1);
+  assert.ok(listMemories().some((m) => m.id === row.id));
+});
+
+test('fato repetido não vira linha nova, nem com outra caixa', async () => {
+  const antes = listMemories().length;
+  const a = await addMemory({ text: 'O domínio do Miguel é nspx.dev' });
+  const b = await addMemory({ text: 'o DOMÍNIO do miguel É NSPX.DEV' });
+  assert.equal(a.id, b.id, 'o segundo devia ter caído no primeiro');
+  assert.equal(listMemories().length, antes + 1);
+});
+
+test('texto vazio não grava', async () => {
+  assert.equal(await addMemory({ text: '   ' }), null);
+  assert.equal(await addMemory({ text: null }), null);
+});
+
+test('recall acha por palavra da pergunta', async () => {
+  await addMemory({ text: 'Miguel toca guitarra desde os doze anos' });
+  const hits = await recall('ele sabe tocar guitarra?');
+  assert.ok(hits.some((m) => /guitarra/.test(m.text)), 'devia ter achado o fato da guitarra');
+});
+
+test('recall não devolve o banco inteiro pra pergunta sem relação', async () => {
+  await addMemory({ text: 'A cor preferida dele é azul' });
+  const hits = await recall('qual a capital da Mongólia');
+  assert.ok(hits.length < listMemories().length, 'não pode injetar tudo');
+});
+
+test('fato fixado entra mesmo sem casar com a pergunta', async () => {
+  const pin = await addMemory({ text: 'Responda sempre em português do Brasil', pinned: 1 });
+  const hits = await recall('qualquer assunto completamente diferente disso');
+  assert.ok(hits.some((m) => m.id === pin.id), 'fixado tem que entrar sempre');
+});
+
+test('recall conta o uso', async () => {
+  const row = await addMemory({ text: 'Ele usa um teclado ergonômico Kinesis' });
+  await recall('teclado ergonômico');
+  const depois = listMemories().find((m) => m.id === row.id);
+  assert.ok(depois.use_count > 0);
+});
+
+test('fato de projeto não vaza pra fora do projeto', async () => {
+  run(
+    'INSERT INTO projects (id, name, icon, color, instructions, workdir, created_at) VALUES (?,?,?,?,?,?,?)',
+    'proj-a', 'Projeto A', 'folder', 'slate', '', null, new Date().toISOString()
+  );
+  run(
+    'INSERT INTO projects (id, name, icon, color, instructions, workdir, created_at) VALUES (?,?,?,?,?,?,?)',
+    'proj-b', 'Projeto B', 'folder', 'slate', '', null, new Date().toISOString()
+  );
+  await addMemory({
+    text: 'O servidor de homologação do projeto responde na porta 8443',
+    scope: 'project',
+    projectId: 'proj-a'
+  });
+
+  const dentro = await recall('porta do servidor de homologação', { projectId: 'proj-a' });
+  assert.ok(dentro.some((m) => /8443/.test(m.text)), 'no projeto certo tem que aparecer');
+
+  const fora = await recall('porta do servidor de homologação', { projectId: 'proj-b' });
+  assert.ok(!fora.some((m) => /8443/.test(m.text)), 'no outro projeto não pode aparecer');
+});
+
+test('desativar tira da lista e da recuperação', async () => {
+  const row = await addMemory({ text: 'Fato que vai ser desativado sobre xilofones' });
+  updateMemory(row.id, { active: false });
+  assert.ok(!listMemories().some((m) => m.id === row.id));
+  const hits = await recall('xilofones');
+  assert.ok(!hits.some((m) => m.id === row.id));
+});
+
+test('apagar some do índice de busca também', async () => {
+  const row = await addMemory({ text: 'Fato temporário sobre paraquedismo noturno' });
+  deleteMemory(row.id);
+  const hits = await recall('paraquedismo noturno');
+  assert.ok(!hits.some((m) => m.id === row.id), 'o índice FTS tinha que ter sido limpo pelo gatilho');
+});
+
+test('bloco do prompt sai vazio sem fatos e nomeado com fatos', () => {
+  assert.equal(renderForPrompt([]), '');
+  const bloco = renderForPrompt([{ text: 'gosta de café' }]);
+  assert.match(bloco, /O que você já sabe sobre esta pessoa/);
+  assert.match(bloco, /- gosta de café/);
+});
+
+// ------------------------------------------------------------- heurística
+
+test('heurística pega identidade e preferência em português', () => {
+  const fatos = extractHeuristic('Oi, me chamo Miguel Moretti e eu gosto de café sem açúcar.');
+  assert.ok(fatos.some((f) => /me chamo Miguel/i.test(f)));
+  assert.ok(fatos.some((f) => /gosto de café/i.test(f)));
+});
+
+test('heurística não devolve fato contido em outro fato', () => {
+  const fatos = extractHeuristic('eu gosto de cafe sem acucar e trabalho com Node');
+  const contido = fatos.some((a) => fatos.some((b) => a !== b && b.toLowerCase().includes(a.toLowerCase())));
+  assert.equal(contido, false, 'não pode sobrar fato que já está dentro de outro');
+});
+
+test('heurística ignora pergunta comum', () => {
+  assert.deepEqual(extractHeuristic('qual é a capital da França?'), []);
+  assert.deepEqual(extractHeuristic('me explica como funciona o FTS5'), []);
+});
+
+test('heurística funciona em inglês também', () => {
+  const fatos = extractHeuristic('my name is Miguel and i love working late at night');
+  assert.ok(fatos.length > 0);
+});
+
+test('caractere especial de consulta FTS não quebra a busca', async () => {
+  await addMemory({ text: 'Ele usa aspas "duplas" no código' });
+  const hits = await recall('aspas "duplas" AND OR NOT * ^ :');
+  assert.ok(Array.isArray(hits), 'a busca tem que sobreviver a sintaxe de FTS na pergunta');
+});

@@ -23,7 +23,9 @@ export function getChat(id) {
 }
 
 export function listMessages(chatId) {
-  return all('SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at', chatId);
+  // Desempate por rowid: pergunta e resposta podem cair no mesmo milissegundo,
+  // e aí só a ordem de inserção diz qual veio antes.
+  return all('SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at, rowid', chatId);
 }
 
 export function createChat({ title, projectId = null, gemId = null, mode = 'chat', model = null }) {
@@ -65,16 +67,22 @@ export function deleteMessage(id) {
   run('DELETE FROM messages WHERE id = ?', id);
 }
 
-/** Apaga a mensagem e tudo que veio depois dela — a base do "regenerar". */
+/**
+ * Apaga a mensagem e tudo que veio depois dela — a base do "regenerar".
+ *
+ * O corte é por rowid, não por horário: mensagens gravadas no mesmo
+ * milissegundo têm o mesmo `created_at`, e comparar por data apagaria também a
+ * pergunta que deu origem à resposta que se quer refazer.
+ */
 export function truncateFrom(chatId, messageId) {
-  const target = one('SELECT created_at FROM messages WHERE id = ?', messageId);
+  const target = one('SELECT rowid AS rid FROM messages WHERE id = ?', messageId);
   if (!target) return 0;
   const { n } = one(
-    'SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND created_at >= ?',
+    'SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND rowid >= ?',
     chatId,
-    target.created_at
+    target.rid
   );
-  run('DELETE FROM messages WHERE chat_id = ? AND created_at >= ?', chatId, target.created_at);
+  run('DELETE FROM messages WHERE chat_id = ? AND rowid >= ?', chatId, target.rid);
   return n;
 }
 

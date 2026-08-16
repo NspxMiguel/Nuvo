@@ -196,7 +196,9 @@ function fromPdf(buffer) {
     }
 
     const text = textFromContentStream(data.toString('latin1'));
-    if (text.trim().length > 20) parts.push(text);
+    // Basta ter palavra de verdade: um corte por tamanho descartaria a página
+    // que só tem um título curto.
+    if (/\p{L}{2,}/u.test(text)) parts.push(text);
   }
 
   const text = parts

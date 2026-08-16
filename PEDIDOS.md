@@ -115,6 +115,29 @@ função e estrutura, não desenho.
 - [x] 18. A mesma apresentação em texto, na conversa, sem página. O deck
       continua no repositório pra quando ele quiser mostrar.
 
+## 16/08/2026 — levar o app até quase produção
+
+> "n tem investidor nenhum, so queria ouvir vc falando pra eu ver se ideia bate
+> com a minha. vamo faze o app entao..... fica fazendo o app, até ele estar
+> praticamente pronto pra producao, tudo funcionando e testado. pra dai eu fazer
+> o desing com claude desing"
+
+- [ ] 19. Bateria de testes automatizados de verdade (`node --test`), cobrindo
+      extração de arquivo, memória, chunking, rotas da API, adaptadores,
+      conselho e pesquisa.
+- [ ] 20. Robustez: limite de tamanho, tempo máximo, provedor que cai no meio
+      da resposta, duas requisições na mesma conversa, transação onde importa.
+- [ ] 21. Segurança de rede local: restringir CORS, proteger o token contra
+      tentativa repetida, revisar caminho de arquivo.
+- [ ] 22. Operação: subir sozinho junto com a máquina (launchd, systemd,
+      agendador do Windows), backup e restauração dos dados.
+- [ ] 23. Arremates de produto: renomear conversa, ver arquivadas, primeira
+      abertura guiada, checar saúde do provedor, mensagem de erro que explica
+      o que fazer.
+
+O desenho continua sendo dele com o Claude Design — o que entra aqui é
+funcionamento e teste.
+
 ## Pendências abertas
 
 - [ ] Empacotar como app nativo (Electron no PC, Capacitor no celular) — hoje

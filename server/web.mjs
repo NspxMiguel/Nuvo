@@ -54,8 +54,11 @@ export async function search(query, { limit = 6, signal } = {}) {
 
   const out = [];
   const seen = new Set();
+  // O trecho depois do link vai até o próximo resultado — ou até o fim do
+  // documento, no caso do último. Fechar em `</div></div></div>` dependia do
+  // aninhamento exato do buscador e engolia o último resultado quando ele mudava.
   const re =
-    /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>([\s\S]*?)(?=<a[^>]+class="[^"]*result__a|<\/div>\s*<\/div>\s*<\/div>)/gi;
+    /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>([\s\S]*?)(?=<a[^>]+class="[^"]*result__a|$)/gi;
 
   for (const match of html.matchAll(re)) {
     let url = decodeEntities(match[1]);
@@ -69,7 +72,10 @@ export async function search(query, { limit = 6, signal } = {}) {
     if (seen.has(url)) continue;
     seen.add(url);
 
-    const snippetMatch = match[3].match(/class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+    // Só o começo do trecho: no último resultado ele vai até o fim da página.
+    const snippetMatch = match[3]
+      .slice(0, 4000)
+      .match(/class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
     out.push({
       title: stripTags(match[2]).slice(0, 200),
       url,

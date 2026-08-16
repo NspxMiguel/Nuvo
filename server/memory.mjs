@@ -6,7 +6,7 @@
 // Busca híbrida: FTS5 sempre, embeddings quando houver um modelo de embedding
 // configurado. Sem embedding o app continua funcionando, só com menos precisão.
 
-import { all, one, run, uid, now } from './db.mjs';
+import { all, one, run, uid, now, normalizeText } from './db.mjs';
 import { loadConfig } from './config.mjs';
 import { adapterFor, contextFor, getProvider, parseRef } from './providers/index.mjs';
 import { toBlob, fromBlob, cosine, embedTexts, embeddingAvailable, ftsQuery } from './vectors.mjs';
@@ -26,11 +26,13 @@ export async function addMemory({
 }) {
   const clean = String(text || '').trim();
   if (!clean) return null;
+  const norm = normalizeText(clean);
 
-  // Fato repetido só atualiza o carimbo, não vira linha nova.
+  // Fato repetido só atualiza o carimbo, não vira linha nova. A comparação é
+  // pela chave normalizada: acento e caixa não fazem fato novo.
   const duplicate = one(
-    "SELECT id FROM memories WHERE lower(text) = lower(?) AND IFNULL(project_id, '') = IFNULL(?, '')",
-    clean,
+    "SELECT id FROM memories WHERE norm = ? AND IFNULL(project_id, '') = IFNULL(?, '')",
+    norm,
     projectId
   );
   if (duplicate) {
@@ -41,11 +43,12 @@ export async function addMemory({
   const id = uid();
   const stamp = now();
   run(
-    `INSERT INTO memories (id, text, kind, scope, project_id, source, source_ref, pinned, active,
+    `INSERT INTO memories (id, text, norm, kind, scope, project_id, source, source_ref, pinned, active,
                            use_count, embedding, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NULL, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NULL, ?, ?)`,
     id,
     clean,
+    norm,
     kind,
     scope,
     projectId,
@@ -65,10 +68,12 @@ export async function addMemory({
 export function updateMemory(id, patch) {
   const current = one('SELECT * FROM memories WHERE id = ?', id);
   if (!current) return null;
+  const nextText = patch.text ?? current.text;
   run(
-    `UPDATE memories SET text = ?, kind = ?, scope = ?, project_id = ?, pinned = ?, active = ?, updated_at = ?
+    `UPDATE memories SET text = ?, norm = ?, kind = ?, scope = ?, project_id = ?, pinned = ?, active = ?, updated_at = ?
      WHERE id = ?`,
-    patch.text ?? current.text,
+    nextText,
+    normalizeText(nextText),
     patch.kind ?? current.kind,
     patch.scope ?? current.scope,
     patch.projectId !== undefined ? patch.projectId : current.project_id,

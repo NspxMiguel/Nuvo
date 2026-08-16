@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node bin/iaunifier.mjs",
-    "dev": "node --watch bin/iaunifier.mjs"
+    "dev": "node --watch bin/iaunifier.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=22.5.0"
