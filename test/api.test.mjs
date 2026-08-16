@@ -656,3 +656,36 @@ test('apagar projeto pela API também leva os arquivos dele', async () => {
   await app.api(`/projects/${id}`, { method: 'DELETE' });
   assert.ok(!existsSync(caminho), 'o documento do projeto tem que sair do disco junto');
 });
+
+// ---------------------------------------------------------------- manifest
+
+test('manifest leva o token no start_url, e não é servido sem ele', async () => {
+  // O app instalado na tela inicial começa com o localStorage vazio: se o
+  // start_url não levar o token, o atalho abre num pedido de senha. E como o
+  // arquivo passa a ter o token dentro, ele não pode ficar aberto na rede.
+  const semToken = await app.raw('/manifest.webmanifest');
+  assert.equal(semToken.status, 401, 'manifest com token dentro não pode ser público');
+
+  const comToken = await app.raw(`/manifest.webmanifest?token=${encodeURIComponent(app.token)}`);
+  assert.equal(comToken.status, 200);
+  assert.match(comToken.headers.get('content-type'), /manifest\+json/);
+
+  const manifest = await comToken.json();
+  assert.equal(manifest.start_url, `/?token=${encodeURIComponent(app.token)}`);
+  assert.equal(manifest.id, '/', 'sem id fixo, mudar o start_url duplica a instalação');
+  assert.equal(manifest.scope, '/');
+  assert.ok(manifest.icons.some((i) => i.purpose === 'maskable'));
+});
+
+test('sem token exigido, o manifest é o arquivo normal', async () => {
+  const { patchConfig } = await import('../server/config.mjs');
+  patchConfig({ requireToken: false });
+  try {
+    const res = await app.raw('/manifest.webmanifest');
+    assert.equal(res.status, 200);
+    const manifest = await res.json();
+    assert.equal(manifest.start_url, '/', 'sem tranca não há token pra pendurar na URL');
+  } finally {
+    patchConfig({ requireToken: true });
+  }
+});

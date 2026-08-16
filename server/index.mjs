@@ -207,6 +207,32 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
       return res.end(JSON.stringify({ app: 'iaunifier' }));
     }
 
+    // O manifest descreve o app instalado, e o `start_url` dele precisa levar o
+    // token: sem isso o atalho na tela inicial abre num pedido de senha, porque
+    // o localStorage do app instalado começa vazio. Como o arquivo passa a ter
+    // o token dentro, ele deixa de ser estático livre e passa pela mesma
+    // tranca do resto — a página pede com `?token=` (web/core.js).
+    if (url.pathname === '/manifest.webmanifest') {
+      if (!authorized(req, url)) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'token inválido' }));
+      }
+      try {
+        const base = JSON.parse(await readFile(join(WEB_DIR, 'manifest.webmanifest'), 'utf8'));
+        const cfg = loadConfig();
+        if (cfg.requireToken) {
+          base.start_url = `/?token=${encodeURIComponent(cfg.accessToken)}`;
+        }
+        res.writeHead(200, {
+          'content-type': 'application/manifest+json; charset=utf-8',
+          'cache-control': 'no-store'
+        });
+        return res.end(JSON.stringify(base));
+      } catch {
+        return serveStatic(res, url.pathname);
+      }
+    }
+
     if (url.pathname.startsWith('/api/')) {
       if (origin) {
         res.setHeader('access-control-allow-origin', origin);
@@ -276,7 +302,12 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
       console.log('  Religar: node bin/iaunifier.mjs --com-token');
     }
 
-    console.log('\n  abra o endereço de rede no celular pra instalar como app.\n');
+    // A promessa tem que caber no que o navegador realmente faz por HTTP na
+    // rede local: o iPhone adiciona à tela de início do mesmo jeito, mas o
+    // Android só oferece "instalar" em HTTPS, e o service worker (que guarda a
+    // casca pra abrir sem servidor) não registra fora de localhost.
+    console.log('\n  abra o endereço de rede no celular: no iPhone, Compartilhar → Adicionar à Tela de Início.');
+    console.log('  o Android só oferece instalar em HTTPS; por enquanto, use o atalho do navegador.\n');
   }
 
   return server;

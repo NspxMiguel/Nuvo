@@ -11,6 +11,16 @@ if (params.get('token')) {
 }
 export const TOKEN = localStorage.getItem('iaunifier.token') || '';
 
+// O manifest é o que descreve o app instalado, e o `start_url` dele precisa
+// levar o token — senão o atalho na tela inicial abre num pedido de senha.
+// Ele vai buscado com o token na URL por dois motivos: o navegador pede o
+// manifest sem os nossos cabeçalhos, e assim o servidor pode exigir o token
+// pra devolvê-lo — um manifest com token dentro não pode ficar aberto na rede.
+if (TOKEN) {
+  const link = document.querySelector('link[rel="manifest"]');
+  if (link) link.href = `/manifest.webmanifest?token=${encodeURIComponent(TOKEN)}`;
+}
+
 export async function api(path, { method = 'GET', body, raw } = {}) {
   const res = await fetch(`/api${path}`, {
     method,

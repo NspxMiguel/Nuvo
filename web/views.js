@@ -339,7 +339,7 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
         <button data-act="use"><span data-icon="chat"></span> Conversar</button>
         <button data-act="edit"><span data-icon="edit"></span> Editar</button>
         <button data-act="mem"><span data-icon="brain"></span> Alternar memória</button>
-        <button data-act="del" class="danger"><span data-icon="trash"></span></button>
+        <button data-act="del" class="danger" title="apagar" aria-label="apagar gem"><span data-icon="trash"></span></button>
       </div>`;
 
     card.querySelector('[data-act=use]').onclick = () => startChatWithGem(g);
@@ -468,7 +468,7 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
       <div class="row">
         <button data-act="use"><span data-icon="chat"></span> Conversar</button>
         <button data-act="files"><span data-icon="paperclip"></span> Arquivos</button>
-        <button data-act="del" class="danger"><span data-icon="trash"></span></button>
+        <button data-act="del" class="danger" title="apagar" aria-label="apagar projeto"><span data-icon="trash"></span></button>
       </div>`;
 
     card.querySelector('[data-act=use]').onclick = () => startChatInProject(p);
@@ -599,14 +599,19 @@ views.memory = async function renderMemory(el, { switchView }) {
     pin.className = `icon${m.pinned ? ' toggle on' : ''}`;
     pin.innerHTML = icon('pin', 15);
     pin.title = m.pinned ? 'desfixar' : 'fixar';
+    pin.setAttribute('aria-label', `${m.pinned ? 'desfixar' : 'fixar'} este fato`);
     pin.onclick = async () => {
       await api(`/memories/${m.id}`, { method: 'PATCH', body: { pinned: !m.pinned } });
       switchView('memory');
     };
     const del = document.createElement('button');
     del.className = 'icon';
+    del.title = 'apagar fato';
+    del.setAttribute('aria-label', 'apagar este fato da memória');
     del.innerHTML = icon('trash', 15);
     del.onclick = async () => {
+      // Era o único apagar do app sem confirmação, num botão sem nome nenhum.
+      if (!confirm(`Apagar da memória?\n\n"${m.text}"`)) return;
       await api(`/memories/${m.id}`, { method: 'DELETE' });
       switchView('memory');
     };

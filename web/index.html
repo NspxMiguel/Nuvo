@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0e0e13" />
     <title>IAUnifier</title>
-    <!-- iOS ignora o manifest pra tela cheia: precisa destas três. -->
+    <!-- iOS ignora o manifest pra tela cheia: precisa destas três. A quarta é
+         a padrão, que o Chrome pede em lugar da variante apple- (e avisa no
+         console em toda abertura enquanto ela não está aqui). -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="IAUnifier" />
@@ -16,10 +19,11 @@
   </head>
   <body>
     <div id="app">
+      <div id="scrim"></div>
       <aside id="sidebar">
         <header class="side-head">
           <span class="brand">IAUnifier</span>
-          <button id="btn-close-side" class="icon" title="fechar">
+          <button id="btn-close-side" class="icon" title="fechar" aria-label="fechar menu">
             <span data-icon="close"></span>
           </button>
         </header>
@@ -47,8 +51,10 @@
         <div id="chat-list"></div>
 
         <footer class="side-foot">
-          <button id="btn-theme" class="icon" title="tema"><span data-icon="moon"></span></button>
-          <button id="btn-palette" class="icon" title="paleta de comandos (Ctrl+K)">
+          <button id="btn-theme" class="icon" title="tema" aria-label="trocar entre tema claro e escuro">
+            <span data-icon="moon"></span>
+          </button>
+          <button id="btn-palette" class="icon" title="paleta de comandos" aria-label="abrir a paleta de comandos">
             <span data-icon="command"></span>
           </button>
           <span id="side-status" class="muted"></span>
@@ -57,19 +63,19 @@
 
       <main id="main">
         <header id="topbar">
-          <button id="btn-open-side" class="icon" title="menu"><span data-icon="menu"></span></button>
+          <button id="btn-open-side" class="icon" title="menu" aria-label="abrir menu"><span data-icon="menu"></span></button>
           <select id="sel-model" title="modelo"></select>
           <select id="sel-gem" title="gem"></select>
           <select id="sel-project" title="projeto"></select>
           <span id="chat-title"></span>
           <span class="grow"></span>
-          <button id="btn-web" class="icon toggle" title="buscar na web nesta conversa">
+          <button id="btn-web" class="icon toggle" aria-pressed="false" title="buscar na web nesta conversa" aria-label="buscar na web nesta conversa">
             <span data-icon="globe"></span>
           </button>
-          <button id="btn-tune" class="icon" title="ajustes da conversa">
+          <button id="btn-tune" class="icon" title="ajustes da conversa" aria-label="ajustes da conversa">
             <span data-icon="spark"></span>
           </button>
-          <button id="btn-export" class="icon" title="exportar conversa">
+          <button id="btn-export" class="icon" title="exportar conversa" aria-label="exportar conversa">
             <span data-icon="download"></span>
           </button>
         </header>
@@ -79,17 +85,17 @@
           <div id="messages"></div>
           <div id="attach-bar" class="attach-bar" hidden></div>
           <form id="composer">
-            <button id="btn-attach" class="icon" type="button" title="anexar arquivo">
+            <button id="btn-attach" class="icon" type="button" title="anexar arquivo" aria-label="anexar arquivo">
               <span data-icon="paperclip"></span>
             </button>
-            <button id="btn-mic" class="icon" type="button" title="ditar">
+            <button id="btn-mic" class="icon" type="button" title="ditar" aria-label="ditar">
               <span data-icon="mic"></span>
             </button>
             <textarea id="input" rows="1" placeholder="Fale com a IA"></textarea>
-            <button id="btn-send" class="primary" type="submit" title="enviar">
+            <button id="btn-send" class="primary" type="submit" title="enviar" aria-label="enviar mensagem">
               <span data-icon="send"></span>
             </button>
-            <button id="btn-stop" class="icon danger" type="button" title="parar" hidden>
+            <button id="btn-stop" class="icon danger" type="button" title="parar" aria-label="parar a resposta" hidden>
               <span data-icon="stop"></span>
             </button>
           </form>

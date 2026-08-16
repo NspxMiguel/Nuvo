@@ -2,6 +2,7 @@
   "name": "IAUnifier",
   "short_name": "IAUnifier",
   "description": "Todas as suas IAs — locais, de API e de CLI — com uma memória só.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

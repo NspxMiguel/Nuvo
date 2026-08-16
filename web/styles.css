@@ -57,12 +57,15 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+#scrim { display: none; }
 .icon svg { display: block; }
 .ico { display: inline-flex; }
 .muted { color: var(--muted); }
 .grow { flex: 1; }
 
-#app { display: flex; height: 100dvh; overflow: hidden; }
+/* A altura vem do JS quando o teclado do celular está aberto: o iOS não encolhe
+   o layout nesse caso, e o dvh continua valendo a tela inteira. */
+#app { display: flex; height: var(--altura-util, 100dvh); overflow: hidden; }
 
 /* ---------------------------------------------------------------- sidebar */
 
@@ -341,7 +344,7 @@ input.rename.topbar {
 .tok.fn { color: var(--sky); }
 
 .table-wrap { overflow-x: auto; margin: 0 0 10px; }
-.msg table { border-collapse: collapse; font-size: 13.5px; min-width: 100%; }
+.msg table { border-collapse: collapse; font-size: 13.5px; width: max-content; min-width: 100%; }
 .msg th, .msg td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
 .msg th { background: var(--panel-2); }
 
@@ -357,6 +360,7 @@ input.rename.topbar {
   gap: 7px;
   align-items: flex-start;
 }
+.note > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .note.new { border-color: var(--ok); }
 .note.err { border-color: var(--danger); color: var(--danger); }
 .note .ico { flex: 0 0 auto; margin-top: 2px; }
@@ -395,6 +399,9 @@ input.rename.topbar {
   font-size: 12px;
   color: var(--muted);
 }
+.chip { max-width: 100%; min-width: 0; }
+.chip .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chip button { flex: 0 0 auto; }
 .chip.err { border-color: var(--danger); color: var(--danger); }
 .chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 2px; }
 
@@ -565,7 +572,7 @@ button.ghost { background: none; }
 
 .mem-item { display: flex; gap: 8px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .mem-item:last-child { border-bottom: 0; }
-.mem-item .txt { flex: 1; font-size: 14px; }
+.mem-item .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
 .mem-item .src { color: var(--muted); font-size: 11px; margin-top: 2px; }
 
 .progress { height: 5px; background: var(--panel-3); border-radius: 99px; overflow: hidden; margin-top: 6px; }
@@ -603,7 +610,7 @@ button.ghost { background: none; }
   overflow: hidden;
   box-shadow: 0 20px 60px #0007;
 }
-.palette-box input { width: 100%; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 13px 15px; font-size: 15px; }
+.palette-box input { width: 100%; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 13px 15px; font-size: 16px; }
 #palette-list { max-height: 52vh; overflow-y: auto; }
 .palette-item {
   display: flex;
@@ -617,7 +624,16 @@ button.ghost { background: none; }
 .palette-item .hintk { margin-left: auto; font-size: 11px; }
 .palette-item.sel, .palette-item:hover { background: var(--panel-2); color: var(--text); }
 
-.toasts { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 70; }
+.toasts {
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 70;
+  pointer-events: none;
+}
 .toast {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -641,8 +657,18 @@ button.ghost { background: none; }
     transform: translateX(-100%);
     transition: transform 0.16s ease;
     box-shadow: 0 0 40px #0006;
+    /* A página desenha por baixo da barra de status e do indicador de home
+       (viewport-fit=cover no HTML). Sem compensar, o topo da gaveta fica sob o
+       relógio e o rodapé sob a barrinha do iPhone. */
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-left: calc(10px + env(safe-area-inset-left, 0px));
   }
   #sidebar.open { transform: none; }
+  /* Véu atrás da gaveta: separa o que está por baixo e dá onde tocar pra
+     fechar, que é o gesto que todo mundo tenta primeiro no celular. */
+  #scrim { position: fixed; inset: 0; z-index: 39; background: #0007; }
+  #scrim.on { display: block; }
   #btn-open-side, #btn-close-side { display: inline-flex; }
   #topbar { padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
   /* No celular só cabe o modelo; gem e projeto ficam no painel de ajustes. */
@@ -653,11 +679,76 @@ button.ghost { background: none; }
     flex: 1 1 auto;
     max-width: none;
     min-width: 0;
-    font-size: 16px; /* abaixo de 16 o iOS dá zoom sozinho ao tocar no campo */
     text-overflow: ellipsis;
   }
   #chat-title { display: none; }
   .panel { padding: 14px 12px; }
   #messages { padding: 14px 12px; }
-  .msg .actions { opacity: 1; }
+  /* O aviso ficava no canto de baixo, exatamente por cima do botão de enviar. */
+  .toasts {
+    left: 12px;
+    right: 12px;
+    bottom: auto;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+  }
+  .toast { max-width: none; }
+}
+
+/* Toque: o que só existia no hover, e o tamanho dos alvos.
+   A condição é o ponteiro, não a largura da tela — tablet e celular deitado
+   passam dos 760px e continuam sendo dedo. */
+@media (hover: none) {
+  /* Sem hover, renomear/fixar/arquivar/apagar conversa não tinha como aparecer:
+     as ações ficavam com largura zero e sem receber toque. */
+  .chat-item .row-actions,
+  .msg .actions {
+    opacity: 1;
+    width: auto;
+    overflow: visible;
+    pointer-events: auto;
+  }
+}
+
+@media (pointer: coarse) {
+  /* Abaixo de 16px o iOS amplia a página ao focar o campo, e não desfaz o zoom
+     ao sair: a barra de cima some da tela até o usuário afastar com dois dedos. */
+  input, select, textarea, #input, .side-search input, .palette-box input { font-size: 16px; }
+
+  /* Alvo de toque: 44px é o mínimo que a Apple e o Google publicam. O ícone
+     continua do mesmo tamanho; o que cresce é a área que recebe o dedo. */
+  button, select, .nav-item, .chat-item, .palette-item { min-height: 44px; }
+  button.icon,
+  .icon-picker button,
+  .swatch,
+  .code-copy,
+  .mem-item button,
+  .chip button,
+  button.danger,
+  #btn-send,
+  #btn-stop {
+    min-width: 44px;
+    justify-content: center;
+  }
+  /* `label.check input { width: auto }` (regra de cima) tem a mesma força, então
+     a caixa precisa ser nomeada do mesmo jeito pra ganhar por vir depois. */
+  input[type='checkbox'], input[type='radio'], label.check input {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+  }
+  /* A etiqueta inteira liga e desliga a caixa: é ela o alvo de verdade. */
+  label.check { min-height: 44px; align-items: center; }
+
+  /* Exceção consciente: na gaveta são quatro ações na mesma linha do título da
+     conversa. A 44px cada, sobrariam uns setenta pixels pro nome. A linha
+     inteira tem os 44 de altura; os botões ficam em 38, que ainda é 2,1x a área
+     que tinham. */
+  .chat-item .row-actions button { min-width: 38px; min-height: 38px; }
+
+  .msg .actions { gap: 4px; }
+  /* O apagar fica longe dos outros: quatro alvos colados, e o último é o que
+     não tem volta. */
+  .msg .actions button:last-child { margin-left: 16px; }
+  /* Margem negativa: a área cresce pros lados sem inchar a pílula do anexo. */
+  .chip button { min-height: 44px; margin: -12px -10px -12px 0; }
 }

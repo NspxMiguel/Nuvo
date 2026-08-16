@@ -199,3 +199,32 @@ Não é só teste automatizado: o app foi exercido contra modelo e web reais.
       Três defeitos de celular achados e corrigidos na hora: seletor de modelo
       cortado no meio do nome, tema ignorando o do aparelho, e cor da barra do
       navegador fixa no escuro por cima da página clara.
+
+### Auditoria de celular (16/08/2026)
+
+Quatro frentes — layout, toque, teclado virtual e PWA — cada achado conferido
+por um segundo agente antes de valer. 25 confirmados, 7 derrubados. Corrigidos:
+
+- **toque**: nenhum alvo abaixo de 38 px em nenhum painel (eram 41 abaixo de 44,
+  com botões de 26x26 e o "x" do anexo em 16x16); ações de renomear/fixar/
+  arquivar/apagar conversa passam a aparecer sem hover; véu atrás da gaveta, que
+  fecha ao tocar fora; `aria-label` em todo botão de ícone; apagar fato da
+  memória pede confirmação, como os outros apagares já pediam;
+- **teclado**: todo campo em 16px (abaixo disso o iOS amplia a página ao focar e
+  não desfaz); Enter só envia onde existe Shift — no celular a tecla de retorno
+  quebra linha e o envio é no botão; a altura do app segue o `visualViewport`,
+  senão o campo de escrever fica atrás do teclado; o foco volta pro campo depois
+  de enviar; crescer o campo não empurra mais a última mensagem pra fora;
+- **layout**: chip de anexo com nome comprido não joga o "x" pra fora da tela;
+  fato de memória sem espaços (chave, hash) não estoura a linha; tabela de
+  markdown volta a rolar de lado em vez de se espremer; aviso deixou de cobrir o
+  botão de enviar e de engolir o toque; gaveta respeita a área segura do iPhone;
+- **PWA**: `start_url` do manifest leva o token (o atalho na tela inicial abria
+  num pedido de senha), e o manifest passou a exigir token pra ser servido, já
+  que agora tem um dentro; `id` fixo pra não duplicar a instalação; meta
+  `mobile-web-app-capable`; o aviso do terminal parou de prometer instalação que
+  o Android não faz em HTTP.
+
+Ficou de fora, por ser mudança de arquitetura e não conserto: servir HTTPS na
+rede local (sem ele o service worker não registra e o Chrome não oferece
+instalar) e trocar o ícone maskable por um com zona de segurança.

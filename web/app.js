@@ -45,6 +45,18 @@ async function load() {
 
 // ---------------------------------------------------------------- sidebar
 
+/** O globo é interruptor: o estado precisa aparecer, não só tingir. */
+function pintarWeb() {
+  const btn = $('#btn-web');
+  btn.classList.toggle('on', state.useWeb);
+  btn.setAttribute('aria-pressed', String(Boolean(state.useWeb)));
+  const rotulo = state.useWeb
+    ? 'busca na web ligada nesta conversa'
+    : 'busca na web desligada nesta conversa';
+  btn.title = rotulo;
+  btn.setAttribute('aria-label', rotulo);
+}
+
 function chatRow(chat) {
   const item = document.createElement('div');
   item.className = `chat-item${chat.id === state.chatId ? ' active' : ''}`;
@@ -53,10 +65,10 @@ function chatRow(chat) {
     ${project ? badge(project.icon, project.color, 13) : `<span class="ico">${icon('chat', 15)}</span>`}
     <span class="label">${escapeHtml(chat.title)}</span>
     <span class="row-actions">
-      <button class="icon" data-act="rename" title="renomear">${icon('edit', 14)}</button>
-      <button class="icon" data-act="pin" title="${chat.pinned ? 'desfixar' : 'fixar'}">${icon('pin', 14)}</button>
-      <button class="icon" data-act="archive" title="${chat.archived ? 'desarquivar' : 'arquivar'}">${icon('archive', 14)}</button>
-      <button class="icon" data-act="del" title="apagar">${icon('trash', 14)}</button>
+      <button class="icon" data-act="rename" title="renomear" aria-label="renomear conversa">${icon('edit', 14)}</button>
+      <button class="icon" data-act="pin" title="${chat.pinned ? 'desfixar' : 'fixar'}" aria-label="${chat.pinned ? 'desfixar' : 'fixar'} conversa">${icon('pin', 14)}</button>
+      <button class="icon" data-act="archive" title="${chat.archived ? 'desarquivar' : 'arquivar'}" aria-label="${chat.archived ? 'desarquivar' : 'arquivar'} conversa">${icon('archive', 14)}</button>
+      <button class="icon" data-act="del" title="apagar" aria-label="apagar conversa">${icon('trash', 14)}</button>
     </span>`;
 
   item.onclick = () => openChat(chat.id);
@@ -248,7 +260,7 @@ function renderTopbar() {
   title.textContent = chat ? chat.title : '';
   title.title = chat ? 'clique duas vezes pra renomear' : '';
   title.ondblclick = chat ? () => renameFromTopbar(chat) : null;
-  $('#btn-web').classList.toggle('on', state.useWeb);
+  pintarWeb();
 }
 
 // -------------------------------------------------------------------- chat
@@ -281,6 +293,9 @@ function wireActions(el, { id, role, text }) {
     const btn = document.createElement('button');
     btn.className = 'icon';
     btn.title = title;
+    // O SVG entra com aria-hidden, então sem isto o botão é anônimo pra quem
+    // usa leitor de tela — e no toque o title não aparece pra ninguém.
+    btn.setAttribute('aria-label', title);
     btn.innerHTML = icon(name, 14);
     btn.onclick = handler;
     actions.appendChild(btn);
@@ -655,9 +670,10 @@ function renderAttachBar() {
   for (const att of state.attachments) {
     const chip = document.createElement('span');
     chip.className = `chip${att.status === 'erro' ? ' err' : ''}`;
-    chip.innerHTML = `${icon('file', 13)} ${escapeHtml(att.name)}
+    chip.innerHTML = `${icon('file', 13)}
+      <span class="nome">${escapeHtml(att.name)}</span>
       <span class="muted">${att.chunks ?? 0}t</span>
-      <button title="remover">${icon('close', 12)}</button>`;
+      <button title="remover" aria-label="remover ${escapeHtml(att.name)}">${icon('close', 14)}</button>`;
     chip.title = att.note || `${Math.round(att.bytes / 1024)} KB`;
     chip.querySelector('button').onclick = async () => {
       await api(`/attachments/${att.id}`, { method: 'DELETE' });
@@ -832,7 +848,20 @@ function switchView(view) {
 function renderView() {
   const ctx = { switchView, applyTheme, startChatWithGem, startChatInProject };
   const render = views[state.view];
-  if (render) render($(`#view-${state.view}`), ctx);
+  if (!render) return;
+  // Painel busca dados do servidor. Celular que sai do alcance do wi-fi, ou
+  // servidor de casa desligado, davam falha sem dono no console e tela em
+  // branco: quem tocou não ficava sabendo de nada.
+  Promise.resolve(render($(`#view-${state.view}`), ctx)).catch((err) => {
+    const alvo = $(`#view-${state.view}`);
+    alvo.className = 'view panel';
+    alvo.innerHTML = `<div class="panel-inner">
+        <p class="hint">${escapeHtml(err.message || 'não deu pra falar com o servidor')}</p>
+        <button id="btn-tentar-de-novo">Tentar de novo</button>
+      </div>`;
+    alvo.querySelector('#btn-tentar-de-novo').onclick = () => renderView();
+    toast(err.message || 'servidor fora do ar', 'err');
+  });
 }
 
 function startChatWithGem(gem) {
@@ -940,7 +969,7 @@ function movePalette(delta) {
 
 function toggleWeb() {
   state.useWeb = !state.useWeb;
-  $('#btn-web').classList.toggle('on', state.useWeb);
+  pintarWeb();
   if (state.chatId) {
     api(`/chats/${state.chatId}`, { method: 'PATCH', body: { tools: { web: state.useWeb } } });
   }
@@ -970,12 +999,24 @@ function download(name, content, type) {
 }
 
 function autosize(el) {
+  const lista = $('#messages');
+  const estavaNoFim = lista
+    ? lista.scrollHeight - lista.scrollTop - lista.clientHeight < 8
+    : false;
   el.style.height = 'auto';
   el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  if (estavaNoFim) scrollDown();
+}
+
+const noCelular = () => window.innerWidth <= 760;
+
+function setSidebar(aberta) {
+  $('#sidebar').classList.toggle('open', aberta);
+  $('#scrim').classList.toggle('on', aberta);
 }
 
 function closeSidebarOnMobile() {
-  if (window.innerWidth <= 760) $('#sidebar').classList.remove('open');
+  if (noCelular()) setSidebar(false);
 }
 
 // ---------------------------------------------------------------- eventos
@@ -986,11 +1027,18 @@ $('#composer').addEventListener('submit', (ev) => {
   const text = input.value;
   input.value = '';
   input.style.height = 'auto';
+  // Devolver o foco mantém o teclado do celular aberto: sem isto ele desce a
+  // cada mensagem e a conversa vira um sobe-e-desce.
+  if (dedo.matches) input.focus();
   send(text);
 });
 
+// Enter só envia onde existe Shift pra quebrar linha. No teclado do celular a
+// tecla de retorno é a única que há: enviar nela deixa o usuário sem nenhum
+// jeito de escrever um parágrafo.
+const dedo = matchMedia('(pointer: coarse)');
 $('#input').addEventListener('keydown', (ev) => {
-  if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) {
+  if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && !dedo.matches) {
     ev.preventDefault();
     $('#composer').requestSubmit();
   }
@@ -1075,8 +1123,30 @@ $('#side-search').oninput = (ev) => {
   searchTimer = setTimeout(() => deepSearch(value), 220);
 };
 
-$('#btn-open-side').onclick = () => $('#sidebar').classList.add('open');
-$('#btn-close-side').onclick = () => $('#sidebar').classList.remove('open');
+// Teclado aberto no celular: o iOS não encolhe o layout nem o dvh, só o
+// visualViewport sabe quanto de tela sobrou. Sem isto o campo de escrever fica
+// atrás do teclado, e a última mensagem também.
+const telaVisivel = window.visualViewport;
+if (telaVisivel) {
+  const ajustarAltura = () => {
+    const sobrou = telaVisivel.height;
+    // Diferença pequena é a barra de endereço subindo e descendo, não teclado.
+    const tecladoAberto = window.innerHeight - sobrou > 120;
+    if (tecladoAberto) {
+      document.documentElement.style.setProperty('--altura-util', `${sobrou}px`);
+      scrollDown();
+    } else {
+      document.documentElement.style.removeProperty('--altura-util');
+    }
+  };
+  telaVisivel.addEventListener('resize', ajustarAltura);
+  telaVisivel.addEventListener('scroll', ajustarAltura);
+}
+
+$('#btn-open-side').onclick = () => setSidebar(true);
+$('#btn-close-side').onclick = () => setSidebar(false);
+// Tocar fora é o primeiro gesto que qualquer um tenta pra fechar uma gaveta.
+$('#scrim').onclick = () => setSidebar(false);
 
 $('#palette-input').oninput = (ev) => drawPalette(ev.target.value);
 $('#palette').onclick = (ev) => {
