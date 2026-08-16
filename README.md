@@ -80,6 +80,49 @@ modelo, independente de quem respondeu.
 
 A interface mostra, em cada resposta, o que foi lembrado e o que foi aprendido.
 
+## Documentos (RAG)
+
+Anexo entra pelo clipe, arrastando pra cima da conversa ou colando no campo de
+texto. Arquivo do projeto vale em toda conversa dele.
+
+Lê texto e código, PDF, DOCX, PPTX e EPUB — os quatro últimos com extrator
+próprio, sem dependência. PDF digitalizado em imagem não tem texto pra extrair e
+o app diz isso em vez de fingir que leu.
+
+Arquivo curto entra inteiro no prompt. Arquivo grande é quebrado em trechos,
+indexado em FTS5 (mais embeddings quando houver) e só o trecho relevante entra —
+com o nome do arquivo junto, pra resposta poder citar a fonte.
+
+## Busca na web e pesquisa profunda
+
+Sem chave de API: a busca sai pelo endpoint HTML do DuckDuckGo e a leitura de
+página derruba script, estilo e navegação antes de virar texto.
+
+- **Busca no chat** — o botão do globo liga a busca na conversa: cada pergunta
+  passa por uma busca, três páginas são lidas e entram no prompt numeradas;
+- **Pesquisa profunda** — o modelo planeja de 3 a 6 consultas, o servidor busca
+  e lê as páginas, e o relatório final cita cada afirmação pelo número da fonte.
+  Página que não abre aparece como não aberta; sem fonte, não há relatório.
+
+## Conselho de IAs
+
+O mesmo prompt em vários modelos ao mesmo tempo, em três modos:
+
+| Modo | O que faz |
+| --- | --- |
+| comparar | as respostas lado a lado, você julga |
+| conselho | as respostas mais uma síntese feita por um modelo juiz |
+| votação cega | cada modelo avalia as respostas dos outros sem saber de quem é cada uma, e o resultado é a nota média |
+
+A votação é cega de propósito: modelo que sabe qual resposta é a dele tende a
+votar nela. A ordem das candidatas muda por jurado, derivada do índice — sem
+sorteio, o que mantém o resultado reproduzível.
+
+## Gerenciar modelos
+
+Provedor Ollama tem baixar e apagar modelo pela interface, com barra de
+progresso lida do stream do próprio Ollama.
+
 ## Gems e projetos
 
 **Gem** é a personalidade: instruções, modelo preferido, temperatura, modo
@@ -100,13 +143,26 @@ server/
   index.mjs            HTTP: estáticos, autenticação por token, roteamento
   api.mjs              rotas /api
   config.mjs           ~/.iaunifier, segredos, token
-  db.mjs               esquema SQLite + FTS5
+  db.mjs               esquema SQLite + FTS5 e migrações
   chat.mjs             uma rodada de conversa, como gerador assíncrono
+  complete.mjs         chamada avulsa a um modelo, sem conversa por trás
   memory.mjs           recuperação híbrida, extração, escrita
+  vectors.mjs          embeddings, cosseno e consulta FTS
+  documents.mjs        anexo, chunking, recuperação por trecho
+  extract.mjs          texto de PDF, DOCX, PPTX, EPUB e código
+  web.mjs              busca e leitura de página
+  research.mjs         pesquisa profunda com relatório
+  council.mjs          conselho de IAs e votação cega
   importers.mjs        leitura de export do ChatGPT/Claude
   discovery.mjs        varredura de portas e binários
   providers/           um adaptador por tipo de provedor
-web/                   PWA sem build: HTML, CSS e ES modules
+web/
+  index.html           casca
+  app.js               chat, barra lateral, paleta, atalhos
+  core.js              estado, API, SSE, peças de interface
+  views.js             painéis
+  icons.js             ícones SVG
+  md.js                Markdown e destaque de código
 ```
 
 Adaptador de provedor implementa `listModels(ctx)` e `stream(ctx, req)` — um
@@ -125,13 +181,33 @@ Todas as rotas exigem o cabeçalho `x-iaunifier-token` (ou `?token=`).
 | `POST /api/chats/:id/stream` | resposta em SSE |
 | `GET/POST /api/memories` | lista e grava fatos |
 | `POST /api/memories/import` | importa export de outra IA |
+| `POST /api/chats/:id/regenerate` | refaz a última resposta (SSE) |
+| `POST /api/chats/:id/attachments` | anexa arquivo (corpo cru, nome na query) |
+| `GET /api/chats/:id/export` | exporta em `md` ou `json` |
+| `POST /api/research` | pesquisa profunda (SSE) |
+| `POST /api/council` | conselho de IAs (SSE) |
+| `POST /api/providers/:id/pull` | baixa modelo do Ollama (SSE) |
+| `GET /api/search` | busca em mensagens e memória |
 | `GET/PATCH /api/settings` | configuração de memória e acesso |
 
-O stream emite `user`, `memory-used`, `reasoning`, `delta`, `done`,
-`memory-new`, `error` e `end`.
+O stream do chat emite `user`, `memory-used`, `docs-used`, `web-used`, `phase`,
+`reasoning`, `delta`, `stats`, `done`, `memory-new`, `error` e `end`.
 
 ## Interface
 
-A interface atual é funcional e crua de propósito — cobre todas as
-funcionalidades do servidor sem etapa de build. O desenho de produção vem
-depois, por cima da mesma API.
+Sem etapa de build: HTML, CSS e ES modules servidos direto.
+
+- Markdown de verdade — título, lista, tabela, citação, link, e bloco de código
+  com destaque e botão copiar;
+- raciocínio do modelo em bloco recolhido, quando o provedor expõe;
+- medição por resposta: tempo até o primeiro token, tokens por segundo e total
+  (marcado como estimado quando o provedor não devolve a contagem);
+- regenerar, editar, copiar e apagar mensagem;
+- ajustes por conversa: prompt de sistema, temperatura, top_p, limite de tokens;
+- busca em tudo que já foi conversado, e na memória, pelo índice FTS5;
+- exportar conversa em Markdown ou JSON;
+- voz: ditado e leitura da resposta, pelas APIs do próprio navegador;
+- tema claro e escuro, paleta de comandos (Ctrl/Cmd+K) e atalhos;
+- ícones próprios em SVG — nada de emoji, que muda de desenho a cada sistema.
+
+O desenho de produção vem depois, por cima da mesma API.

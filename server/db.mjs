@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS models (
 CREATE TABLE IF NOT EXISTS gems (
   id            TEXT PRIMARY KEY,
   name          TEXT NOT NULL,
-  emoji         TEXT NOT NULL DEFAULT '💎',
   system_prompt TEXT NOT NULL DEFAULT '',
   model         TEXT,                       -- "providerId:modelId"
   temperature   REAL,
@@ -56,7 +55,6 @@ CREATE TABLE IF NOT EXISTS gems (
 CREATE TABLE IF NOT EXISTS projects (
   id           TEXT PRIMARY KEY,
   name         TEXT NOT NULL,
-  emoji        TEXT NOT NULL DEFAULT '📁',
   instructions TEXT NOT NULL DEFAULT '',
   workdir      TEXT,
   created_at   TEXT NOT NULL
@@ -117,6 +115,64 @@ CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
   INSERT INTO memories_fts(memories_fts, rowid, text) VALUES('delete', old.rowid, old.text);
   INSERT INTO memories_fts(rowid, text) VALUES (new.rowid, new.text);
 END;
+
+-- Anexos e seus pedaços indexados. É o "converse com o documento": o arquivo
+-- inteiro raramente cabe no contexto, então entra só o trecho que interessa.
+CREATE TABLE IF NOT EXISTS attachments (
+  id         TEXT PRIMARY KEY,
+  chat_id    TEXT REFERENCES chats(id) ON DELETE CASCADE,
+  project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  mime       TEXT,
+  bytes      INTEGER NOT NULL DEFAULT 0,
+  chars      INTEGER NOT NULL DEFAULT 0,
+  path       TEXT,                        -- cópia crua em ~/.iaunifier/uploads
+  status     TEXT NOT NULL DEFAULT 'ok',  -- ok | erro
+  note       TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_chat ON attachments(chat_id);
+
+CREATE TABLE IF NOT EXISTS chunks (
+  id            TEXT PRIMARY KEY,
+  attachment_id TEXT NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
+  chat_id       TEXT,
+  project_id    TEXT,
+  ord           INTEGER NOT NULL DEFAULT 0,
+  text          TEXT NOT NULL,
+  embedding     BLOB,
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chunks_att ON chunks(attachment_id, ord);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+  text, content='chunks', content_rowid='rowid'
+);
+CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
+  INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
+  INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
+END;
+CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
+  INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.rowid, old.text);
+  INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
+END;
+
+-- Busca em tudo que já foi conversado.
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+  content, content='messages', content_rowid='rowid'
+);
+CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+  INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+  INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
 `);
 
 export const now = () => new Date().toISOString();
@@ -141,28 +197,88 @@ export function parseJSON(value, fallback = {}) {
   }
 }
 
-/** Gems e provedores que já vêm prontos no primeiro start. */
+// ---------------------------------------------------------------- migrações
+//
+// O banco de quem já usava a versão anterior continua valendo: cada coluna nova
+// entra por ALTER TABLE, sem apagar nada.
+
+function columns(table) {
+  return all(`PRAGMA table_info(${table})`).map((c) => c.name);
+}
+
+function addColumn(table, name, definition) {
+  if (columns(table).includes(name)) return false;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+  return true;
+}
+
+function migrate() {
+  // Ícone e cor no lugar do emoji.
+  addColumn('gems', 'icon', "TEXT NOT NULL DEFAULT 'sparkle'");
+  addColumn('gems', 'color', "TEXT NOT NULL DEFAULT 'indigo'");
+  addColumn('projects', 'icon', "TEXT NOT NULL DEFAULT 'folder'");
+  addColumn('projects', 'color', "TEXT NOT NULL DEFAULT 'slate'");
+
+  // Ajustes por conversa: prompt, amostragem e organização da lista.
+  addColumn('chats', 'system_prompt', 'TEXT');
+  addColumn('chats', 'temperature', 'REAL');
+  addColumn('chats', 'top_p', 'REAL');
+  addColumn('chats', 'max_tokens', 'INTEGER');
+  addColumn('chats', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('chats', 'archived', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('chats', 'tools', 'TEXT'); // json: {"web":true,"docs":true}
+
+  // Quem já tinha emoji ganha um ícone equivalente uma vez só.
+  if (columns('gems').includes('emoji')) {
+    const map = { '🤖': 'bot', '👨‍💻': 'code', '🔓': 'unlock', '💎': 'sparkle' };
+    for (const gem of all('SELECT id, emoji FROM gems')) {
+      run('UPDATE gems SET icon = ? WHERE id = ?', map[gem.emoji] || 'sparkle', gem.id);
+    }
+  }
+
+  // Índice de mensagens antigo não existia: preenche uma vez.
+  const indexed = one('SELECT COUNT(*) AS n FROM messages_fts').n;
+  const total = one('SELECT COUNT(*) AS n FROM messages').n;
+  if (total > 0 && indexed === 0) {
+    db.exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')");
+  }
+}
+
+migrate();
+
+/** Gems que já vêm prontas no primeiro start. */
 export function seed() {
   const count = one('SELECT COUNT(*) AS n FROM gems').n;
   if (count > 0) return;
   const gems = [
     {
       name: 'Assistente',
-      emoji: '🤖',
+      icon: 'bot',
+      color: 'indigo',
       mode: 'chat',
       system_prompt:
         'Você é um assistente direto e útil. Responde em português do Brasil, sem enrolação e sem repetir a pergunta.'
     },
     {
       name: 'Programador',
-      emoji: '👨‍💻',
+      icon: 'code',
+      color: 'teal',
       mode: 'coding',
       system_prompt:
         'Você é um engenheiro de software sênior. Responde com código pronto pra rodar, aponta o arquivo e a linha quando fizer sentido, e explica só o que não é óbvio no código.'
     },
     {
+      name: 'Pesquisador',
+      icon: 'search',
+      color: 'amber',
+      mode: 'chat',
+      system_prompt:
+        'Você pesquisa antes de responder. Usa a busca na web quando o assunto depende de informação atual, cita a fonte de cada afirmação que veio de fora e separa o que é fato do que é leitura sua.'
+    },
+    {
       name: 'Sem filtro',
-      emoji: '🔓',
+      icon: 'unlock',
+      color: 'rose',
       mode: 'chat',
       unfiltered: 1,
       system_prompt:
@@ -171,11 +287,12 @@ export function seed() {
   ];
   for (const g of gems) {
     run(
-      `INSERT INTO gems (id, name, emoji, system_prompt, model, temperature, mode, unfiltered, memory_read, memory_write, created_at)
-       VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, 1, ?)`,
+      `INSERT INTO gems (id, name, icon, color, system_prompt, model, temperature, mode, unfiltered, memory_read, memory_write, created_at)
+       VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, 1, 1, ?)`,
       uid(),
       g.name,
-      g.emoji,
+      g.icon,
+      g.color,
       g.system_prompt,
       g.mode,
       g.unfiltered || 0,

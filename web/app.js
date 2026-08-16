@@ -1,191 +1,217 @@
-// Interface do IAUnifier. Sem build: ES module servido direto.
+// Interface do IAUnifier. Sem build: ES modules servidos direto.
 
-// ------------------------------------------------------------------- token
+import {
+  $, $$, api, stream, state, refreshState, chatModels, modelLabel, fillSelect,
+  escapeHtml, badge, toast, paintIcons, modelOptions
+} from './core.js';
+import { icon } from './icons.js';
+import { renderMarkdown, wireCodeCopy } from './md.js';
+import { views } from './views.js';
 
-const params = new URLSearchParams(location.search);
-if (params.get('token')) {
-  localStorage.setItem('iaunifier.token', params.get('token'));
-  history.replaceState({}, '', location.pathname);
+// -------------------------------------------------------------------- tema
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('iaunifier.theme', theme);
+  $('#btn-theme').innerHTML = icon(theme === 'light' ? 'sun' : 'moon', 18);
 }
-const TOKEN = localStorage.getItem('iaunifier.token') || '';
-
-async function api(path, { method = 'GET', body, raw } = {}) {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: {
-      'x-iaunifier-token': TOKEN,
-      ...(body !== undefined && !raw ? { 'content-type': 'application/json' } : {})
-    },
-    body: raw ? body : body !== undefined ? JSON.stringify(body) : undefined
-  });
-  if (res.status === 401) {
-    const token = prompt('Token de acesso (aparece no terminal onde o servidor subiu):');
-    if (token) {
-      localStorage.setItem('iaunifier.token', token);
-      location.reload();
-    }
-    throw new Error('sem token');
-  }
-  const data = await res.json();
-  if (!res.ok && data.error) throw new Error(data.error);
-  return data;
-}
-
-// ------------------------------------------------------------------- estado
-
-const state = {
-  providers: [],
-  gems: [],
-  projects: [],
-  chats: [],
-  settings: null,
-  chatId: null,
-  messages: [],
-  model: localStorage.getItem('iaunifier.model') || '',
-  gemId: localStorage.getItem('iaunifier.gem') || '',
-  projectId: '',
-  view: 'chat',
-  streaming: null
-};
-
-const $ = (sel) => document.querySelector(sel);
-
-function escapeHtml(text) {
-  return String(text).replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
-  );
-}
-
-/** Markdown mínimo: blocos de código, código inline e negrito. */
-function renderText(text) {
-  const escaped = escapeHtml(text);
-  return escaped
-    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<pre><code>${code}</code></pre>`)
-    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-}
-
-function allModels() {
-  return state.providers
-    .filter((p) => p.enabled)
-    .flatMap((p) =>
-      p.models
-        .filter((m) => m.kind === 'chat')
-        .map((m) => ({ ref: m.ref, label: `${p.name} · ${m.label}` }))
-    );
-}
-
-/** O ref é `providerId:modelId` — na tela mostramos o nome legível. */
-function modelLabel(ref) {
-  if (!ref) return 'ia';
-  return allModels().find((m) => m.ref === ref)?.label || ref.split(':').slice(1).join(':') || ref;
-}
-
-function embeddingModels() {
-  return state.providers.flatMap((p) =>
-    p.models
-      .filter((m) => m.kind === 'embedding')
-      .map((m) => ({ ref: m.ref, label: `${p.name} · ${m.label}` }))
-  );
-}
+applyTheme(localStorage.getItem('iaunifier.theme') || 'dark');
 
 // -------------------------------------------------------------------- boot
 
 async function load() {
-  const data = await api('/state');
-  Object.assign(state, data);
-  if (!state.model && allModels().length) state.model = allModels()[0].ref;
+  await refreshState();
   renderSidebar();
   renderTopbar();
   renderView();
+  $('#side-status').textContent = `${chatModels().length} modelo(s) · ${state.providers.length} provedor(es)`;
 }
 
 // ---------------------------------------------------------------- sidebar
 
-function renderSidebar() {
+function chatRow(chat) {
+  const item = document.createElement('div');
+  item.className = `chat-item${chat.id === state.chatId ? ' active' : ''}`;
+  const project = state.projects.find((p) => p.id === chat.project_id);
+  item.innerHTML = `
+    ${project ? badge(project.icon, project.color, 13) : `<span class="ico">${icon('chat', 15)}</span>`}
+    <span class="label">${escapeHtml(chat.title)}</span>
+    <span class="row-actions">
+      <button class="icon" data-act="pin" title="${chat.pinned ? 'desfixar' : 'fixar'}">${icon('pin', 14)}</button>
+      <button class="icon" data-act="archive" title="arquivar">${icon('archive', 14)}</button>
+      <button class="icon" data-act="del" title="apagar">${icon('trash', 14)}</button>
+    </span>`;
+
+  item.onclick = () => openChat(chat.id);
+  item.querySelector('[data-act=pin]').onclick = async (ev) => {
+    ev.stopPropagation();
+    await api(`/chats/${chat.id}`, { method: 'PATCH', body: { pinned: !chat.pinned } });
+    await load();
+  };
+  item.querySelector('[data-act=archive]').onclick = async (ev) => {
+    ev.stopPropagation();
+    await api(`/chats/${chat.id}`, { method: 'PATCH', body: { archived: 1 } });
+    if (state.chatId === chat.id) newChat();
+    await load();
+  };
+  item.querySelector('[data-act=del]').onclick = async (ev) => {
+    ev.stopPropagation();
+    if (!confirm(`Apagar "${chat.title}"?`)) return;
+    await api(`/chats/${chat.id}`, { method: 'DELETE' });
+    if (state.chatId === chat.id) newChat();
+    await load();
+  };
+  return item;
+}
+
+function renderSidebar(filter = '') {
   const list = $('#chat-list');
   list.innerHTML = '';
-  for (const chat of state.chats) {
-    const item = document.createElement('div');
-    item.className = `chat-item${chat.id === state.chatId ? ' active' : ''}`;
-    const project = state.projects.find((p) => p.id === chat.project_id);
-    item.innerHTML = `<span>${project ? project.emoji + ' ' : ''}${escapeHtml(chat.title)}</span>`;
-    const del = document.createElement('button');
-    del.className = 'icon';
-    del.textContent = '✕';
-    del.onclick = async (ev) => {
-      ev.stopPropagation();
-      await api(`/chats/${chat.id}`, { method: 'DELETE' });
-      if (state.chatId === chat.id) {
-        state.chatId = null;
-        state.messages = [];
-      }
-      await load();
-    };
-    item.appendChild(del);
-    item.onclick = () => openChat(chat.id);
-    list.appendChild(item);
+  const query = filter.trim().toLowerCase();
+  const chats = query
+    ? state.chats.filter((c) => c.title.toLowerCase().includes(query))
+    : state.chats;
+
+  const pinned = chats.filter((c) => c.pinned);
+  const rest = chats.filter((c) => !c.pinned);
+
+  if (pinned.length) {
+    list.insertAdjacentHTML('beforeend', '<div class="list-label">Fixadas</div>');
+    for (const chat of pinned) list.appendChild(chatRow(chat));
+  }
+  if (rest.length) {
+    if (pinned.length) list.insertAdjacentHTML('beforeend', '<div class="list-label">Conversas</div>');
+    for (const chat of rest) list.appendChild(chatRow(chat));
+  }
+  if (!chats.length) {
+    list.insertAdjacentHTML('beforeend', '<div class="list-label">nada por aqui</div>');
+  }
+}
+
+/** Busca do servidor: procura dentro das mensagens e da memória, não só no título. */
+async function deepSearch(query) {
+  if (query.trim().length < 3) return renderSidebar(query);
+  const { chats, memories } = await api(`/search?q=${encodeURIComponent(query)}`);
+  const list = $('#chat-list');
+  list.innerHTML = '';
+
+  if (chats.length) {
+    list.insertAdjacentHTML('beforeend', '<div class="list-label">Nas mensagens</div>');
+    for (const hit of chats) {
+      const item = document.createElement('div');
+      item.className = 'chat-item';
+      item.innerHTML = `<span class="ico">${icon('chat', 15)}</span>
+        <span class="label" title="${escapeHtml(hit.excerpt)}">${escapeHtml(hit.title)} — ${escapeHtml(
+          hit.excerpt
+        )}</span>`;
+      item.onclick = () => openChat(hit.chat_id, hit.id);
+      list.appendChild(item);
+    }
+  }
+  if (memories.length) {
+    list.insertAdjacentHTML('beforeend', '<div class="list-label">Na memória</div>');
+    for (const m of memories) {
+      const item = document.createElement('div');
+      item.className = 'chat-item';
+      item.innerHTML = `<span class="ico">${icon('brain', 15)}</span>
+        <span class="label">${escapeHtml(m.text)}</span>`;
+      item.onclick = () => switchView('memory');
+      list.appendChild(item);
+    }
+  }
+  if (!chats.length && !memories.length) {
+    list.insertAdjacentHTML('beforeend', '<div class="list-label">nada encontrado</div>');
   }
 }
 
 // ----------------------------------------------------------------- topbar
 
-function fillSelect(el, options, value, placeholder) {
-  el.innerHTML = '';
-  if (placeholder) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = placeholder;
-    el.appendChild(opt);
-  }
-  for (const o of options) {
-    const opt = document.createElement('option');
-    opt.value = o.value;
-    opt.textContent = o.label;
-    el.appendChild(opt);
-  }
-  el.value = value || '';
-}
-
 function renderTopbar() {
   fillSelect(
     $('#sel-model'),
-    allModels().map((m) => ({ value: m.ref, label: m.label })),
+    chatModels().map((m) => ({ value: m.ref, label: m.label })),
     state.model,
-    allModels().length ? null : 'nenhum modelo — abra Provedores'
+    chatModels().length ? null : 'nenhum modelo — abra Provedores'
   );
   fillSelect(
     $('#sel-gem'),
-    state.gems.map((g) => ({ value: g.id, label: `${g.emoji} ${g.name}` })),
+    state.gems.map((g) => ({ value: g.id, label: g.name })),
     state.gemId,
     'sem gem'
   );
   fillSelect(
     $('#sel-project'),
-    state.projects.map((p) => ({ value: p.id, label: `${p.emoji} ${p.name}` })),
+    state.projects.map((p) => ({ value: p.id, label: p.name })),
     state.projectId,
     'sem projeto'
   );
   const chat = state.chats.find((c) => c.id === state.chatId);
   $('#chat-title').textContent = chat ? chat.title : '';
+  $('#btn-web').classList.toggle('on', state.useWeb);
 }
 
 // -------------------------------------------------------------------- chat
 
-function addMessageEl(role, text, meta = '') {
+function messageEl(role, text, meta = {}) {
   const el = document.createElement('div');
   el.className = `msg ${role}`;
-  el.innerHTML = `<div class="who">${role === 'user' ? 'você' : escapeHtml(meta || 'ia')}</div>
-    <div class="body">${renderText(text)}</div>`;
+  el.dataset.id = meta.id || '';
+  const who = role === 'user' ? 'você' : meta.label || 'ia';
+  el.innerHTML = `
+    <div class="who">${icon(role === 'user' ? 'chat' : 'bot', 13)} ${escapeHtml(who)}</div>
+    <div class="body"></div>
+    <div class="stats"></div>
+    <div class="actions"></div>`;
+
+  const body = el.querySelector('.body');
+  if (role === 'user') body.textContent = text;
+  else body.innerHTML = renderMarkdown(text);
+
   $('#messages').appendChild(el);
   scrollDown();
-  return el.querySelector('.body');
+  return el;
 }
 
-function addNote(text, cls = '') {
+function wireActions(el, { id, role, text }) {
+  const actions = el.querySelector('.actions');
+  actions.innerHTML = '';
+
+  const add = (name, title, handler) => {
+    const btn = document.createElement('button');
+    btn.className = 'icon';
+    btn.title = title;
+    btn.innerHTML = icon(name, 14);
+    btn.onclick = handler;
+    actions.appendChild(btn);
+    return btn;
+  };
+
+  add('copy', 'copiar', async () => {
+    await navigator.clipboard.writeText(text);
+    toast('copiado', 'ok');
+  });
+
+  if (role === 'assistant') {
+    add('refresh', 'refazer com o modelo atual', () => regenerate(id));
+    add('speaker', 'ler em voz alta', () => speak(text));
+  }
+  if (role === 'user') {
+    add('edit', 'editar e reenviar', () => {
+      $('#input').value = text;
+      $('#input').focus();
+      autosize($('#input'));
+    });
+  }
+  add('trash', 'apagar', async () => {
+    await api(`/messages/${id}`, { method: 'DELETE' });
+    el.remove();
+  });
+}
+
+function addNote(text, cls = '', iconName = 'brain') {
   const el = document.createElement('div');
   el.className = `note ${cls}`;
-  el.textContent = text;
+  el.innerHTML = `<span class="ico">${icon(iconName, 14)}</span><span>${text}</span>`;
   $('#messages').appendChild(el);
   scrollDown();
   return el;
@@ -196,26 +222,89 @@ function scrollDown() {
   box.scrollTop = box.scrollHeight;
 }
 
-function renderMessages() {
-  $('#messages').innerHTML = '';
+function renderMessages(focusId) {
+  const box = $('#messages');
+  box.innerHTML = '';
   for (const m of state.messages) {
     if (m.role === 'system') continue;
-    addMessageEl(m.role, m.content, modelLabel(m.model));
+    const meta = typeof m.meta === 'string' ? JSON.parse(m.meta || '{}') : m.meta || {};
+    const el = messageEl(m.role, m.content, {
+      id: m.id,
+      label: meta.provider ? `${meta.provider}` : modelLabel(m.model)
+    });
+    if (meta.reasoning) prependReasoning(el, meta.reasoning);
+    if (meta.stats) el.querySelector('.stats').textContent = statsLine(meta.stats);
+    wireActions(el, { id: m.id, role: m.role, text: m.content });
+    wireCodeCopy(el);
+    if (focusId === m.id) setTimeout(() => el.scrollIntoView({ block: 'center' }), 50);
   }
+  if (!state.messages.length) renderEmptyState();
 }
 
-async function openChat(id) {
+function renderEmptyState() {
+  const gem = state.gems.find((g) => g.id === state.gemId);
+  $('#messages').innerHTML = `
+    <div class="msg" style="text-align:center;color:var(--muted);margin-top:12vh">
+      <div style="display:flex;justify-content:center;margin-bottom:10px">
+        ${badge(gem?.icon || 'sparkle', gem?.color || 'indigo', 22)}
+      </div>
+      <div style="font-size:16px;color:var(--text)">${escapeHtml(gem?.name || 'IAUnifier')}</div>
+      <div style="font-size:13px;margin-top:4px">
+        ${state.model ? escapeHtml(modelLabel(state.model)) : 'nenhum modelo escolhido'}
+      </div>
+      <div style="font-size:12.5px;margin-top:14px">
+        Anexe arquivo, ligue a busca na web, ou chame o conselho pra perguntar a vários modelos de uma vez.
+      </div>
+    </div>`;
+}
+
+function statsLine(stats) {
+  const parts = [];
+  if (stats.ttft != null) parts.push(`primeiro token em ${(stats.ttft / 1000).toFixed(2)}s`);
+  if (stats.tps) parts.push(`${stats.tps} tok/s`);
+  if (stats.tokens) parts.push(`${stats.tokens} tokens${stats.estimated ? ' (estimado)' : ''}`);
+  if (stats.ms) parts.push(`${(stats.ms / 1000).toFixed(1)}s no total`);
+  return parts.join(' · ');
+}
+
+function prependReasoning(el, text) {
+  const details = document.createElement('details');
+  details.className = 'reasoning';
+  details.innerHTML = `<summary>raciocínio do modelo</summary><div class="think"></div>`;
+  details.querySelector('.think').textContent = text;
+  el.querySelector('.body').before(details);
+  return details.querySelector('.think');
+}
+
+async function openChat(id, focusId) {
   const data = await api(`/chats/${id}`);
   state.chatId = id;
+  state.chat = data.chat;
   state.messages = data.messages;
+  state.attachments = data.attachments || [];
   state.model = data.chat.model || state.model;
   state.gemId = data.chat.gem_id || '';
   state.projectId = data.chat.project_id || '';
+  state.useWeb = Boolean(JSON.parse(data.chat.tools || '{}').web);
   switchView('chat');
   renderSidebar();
   renderTopbar();
-  renderMessages();
+  renderMessages(focusId);
+  renderAttachBar();
   closeSidebarOnMobile();
+}
+
+function newChat() {
+  state.chatId = null;
+  state.chat = null;
+  state.messages = [];
+  state.attachments = [];
+  switchView('chat');
+  renderSidebar();
+  renderTopbar();
+  renderEmptyState();
+  renderAttachBar();
+  $('#input').focus();
 }
 
 async function ensureChat() {
@@ -230,537 +319,492 @@ async function ensureChat() {
     }
   });
   state.chatId = chat.id;
+  state.chat = chat;
   state.chats.unshift({ ...chat, message_count: 0 });
   renderSidebar();
   return chat.id;
 }
 
-async function send(text) {
-  if (!text.trim()) return;
-  if (!state.model) {
-    addNote('nenhum modelo escolhido — abra Provedores e cadastre um', 'err');
-    return;
-  }
-  const chatId = await ensureChat();
-  addMessageEl('user', text);
-
+/** Consome o stream de um turno e vai montando a resposta na tela. */
+async function consumeTurn(path, body) {
   const controller = new AbortController();
   state.streaming = controller;
   $('#btn-stop').hidden = false;
   $('#btn-send').disabled = true;
 
+  let el = null;
   let bodyEl = null;
+  let thinkEl = null;
   let answer = '';
+  let messageId = null;
 
   try {
-    const res = await fetch(`/api/chats/${chatId}/stream`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': TOKEN },
-      body: JSON.stringify({ content: text, model: state.model }),
-      signal: controller.signal
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let idx;
-      while ((idx = buffer.indexOf('\n\n')) >= 0) {
-        const raw = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-        if (!raw.startsWith('data: ')) continue;
-        const ev = JSON.parse(raw.slice(6));
-
-        if (ev.type === 'memory-used') {
-          addNote(`🧠 lembrou de ${ev.items.length}: ${ev.items.map((i) => i.text).join(' · ')}`);
-        } else if (ev.type === 'delta') {
-          if (!bodyEl) bodyEl = addMessageEl('assistant', '', modelLabel(state.model));
-          answer += ev.text;
-          bodyEl.innerHTML = renderText(answer);
-          scrollDown();
-        } else if (ev.type === 'memory-new') {
-          addNote(`🧠 aprendeu: ${ev.items.map((i) => i.text).join(' · ')}`, 'new');
-        } else if (ev.type === 'error') {
-          addNote(`erro: ${ev.message}`, 'err');
+    await stream(
+      path,
+      body,
+      (ev) => {
+        switch (ev.type) {
+          case 'reset':
+            for (const node of $$('#messages .msg, #messages .note')) {
+              if (node.dataset.id && ev.keep.includes(node.dataset.id)) continue;
+              if (node.classList.contains('note')) node.remove();
+              else if (!ev.keep.includes(node.dataset.id)) node.remove();
+            }
+            break;
+          case 'user': {
+            const userEl = messageEl('user', ev.message.content, { id: ev.message.id });
+            wireActions(userEl, { id: ev.message.id, role: 'user', text: ev.message.content });
+            break;
+          }
+          case 'memory-used':
+            addNote(
+              `lembrou de ${ev.items.length}: ${ev.items.map((i) => escapeHtml(i.text)).join(' · ')}`,
+              '',
+              'brain'
+            );
+            break;
+          case 'docs-used':
+            addNote(
+              `usando ${ev.items
+                .map((i) => escapeHtml(i.source) + (i.whole ? '' : ` (trecho ${i.ord + 1})`))
+                .join(' · ')}`,
+              '',
+              'paperclip'
+            );
+            break;
+          case 'web-used':
+            addNote(
+              'web: ' +
+                ev.hits
+                  .map(
+                    (h) =>
+                      `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">[${h.n}] ${escapeHtml(
+                        h.title.slice(0, 60)
+                      )}</a>`
+                  )
+                  .join(' · '),
+              '',
+              'globe'
+            );
+            break;
+          case 'phase':
+            addNote(escapeHtml(ev.text), '', 'spark');
+            break;
+          case 'note':
+            addNote(escapeHtml(ev.text), '', 'alert');
+            break;
+          case 'reasoning':
+            if (!el) el = messageEl('assistant', '', { label: modelLabel(state.model) });
+            if (!thinkEl) thinkEl = prependReasoning(el, '');
+            thinkEl.textContent += ev.text;
+            break;
+          case 'delta':
+            if (!el) el = messageEl('assistant', '', { label: modelLabel(state.model) });
+            bodyEl = el.querySelector('.body');
+            answer += ev.text;
+            bodyEl.innerHTML = renderMarkdown(answer);
+            scrollDown();
+            break;
+          case 'stats':
+            if (el) el.querySelector('.stats').textContent = statsLine(ev);
+            break;
+          case 'done':
+            messageId = ev.message.id;
+            if (el) {
+              el.dataset.id = messageId;
+              wireActions(el, { id: messageId, role: 'assistant', text: ev.message.content });
+              wireCodeCopy(el);
+            }
+            break;
+          case 'memory-new':
+            addNote(
+              `aprendeu: ${ev.items.map((i) => escapeHtml(i.text)).join(' · ')}`,
+              'new',
+              'brain'
+            );
+            break;
+          case 'error':
+            addNote(escapeHtml(ev.message), 'err', 'alert');
+            break;
+          default:
+            break;
         }
-      }
-    }
+      },
+      controller.signal
+    );
   } catch (err) {
-    if (err.name !== 'AbortError') addNote(`erro: ${err.message}`, 'err');
+    if (err.name !== 'AbortError') addNote(escapeHtml(err.message), 'err', 'alert');
   } finally {
     state.streaming = null;
     $('#btn-stop').hidden = true;
     $('#btn-send').disabled = false;
-    const chat = state.chats.find((c) => c.id === chatId);
-    if (chat && chat.title === 'Nova conversa') {
-      chat.title = text.trim().split('\n')[0].slice(0, 60);
-      renderSidebar();
-      renderTopbar();
+    // O título é gerado no servidor a partir da primeira frase.
+    const fresh = await api('/chats');
+    state.chats = fresh;
+    renderSidebar();
+    renderTopbar();
+  }
+}
+
+async function send(text) {
+  if (!text.trim()) return;
+  if (!state.model) {
+    addNote('nenhum modelo escolhido — abra Provedores e cadastre um', 'err', 'alert');
+    return;
+  }
+  const chatId = await ensureChat();
+  if (state.messages.length === 0 && $('#messages').querySelector('.msg[style]')) {
+    $('#messages').innerHTML = '';
+  }
+  await consumeTurn(`/chats/${chatId}/stream`, {
+    content: text,
+    model: state.model,
+    web: state.useWeb
+  });
+}
+
+async function regenerate(fromId) {
+  if (!state.chatId) return;
+  await consumeTurn(`/chats/${state.chatId}/regenerate`, {
+    from: fromId,
+    model: state.model,
+    web: state.useWeb
+  });
+}
+
+// ------------------------------------------------------------------ anexos
+
+function renderAttachBar() {
+  const bar = $('#attach-bar');
+  bar.innerHTML = '';
+  bar.hidden = !state.attachments.length;
+  for (const att of state.attachments) {
+    const chip = document.createElement('span');
+    chip.className = `chip${att.status === 'erro' ? ' err' : ''}`;
+    chip.innerHTML = `${icon('file', 13)} ${escapeHtml(att.name)}
+      <span class="muted">${att.chunks ?? 0}t</span>
+      <button title="remover">${icon('close', 12)}</button>`;
+    chip.title = att.note || `${Math.round(att.bytes / 1024)} KB`;
+    chip.querySelector('button').onclick = async () => {
+      await api(`/attachments/${att.id}`, { method: 'DELETE' });
+      state.attachments = state.attachments.filter((a) => a.id !== att.id);
+      renderAttachBar();
+    };
+    bar.appendChild(chip);
+  }
+}
+
+async function uploadFiles(files) {
+  const chatId = await ensureChat();
+  for (const file of files) {
+    const pending = addNote(`indexando ${escapeHtml(file.name)}...`, '', 'paperclip');
+    try {
+      const att = await api(
+        `/chats/${chatId}/attachments?name=${encodeURIComponent(file.name)}`,
+        { method: 'POST', body: await file.arrayBuffer(), raw: true }
+      );
+      state.attachments.push(att);
+      pending.remove();
+      if (att.status === 'erro') {
+        addNote(`${escapeHtml(file.name)}: ${escapeHtml(att.note || 'sem texto legível')}`, 'err', 'alert');
+      } else {
+        addNote(
+          `${escapeHtml(file.name)} — ${att.chunks} trecho(s), ${att.chars} caracteres`,
+          'new',
+          'paperclip'
+        );
+      }
+    } catch (err) {
+      pending.remove();
+      addNote(`${escapeHtml(file.name)}: ${escapeHtml(err.message)}`, 'err', 'alert');
     }
   }
+  renderAttachBar();
+}
+
+// --------------------------------------------------------------------- voz
+
+function speak(text) {
+  if (!('speechSynthesis' in window)) return toast('este navegador não lê em voz alta', 'err');
+  speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(
+    // Marcação de Markdown não deve ser lida em voz alta.
+    text.replace(/```[\s\S]*?```/g, ' bloco de código. ').replace(/[*_#`>|]/g, '')
+  );
+  utterance.lang = 'pt-BR';
+  speechSynthesis.speak(utterance);
+}
+
+let recognition = null;
+function toggleDictation() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) return toast('este navegador não tem ditado', 'err');
+  if (recognition) {
+    recognition.stop();
+    return;
+  }
+  recognition = new Recognition();
+  recognition.lang = 'pt-BR';
+  recognition.interimResults = true;
+  recognition.continuous = true;
+
+  const input = $('#input');
+  const base = input.value;
+  $('#btn-mic').classList.add('on', 'toggle');
+
+  recognition.onresult = (ev) => {
+    let text = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) text += ev.results[i][0].transcript;
+    input.value = (base ? base + ' ' : '') + text;
+    autosize(input);
+  };
+  recognition.onerror = (ev) => toast(`ditado: ${ev.error}`, 'err');
+  recognition.onend = () => {
+    recognition = null;
+    $('#btn-mic').classList.remove('on', 'toggle');
+  };
+  recognition.start();
+}
+
+// -------------------------------------------------------- ajustes do chat
+
+function renderTune() {
+  const tune = $('#tune');
+  if (!tune.hidden) {
+    tune.hidden = true;
+    return;
+  }
+  const chat = state.chat || {};
+  tune.hidden = false;
+  tune.innerHTML = `
+    <label>Gem
+      <select id="t-gem">
+        <option value="">sem gem</option>
+        ${state.gems
+          .map(
+            (g) =>
+              `<option value="${g.id}"${g.id === state.gemId ? ' selected' : ''}>${escapeHtml(g.name)}</option>`
+          )
+          .join('')}
+      </select>
+    </label>
+    <label>Projeto
+      <select id="t-project">
+        <option value="">sem projeto</option>
+        ${state.projects
+          .map(
+            (p) =>
+              `<option value="${p.id}"${p.id === state.projectId ? ' selected' : ''}>${escapeHtml(p.name)}</option>`
+          )
+          .join('')}
+      </select>
+    </label>
+    <label class="full">Prompt de sistema desta conversa (vence o da gem)
+      <textarea id="t-system" rows="3" placeholder="deixe vazio pra usar o da gem">${escapeHtml(
+        chat.system_prompt || ''
+      )}</textarea>
+    </label>
+    <label>Temperatura <input id="t-temp" type="number" step="0.05" min="0" max="2" value="${chat.temperature ?? ''}" /></label>
+    <label>top_p <input id="t-topp" type="number" step="0.05" min="0" max="1" value="${chat.top_p ?? ''}" /></label>
+    <label>Limite de tokens <input id="t-max" type="number" min="1" value="${chat.max_tokens ?? ''}" /></label>
+    <label>Modo
+      <select id="t-mode">
+        <option value="chat"${chat.mode === 'chat' ? ' selected' : ''}>conversa</option>
+        <option value="coding"${chat.mode === 'coding' ? ' selected' : ''}>coding</option>
+      </select>
+    </label>
+    <div class="full row">
+      <button id="t-save" class="primary">Aplicar</button>
+      <span class="meta">vazio = padrão do provedor</span>
+    </div>`;
+
+  tune.querySelector('#t-save').onclick = async () => {
+    if (!state.chatId) return toast('mande uma mensagem primeiro', 'err');
+    const num = (sel) => {
+      const value = tune.querySelector(sel).value;
+      return value === '' ? null : Number(value);
+    };
+    state.gemId = tune.querySelector('#t-gem').value;
+    state.projectId = tune.querySelector('#t-project').value;
+    localStorage.setItem('iaunifier.gem', state.gemId);
+    state.chat = await api(`/chats/${state.chatId}`, {
+      method: 'PATCH',
+      body: {
+        gem_id: state.gemId || null,
+        project_id: state.projectId || null,
+        system_prompt: tune.querySelector('#t-system').value || null,
+        temperature: num('#t-temp'),
+        top_p: num('#t-topp'),
+        max_tokens: num('#t-max'),
+        mode: tune.querySelector('#t-mode').value
+      }
+    });
+    renderTopbar();
+    tune.hidden = true;
+    toast('ajustes aplicados', 'ok');
+  };
 }
 
 // ------------------------------------------------------------------- views
 
 function switchView(view) {
   state.view = view;
-  for (const el of document.querySelectorAll('.view')) el.hidden = true;
+  for (const el of $$('.view')) el.hidden = true;
   $(`#view-${view}`).hidden = false;
-  for (const btn of document.querySelectorAll('.nav-item')) {
-    btn.classList.toggle('active', btn.dataset.view === view);
-  }
+  for (const btn of $$('.nav-item')) btn.classList.toggle('active', btn.dataset.view === view);
   renderView();
 }
 
 function renderView() {
-  if (state.view === 'providers') renderProviders();
-  if (state.view === 'gems') renderGems();
-  if (state.view === 'projects') renderProjects();
-  if (state.view === 'memory') renderMemory();
-  if (state.view === 'settings') renderSettings();
+  const ctx = { switchView, applyTheme, startChatWithGem, startChatInProject };
+  const render = views[state.view];
+  if (render) render($(`#view-${state.view}`), ctx);
 }
 
-// ---------------------------------------------------------------- provedores
-
-async function renderProviders() {
-  const el = $('#view-providers');
-  el.className = 'view panel';
-  const presets = await api('/presets');
-
-  el.innerHTML = `
-    <h2>Provedores</h2>
-    <p class="hint">IA local, de API e de CLI — tudo aparece no mesmo seletor de modelo.</p>
-    <div class="row">
-      <button id="btn-discover">Procurar IA local nesta máquina</button>
-    </div>
-    <div id="providers-cards"></div>
-    <div class="card">
-      <h3>Adicionar</h3>
-      <label class="field">Preset
-        <select id="new-preset">
-          <option value="">— personalizado —</option>
-          ${presets.map((p) => `<option value="${p.key}">${escapeHtml(p.name)}</option>`).join('')}
-        </select>
-      </label>
-      <label class="field">Nome <input id="new-name" placeholder="Meu provedor" /></label>
-      <label class="field">Tipo
-        <select id="new-kind">
-          <option value="openai">openai-compatível</option>
-          <option value="anthropic">anthropic</option>
-          <option value="google">google</option>
-          <option value="ollama">ollama</option>
-          <option value="cli">cli</option>
-        </select>
-      </label>
-      <label class="field">Endereço base <input id="new-url" placeholder="http://127.0.0.1:1234/v1" /></label>
-      <label class="field">Nome da chave <input id="new-secret" placeholder="OPENAI_API_KEY" /></label>
-      <label class="field">Chave (fica só no servidor) <input id="new-value" type="password" /></label>
-      <label class="field">Config do CLI (JSON)
-        <textarea id="new-config" rows="3" placeholder='{"command":"claude","args":["-p"],"stdin":true,"models":["default"]}'></textarea>
-      </label>
-      <button id="btn-add-provider" class="primary">Adicionar</button>
-    </div>`;
-
-  const cards = el.querySelector('#providers-cards');
-  for (const p of state.providers) {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <h3>${escapeHtml(p.name)}
-        <span class="tag">${p.kind}</span>
-        ${p.auto ? '<span class="tag">auto</span>' : ''}
-        ${p.secret_name ? `<span class="tag ${p.has_secret ? 'on' : 'off'}">${p.has_secret ? 'com chave' : 'sem chave'}</span>` : ''}
-      </h3>
-      <div class="meta">${escapeHtml(p.base_url || p.config.command || '')} · ${p.models.length} modelo(s)</div>
-      <div class="row">
-        <button data-act="refresh">Atualizar modelos</button>
-        <button data-act="key">Trocar chave</button>
-        <button data-act="del" class="danger">Remover</button>
-      </div>`;
-    card.querySelector('[data-act=refresh]').onclick = async () => {
-      try {
-        await api(`/providers/${p.id}/refresh`, { method: 'POST' });
-        await load();
-        switchView('providers');
-      } catch (err) {
-        alert(err.message);
-      }
-    };
-    card.querySelector('[data-act=key]').onclick = async () => {
-      const name = p.secret_name || prompt('Nome da variável da chave:', 'API_KEY');
-      if (!name) return;
-      const value = prompt(`Valor de ${name}:`);
-      if (value === null) return;
-      await api(`/providers/${p.id}`, { method: 'PATCH', body: { secretName: name, secretValue: value } });
-      await load();
-      switchView('providers');
-    };
-    card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(`Remover ${p.name}?`)) return;
-      await api(`/providers/${p.id}`, { method: 'DELETE' });
-      await load();
-      switchView('providers');
-    };
-    cards.appendChild(card);
-  }
-
-  el.querySelector('#btn-discover').onclick = async (ev) => {
-    ev.target.disabled = true;
-    ev.target.textContent = 'procurando...';
-    const { found } = await api('/discover', { method: 'POST' });
-    await load();
-    switchView('providers');
-    alert(found.length ? `encontrado: ${found.map((f) => f.name).join(', ')}` : 'nada novo encontrado');
-  };
-
-  el.querySelector('#new-preset').onchange = (ev) => {
-    const preset = presets.find((p) => p.key === ev.target.value);
-    if (!preset) return;
-    el.querySelector('#new-name').value = preset.name;
-    el.querySelector('#new-kind').value = preset.kind;
-    el.querySelector('#new-url').value = preset.baseUrl || '';
-    el.querySelector('#new-secret').value = preset.secretName || '';
-    el.querySelector('#new-config').value = preset.config ? JSON.stringify(preset.config) : '';
-  };
-
-  el.querySelector('#btn-add-provider').onclick = async () => {
-    const configText = el.querySelector('#new-config').value.trim();
-    let config = {};
-    if (configText) {
-      try {
-        config = JSON.parse(configText);
-      } catch {
-        return alert('config do CLI não é JSON válido');
-      }
-    }
-    try {
-      const out = await api('/providers', {
-        method: 'POST',
-        body: {
-          name: el.querySelector('#new-name').value || 'Provedor',
-          kind: el.querySelector('#new-kind').value,
-          baseUrl: el.querySelector('#new-url').value || null,
-          secretName: el.querySelector('#new-secret').value || null,
-          secretValue: el.querySelector('#new-value').value || null,
-          config
-        }
-      });
-      await load();
-      switchView('providers');
-      if (out.error) alert(`provedor criado, mas não deu pra listar modelos: ${out.error}`);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
+function startChatWithGem(gem) {
+  state.gemId = gem.id;
+  localStorage.setItem('iaunifier.gem', gem.id);
+  if (gem.model) state.model = gem.model;
+  newChat();
 }
 
-// ---------------------------------------------------------------------- gems
+function startChatInProject(project) {
+  state.projectId = project.id;
+  newChat();
+}
 
-function renderGems() {
-  const el = $('#view-gems');
-  el.className = 'view panel';
-  el.innerHTML = `
-    <h2>Gems</h2>
-    <p class="hint">Personalidade, modelo preferido e escopo de memória. "Sem filtro" vale de verdade em modelo local; em API hospedada, o provedor aplica a política dele.</p>
-    <div id="gems-cards"></div>
-    <div class="card">
-      <h3>Nova gem</h3>
-      <label class="field">Emoji <input id="g-emoji" value="💎" /></label>
-      <label class="field">Nome <input id="g-name" /></label>
-      <label class="field">Instruções <textarea id="g-prompt" rows="4"></textarea></label>
-      <label class="field">Modo
-        <select id="g-mode"><option value="chat">conversa</option><option value="coding">coding</option></select>
-      </label>
-      <label class="field">Modelo preferido
-        <select id="g-model">
-          <option value="">— o que estiver selecionado —</option>
-          ${allModels().map((m) => `<option value="${m.ref}">${escapeHtml(m.label)}</option>`).join('')}
-        </select>
-      </label>
-      <label class="field">Temperatura <input id="g-temp" type="number" step="0.1" min="0" max="2" /></label>
-      <label class="field"><input type="checkbox" id="g-unfiltered" style="display:inline;width:auto" /> sem filtro</label>
-      <button id="btn-add-gem" class="primary">Criar</button>
-    </div>`;
+// ------------------------------------------------------- paleta de comandos
 
-  const cards = el.querySelector('#gems-cards');
-  for (const g of state.gems) {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <h3>${g.emoji} ${escapeHtml(g.name)}
-        <span class="tag">${g.mode}</span>
-        ${g.unfiltered ? '<span class="tag off">sem filtro</span>' : ''}
-        ${g.memory_read ? '<span class="tag on">lê memória</span>' : '<span class="tag">não lê</span>'}
-        ${g.memory_write ? '<span class="tag on">grava memória</span>' : '<span class="tag">não grava</span>'}
-      </h3>
-      <div class="meta">${escapeHtml((g.system_prompt || '').slice(0, 220))}</div>
-      <div class="row">
-        <button data-act="use">Usar</button>
-        <button data-act="edit">Editar instruções</button>
-        <button data-act="mem">Alternar memória</button>
-        <button data-act="del" class="danger">Remover</button>
-      </div>`;
-    card.querySelector('[data-act=use]').onclick = () => {
-      state.gemId = g.id;
-      localStorage.setItem('iaunifier.gem', g.id);
-      if (g.model) state.model = g.model;
-      state.chatId = null;
-      state.messages = [];
-      switchView('chat');
-      renderTopbar();
-      renderMessages();
-    };
-    card.querySelector('[data-act=edit]').onclick = async () => {
-      const prompt_ = prompt('Instruções da gem:', g.system_prompt || '');
-      if (prompt_ === null) return;
-      await api(`/gems/${g.id}`, { method: 'PATCH', body: { system_prompt: prompt_ } });
-      await load();
-      switchView('gems');
-    };
-    card.querySelector('[data-act=mem]').onclick = async () => {
-      await api(`/gems/${g.id}`, {
-        method: 'PATCH',
-        body: { memory_read: !g.memory_read, memory_write: !g.memory_write }
-      });
-      await load();
-      switchView('gems');
-    };
-    card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(`Remover ${g.name}?`)) return;
-      await api(`/gems/${g.id}`, { method: 'DELETE' });
-      await load();
-      switchView('gems');
-    };
-    cards.appendChild(card);
+function commands() {
+  const list = [
+    { icon: 'plus', label: 'Nova conversa', run: newChat, key: 'Ctrl+Shift+N' },
+    { icon: 'users', label: 'Conselho de IAs', run: () => switchView('council') },
+    { icon: 'globe', label: 'Pesquisa profunda', run: () => switchView('research') },
+    { icon: 'brain', label: 'Memória compartilhada', run: () => switchView('memory') },
+    { icon: 'folder', label: 'Projetos', run: () => switchView('projects') },
+    { icon: 'sparkle', label: 'Gems', run: () => switchView('gems') },
+    { icon: 'plug', label: 'Provedores', run: () => switchView('providers') },
+    { icon: 'settings', label: 'Configuração', run: () => switchView('settings') },
+    { icon: 'paperclip', label: 'Anexar arquivo', run: () => $('#file-input').click() },
+    {
+      icon: 'globe',
+      label: state.useWeb ? 'Desligar busca na web' : 'Ligar busca na web',
+      run: toggleWeb
+    },
+    {
+      icon: 'sun',
+      label: 'Alternar tema claro/escuro',
+      run: () =>
+        applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light')
+    },
+    { icon: 'download', label: 'Exportar conversa em Markdown', run: () => exportChat('md') },
+    { icon: 'file', label: 'Exportar conversa em JSON', run: () => exportChat('json') }
+  ];
+  for (const gem of state.gems) {
+    list.push({ icon: gem.icon, label: `Conversar com ${gem.name}`, run: () => startChatWithGem(gem) });
   }
-
-  el.querySelector('#btn-add-gem').onclick = async () => {
-    await api('/gems', {
-      method: 'POST',
-      body: {
-        name: el.querySelector('#g-name').value || 'Nova gem',
-        emoji: el.querySelector('#g-emoji').value || '💎',
-        system_prompt: el.querySelector('#g-prompt').value,
-        mode: el.querySelector('#g-mode').value,
-        model: el.querySelector('#g-model').value || null,
-        temperature: el.querySelector('#g-temp').value ? Number(el.querySelector('#g-temp').value) : null,
-        unfiltered: el.querySelector('#g-unfiltered').checked
+  for (const model of chatModels()) {
+    list.push({
+      icon: 'cpu',
+      label: `Trocar para ${model.label}`,
+      run: () => {
+        state.model = model.ref;
+        localStorage.setItem('iaunifier.model', model.ref);
+        renderTopbar();
+        toast(`modelo: ${model.label}`);
       }
     });
-    await load();
-    switchView('gems');
-  };
-}
-
-// ------------------------------------------------------------------ projetos
-
-function renderProjects() {
-  const el = $('#view-projects');
-  el.className = 'view panel';
-  el.innerHTML = `
-    <h2>Projetos</h2>
-    <p class="hint">Agrupa conversas, tem instrução própria e memória de escopo próprio. O diretório é usado pelas IAs de CLI no modo coding.</p>
-    <div id="proj-cards"></div>
-    <div class="card">
-      <h3>Novo projeto</h3>
-      <label class="field">Emoji <input id="p-emoji" value="📁" /></label>
-      <label class="field">Nome <input id="p-name" /></label>
-      <label class="field">Instruções <textarea id="p-inst" rows="3"></textarea></label>
-      <label class="field">Diretório <input id="p-dir" placeholder="/Users/você/Projetos/algo" /></label>
-      <button id="btn-add-proj" class="primary">Criar</button>
-    </div>`;
-
-  const cards = el.querySelector('#proj-cards');
-  for (const p of state.projects) {
-    const chats = state.chats.filter((c) => c.project_id === p.id).length;
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <h3>${p.emoji} ${escapeHtml(p.name)}</h3>
-      <div class="meta">${chats} conversa(s) · ${escapeHtml(p.workdir || 'sem diretório')}</div>
-      <div class="meta">${escapeHtml((p.instructions || '').slice(0, 200))}</div>
-      <div class="row">
-        <button data-act="use">Conversar neste projeto</button>
-        <button data-act="del" class="danger">Remover</button>
-      </div>`;
-    card.querySelector('[data-act=use]').onclick = () => {
-      state.projectId = p.id;
-      state.chatId = null;
-      state.messages = [];
-      switchView('chat');
-      renderTopbar();
-      renderMessages();
-    };
-    card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(`Remover ${p.name}?`)) return;
-      await api(`/projects/${p.id}`, { method: 'DELETE' });
-      await load();
-      switchView('projects');
-    };
-    cards.appendChild(card);
   }
-
-  el.querySelector('#btn-add-proj').onclick = async () => {
-    await api('/projects', {
-      method: 'POST',
-      body: {
-        name: el.querySelector('#p-name').value || 'Novo projeto',
-        emoji: el.querySelector('#p-emoji').value || '📁',
-        instructions: el.querySelector('#p-inst').value,
-        workdir: el.querySelector('#p-dir').value || null
-      }
-    });
-    await load();
-    switchView('projects');
-  };
+  return list;
 }
 
-// ------------------------------------------------------------------- memória
+let paletteIndex = 0;
+let paletteItems = [];
 
-async function renderMemory() {
-  const el = $('#view-memory');
-  el.className = 'view panel';
-  const memories = await api('/memories');
+function openPalette() {
+  $('#palette').hidden = false;
+  $('#palette-input').value = '';
+  $('#palette-input').focus();
+  drawPalette('');
+}
 
-  el.innerHTML = `
-    <h2>Memória compartilhada</h2>
-    <p class="hint">Um banco só, lido e escrito por qualquer modelo. O que você contou pro Claude, o GPT lembra.</p>
-    <div class="card">
-      <label class="field">Novo fato <input id="m-text" placeholder="Ex.: prefere respostas curtas e sem enrolação" /></label>
-      <div class="row">
-        <button id="btn-add-mem" class="primary">Guardar</button>
-        <label style="font-size:13px;color:var(--muted)">
-          <input type="checkbox" id="m-pin" style="display:inline;width:auto" /> fixar
-        </label>
-      </div>
-    </div>
-    <div class="card">
-      <h3>Importar de outra IA</h3>
-      <div class="meta">Export do ChatGPT ou do Claude (conversations.json), ou texto solto.</div>
-      <div class="row"><input type="file" id="m-file" accept=".json,.md,.txt" /></div>
-      <div id="import-status" class="meta"></div>
-    </div>
-    <div class="card">
-      <h3>${memories.length} fato(s)</h3>
-      <div id="mem-list"></div>
-    </div>`;
+function closePalette() {
+  $('#palette').hidden = true;
+}
 
-  const list = el.querySelector('#mem-list');
-  for (const m of memories) {
-    const item = document.createElement('div');
-    item.className = 'mem-item';
-    item.innerHTML = `
-      <div class="txt">${m.pinned ? '📌 ' : ''}${escapeHtml(m.text)}
-        <div class="src">${m.source}${m.source_ref ? ' · ' + escapeHtml(m.source_ref) : ''}</div>
-      </div>`;
-    const pin = document.createElement('button');
-    pin.className = 'icon';
-    pin.textContent = m.pinned ? '📌' : '📍';
-    pin.title = 'fixar/desfixar';
-    pin.onclick = async () => {
-      await api(`/memories/${m.id}`, { method: 'PATCH', body: { pinned: !m.pinned } });
-      renderMemory();
+function drawPalette(query) {
+  const q = query.trim().toLowerCase();
+  paletteItems = commands().filter((c) => !q || c.label.toLowerCase().includes(q));
+  paletteIndex = 0;
+  const list = $('#palette-list');
+  list.innerHTML = paletteItems
+    .map(
+      (c, i) =>
+        `<div class="palette-item${i === 0 ? ' sel' : ''}" data-i="${i}">${icon(c.icon, 15)}
+           <span>${escapeHtml(c.label)}</span>
+           ${c.key ? `<span class="hintk muted">${c.key}</span>` : ''}</div>`
+    )
+    .join('');
+  for (const el of list.querySelectorAll('.palette-item')) {
+    el.onclick = () => {
+      closePalette();
+      paletteItems[Number(el.dataset.i)].run();
     };
-    const del = document.createElement('button');
-    del.className = 'icon';
-    del.textContent = '✕';
-    del.onclick = async () => {
-      await api(`/memories/${m.id}`, { method: 'DELETE' });
-      renderMemory();
-    };
-    item.append(pin, del);
-    list.appendChild(item);
   }
-
-  el.querySelector('#btn-add-mem').onclick = async () => {
-    const text = el.querySelector('#m-text').value.trim();
-    if (!text) return;
-    await api('/memories', {
-      method: 'POST',
-      body: { text, pinned: el.querySelector('#m-pin').checked }
-    });
-    renderMemory();
-  };
-
-  el.querySelector('#m-file').onchange = async (ev) => {
-    const file = ev.target.files[0];
-    if (!file) return;
-    const status = el.querySelector('#import-status');
-    status.textContent = 'lendo e extraindo... isso pode demorar em export grande.';
-    try {
-      const text = await file.text();
-      const out = await api(`/memories/import?filename=${encodeURIComponent(file.name)}`, {
-        method: 'POST',
-        body: text,
-        raw: true
-      });
-      status.textContent = `${out.conversations} conversa(s), ${out.messages} mensagem(ns) → ${out.facts.length} fato(s) novo(s).`;
-      renderMemory();
-    } catch (err) {
-      status.textContent = `falhou: ${err.message}`;
-    }
-  };
 }
 
-// -------------------------------------------------------------------- config
-
-async function renderSettings() {
-  const el = $('#view-settings');
-  el.className = 'view panel';
-  const settings = await api('/settings');
-  const chatModels = allModels();
-  const embeds = embeddingModels();
-
-  el.innerHTML = `
-    <h2>Configuração</h2>
-    <p class="hint">Tudo fica em ~/.iaunifier. As chaves nunca saem do servidor.</p>
-    <div class="card">
-      <h3>Memória</h3>
-      <label class="field"><input type="checkbox" id="s-enabled" style="display:inline;width:auto" ${settings.memory.enabled ? 'checked' : ''} /> memória ligada</label>
-      <label class="field"><input type="checkbox" id="s-auto" style="display:inline;width:auto" ${settings.memory.autoExtract ? 'checked' : ''} /> aprender sozinho depois de cada resposta</label>
-      <label class="field">Fatos injetados por vez <input id="s-max" type="number" min="1" max="50" value="${settings.memory.maxInjected}" /></label>
-      <label class="field">Modelo que extrai os fatos
-        <select id="s-extractor">
-          <option value="">— heurística local, sem chamar modelo —</option>
-          ${chatModels.map((m) => `<option value="${m.ref}" ${settings.memory.extractorModel === m.ref ? 'selected' : ''}>${escapeHtml(m.label)}</option>`).join('')}
-        </select>
-      </label>
-      <label class="field">Modelo de embedding (busca semântica)
-        <select id="s-embed">
-          <option value="">— sem embedding, só busca por palavra —</option>
-          ${embeds.map((m) => `<option value="${m.ref}" ${settings.memory.embeddingModel === m.ref ? 'selected' : ''}>${escapeHtml(m.label)}</option>`).join('')}
-        </select>
-      </label>
-      <button id="btn-save-settings" class="primary">Salvar</button>
-    </div>
-    <div class="card">
-      <h3>Acesso</h3>
-      <div class="meta">Token exigido: ${settings.requireToken ? 'sim' : 'não'} · escutando em ${settings.host}:${settings.port}</div>
-      <div class="meta">Chaves guardadas: ${settings.secrets.join(', ') || 'nenhuma'}</div>
-    </div>`;
-
-  el.querySelector('#btn-save-settings').onclick = async () => {
-    await api('/settings', {
-      method: 'PATCH',
-      body: {
-        memory: {
-          enabled: el.querySelector('#s-enabled').checked,
-          autoExtract: el.querySelector('#s-auto').checked,
-          maxInjected: Number(el.querySelector('#s-max').value) || 12,
-          extractorModel: el.querySelector('#s-extractor').value || null,
-          embeddingModel: el.querySelector('#s-embed').value || null
-        }
-      }
-    });
-    renderSettings();
-  };
+function movePalette(delta) {
+  const items = $$('#palette-list .palette-item');
+  if (!items.length) return;
+  items[paletteIndex]?.classList.remove('sel');
+  paletteIndex = (paletteIndex + delta + items.length) % items.length;
+  items[paletteIndex].classList.add('sel');
+  items[paletteIndex].scrollIntoView({ block: 'nearest' });
 }
 
-// -------------------------------------------------------------------- eventos
+// ------------------------------------------------------------------ ações
+
+function toggleWeb() {
+  state.useWeb = !state.useWeb;
+  $('#btn-web').classList.toggle('on', state.useWeb);
+  if (state.chatId) {
+    api(`/chats/${state.chatId}`, { method: 'PATCH', body: { tools: { web: state.useWeb } } });
+  }
+  toast(state.useWeb ? 'busca na web ligada nesta conversa' : 'busca na web desligada');
+}
+
+async function exportChat(format) {
+  if (!state.chatId) return toast('nenhuma conversa aberta', 'err');
+  if (format === 'json') {
+    const data = await api(`/chats/${state.chatId}/export?format=json`);
+    download(`${data.chat.title}.json`, JSON.stringify(data, null, 2), 'application/json');
+  } else {
+    const res = await fetch(`/api/chats/${state.chatId}/export?format=md`, {
+      headers: { 'x-iaunifier-token': localStorage.getItem('iaunifier.token') || '' }
+    });
+    download(`${state.chat?.title || 'conversa'}.md`, await res.text(), 'text/markdown');
+  }
+}
+
+function download(name, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name.replace(/[^\w.\- ]+/g, '');
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function autosize(el) {
+  el.style.height = 'auto';
+  el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+}
+
+function closeSidebarOnMobile() {
+  if (window.innerWidth <= 760) $('#sidebar').classList.remove('open');
+}
+
+// ---------------------------------------------------------------- eventos
 
 $('#composer').addEventListener('submit', (ev) => {
   ev.preventDefault();
@@ -772,29 +816,57 @@ $('#composer').addEventListener('submit', (ev) => {
 });
 
 $('#input').addEventListener('keydown', (ev) => {
-  if (ev.key === 'Enter' && !ev.shiftKey) {
+  if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) {
     ev.preventDefault();
     $('#composer').requestSubmit();
   }
 });
+$('#input').addEventListener('input', (ev) => autosize(ev.target));
 
-$('#input').addEventListener('input', (ev) => {
-  ev.target.style.height = 'auto';
-  ev.target.style.height = `${Math.min(ev.target.scrollHeight, 200)}px`;
+// Colar imagem ou arquivo direto no campo de texto.
+$('#input').addEventListener('paste', (ev) => {
+  const files = [...(ev.clipboardData?.files || [])];
+  if (files.length) {
+    ev.preventDefault();
+    uploadFiles(files);
+  }
 });
 
-$('#btn-stop').onclick = () => state.streaming?.abort();
+// Arrastar arquivo pra dentro da conversa.
+const composer = $('#composer');
+for (const type of ['dragenter', 'dragover']) {
+  composer.addEventListener(type, (ev) => {
+    ev.preventDefault();
+    composer.classList.add('drag');
+  });
+}
+for (const type of ['dragleave', 'drop']) {
+  composer.addEventListener(type, (ev) => {
+    ev.preventDefault();
+    composer.classList.remove('drag');
+    if (type === 'drop' && ev.dataTransfer?.files?.length) uploadFiles([...ev.dataTransfer.files]);
+  });
+}
 
+$('#btn-attach').onclick = () => $('#file-input').click();
+$('#file-input').onchange = (ev) => {
+  uploadFiles([...ev.target.files]);
+  ev.target.value = '';
+};
+$('#btn-mic').onclick = toggleDictation;
+$('#btn-stop').onclick = () => state.streaming?.abort();
 $('#btn-new-chat').onclick = () => {
-  state.chatId = null;
-  state.messages = [];
-  switchView('chat');
-  renderSidebar();
-  renderMessages();
+  newChat();
   closeSidebarOnMobile();
 };
+$('#btn-web').onclick = toggleWeb;
+$('#btn-tune').onclick = renderTune;
+$('#btn-export').onclick = () => exportChat('md');
+$('#btn-theme').onclick = () =>
+  applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+$('#btn-palette').onclick = openPalette;
 
-for (const btn of document.querySelectorAll('.nav-item')) {
+for (const btn of $$('.nav-item')) {
   btn.onclick = () => {
     switchView(btn.dataset.view);
     closeSidebarOnMobile();
@@ -806,13 +878,15 @@ $('#sel-model').onchange = (ev) => {
   localStorage.setItem('iaunifier.model', state.model);
   if (state.chatId) api(`/chats/${state.chatId}`, { method: 'PATCH', body: { model: state.model } });
 };
-
 $('#sel-gem').onchange = (ev) => {
   state.gemId = ev.target.value;
   localStorage.setItem('iaunifier.gem', state.gemId);
-  if (state.chatId) api(`/chats/${state.chatId}`, { method: 'PATCH', body: { gem_id: state.gemId || null } });
+  if (state.chatId) {
+    api(`/chats/${state.chatId}`, { method: 'PATCH', body: { gem_id: state.gemId || null } });
+  } else {
+    renderEmptyState();
+  }
 };
-
 $('#sel-project').onchange = (ev) => {
   state.projectId = ev.target.value;
   if (state.chatId) {
@@ -820,12 +894,64 @@ $('#sel-project').onchange = (ev) => {
   }
 };
 
-function closeSidebarOnMobile() {
-  if (window.innerWidth <= 720) $('#sidebar').classList.remove('open');
-}
+let searchTimer = 0;
+$('#side-search').oninput = (ev) => {
+  clearTimeout(searchTimer);
+  const value = ev.target.value;
+  searchTimer = setTimeout(() => deepSearch(value), 220);
+};
+
 $('#btn-open-side').onclick = () => $('#sidebar').classList.add('open');
 $('#btn-close-side').onclick = () => $('#sidebar').classList.remove('open');
 
+$('#palette-input').oninput = (ev) => drawPalette(ev.target.value);
+$('#palette').onclick = (ev) => {
+  if (ev.target.id === 'palette') closePalette();
+};
+
+document.addEventListener('keydown', (ev) => {
+  const mod = ev.metaKey || ev.ctrlKey;
+  if (mod && ev.key.toLowerCase() === 'k') {
+    ev.preventDefault();
+    $('#palette').hidden ? openPalette() : closePalette();
+    return;
+  }
+  if (mod && ev.shiftKey && ev.key.toLowerCase() === 'n') {
+    ev.preventDefault();
+    newChat();
+    return;
+  }
+  if (mod && ev.key === 'Enter' && document.activeElement === $('#input')) {
+    ev.preventDefault();
+    $('#composer').requestSubmit();
+    return;
+  }
+  if (!$('#palette').hidden) {
+    if (ev.key === 'Escape') closePalette();
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      movePalette(1);
+    }
+    if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      movePalette(-1);
+    }
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const item = paletteItems[paletteIndex];
+      closePalette();
+      item?.run();
+    }
+    return;
+  }
+  if (ev.key === 'Escape' && state.streaming) state.streaming.abort();
+});
+
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
-load().catch((err) => addNote(`não carregou: ${err.message}`, 'err'));
+paintIcons();
+load()
+  .then(() => {
+    if (!state.messages.length) renderEmptyState();
+  })
+  .catch((err) => addNote(`não carregou: ${escapeHtml(err.message)}`, 'err', 'alert'));

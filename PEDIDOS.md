@@ -34,7 +34,8 @@ Quebrado em itens:
 - [x] 7. "opcao de projetos" — projetos agrupam conversas, com instrução própria
       e memória de escopo do projeto.
 - [x] 8. "customizar a ia, criar gems" — Gems: nome, emoji, system prompt,
-      modelo preferido, temperatura, escopo de memória.
+      modelo preferido, temperatura, escopo de memória (o emoji virou ícone e cor no
+      pedido 14).
 - [x] 9. "tirar o filtro de ias (n sei se funciona api, mas local da)" — toggle
       "sem filtro" por Gem. Em modelo local vale de verdade (o system prompt é
       nosso). Em API hospedada o provedor aplica a política dele — está escrito
@@ -57,6 +58,47 @@ Quebrado em itens:
 
 - [x] 13. UI crua e funcional, cobrindo todas as funções. O visual de produção
       fica pra depois, com o Claude Design.
+
+## 16/08/2026 — tirar emoji, botar ícone, e encher o app de função
+
+> "tira os emojis pelo menos e coloca icones. deixa o app boladao, cheio de
+> coisa legal, um app realmente pra producao, ai nao tem nada alem de ta feio
+> kkkk. mas a feiura dps nois resolve, mas ai o app ta cru msm, ta mt simples,
+> pesquisa, analiza o codigo do app do pewdipie, analiza lm studio e o locally
+> ai e etc. pra tu ve, sao apps completassos, tem de tudo, deixa o app bomzao"
+
+Quebrado em itens:
+
+- [x] 14. "tira os emojis pelo menos e coloca icones" — nenhum emoji na
+      interface; conjunto de ícones SVG próprio, inclusive em gem e projeto.
+- [x] 15. "pesquisa, analiza o codigo do app do pewdipie, analiza lm studio e o
+      locally ai" — pesquisado. Odysseus (pewdiepie-archdaemon/odysseus):
+      chat com agentes, deep research multi-passo com relatório, comparação
+      lado a lado com teste cego, memória vetorial, gerenciador de modelos
+      ciente do hardware, presets, temas. LM Studio: anexo de arquivo com RAG,
+      navegador/baixador de modelo, presets por modelo, servidor OpenAI.
+      Locally AI: modo de voz no aparelho, system prompt customizável.
+- [x] 16. "deixa o app boladao, cheio de coisa legal, um app realmente pra
+      producao ... ta cru msm, ta mt simples ... deixa o app bomzao" — o que
+      entra:
+      - anexo de arquivo com RAG (chunk + índice + citação da fonte);
+      - busca na web como ferramenta, sem chave de API;
+      - deep research: várias buscas, leitura das páginas e relatório;
+      - conselho de IAs: o mesmo prompt em vários modelos e uma síntese;
+      - gerenciador de modelo do Ollama (baixar com progresso, remover);
+      - medição por resposta (tempo até o primeiro token, tokens/s, total);
+      - regenerar, editar e apagar mensagem;
+      - parâmetros por conversa (system, temperatura, top_p, limite);
+      - busca em todas as conversas;
+      - exportar conversa em Markdown e JSON;
+      - voz: ditado e leitura da resposta;
+      - tema claro e escuro, paleta de comandos e atalhos de teclado;
+      - Markdown de verdade, com código destacado e bloco de raciocínio.
+
+> "mas a feiura dps nois resolve"
+
+O visual de produção continua sendo do Claude Design; o que entra agora é
+função e estrutura, não desenho.
 
 ## Pendências abertas
 

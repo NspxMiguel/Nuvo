@@ -34,7 +34,11 @@ export async function* stream(ctx, req) {
     }))
   };
   if (req.system) body.systemInstruction = { parts: [{ text: req.system }] };
-  if (req.temperature != null) body.generationConfig = { temperature: req.temperature };
+  const generation = {};
+  if (req.temperature != null) generation.temperature = req.temperature;
+  if (req.topP != null) generation.topP = req.topP;
+  if (req.maxTokens) generation.maxOutputTokens = req.maxTokens;
+  if (Object.keys(generation).length) body.generationConfig = generation;
   // O Gemini tem filtros de segurança configuráveis pelo chamador.
   if (req.unfiltered) {
     body.safetySettings = [
@@ -67,8 +71,8 @@ export async function* stream(ctx, req) {
     if (json.usageMetadata) {
       yield {
         usage: {
-          prompt_tokens: json.usageMetadata.promptTokenCount,
-          completion_tokens: json.usageMetadata.candidatesTokenCount
+          input: json.usageMetadata.promptTokenCount ?? null,
+          output: json.usageMetadata.candidatesTokenCount ?? null
         }
       };
     }

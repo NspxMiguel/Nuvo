@@ -31,6 +31,7 @@ export async function* stream(ctx, req) {
     stream: true
   };
   if (req.temperature != null) body.temperature = req.temperature;
+  if (req.topP != null) body.top_p = req.topP;
   if (req.maxTokens) body.max_tokens = req.maxTokens;
 
   const res = await fetch(`${trimUrl(ctx.baseUrl)}/chat/completions`, {
@@ -55,7 +56,14 @@ export async function* stream(ctx, req) {
     const think = choice?.delta?.reasoning_content ?? choice?.delta?.reasoning;
     if (think) yield { reasoning: think };
     if (delta) yield { delta };
-    if (json.usage) yield { usage: json.usage };
+    if (json.usage) {
+      yield {
+        usage: {
+          input: json.usage.prompt_tokens ?? null,
+          output: json.usage.completion_tokens ?? null
+        }
+      };
+    }
   }
 }
 

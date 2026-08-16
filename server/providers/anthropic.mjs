@@ -43,8 +43,9 @@ export async function* stream(ctx, req) {
   };
   if (req.system) body.system = req.system;
   // Sampling só vai pros modelos que ainda aceitam — nos novos, é erro 400.
-  if (req.temperature != null && !NO_SAMPLING.test(req.model)) {
-    body.temperature = req.temperature;
+  if (!NO_SAMPLING.test(req.model)) {
+    if (req.temperature != null) body.temperature = req.temperature;
+    if (req.topP != null) body.top_p = req.topP;
   }
 
   const res = await fetch(`${trimUrl(ctx.baseUrl || DEFAULT_BASE)}/messages`, {
@@ -68,7 +69,11 @@ export async function* stream(ctx, req) {
         else if (ev.delta?.type === 'thinking_delta') yield { reasoning: ev.delta.thinking };
         break;
       case 'message_delta':
-        if (ev.usage) yield { usage: ev.usage };
+        if (ev.usage) {
+          yield {
+            usage: { input: ev.usage.input_tokens ?? null, output: ev.usage.output_tokens ?? null }
+          };
+        }
         // Os classificadores de segurança recusam pedindo HTTP 200 com este stop_reason.
         if (ev.delta?.stop_reason === 'refusal') {
           yield { delta: '\n\n_(o provedor recusou este pedido)_' };

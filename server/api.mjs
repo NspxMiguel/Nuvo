@@ -1,9 +1,12 @@
-// Rotas da API. Tudo JSON, menos o streaming do chat, que é SSE.
+// Rotas da API. Tudo JSON, menos os streams (chat, pesquisa, conselho e
+// download de modelo), que são SSE.
 
 import { all, one, run, uid, now, parseJSON } from './db.mjs';
 import { loadConfig, patchConfig, setSecret, listSecretNames } from './config.mjs';
 import {
   PRESETS,
+  adapterFor,
+  contextFor,
   createProvider,
   getProvider,
   listProviders,
@@ -11,7 +14,14 @@ import {
   refOf
 } from './providers/index.mjs';
 import { discover } from './discovery.mjs';
-import { runTurn, createChat, getChat, listMessages } from './chat.mjs';
+import {
+  runTurn,
+  createChat,
+  getChat,
+  listMessages,
+  deleteMessage,
+  truncateFrom
+} from './chat.mjs';
 import {
   addMemory,
   updateMemory,
@@ -20,6 +30,11 @@ import {
   embeddingAvailable
 } from './memory.mjs';
 import { importConversations } from './importers.mjs';
+import { addAttachment, listAttachments, deleteAttachment } from './documents.mjs';
+import { runResearch } from './research.mjs';
+import { runCouncil } from './council.mjs';
+import { ftsQuery } from './vectors.mjs';
+import { search as webSearch, readPage } from './web.mjs';
 
 // ------------------------------------------------------------------ helpers
 
@@ -32,21 +47,55 @@ function json(res, data, status = 200) {
   res.end(body);
 }
 
-async function readBody(req, limit = 64 * 1024 * 1024) {
+async function readBuffer(req, limit = 64 * 1024 * 1024) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) throw new Error('corpo grande demais');
+    if (size > limit) throw new Error('arquivo grande demais (limite de 64 MB)');
     chunks.push(chunk);
   }
-  return Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks);
+}
+
+async function readBody(req, limit) {
+  return (await readBuffer(req, limit)).toString('utf8');
 }
 
 async function readJSON(req) {
   const raw = await readBody(req);
   if (!raw.trim()) return {};
   return JSON.parse(raw);
+}
+
+/** Abre um stream SSE e devolve o par (enviar, encerrar). */
+function openStream(req, res) {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no'
+  });
+  const controller = new AbortController();
+  req.on('close', () => controller.abort());
+  return {
+    signal: controller.signal,
+    send: (event) => res.write(`data: ${JSON.stringify(event)}\n\n`),
+    end: () => {
+      res.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+      res.end();
+    }
+  };
+}
+
+/** Bombeia um gerador assíncrono pra dentro do SSE, com erro virando evento. */
+async function pump(stream, iterator) {
+  try {
+    for await (const event of iterator) stream.send(event);
+  } catch (err) {
+    if (err.name !== 'AbortError') stream.send({ type: 'error', message: err.message });
+  }
+  stream.end();
 }
 
 function providerView(p) {
@@ -60,6 +109,7 @@ function providerView(p) {
     config: parseJSON(p.config),
     enabled: !!p.enabled,
     auto: !!p.auto,
+    manageable: p.kind === 'ollama', // dá pra baixar e apagar modelo por aqui
     models: all(
       'SELECT model_id, label, kind FROM models WHERE provider_id = ? ORDER BY model_id',
       p.id
@@ -79,6 +129,16 @@ function settingsView() {
   };
 }
 
+const CHAT_COLUMNS = `SELECT c.*, (SELECT COUNT(*) FROM messages WHERE chat_id = c.id) AS message_count,
+  (SELECT COUNT(*) FROM attachments WHERE chat_id = c.id) AS attachment_count FROM chats c`;
+
+function listChats({ includeArchived = false } = {}) {
+  return all(
+    `${CHAT_COLUMNS} ${includeArchived ? '' : 'WHERE c.archived = 0'}
+     ORDER BY c.pinned DESC, c.updated_at DESC LIMIT 300`
+  );
+}
+
 // ------------------------------------------------------------------- rotas
 
 export async function handleApi(req, res, url) {
@@ -92,12 +152,34 @@ export async function handleApi(req, res, url) {
       providers: listProviders().map(providerView),
       gems: all('SELECT * FROM gems ORDER BY created_at'),
       projects: all('SELECT * FROM projects ORDER BY created_at'),
-      chats: all(
-        `SELECT c.*, (SELECT COUNT(*) FROM messages WHERE chat_id = c.id) AS message_count
-         FROM chats c ORDER BY updated_at DESC LIMIT 200`
-      ),
+      chats: listChats(),
       settings: settingsView()
     });
+  }
+
+  // --- busca global --------------------------------------------------------
+  if (method === 'GET' && path === '/search') {
+    const q = ftsQuery(url.searchParams.get('q') || '');
+    if (!q) return json(res, { chats: [], memories: [] });
+    const chats = all(
+      `SELECT m.id, m.chat_id, m.role, m.created_at,
+              snippet(messages_fts, 0, '«', '»', '…', 14) AS excerpt,
+              c.title
+       FROM messages_fts
+       JOIN messages m ON m.rowid = messages_fts.rowid
+       JOIN chats c ON c.id = m.chat_id
+       WHERE messages_fts MATCH ?
+       ORDER BY bm25(messages_fts) LIMIT 30`,
+      q
+    );
+    const memories = all(
+      `SELECT m.id, m.text, m.pinned, m.source
+       FROM memories_fts JOIN memories m ON m.rowid = memories_fts.rowid
+       WHERE memories_fts MATCH ? AND m.active = 1
+       ORDER BY bm25(memories_fts) LIMIT 20`,
+      q
+    );
+    return json(res, { chats, memories });
   }
 
   // --- provedores ----------------------------------------------------------
@@ -162,6 +244,47 @@ export async function handleApi(req, res, url) {
         return json(res, { error: err.message }, 502);
       }
     }
+
+    // Gerenciar modelo do provedor (hoje só o Ollama implementa).
+    if (method === 'POST' && seg[2] === 'pull') {
+      const body = await readJSON(req);
+      const provider = getProvider(id);
+      const adapter = adapterFor(provider.kind);
+      if (!adapter.pull) return json(res, { error: 'este provedor não baixa modelo' }, 400);
+      const stream = openStream(req, res);
+      await pump(
+        stream,
+        (async function* () {
+          for await (const progress of adapter.pull(contextFor(provider), {
+            model: body.model,
+            signal: stream.signal
+          })) {
+            yield { type: 'progress', ...progress };
+          }
+          await refreshModels(id);
+          yield { type: 'done', provider: providerView(getProvider(id)) };
+        })()
+      );
+      return;
+    }
+    if (method === 'DELETE' && seg[2] === 'models' && seg[3]) {
+      const provider = getProvider(id);
+      const adapter = adapterFor(provider.kind);
+      if (!adapter.remove) return json(res, { error: 'este provedor não apaga modelo' }, 400);
+      await adapter.remove(contextFor(provider), { model: decodeURIComponent(seg[3]) });
+      await refreshModels(id);
+      return json(res, providerView(getProvider(id)));
+    }
+    if (method === 'GET' && seg[2] === 'running') {
+      const provider = getProvider(id);
+      const adapter = adapterFor(provider.kind);
+      if (!adapter.running) return json(res, []);
+      try {
+        return json(res, await adapter.running(contextFor(provider)));
+      } catch (err) {
+        return json(res, { error: err.message }, 502);
+      }
+    }
   }
 
   // --- gems ---------------------------------------------------------------
@@ -172,12 +295,13 @@ export async function handleApi(req, res, url) {
     const b = await readJSON(req);
     const id = uid();
     run(
-      `INSERT INTO gems (id, name, emoji, system_prompt, model, temperature, mode, unfiltered,
+      `INSERT INTO gems (id, name, icon, color, system_prompt, model, temperature, mode, unfiltered,
                          memory_read, memory_write, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       b.name || 'Nova gem',
-      b.emoji || '💎',
+      b.icon || 'sparkle',
+      b.color || 'indigo',
       b.system_prompt || '',
       b.model || null,
       b.temperature ?? null,
@@ -200,10 +324,11 @@ export async function handleApi(req, res, url) {
       const cur = one('SELECT * FROM gems WHERE id = ?', id);
       if (!cur) return json(res, { error: 'gem não encontrada' }, 404);
       run(
-        `UPDATE gems SET name = ?, emoji = ?, system_prompt = ?, model = ?, temperature = ?,
+        `UPDATE gems SET name = ?, icon = ?, color = ?, system_prompt = ?, model = ?, temperature = ?,
            mode = ?, unfiltered = ?, memory_read = ?, memory_write = ? WHERE id = ?`,
         b.name ?? cur.name,
-        b.emoji ?? cur.emoji,
+        b.icon ?? cur.icon,
+        b.color ?? cur.color,
         b.system_prompt ?? cur.system_prompt,
         b.model !== undefined ? b.model : cur.model,
         b.temperature !== undefined ? b.temperature : cur.temperature,
@@ -225,10 +350,11 @@ export async function handleApi(req, res, url) {
     const b = await readJSON(req);
     const id = uid();
     run(
-      'INSERT INTO projects (id, name, emoji, instructions, workdir, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO projects (id, name, icon, color, instructions, workdir, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       id,
       b.name || 'Novo projeto',
-      b.emoji || '📁',
+      b.icon || 'folder',
+      b.color || 'slate',
       b.instructions || '',
       b.workdir || null,
       now()
@@ -246,9 +372,10 @@ export async function handleApi(req, res, url) {
       const cur = one('SELECT * FROM projects WHERE id = ?', id);
       if (!cur) return json(res, { error: 'projeto não encontrado' }, 404);
       run(
-        'UPDATE projects SET name = ?, emoji = ?, instructions = ?, workdir = ? WHERE id = ?',
+        'UPDATE projects SET name = ?, icon = ?, color = ?, instructions = ?, workdir = ? WHERE id = ?',
         b.name ?? cur.name,
-        b.emoji ?? cur.emoji,
+        b.icon ?? cur.icon,
+        b.color ?? cur.color,
         b.instructions ?? cur.instructions,
         b.workdir !== undefined ? b.workdir : cur.workdir,
         id
@@ -259,13 +386,7 @@ export async function handleApi(req, res, url) {
 
   // --- conversas -----------------------------------------------------------
   if (method === 'GET' && path === '/chats') {
-    return json(
-      res,
-      all(
-        `SELECT c.*, (SELECT COUNT(*) FROM messages WHERE chat_id = c.id) AS message_count
-         FROM chats c ORDER BY updated_at DESC LIMIT 200`
-      )
-    );
+    return json(res, listChats({ includeArchived: url.searchParams.get('all') === '1' }));
   }
   if (method === 'POST' && path === '/chats') {
     const b = await readJSON(req);
@@ -286,7 +407,11 @@ export async function handleApi(req, res, url) {
     if (method === 'GET' && seg.length === 2) {
       const chat = getChat(id);
       if (!chat) return json(res, { error: 'conversa não encontrada' }, 404);
-      return json(res, { chat, messages: listMessages(id) });
+      return json(res, {
+        chat,
+        messages: listMessages(id),
+        attachments: listAttachments({ chatId: id })
+      });
     }
     if (method === 'DELETE' && seg.length === 2) {
       run('DELETE FROM chats WHERE id = ?', id);
@@ -297,47 +422,206 @@ export async function handleApi(req, res, url) {
       const cur = getChat(id);
       if (!cur) return json(res, { error: 'conversa não encontrada' }, 404);
       run(
-        'UPDATE chats SET title = ?, model = ?, gem_id = ?, project_id = ?, mode = ? WHERE id = ?',
+        `UPDATE chats SET title = ?, model = ?, gem_id = ?, project_id = ?, mode = ?,
+           system_prompt = ?, temperature = ?, top_p = ?, max_tokens = ?,
+           pinned = ?, archived = ?, tools = ? WHERE id = ?`,
         b.title ?? cur.title,
         b.model !== undefined ? b.model : cur.model,
         b.gem_id !== undefined ? b.gem_id : cur.gem_id,
         b.project_id !== undefined ? b.project_id : cur.project_id,
         b.mode ?? cur.mode,
+        b.system_prompt !== undefined ? b.system_prompt : cur.system_prompt,
+        b.temperature !== undefined ? b.temperature : cur.temperature,
+        b.top_p !== undefined ? b.top_p : cur.top_p,
+        b.max_tokens !== undefined ? b.max_tokens : cur.max_tokens,
+        b.pinned === undefined ? cur.pinned : b.pinned ? 1 : 0,
+        b.archived === undefined ? cur.archived : b.archived ? 1 : 0,
+        b.tools !== undefined ? JSON.stringify(b.tools) : cur.tools,
         id
       );
       return json(res, getChat(id));
     }
 
+    // Exportar a conversa inteira.
+    if (method === 'GET' && seg[2] === 'export') {
+      const chat = getChat(id);
+      if (!chat) return json(res, { error: 'conversa não encontrada' }, 404);
+      const messages = listMessages(id);
+      const format = url.searchParams.get('format') || 'md';
+      if (format === 'json') {
+        return json(res, { chat, messages: messages.map((m) => ({ ...m, meta: parseJSON(m.meta) })) });
+      }
+      const lines = [`# ${chat.title}`, '', `_${chat.created_at}_`, ''];
+      for (const m of messages) {
+        if (m.role === 'system') continue;
+        const meta = parseJSON(m.meta);
+        const who = m.role === 'user' ? 'Você' : meta.provider || m.model || 'Assistente';
+        lines.push(`## ${who}`, '', m.content, '');
+      }
+      const body = lines.join('\n');
+      res.writeHead(200, {
+        'content-type': 'text/markdown; charset=utf-8',
+        'content-disposition': `attachment; filename="${chat.title.replace(/[^\w\- ]+/g, '')}.md"`
+      });
+      return res.end(body);
+    }
+
     // Streaming da resposta.
     if (method === 'POST' && seg[2] === 'stream') {
       const b = await readJSON(req);
-      res.writeHead(200, {
-        'content-type': 'text/event-stream; charset=utf-8',
-        'cache-control': 'no-cache, no-transform',
-        connection: 'keep-alive',
-        'x-accel-buffering': 'no'
-      });
-      const controller = new AbortController();
-      req.on('close', () => controller.abort());
-
-      const send = (event) => {
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-      };
-
-      try {
-        for await (const event of runTurn({
+      const stream = openStream(req, res);
+      await pump(
+        stream,
+        runTurn({
           chatId: id,
           userContent: b.content || '',
           modelRef: b.model || null,
-          signal: controller.signal
-        })) {
-          send(event);
-        }
-      } catch (err) {
-        send({ type: 'error', message: err.message });
-      }
-      send({ type: 'end' });
-      return res.end();
+          useWeb: b.web === undefined ? null : Boolean(b.web),
+          signal: stream.signal
+        })
+      );
+      return;
+    }
+
+    // Regenerar: apaga da mensagem indicada em diante e refaz o último turno.
+    if (method === 'POST' && seg[2] === 'regenerate') {
+      const b = await readJSON(req);
+      const messages = listMessages(id);
+      const target = b.from
+        ? messages.find((m) => m.id === b.from)
+        : [...messages].reverse().find((m) => m.role === 'assistant');
+      if (!target) return json(res, { error: 'não há resposta pra refazer' }, 400);
+      truncateFrom(id, target.id);
+
+      const remaining = listMessages(id);
+      const lastUser = [...remaining].reverse().find((m) => m.role === 'user');
+      if (!lastUser) return json(res, { error: 'não há pergunta antes dessa resposta' }, 400);
+
+      const stream = openStream(req, res);
+      stream.send({ type: 'reset', keep: remaining.map((m) => m.id) });
+      await pump(
+        stream,
+        runTurn({
+          chatId: id,
+          userContent: lastUser.content,
+          modelRef: b.model || null,
+          useWeb: b.web === undefined ? null : Boolean(b.web),
+          resend: true,
+          signal: stream.signal
+        })
+      );
+      return;
+    }
+
+    // Anexos da conversa. O corpo é o arquivo cru: multipart não vale a pena
+    // implementar à mão só pra isso.
+    if (method === 'POST' && seg[2] === 'attachments') {
+      const buffer = await readBuffer(req);
+      const name = url.searchParams.get('name') || 'arquivo';
+      const attachment = await addAttachment({
+        buffer,
+        name,
+        mime: req.headers['content-type'] || '',
+        chatId: id
+      });
+      return json(res, attachment);
+    }
+    if (method === 'GET' && seg[2] === 'attachments') {
+      return json(res, listAttachments({ chatId: id }));
+    }
+  }
+
+  // --- mensagens -----------------------------------------------------------
+  if (seg[0] === 'messages' && seg[1]) {
+    const id = seg[1];
+    if (method === 'DELETE') {
+      deleteMessage(id);
+      return json(res, { ok: true });
+    }
+    if (method === 'PATCH') {
+      const b = await readJSON(req);
+      const cur = one('SELECT * FROM messages WHERE id = ?', id);
+      if (!cur) return json(res, { error: 'mensagem não encontrada' }, 404);
+      run('UPDATE messages SET content = ? WHERE id = ?', b.content ?? cur.content, id);
+      return json(res, one('SELECT * FROM messages WHERE id = ?', id));
+    }
+  }
+
+  // --- anexos --------------------------------------------------------------
+  if (method === 'GET' && path === '/attachments') {
+    return json(
+      res,
+      listAttachments({
+        chatId: url.searchParams.get('chat'),
+        projectId: url.searchParams.get('project')
+      })
+    );
+  }
+  if (method === 'POST' && path === '/attachments') {
+    const buffer = await readBuffer(req);
+    const attachment = await addAttachment({
+      buffer,
+      name: url.searchParams.get('name') || 'arquivo',
+      mime: req.headers['content-type'] || '',
+      chatId: url.searchParams.get('chat') || null,
+      projectId: url.searchParams.get('project') || null
+    });
+    return json(res, attachment);
+  }
+  if (seg[0] === 'attachments' && seg[1] && method === 'DELETE') {
+    deleteAttachment(seg[1]);
+    return json(res, { ok: true });
+  }
+
+  // --- pesquisa profunda ---------------------------------------------------
+  if (method === 'POST' && path === '/research') {
+    const b = await readJSON(req);
+    const stream = openStream(req, res);
+    await pump(
+      stream,
+      runResearch({
+        question: b.question || '',
+        ref: b.model,
+        breadth: Number(b.breadth) || 4,
+        depth: Number(b.depth) || 3,
+        signal: stream.signal
+      })
+    );
+    return;
+  }
+
+  // --- conselho de IAs -----------------------------------------------------
+  if (method === 'POST' && path === '/council') {
+    const b = await readJSON(req);
+    const stream = openStream(req, res);
+    await pump(
+      stream,
+      runCouncil({
+        prompt: b.prompt || '',
+        system: b.system || null,
+        refs: b.models || [],
+        mode: b.mode || 'council',
+        judge: b.judge || null,
+        temperature: b.temperature ?? null,
+        signal: stream.signal
+      })
+    );
+    return;
+  }
+
+  // --- ferramenta de web avulsa (a interface usa pra testar) ---------------
+  if (method === 'GET' && path === '/web/search') {
+    try {
+      return json(res, await webSearch(url.searchParams.get('q') || '', { limit: 8 }));
+    } catch (err) {
+      return json(res, { error: err.message }, 502);
+    }
+  }
+  if (method === 'GET' && path === '/web/read') {
+    try {
+      return json(res, await readPage(url.searchParams.get('url') || ''));
+    } catch (err) {
+      return json(res, { error: err.message }, 502);
     }
   }
 

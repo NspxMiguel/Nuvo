@@ -1,0 +1,133 @@
+// Pesquisa profunda: várias buscas, leitura das páginas e um relatório com
+// fontes numeradas.
+//
+// O modelo decide o que pesquisar, o servidor executa a busca e devolve o texto
+// das páginas. Nenhuma etapa inventa fonte: o relatório só pode citar o que foi
+// lido de verdade, e o que não foi encontrado sai escrito como não encontrado.
+
+import { complete, parseJsonArray } from './complete.mjs';
+import { search, readPage } from './web.mjs';
+
+const PLAN_PROMPT = `Você planeja uma pesquisa na web.
+
+Devolva SOMENTE um array JSON de strings: as consultas de busca que respondem à
+pergunta do usuário. Entre 3 e 6 consultas, cada uma num ângulo diferente
+(definição, dado atual, comparação, crítica, fonte primária).
+Escreva as consultas como se digitasse num buscador, sem numeração e sem aspas
+internas. Use o idioma que mais provavelmente tem boas fontes para o assunto.`;
+
+const REPORT_PROMPT = `Você escreve um relatório de pesquisa a partir de páginas que já foram lidas.
+
+Regras:
+- cite a fonte pelo número entre colchetes, assim: [3]. Todo dado que veio das
+  páginas precisa de citação;
+- não invente fato, número ou citação que não esteja nas páginas;
+- quando as fontes divergirem, diga que divergem e mostre os dois lados;
+- quando a pergunta não for respondida pelas páginas, escreva isso claramente;
+- estrutura: resumo de duas ou três linhas, seções com subtítulo, e uma lista
+  final "Fontes" numerada com título e endereço;
+- português do Brasil, direto, sem enrolação.`;
+
+/**
+ * Gerador assíncrono: emite o andamento pra interface e termina com o relatório.
+ * @param {{question: string, ref: string, rounds?: number, signal?: AbortSignal}} input
+ */
+export async function* runResearch({ question, ref, breadth = 4, depth = 3, signal }) {
+  yield { type: 'phase', phase: 'plano', text: 'planejando as buscas' };
+
+  let queries = [];
+  try {
+    const planned = await complete(ref, {
+      system: PLAN_PROMPT,
+      prompt: question,
+      temperature: 0,
+      maxTokens: 500,
+      signal
+    });
+    queries = (parseJsonArray(planned.text) || [])
+      .filter((q) => typeof q === 'string' && q.trim().length > 2)
+      .slice(0, breadth);
+  } catch (err) {
+    yield { type: 'note', text: `o modelo não planejou (${err.message}); busco a pergunta direto` };
+  }
+  if (!queries.length) queries = [question];
+
+  yield { type: 'plan', queries };
+
+  // Busca: cada consulta traz seus resultados, e o conjunto é desduplicado por
+  // endereço antes de gastar tempo lendo página repetida.
+  const found = new Map();
+  for (const query of queries) {
+    if (signal?.aborted) return;
+    yield { type: 'phase', phase: 'busca', text: `buscando: ${query}` };
+    try {
+      for (const hit of await search(query, { limit: 6, signal })) {
+        if (!found.has(hit.url)) found.set(hit.url, { ...hit, query });
+      }
+    } catch (err) {
+      yield { type: 'note', text: `busca falhou em "${query}": ${err.message}` };
+    }
+  }
+
+  const hits = [...found.values()];
+  yield { type: 'hits', hits: hits.map((h) => ({ title: h.title, url: h.url, host: h.host })) };
+  if (!hits.length) {
+    yield { type: 'error', message: 'nenhum resultado de busca — sem fonte não escrevo relatório' };
+    return;
+  }
+
+  // Leitura: as primeiras `depth * queries` páginas, em paralelo limitado.
+  const toRead = hits.slice(0, Math.min(hits.length, depth * queries.length, 12));
+  const pages = [];
+  for (let i = 0; i < toRead.length; i += 4) {
+    if (signal?.aborted) return;
+    const batch = toRead.slice(i, i + 4);
+    yield { type: 'phase', phase: 'leitura', text: `lendo ${i + 1}–${i + batch.length} de ${toRead.length}` };
+    const read = await Promise.all(
+      batch.map(async (hit) => {
+        try {
+          const page = await readPage(hit.url, { maxChars: 7000, signal });
+          return { ...hit, text: page.text, title: page.title || hit.title };
+        } catch (err) {
+          return { ...hit, text: '', error: err.message };
+        }
+      })
+    );
+    for (const page of read) {
+      pages.push(page);
+      yield {
+        type: 'read',
+        url: page.url,
+        title: page.title,
+        chars: page.text.length,
+        error: page.error || null
+      };
+    }
+  }
+
+  const usable = pages.filter((p) => p.text.length > 200);
+  if (!usable.length) {
+    yield { type: 'error', message: 'as páginas não abriram ou vieram vazias — sem fonte não escrevo relatório' };
+    return;
+  }
+
+  yield { type: 'phase', phase: 'relatório', text: `escrevendo a partir de ${usable.length} fonte(s)` };
+
+  const corpus = usable
+    .map((page, i) => `[${i + 1}] ${page.title}\n${page.url}\n\n${page.text}`)
+    .join('\n\n---\n\n');
+
+  const report = await complete(ref, {
+    system: REPORT_PROMPT,
+    prompt: `Pergunta: ${question}\n\nConsultas feitas: ${queries.join(' | ')}\n\nPáginas lidas:\n\n${corpus}`,
+    maxTokens: 4000,
+    signal
+  });
+
+  yield {
+    type: 'report',
+    text: report.text,
+    sources: usable.map((p, i) => ({ n: i + 1, title: p.title, url: p.url })),
+    ms: report.ms
+  };
+}

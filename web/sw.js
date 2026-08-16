@@ -3,8 +3,11 @@
 // Guarda a casca (HTML, CSS, JS, ícones) e nunca toca em /api — resposta de
 // API com token e stream de conversa não podem sair de cache.
 
-const CACHE = 'iaunifier-v1';
-const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'iaunifier-v2';
+const SHELL = [
+  '/', '/index.html', '/styles.css', '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js',
+  '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
