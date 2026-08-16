@@ -36,8 +36,65 @@ como app.
 | `--token` | imprime o token e sai |
 | `--no-token` | desliga o token (só em rede confiável) |
 
-Tudo do usuário fica em `~/.iaunifier`: banco (`data.db`) e configuração
-(`config.json`, criado com permissão 600).
+Tudo do usuário fica em `~/.iaunifier`: banco (`data.db`), configuração
+(`config.json`, criado com permissão 600), anexos (`uploads/`) e as cópias
+automáticas (`backups/`).
+
+## Operação
+
+```bash
+node bin/iaunifier.mjs instalar-servico   # sobe junto com a máquina
+node bin/iaunifier.mjs servico            # instalado? rodando?
+node bin/iaunifier.mjs remover-servico
+```
+
+launchd no macOS, `systemd --user` no Linux, Agendador de Tarefas no Windows —
+tudo no escopo do usuário, sem pedir senha de administrador. No Linux o comando
+tenta `loginctl enable-linger`; sem ele o servidor só fica de pé enquanto houver
+sessão aberta, e isso é dito na saída.
+
+### Backup
+
+```bash
+node bin/iaunifier.mjs backup [arquivo.zip]   # banco + config + anexos
+node bin/iaunifier.mjs restore arquivo.zip
+node bin/iaunifier.mjs backups                # as cópias automáticas
+```
+
+Uma cópia por dia é feita sozinha quando o servidor sobe, e as sete últimas
+ficam guardadas. Na interface, a mesma coisa fica em Config → Backup.
+
+O banco sai por `VACUUM INTO`, não por cópia do arquivo: com WAL ligado, o
+`.db` sozinho pode estar atrás do que já foi gravado. A restauração valida
+assinatura e cabeçalho antes de tocar em qualquer coisa, guarda o banco atual
+como `data.db.antes-da-restauracao` e pede reinício — o processo em execução
+ainda tem o banco antigo aberto.
+
+### Quando não vem resposta
+
+Em Provedores, **Testar todos** fala com cada um e escreve o resultado no
+cartão dele. Provedor de CLI é testado disparando o binário, não lendo a
+configuração; API é testada listando modelos.
+
+O erro que aparece na conversa é traduzido em instrução: "o Ollama não
+respondeu em localhost:11434, abra o app do Ollama", "a chave foi recusada,
+gere uma nova", "o provedor pediu pra esperar, ou troque de modelo". A mensagem
+crua do provedor vai junto, entre parênteses.
+
+Modelo que trava é cortado: 240 s até o primeiro pedaço da resposta (modelo
+local grande demora pra subir na memória) e 120 s entre pedaços. O que já tinha
+chegado é gravado como resposta interrompida. Os dois prazos ficam em
+`config.json`, em `limits`.
+
+## Testes
+
+```bash
+npm test
+```
+
+159 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
+roda num `IAUNIFIER_HOME` temporário e substitui o `fetch` global, então nada
+toca o banco real nem a rede.
 
 ## Provedores
 
@@ -155,6 +212,9 @@ server/
   council.mjs          conselho de IAs e votação cega
   importers.mjs        leitura de export do ChatGPT/Claude
   discovery.mjs        varredura de portas e binários
+  backup.mjs           zip escrito à mão, cópia e restauração
+  service.mjs          launchd, systemd e Agendador de Tarefas
+  errors.mjs           erro do provedor traduzido em instrução
   providers/           um adaptador por tipo de provedor
 web/
   index.html           casca
@@ -167,7 +227,8 @@ web/
 
 Adaptador de provedor implementa `listModels(ctx)` e `stream(ctx, req)` — um
 gerador assíncrono que emite `{delta}`, `{reasoning}` e `{usage}` — e
-opcionalmente `embed(ctx, req)`.
+opcionalmente `embed(ctx, req)` e `check(ctx)`, quando listar modelos não prova
+que o provedor funciona.
 
 ## API
 
@@ -189,6 +250,9 @@ Todas as rotas exigem o cabeçalho `x-iaunifier-token` (ou `?token=`).
 | `POST /api/providers/:id/pull` | baixa modelo do Ollama (SSE) |
 | `GET /api/search` | busca em mensagens e memória |
 | `GET/PATCH /api/settings` | configuração de memória e acesso |
+| `GET /api/health` | testa cada provedor e diz o que está errado |
+| `GET /api/backup` | baixa o zip com banco, configuração e anexos |
+| `POST /api/restore` | restaura de um zip (corpo cru); pede reinício |
 
 O stream do chat emite `user`, `memory-used`, `docs-used`, `web-used`, `phase`,
 `reasoning`, `delta`, `stats`, `done`, `memory-new`, `error` e `end`.
@@ -207,6 +271,9 @@ Sem etapa de build: HTML, CSS e ES modules servidos direto.
 - busca em tudo que já foi conversado, e na memória, pelo índice FTS5;
 - exportar conversa em Markdown ou JSON;
 - voz: ditado e leitura da resposta, pelas APIs do próprio navegador;
+- renomear conversa no lugar do rótulo, fixar e arquivar, com lista própria
+  para as arquivadas;
+- primeira abertura guiada quando ainda não há modelo nenhum;
 - tema claro e escuro, paleta de comandos (Ctrl/Cmd+K) e atalhos;
 - ícones próprios em SVG — nada de emoji, que muda de desenho a cada sistema.
 
