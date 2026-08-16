@@ -535,6 +535,16 @@ async function consumeTurn(path, body) {
               'globe'
             );
             break;
+          case 'history-cut':
+            // A conversa inteira está na tela, mas o modelo só recebeu o fim
+            // dela. Sem este aviso, ele parece ter esquecido do nada.
+            addNote(
+              `conversa longa: só as últimas ${ev.sent} mensagens foram enviadas ao modelo ` +
+                `(${ev.dropped} ficaram de fora). O que virou memória continua valendo.`,
+              '',
+              'alert'
+            );
+            break;
           case 'phase':
             addNote(escapeHtml(ev.text), '', 'spark');
             break;

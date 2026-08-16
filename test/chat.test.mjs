@@ -524,3 +524,42 @@ test('modelo que para no meio grava o pedaço e explica', async () => {
     patchConfig({ limits: { firstChunkSeconds: 240, stallSeconds: 120 } });
   }
 });
+
+// -------------------------------------------------------- conversa longa
+
+test('conversa longa avisa que o modelo não recebeu tudo', async () => {
+  const c = chat.createChat({ title: 'x', model: REF });
+  // 44 mensagens gravadas direto: o limite de histórico é 40.
+  for (let i = 0; i < 22; i++) {
+    chat.addMessage(c.id, 'user', `pergunta ${i}`, null);
+    chat.addMessage(c.id, 'assistant', `resposta ${i}`, REF);
+  }
+
+  const stub = stubFetch(async () => respostaEm(['ok']));
+  try {
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'a última' }));
+    const corte = eventos.find((e) => e.type === 'history-cut');
+    assert.ok(corte, 'o corte silencioso é o que faz o modelo parecer amnésico');
+    assert.equal(corte.sent, 40);
+    assert.equal(corte.total, 45, '44 gravadas antes mais a desta rodada');
+    assert.equal(corte.dropped, 5);
+
+    // E o que foi de fato enviado bate com o anunciado.
+    const enviadas = pedido(stub).messages.filter((m) => m.role !== 'system');
+    assert.equal(enviadas.length, 40);
+    assert.equal(enviadas.at(-1).content, 'a última', 'o fim da conversa é o que tem que ir');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('conversa curta não anuncia corte nenhum', async () => {
+  const c = chat.createChat({ title: 'x', model: REF });
+  const stub = stubFetch(async () => respostaEm(['ok']));
+  try {
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'oi' }));
+    assert.ok(!eventos.some((e) => e.type === 'history-cut'));
+  } finally {
+    stub.restore();
+  }
+});

@@ -196,10 +196,19 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
     mode: chat.mode
   });
 
-  const history = listMessages(chatId)
-    .filter((m) => m.role !== 'system')
-    .slice(-HISTORY_LIMIT)
-    .map((m) => ({ role: m.role, content: m.content }));
+  const todas = listMessages(chatId).filter((m) => m.role !== 'system');
+  const history = todas.slice(-HISTORY_LIMIT).map((m) => ({ role: m.role, content: m.content }));
+
+  // A tela mostra a conversa inteira, mas o modelo só recebe as últimas. Sem
+  // dizer isso, ele "esquece" o começo e o usuário não tem como saber por quê.
+  if (todas.length > HISTORY_LIMIT) {
+    yield {
+      type: 'history-cut',
+      total: todas.length,
+      sent: HISTORY_LIMIT,
+      dropped: todas.length - HISTORY_LIMIT
+    };
+  }
 
   const { providerId, modelId } = parseRef(ref);
   const provider = getProvider(providerId);
