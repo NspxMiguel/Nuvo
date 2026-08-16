@@ -56,17 +56,21 @@ export function parseExport(raw, filename = '') {
     }));
   }
 
-  // Lista simples de mensagens.
+  // Lista simples de mensagens. Basta uma entrada bem formada pra reconhecer o
+  // formato, então as outras podem ser qualquer coisa: o filtro no fim é o que
+  // impede entrada quebrada de virar turno com texto `undefined`, que depois
+  // apareceria escrito "undefined" no prompt do extrator.
   if (Array.isArray(data) && data.some((m) => m && m.role && m.content)) {
     return [
       {
         title: filename || 'conversa',
         turns: data
-          .filter((m) => m.role !== 'system')
+          .filter((m) => m && m.role !== 'system')
           .map((m) => ({
             role: m.role === 'assistant' ? 'assistant' : 'user',
-            text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+            text: (typeof m.content === 'string' ? m.content : m.content ? JSON.stringify(m.content) : '').trim()
           }))
+          .filter((t) => t.text)
       }
     ];
   }
@@ -79,7 +83,11 @@ export function parseExport(raw, filename = '') {
  * gastaria uma chamada de modelo por mensagem.
  */
 export async function importConversations(raw, { filename = '', projectId = null, maxConversations = 200 } = {}) {
-  const conversations = parseExport(raw, filename).slice(0, maxConversations);
+  // Export de anos de ChatGPT passa de mil conversas. O corte existe pra não
+  // gastar mil chamadas de modelo sem aviso — mas quem chamou precisa saber
+  // que houve corte, senão "200 conversas lidas" parece o arquivo inteiro.
+  const todas = parseExport(raw, filename);
+  const conversations = todas.slice(0, maxConversations);
   const facts = [];
   let scanned = 0;
 
@@ -104,5 +112,11 @@ export async function importConversations(raw, { filename = '', projectId = null
     }
   }
 
-  return { conversations: conversations.length, messages: scanned, facts };
+  return {
+    conversations: conversations.length,
+    total: todas.length,
+    skipped: todas.length - conversations.length,
+    messages: scanned,
+    facts
+  };
 }

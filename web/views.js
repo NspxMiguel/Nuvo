@@ -636,7 +636,10 @@ views.memory = async function renderMemory(el, { switchView }) {
         body: text,
         raw: true
       });
-      toast(`${out.facts.length} fato(s) novo(s) de ${out.conversations} conversa(s)`, 'ok');
+      // O corte tem que aparecer: "200 conversas lidas" num export de mil
+      // parece o arquivo inteiro.
+      const corte = out.skipped ? ` — ${out.skipped} conversa(s) além do limite ficaram de fora` : '';
+      toast(`${out.facts.length} fato(s) novo(s) de ${out.conversations} conversa(s)${corte}`, 'ok');
       switchView('memory');
     } catch (err) {
       status.textContent = `falhou: ${err.message}`;
