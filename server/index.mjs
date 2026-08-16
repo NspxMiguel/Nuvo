@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.mjs';
-import { seed } from './db.mjs';
+import { seed, one } from './db.mjs';
 import { handleApi } from './api.mjs';
 import { discover, providerCount } from './discovery.mjs';
 import { autoBackup } from './backup.mjs';
@@ -153,8 +153,9 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
   seed();
 
   // Uma cópia por dia, na subida. Ninguém em casa configura cron, e o que este
-  // app guarda — anos de memória — não se refaz.
-  if (backup) {
+  // app guarda — anos de memória — não se refaz. Instalação recém-criada não
+  // tem o que copiar: guardar zip de banco vazio é só ruído na pasta.
+  if (backup && one('SELECT EXISTS(SELECT 1 FROM messages) OR EXISTS(SELECT 1 FROM memories) AS tem').tem) {
     try {
       const done = autoBackup();
       if (!quiet && !done.skipped) console.log(`backup do dia: ${done.dir}/${done.name}`);

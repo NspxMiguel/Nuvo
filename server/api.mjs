@@ -684,7 +684,9 @@ export async function handleApi(req, res, url) {
       runCouncil({
         prompt: b.prompt || '',
         system: b.system || null,
-        refs: b.models || [],
+        // `models` é o que a interface manda; `refs` é o nome interno, aceito
+        // aqui pra quem chamar a API direto não tropeçar na diferença.
+        refs: b.models || b.refs || [],
         mode: b.mode || 'council',
         judge: b.judge || null,
         temperature: b.temperature ?? null,
