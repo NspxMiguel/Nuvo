@@ -2,7 +2,7 @@
 
 import {
   $, api, stream, state, refreshState, chatModels, embeddingModels, modelOptions,
-  escapeHtml, badge, toast, iconPicker, paintIcons
+  escapeHtml, badge, toast, iconPicker, paintIcons, TOKEN
 } from './core.js';
 import { icon } from './icons.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
@@ -31,6 +31,8 @@ views.providers = async function renderProviders(el, { switchView }) {
     'IA local, de API e de linha de comando — tudo no mesmo seletor de modelo.',
     `<div class="row" style="margin-bottom:12px">
        <button id="btn-discover"><span data-icon="search"></span> Procurar IA local nesta máquina</button>
+       <button id="btn-health"><span data-icon="activity"></span> Testar todos</button>
+       <span id="health-status" class="meta"></span>
      </div>
      <div id="providers-cards"></div>
      <div class="card">
@@ -77,6 +79,7 @@ views.providers = async function renderProviders(el, { switchView }) {
         ${p.enabled ? '' : '<span class="tag off">desligado</span>'}
       </h3>
       <div class="meta">${escapeHtml(p.base_url || p.config.command || '')} · ${p.models.length} modelo(s)</div>
+      <div class="health" id="health-${p.id}"></div>
       ${p.manageable ? '<div id="ollama-' + p.id + '"></div>' : ''}
       <div class="row">
         <button data-act="refresh"><span data-icon="refresh"></span> Atualizar modelos</button>
@@ -142,6 +145,36 @@ views.providers = async function renderProviders(el, { switchView }) {
       toast(err.message, 'err');
       btn.disabled = false;
     }
+  };
+
+  // Saúde: fala com cada provedor de verdade e escreve o resultado no cartão
+  // dele. É a resposta pra "por que não vem resposta?" sem ter que adivinhar.
+  inner.querySelector('#btn-health').onclick = async (ev) => {
+    const btn = ev.currentTarget;
+    const status = inner.querySelector('#health-status');
+    btn.disabled = true;
+    status.textContent = 'testando...';
+    try {
+      const results = await api('/health');
+      for (const r of results) {
+        const alvo = inner.querySelector(`#health-${r.id}`);
+        if (!alvo) continue;
+        const rotulo =
+          r.status === 'ok'
+            ? `respondeu em ${r.ms} ms · ${r.models} modelo(s)`
+            : r.status === 'off'
+              ? r.message
+              : r.message;
+        alvo.className = `health ${r.status}`;
+        alvo.innerHTML = `${icon(r.status === 'ok' ? 'check' : 'alert', 14)} ${escapeHtml(rotulo)}`;
+      }
+      const ruins = results.filter((r) => r.status === 'erro').length;
+      status.textContent = ruins ? `${ruins} com problema` : 'todos responderam';
+    } catch (err) {
+      status.textContent = '';
+      toast(err.message, 'err');
+    }
+    btn.disabled = false;
   };
 
   inner.querySelector('#new-preset').onchange = (ev) => {
@@ -676,6 +709,16 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
        <div class="meta">Busca semântica: ${settings.embeddingAvailable ? 'ligada' : 'desligada (só busca por palavra)'}</div>
      </div>
      <div class="card">
+       <h3>${icon('save', 15)} Backup</h3>
+       <div class="meta">Um zip com o banco inteiro — conversas, memória, gems, projetos — mais a configuração e os arquivos anexados.</div>
+       <div class="row" style="margin-top:8px">
+         <button id="btn-backup"><span data-icon="download"></span> Baixar cópia agora</button>
+         <button id="btn-restore"><span data-icon="upload"></span> Restaurar de um arquivo</button>
+         <input id="restore-file" type="file" accept=".zip" hidden />
+       </div>
+       <div id="backup-list" class="meta" style="margin-top:8px">carregando cópias automáticas…</div>
+     </div>
+     <div class="card">
        <h3>${icon('command', 15)} Atalhos</h3>
        <div class="meta">Ctrl/Cmd + K — paleta de comandos</div>
        <div class="meta">Ctrl/Cmd + Enter — enviar mesmo com quebra de linha</div>
@@ -705,6 +748,51 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
   for (const btn of inner.querySelectorAll('[data-theme]')) {
     btn.onclick = () => applyTheme(btn.dataset.theme);
   }
+
+  // --- backup ---------------------------------------------------------------
+
+  inner.querySelector('#btn-backup').onclick = () => {
+    // Download é o navegador que faz: a rota já manda o content-disposition.
+    const link = document.createElement('a');
+    link.href = `/api/backup?token=${encodeURIComponent(TOKEN)}`;
+    link.click();
+    toast('a cópia está sendo gerada e vai baixar em instantes');
+  };
+
+  const fileInput = inner.querySelector('#restore-file');
+  inner.querySelector('#btn-restore').onclick = () => fileInput.click();
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    if (!confirm(`Restaurar de "${file.name}"?\n\nO que está aqui agora é substituído. O banco atual fica guardado como cópia antes de trocar.`)) {
+      fileInput.value = '';
+      return;
+    }
+    try {
+      const done = await api('/restore', { method: 'POST', raw: true, body: await file.arrayBuffer() });
+      toast(done.message, 'ok');
+      alert(`Restaurado: banco${done.config ? ', configuração' : ''}, ${done.uploads} anexo(s).\n\nReinicie o servidor pra carregar os dados.`);
+    } catch (err) {
+      toast(err.message, 'err');
+    }
+    fileInput.value = '';
+  };
+
+  api('/backups')
+    .then((lista) => {
+      const alvo = inner.querySelector('#backup-list');
+      if (!lista.length) {
+        alvo.textContent = 'A cópia automática é feita uma vez por dia, quando o servidor sobe.';
+        return;
+      }
+      const tamanho = (b) => (b >= 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} kB`);
+      alvo.innerHTML = `Cópias automáticas (as sete últimas):<br>${lista
+        .map((b) => `${escapeHtml(b.at.replace('T', ' ').slice(0, 16))} — ${tamanho(b.bytes)}`)
+        .join('<br>')}`;
+    })
+    .catch(() => {
+      inner.querySelector('#backup-list').textContent = 'não consegui listar as cópias automáticas';
+    });
 
   paintIcons(el);
 };

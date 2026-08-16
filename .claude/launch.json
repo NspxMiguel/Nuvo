@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "iaunifier",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["bin/iaunifier.mjs", "--port", "4788", "--no-token"],
+      "port": 4788
+    }
+  ]
+}

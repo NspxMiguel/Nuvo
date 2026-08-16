@@ -143,8 +143,56 @@ html, body {
 .chat-item:hover { background: var(--panel-2); color: var(--text); }
 .chat-item.active { background: var(--panel-2); color: var(--text); }
 .chat-item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-item .row-actions { display: flex; gap: 1px; opacity: 0; }
-.chat-item:hover .row-actions, .chat-item.active .row-actions { opacity: 1; }
+/* Fora do hover os botões não ocupam largura: com quatro deles reservando
+   espaço, sobrava meia dúzia de caracteres pro título da conversa. */
+.chat-item .row-actions {
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.chat-item:hover .row-actions, .chat-item.active .row-actions {
+  opacity: 1;
+  width: auto;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+/* Renomear acontece no lugar do rótulo, com a mesma métrica, pra linha não
+   pular de altura quando o campo entra. */
+input.rename {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+input.rename.topbar {
+  flex: 1 1 0;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 8px;
+}
+
+.link-btn {
+  align-self: flex-start;
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 9px;
+}
+.link-btn:hover { color: var(--text); }
 
 .side-foot { display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
 .side-foot .muted { font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -437,6 +485,62 @@ button.ghost { background: none; }
 .tag.on { color: var(--ok); border-color: var(--ok); }
 .tag.off { color: var(--danger); border-color: var(--danger); }
 .tag.warn { color: var(--warn); border-color: var(--warn); }
+
+/* Resultado do teste de provedor. Vazio não ocupa espaço: o cartão só cresce
+   depois que alguém pediu o teste. */
+.health:empty { display: none; }
+.health {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.health.ok { color: var(--ok); }
+.health.erro { color: var(--danger); }
+.health.off { color: var(--muted); }
+
+/* Primeira abertura: os três passos que tiram o app do zero. */
+.first-run { max-width: 620px; margin: 8vh auto 0; text-align: center; }
+.first-run .badge-row { display: flex; justify-content: center; margin-bottom: 12px; }
+.first-run h2 { font-size: 20px; margin-bottom: 6px; }
+.first-run > p { color: var(--muted); font-size: 13.5px; margin-bottom: 22px; }
+.first-run .steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  counter-reset: passo;
+  list-style: none;
+}
+.first-run .steps li {
+  counter-increment: passo;
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px 14px 52px;
+}
+.first-run .steps li::before {
+  content: counter(passo);
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+.first-run .steps strong { display: block; font-size: 14px; margin-bottom: 3px; }
+.first-run .steps span { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.first-run .steps button { margin-top: 10px; }
 
 .badge {
   width: 30px;

@@ -256,7 +256,10 @@ export async function handleApi(req, res, url) {
         }
         const started = Date.now();
         try {
-          const models = await adapterFor(provider.kind).listModels(contextFor(provider));
+          // `check` quando o adaptador tem um teste melhor que listar modelos —
+          // no CLI, listar só repete a configuração e nunca falha.
+          const adapter = adapterFor(provider.kind);
+          const models = await (adapter.check || adapter.listModels)(contextFor(provider));
           return { ...base, status: 'ok', ms: Date.now() - started, models: models.length };
         } catch (err) {
           return { ...base, status: 'erro', ms: Date.now() - started, message: explainProviderError(err, provider) };

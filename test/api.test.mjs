@@ -500,3 +500,59 @@ test('restaurar backup de verdade responde pedindo reinício', async () => {
   assert.equal(res.data.db, true);
   assert.match(res.data.message, /reinicie/);
 });
+
+// ------------------------------------------------------------------- saúde
+
+test('saúde acusa provedor de API que não responde', async () => {
+  const stub = stubFetch(async () => {
+    throw new Error('fetch failed');
+  });
+  try {
+    const res = await app.api('/health');
+    assert.equal(res.status, 200);
+    const alvo = res.data.find((p) => p.id === fakeProviderId);
+    assert.equal(alvo.status, 'erro');
+    assert.match(alvo.message, /não consegui falar com/, 'a mensagem tem que dizer o que fazer');
+    assert.match(alvo.message, /modelo\.invalido/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('saúde de CLI testa o binário, não a configuração', async () => {
+  const provider = await app.api('/providers', {
+    method: 'POST',
+    body: {
+      name: 'CLI que não existe',
+      kind: 'cli',
+      config: { command: 'binario-que-nao-existe-mesmo', args: [], stdin: true, models: ['default'] }
+    }
+  });
+  const id = provider.data.provider.id;
+
+  const res = await app.api('/health');
+  const alvo = res.data.find((p) => p.id === id);
+  assert.equal(alvo.status, 'erro', 'listar modelos devolveria "ok" com o binário ausente');
+  assert.match(alvo.message, /não existe nesta máquina/);
+
+  await app.api(`/providers/${id}`, { method: 'DELETE' });
+});
+
+test('saúde marca provedor desligado sem tentar falar com ele', async () => {
+  await app.api(`/providers/${fakeProviderId}`, { method: 'PATCH', body: { enabled: false } });
+  const stub = stubFetch(async () => {
+    throw new Error('não era pra ter chamado');
+  });
+  try {
+    const res = await app.api('/health');
+    const alvo = res.data.find((p) => p.id === fakeProviderId);
+    assert.equal(alvo.status, 'off');
+    assert.ok(
+      !stub.calls.some((c) => c.url.includes('modelo.invalido')),
+      'provedor desligado não deve ser chamado'
+    );
+  } finally {
+    stub.restore();
+    await app.api(`/providers/${fakeProviderId}`, { method: 'PATCH', body: { enabled: true } });
+  }
+});

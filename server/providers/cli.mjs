@@ -22,6 +22,46 @@ export async function listModels(ctx) {
   return [{ model_id: 'default', label: ctx.config?.command || 'cli', kind: 'chat' }];
 }
 
+/**
+ * Saúde de verdade: `listModels` aqui só repete o que está na configuração e
+ * responderia "ok" mesmo com o binário desinstalado. Este teste dispara o
+ * processo e o mata na hora — o que interessa é se o sistema consegue achá-lo.
+ */
+export async function check(ctx) {
+  const command = ctx.config?.command;
+  if (!command) throw new Error('provedor CLI sem comando configurado');
+
+  await new Promise((resolve, reject) => {
+    const child = spawn(command, ['--version'], {
+      stdio: 'ignore',
+      env: { ...process.env, ...(ctx.config?.env || {}) }
+    });
+    const timer = setTimeout(() => {
+      // Comando que existe mas não entende `--version` pode ficar esperando
+      // entrada. Ele existe, que é o que estava sendo perguntado.
+      child.kill('SIGKILL');
+      resolve();
+    }, 4000);
+    timer.unref?.();
+
+    child.once('spawn', () => {
+      clearTimeout(timer);
+      child.kill('SIGKILL');
+      resolve();
+    });
+    child.once('error', (err) => {
+      clearTimeout(timer);
+      reject(
+        err.code === 'ENOENT'
+          ? new Error(`o comando "${command}" não existe nesta máquina`)
+          : err
+      );
+    });
+  });
+
+  return listModels(ctx);
+}
+
 /** O CLI não conhece histórico: a conversa inteira vira um prompt de texto. */
 function flatten(req) {
   const parts = [];

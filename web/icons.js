@@ -47,6 +47,9 @@ const PATHS = {
   filter: 'M3 5h18l-7 8v6l-4 2v-8Z',
   archive: 'M3 5h18v4H3Z M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9 M10 13h4',
   arrowUp: 'M12 20V5 M6 11l6-6 6 6',
+  activity: 'M3 12h4l3 8 4-16 3 8h4',
+  upload: 'M12 20V8 M7 12l5-5 5 5 M4 4h16',
+  save: 'M5 3h11l3 3v15H5Z M8 3v6h8V3 M8 14h8v7H8Z',
   external: 'M14 4h6v6 M20 4l-9 9 M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5'
 };
 

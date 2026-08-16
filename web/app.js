@@ -37,12 +37,17 @@ function chatRow(chat) {
     ${project ? badge(project.icon, project.color, 13) : `<span class="ico">${icon('chat', 15)}</span>`}
     <span class="label">${escapeHtml(chat.title)}</span>
     <span class="row-actions">
+      <button class="icon" data-act="rename" title="renomear">${icon('edit', 14)}</button>
       <button class="icon" data-act="pin" title="${chat.pinned ? 'desfixar' : 'fixar'}">${icon('pin', 14)}</button>
-      <button class="icon" data-act="archive" title="arquivar">${icon('archive', 14)}</button>
+      <button class="icon" data-act="archive" title="${chat.archived ? 'desarquivar' : 'arquivar'}">${icon('archive', 14)}</button>
       <button class="icon" data-act="del" title="apagar">${icon('trash', 14)}</button>
     </span>`;
 
   item.onclick = () => openChat(chat.id);
+  item.querySelector('[data-act=rename]').onclick = (ev) => {
+    ev.stopPropagation();
+    startRename(item, chat);
+  };
   item.querySelector('[data-act=pin]').onclick = async (ev) => {
     ev.stopPropagation();
     await api(`/chats/${chat.id}`, { method: 'PATCH', body: { pinned: !chat.pinned } });
@@ -50,8 +55,8 @@ function chatRow(chat) {
   };
   item.querySelector('[data-act=archive]').onclick = async (ev) => {
     ev.stopPropagation();
-    await api(`/chats/${chat.id}`, { method: 'PATCH', body: { archived: 1 } });
-    if (state.chatId === chat.id) newChat();
+    await api(`/chats/${chat.id}`, { method: 'PATCH', body: { archived: chat.archived ? 0 : 1 } });
+    if (!chat.archived && state.chatId === chat.id) newChat();
     await load();
   };
   item.querySelector('[data-act=del]').onclick = async (ev) => {
@@ -64,13 +69,78 @@ function chatRow(chat) {
   return item;
 }
 
-function renderSidebar(filter = '') {
+/** Troca o rótulo por um campo, ali mesmo — sem prompt do navegador. */
+function startRename(item, chat) {
+  const label = item.querySelector('.label');
+  const input = document.createElement('input');
+  input.className = 'rename';
+  input.value = chat.title;
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    const title = input.value.trim();
+    if (save && title && title !== chat.title) {
+      await api(`/chats/${chat.id}`, { method: 'PATCH', body: { title } });
+    }
+    await load();
+  };
+
+  input.onclick = (ev) => ev.stopPropagation();
+  input.onblur = () => finish(true);
+  input.onkeydown = (ev) => {
+    ev.stopPropagation();
+    if (ev.key === 'Enter') finish(true);
+    if (ev.key === 'Escape') finish(false);
+  };
+}
+
+/** O mesmo renomear, começando pelo título no topo. */
+function renameFromTopbar(chat) {
+  const title = $('#chat-title');
+  const input = document.createElement('input');
+  input.className = 'rename topbar';
+  input.value = chat.title;
+  title.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    const novo = input.value.trim();
+    input.replaceWith(title);
+    if (save && novo && novo !== chat.title) {
+      await api(`/chats/${chat.id}`, { method: 'PATCH', body: { title: novo } });
+      await load();
+    } else {
+      renderTopbar();
+    }
+  };
+  input.onblur = () => finish(true);
+  input.onkeydown = (ev) => {
+    ev.stopPropagation();
+    if (ev.key === 'Enter') finish(true);
+    if (ev.key === 'Escape') finish(false);
+  };
+}
+
+/** Arquivadas ficam guardadas atrás de um botão; a lista normal não as mostra. */
+let showingArchived = false;
+
+async function renderSidebar(filter = '') {
   const list = $('#chat-list');
   list.innerHTML = '';
   const query = filter.trim().toLowerCase();
-  const chats = query
-    ? state.chats.filter((c) => c.title.toLowerCase().includes(query))
+  const source = showingArchived
+    ? (await api('/chats?all=1')).filter((c) => c.archived)
     : state.chats;
+  const chats = query ? source.filter((c) => c.title.toLowerCase().includes(query)) : source;
 
   const pinned = chats.filter((c) => c.pinned);
   const rest = chats.filter((c) => !c.pinned);
@@ -84,8 +154,20 @@ function renderSidebar(filter = '') {
     for (const chat of rest) list.appendChild(chatRow(chat));
   }
   if (!chats.length) {
-    list.insertAdjacentHTML('beforeend', '<div class="list-label">nada por aqui</div>');
+    list.insertAdjacentHTML(
+      'beforeend',
+      `<div class="list-label">${showingArchived ? 'nada arquivado' : 'nada por aqui'}</div>`
+    );
   }
+
+  const toggle = document.createElement('button');
+  toggle.className = 'link-btn';
+  toggle.innerHTML = `${icon('archive', 13)} ${showingArchived ? 'voltar às conversas' : 'ver arquivadas'}`;
+  toggle.onclick = () => {
+    showingArchived = !showingArchived;
+    renderSidebar();
+  };
+  list.appendChild(toggle);
 }
 
 /** Busca do servidor: procura dentro das mensagens e da memória, não só no título. */
@@ -146,7 +228,10 @@ function renderTopbar() {
     'sem projeto'
   );
   const chat = state.chats.find((c) => c.id === state.chatId);
-  $('#chat-title').textContent = chat ? chat.title : '';
+  const title = $('#chat-title');
+  title.textContent = chat ? chat.title : '';
+  title.title = chat ? 'clique duas vezes pra renomear' : '';
+  title.ondblclick = chat ? () => renameFromTopbar(chat) : null;
   $('#btn-web').classList.toggle('on', state.useWeb);
 }
 
@@ -241,7 +326,70 @@ function renderMessages(focusId) {
   if (!state.messages.length) renderEmptyState();
 }
 
+/**
+ * Primeira abertura: sem provedor não há modelo, e sem modelo nada nesta tela
+ * funciona. Em vez do vazio de sempre, os três passos que tiram o app do zero.
+ */
+function renderFirstRun() {
+  // Provedor cadastrado mas sem modelo utilizável é outro problema: aí não
+  // falta descobrir nada, falta ligar ou atualizar o que já está lá.
+  const desligados = state.providers.filter((p) => !p.enabled).length;
+  const explicacao = state.providers.length
+    ? `Você tem ${state.providers.length} provedor(es) cadastrado(s), mas nenhum modelo disponível${
+        desligados ? ` — ${desligados} está(ão) desligado(s)` : ''
+      }.`
+    : 'Falta ligar uma IA. São três passos, e o primeiro costuma resolver sozinho.';
+
+  $('#messages').innerHTML = `
+    <div class="first-run">
+      <div class="badge-row">${badge('sparkle', 'indigo', 26)}</div>
+      <h2>${state.providers.length ? 'Nenhum modelo disponível' : 'Bem-vindo ao IAUnifier'}</h2>
+      <p>${escapeHtml(explicacao)}</p>
+      <ol class="steps">
+        <li>
+          <strong>Procurar o que já existe na máquina</strong>
+          <span>Ollama, LM Studio, LocalAI, llama.cpp e as CLIs do Claude, Codex e Gemini — se estiverem instalados, entram sozinhos.</span>
+          <button id="fr-discover" class="primary"><span data-icon="search"></span> Procurar agora</button>
+        </li>
+        <li>
+          <strong>Ou usar uma IA de API</strong>
+          <span>OpenAI, Anthropic, Google, Groq, DeepSeek, OpenRouter. Você cola a chave uma vez e ela fica no servidor, nunca no navegador.</span>
+          <button id="fr-providers"><span data-icon="plug"></span> Abrir Provedores</button>
+        </li>
+        <li>
+          <strong>Depois é só conversar</strong>
+          <span>O que você contar pra uma IA, as outras lembram: a memória é uma só, compartilhada entre todas.</span>
+        </li>
+      </ol>
+    </div>`;
+  paintIcons($('#messages'));
+  $('#fr-discover').onclick = async (ev) => {
+    const btn = ev.currentTarget;
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'procurando...';
+    try {
+      const { found } = await api('/discover', { method: 'POST' });
+      toast(
+        found.length
+          ? `encontrado: ${found.map((f) => f.name).join(', ')}`
+          : 'nada novo encontrado nesta máquina — cadastre uma IA de API',
+        found.length ? 'ok' : ''
+      );
+      await load();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
+    // O botão volta ao normal de qualquer jeito: sem modelo novo, esta tela
+    // continua na frente e um botão travado em "procurando..." é beco sem saída.
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+  $('#fr-providers').onclick = () => switchView('providers');
+}
+
 function renderEmptyState() {
+  if (!chatModels().length) return renderFirstRun();
   const gem = state.gems.find((g) => g.id === state.gemId);
   $('#messages').innerHTML = `
     <div class="msg" style="text-align:center;color:var(--muted);margin-top:12vh">
