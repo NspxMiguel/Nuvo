@@ -1,0 +1,870 @@
+<title>IAUnifier</title>
+<style>
+  /* ---------------------------------------------------------------- tokens
+     Escuro é o estado base: o produto é um servidor, e a página é o painel
+     dele. O claro é o mesmo instrumento sob luz de dia. */
+  :root {
+    --ground: #12151a;
+    --surface: #181c23;
+    --surface-2: #1f242c;
+    --line: #2b323c;
+    --line-soft: #22272f;
+    --ink: #e6e9ed;
+    --muted: #8a93a1;
+    --brass: #c9922f;
+    --brass-soft: #c9922f26;
+    --signal: #4fa97e;
+    --alarm: #cf6a5c;
+
+    --display: 'Bahnschrift', 'Avenir Next Condensed', 'HelveticaNeue-CondensedBold',
+      'Arial Narrow', system-ui, sans-serif;
+    --body: 'Charter', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
+
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) {
+      --ground: #e9eae6;
+      --surface: #f4f4f1;
+      --surface-2: #ffffff;
+      --line: #c8ccc4;
+      --line-soft: #dcdfd8;
+      --ink: #171b21;
+      --muted: #5c636e;
+      --brass: #8a6015;
+      --brass-soft: #8a601518;
+      --signal: #276b4a;
+      --alarm: #a2402f;
+      color-scheme: light;
+    }
+  }
+
+  :root[data-theme='light'] {
+    --ground: #e9eae6;
+    --surface: #f4f4f1;
+    --surface-2: #ffffff;
+    --line: #c8ccc4;
+    --line-soft: #dcdfd8;
+    --ink: #171b21;
+    --muted: #5c636e;
+    --brass: #8a6015;
+    --brass-soft: #8a601518;
+    --signal: #276b4a;
+    --alarm: #a2402f;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 28px 96px;
+  }
+
+  /* Coluna de leitura estreita; as faixas de dados saem dela. */
+  .read {
+    max-width: 64ch;
+  }
+
+  h1, h2, h3, .lbl, .stat-n, .rule-n {
+    font-family: var(--display);
+    font-weight: 700;
+  }
+
+  h1 {
+    font-size: clamp(46px, 8.5vw, 92px);
+    line-height: 0.94;
+    letter-spacing: -0.025em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+
+  h2 {
+    font-size: clamp(27px, 3.6vw, 38px);
+    line-height: 1.06;
+    letter-spacing: -0.018em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: 19px;
+    letter-spacing: -0.008em;
+    margin: 0 0 6px;
+  }
+
+  p { margin: 0 0 16px; }
+  p:last-child { margin-bottom: 0; }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  a {
+    color: var(--brass);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--brass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  .lbl {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .lead {
+    font-size: clamp(19px, 2.3vw, 23px);
+    line-height: 1.45;
+    color: var(--ink);
+  }
+
+  .dim { color: var(--muted); }
+  .small { font-size: 14.5px; line-height: 1.55; }
+
+  /* ------------------------------------------------------------- cabeçalho */
+
+  header.top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 22px 0 0;
+    border-bottom: 1px solid var(--line-soft);
+    padding-bottom: 18px;
+  }
+  header.top .mark { flex: 0 0 auto; }
+  header.top .who {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  header.top .who b { color: var(--ink); font-weight: 600; letter-spacing: 0.08em; }
+  header.top .spacer { flex: 1; }
+
+  /* ------------------------------------------------------------------ hero */
+
+  .hero { padding: 78px 0 60px; }
+  .hero .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 26px;
+  }
+  .hero .kicker::before {
+    content: '';
+    width: 26px;
+    height: 1px;
+    background: var(--brass);
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--brass);
+  }
+
+  /* Régua: divisor com marcação de instrumento. Aparece entre as seções. */
+  .rule {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    margin: 0;
+    padding-top: 64px;
+    border-top: 1px solid var(--line);
+    position: relative;
+  }
+  .rule::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 64px;
+    height: 3px;
+    background: var(--brass);
+  }
+  .rule-n {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--brass);
+  }
+  section { padding-bottom: 8px; }
+  .sec-head { margin: 14px 0 26px; }
+
+  /* ------------------------------------------------------------ estatística */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin: 30px 0;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 18px 18px 16px;
+  }
+  .stat-n {
+    font-family: var(--mono);
+    font-size: 30px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    display: block;
+  }
+  .stat-n .u {
+    font-size: 15px;
+    color: var(--muted);
+    letter-spacing: 0;
+    margin-left: 3px;
+  }
+  .stat-l {
+    display: block;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.4;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---------------------------------------------------------------- blocos */
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 22px 24px;
+    margin: 26px 0;
+  }
+  .panel.brass { border-left: 3px solid var(--brass); }
+  .panel.signal { border-left: 3px solid var(--signal); }
+  .panel.alarm { border-left: 3px solid var(--alarm); }
+
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 22px;
+    margin: 28px 0;
+  }
+  .col h3 { margin-bottom: 5px; }
+  .col p { font-size: 15.5px; line-height: 1.55; color: var(--muted); }
+
+  ul.plain { margin: 0 0 16px; padding-left: 20px; }
+  ul.plain li { margin-bottom: 7px; }
+  ul.plain li::marker { color: var(--brass); }
+
+  /* Prova: afirmação + o teste que a sustenta. */
+  .proofs { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 28px 0; }
+  .proof {
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 14px;
+    padding: 16px 20px;
+    align-items: start;
+  }
+  .proof .tick { color: var(--signal); margin-top: 3px; }
+  .proof .what { font-size: 16px; margin-bottom: 4px; }
+  .proof .how {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  .table-wrap { overflow-x: auto; margin: 26px 0; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 560px; }
+  thead th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    font-weight: 600;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--surface);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody th {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--surface);
+    text-align: left;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+  }
+  tbody tr:last-child th { border-bottom: 0; }
+  td.yes { color: var(--signal); }
+  td.no { color: var(--muted); }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------------------------------------------------- diagrama da memória */
+
+  .diagram {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 26px 24px 20px;
+    margin: 30px 0;
+  }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram .cap {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-top: 16px;
+    text-transform: uppercase;
+  }
+
+  /* ------------------------------------------------------------- rodapé */
+
+  footer {
+    margin-top: 72px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  footer a { color: var(--muted); }
+
+  .srcs { font-family: var(--mono); font-size: 11.5px; line-height: 1.75; color: var(--muted); margin-top: 18px; }
+  .srcs a { color: var(--muted); }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .page { padding: 0 18px 72px; }
+    .hero { padding: 54px 0 44px; }
+    .rule { padding-top: 48px; }
+    .proof { grid-template-columns: 18px 1fr; gap: 11px; padding: 14px 15px; }
+    .panel { padding: 18px 17px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page">
+  <header class="top">
+    <span class="mark" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--brass)">
+        <path d="M4 6h6l3.5 6H4" /><path d="M4 12h9.5" /><path d="M4 18h6l3.5-6" />
+        <circle cx="17.5" cy="12" r="3.2" style="fill: var(--brass-soft)" />
+      </svg>
+    </span>
+    <span class="who"><b>IAUnifier</b></span>
+    <span class="spacer"></span>
+    <span class="who">Apresentação · Agosto 2026</span>
+  </header>
+
+  <div class="hero">
+    <span class="kicker lbl">Software de infraestrutura pessoal de IA</span>
+    <h1>Suas IAs não<br />se conhecem.<br /><em>A gente resolve isso.</em></h1>
+    <p class="lead read">
+      O IAUnifier roda no computador de quem usa e junta modelos locais, APIs
+      pagas e agentes de linha de comando numa interface só — com um banco de
+      memória que <strong>todos eles leem e escrevem</strong>. O que você contou
+      pro Claude, o GPT sabe na conversa seguinte.
+    </p>
+  </div>
+
+  <section>
+    <div class="rule"><span class="rule-n">01</span> <span class="lbl">O problema</span></div>
+    <div class="sec-head read">
+      <h2>Cada assistente é uma ilha, e você é o cabo entre elas</h2>
+    </div>
+    <div class="read">
+      <p>
+        Quem usa IA a sério hoje não usa uma. Usa o Claude para escrever, o GPT
+        para pesquisar, um modelo local para o que não pode sair da máquina, um
+        agente de terminal para mexer em código. Quatro contas, quatro
+        assinaturas, quatro interfaces.
+      </p>
+      <p>
+        E quatro amnésias. Cada uma dessas ferramentas guarda o que aprendeu
+        sobre você dentro do próprio jardim murado — quando guarda. Trocar de
+        ferramenta é recomeçar a explicar quem você é, como quer ser respondido,
+        em que projeto está mexendo. O trabalho de manter o contexto sobra para
+        a pessoa.
+      </p>
+    </div>
+
+    <div class="panel brass read">
+      <p class="small" style="margin:0">
+        A memória virou o argumento de venda das grandes plataformas justamente
+        porque prende: quanto mais uma IA sabe sobre você, mais caro fica sair
+        dela. Nenhuma delas tem incentivo para deixar essa memória atravessar
+        para a concorrente.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule"><span class="rule-n">02</span> <span class="lbl">A solução</span></div>
+    <div class="sec-head read">
+      <h2>Uma memória, muitos modelos, e ela é sua</h2>
+    </div>
+    <div class="read">
+      <p>
+        O IAUnifier inverte a posse. A memória deixa de morar no provedor e
+        passa a morar no computador de quem usa — num banco único que qualquer
+        modelo conectado consulta antes de responder e alimenta depois de
+        responder.
+      </p>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 720 210" role="img"
+        aria-label="Quatro fontes de IA — local, API, linha de comando e importação — convergindo para um único banco de memória, que devolve contexto para todas elas.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor" />
+          </marker>
+        </defs>
+        <g style="color: var(--line)" stroke="currentColor" stroke-width="1.4" fill="none">
+          <path d="M186 34 H286 L352 96" marker-end="url(#ar)" />
+          <path d="M186 76 H300 L352 100" marker-end="url(#ar)" />
+          <path d="M186 130 H300 L352 110" marker-end="url(#ar)" />
+          <path d="M186 172 H286 L352 116" marker-end="url(#ar)" />
+        </g>
+        <g style="color: var(--brass)" stroke="currentColor" stroke-width="1.4" fill="none" stroke-dasharray="3 4">
+          <path d="M470 105 H560" marker-end="url(#ar)" />
+        </g>
+
+        <g font-family="ui-monospace, monospace" font-size="12">
+          <g fill="var(--muted)">
+            <text x="0" y="38">Modelo local</text>
+            <text x="0" y="80">API hospedada</text>
+            <text x="0" y="134">Agente de terminal</text>
+            <text x="0" y="176">Histórico importado</text>
+          </g>
+          <text x="576" y="102" fill="var(--muted)">Contexto</text>
+          <text x="576" y="118" fill="var(--muted)">de volta</text>
+        </g>
+
+        <rect x="356" y="72" width="114" height="66" rx="2"
+          fill="var(--brass-soft)" stroke="var(--brass)" stroke-width="1.4" />
+        <text x="413" y="100" text-anchor="middle" font-family="ui-monospace, monospace"
+          font-size="12.5" font-weight="600" fill="var(--brass)">MEMÓRIA</text>
+        <text x="413" y="118" text-anchor="middle" font-family="ui-monospace, monospace"
+          font-size="11" fill="var(--muted)">na sua máquina</text>
+      </svg>
+      <div class="cap">Escreve quem responde · lê quem for perguntado em seguida</div>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <h3>Escreve sozinha</h3>
+        <p>
+          Depois de cada resposta, um extrator lê a troca e guarda o que continua
+          verdadeiro daqui a meses. Sem modelo configurado, cai numa heurística
+          local que não faz nenhuma chamada de rede.
+        </p>
+      </div>
+      <div class="col">
+        <h3>Recupera o que importa</h3>
+        <p>
+          Busca híbrida: índice de texto completo sempre, mais similaridade
+          vetorial quando há modelo de embedding. Só os fatos relevantes entram
+          no prompt — não o banco inteiro.
+        </p>
+      </div>
+      <div class="col">
+        <h3>Importa o passado</h3>
+        <p>
+          O export do ChatGPT e do Claude entra e vira memória. Anos de conversa
+          numa plataforma passam a valer em todas as outras.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule"><span class="rule-n">03</span> <span class="lbl">Estado do produto</span></div>
+    <div class="sec-head read">
+      <h2>Não é conceito. Está escrito, rodando e testado</h2>
+    </div>
+    <div class="read">
+      <p>
+        O código está publicado e roda hoje em Windows, macOS e Linux. Instala
+        sem <span class="num">npm install</span>: usa o SQLite embutido no
+        Node, então não há dependência para baixar nem compilação nativa.
+      </p>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-n">6.274</span>
+        <span class="stat-l">linhas de código<br />publicadas</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">0</span>
+        <span class="stat-l">dependências<br />de terceiros</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">14</span>
+        <span class="stat-l">provedores de IA<br />já configurados</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">3</span>
+        <span class="stat-l">sistemas<br />operacionais</span>
+      </div>
+    </div>
+
+    <p class="lbl" style="margin-bottom:14px">Cada afirmação abaixo tem um teste que a sustenta</p>
+    <div class="proofs">
+      <div class="proof">
+        <span class="tick" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>
+        </span>
+        <div>
+          <div class="what">A memória atravessa modelos</div>
+          <div class="how">
+            Fato gravado por um modelo foi recuperado e usado por outro na
+            conversa seguinte, sem nenhuma menção do usuário.
+          </div>
+        </div>
+      </div>
+      <div class="proof">
+        <span class="tick" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>
+        </span>
+        <div>
+          <div class="what">Documento longo entra pelo trecho certo</div>
+          <div class="how">
+            Arquivo de 51 KB, quebrado em 38 trechos. A pergunta sobre um dado
+            que só existia no trecho 23 foi respondida com a citação do arquivo.
+          </div>
+        </div>
+      </div>
+      <div class="proof">
+        <span class="tick" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>
+        </span>
+        <div>
+          <div class="what">Vários modelos respondem e se avaliam</div>
+          <div class="how">
+            Três modelos em paralelo, votação cega entre eles: média 9,67 para
+            o vencedor, com o voto e a justificativa de cada jurado registrados.
+          </div>
+        </div>
+      </div>
+      <div class="proof">
+        <span class="tick" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>
+        </span>
+        <div>
+          <div class="what">Pesquisa na web sem chave de API</div>
+          <div class="how">
+            O modelo planejou as consultas, o servidor leu 6 páginas e o
+            relatório citou cada afirmação pelo número da fonte. A página que
+            recusou o acesso apareceu como não lida, em vez de sumir.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule"><span class="rule-n">04</span> <span class="lbl">Por que agora</span></div>
+    <div class="sec-head read">
+      <h2>A IA local deixou de ser hobby no ano passado</h2>
+    </div>
+    <div class="read">
+      <p>
+        Três curvas se cruzaram. Os modelos abertos ficaram bons o bastante para
+        trabalho de verdade. O hardware doméstico passou a rodá-los. E a área
+        jurídica das empresas começou a dizer não para dado sensível saindo pela
+        API de terceiro.
+      </p>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-n">52<span class="u">mi</span></span>
+        <span class="stat-l">downloads/mês do Ollama<br />no 1º tri de 2026</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">59<span class="u">%</span></span>
+        <span class="stat-l">do mercado corporativo<br />prefere instalação local</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">26<span class="u">% a.a.</span></span>
+        <span class="stat-l">crescimento do mercado<br />de LLM corporativo</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">135<span class="u">mil</span></span>
+        <span class="stat-l">modelos abertos prontos<br />para rodar localmente</span>
+      </div>
+    </div>
+
+    <div class="read">
+      <p>
+        Existe apetite provado por essa categoria fora do meio corporativo
+        também: o workspace de IA auto-hospedado publicado pelo PewDiePie
+        acumulou <span class="num">83 mil</span> estrelas no GitHub em seis
+        semanas. O público existe e já procura por isso.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule"><span class="rule-n">05</span> <span class="lbl">Posicionamento</span></div>
+    <div class="sec-head read">
+      <h2>O espaço vazio é a memória entre ferramentas</h2>
+    </div>
+    <div class="read">
+      <p>
+        Há bons produtos para rodar modelo local e bons produtos para conversar
+        com um modelo. Não há um que trate as várias IAs de uma pessoa como um
+        sistema só, com um estado compartilhado no meio.
+      </p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Produto</th>
+            <th scope="col">Local</th>
+            <th scope="col">API</th>
+            <th scope="col">Terminal</th>
+            <th scope="col">Memória entre modelos</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">LM Studio</th>
+            <td class="yes">sim</td>
+            <td class="no">não</td>
+            <td class="no">não</td>
+            <td class="no">não</td>
+          </tr>
+          <tr>
+            <th scope="row">Ollama</th>
+            <td class="yes">sim</td>
+            <td class="no">não</td>
+            <td class="no">não</td>
+            <td class="no">não</td>
+          </tr>
+          <tr>
+            <th scope="row">Odysseus</th>
+            <td class="yes">sim</td>
+            <td class="yes">sim</td>
+            <td class="no">não</td>
+            <td class="no">por agente</td>
+          </tr>
+          <tr>
+            <th scope="row">ChatGPT, Claude</th>
+            <td class="no">não</td>
+            <td class="yes">próprio</td>
+            <td class="no">não</td>
+            <td class="no">só dentro da própria casa</td>
+          </tr>
+          <tr>
+            <th scope="row">IAUnifier</th>
+            <td class="yes">sim</td>
+            <td class="yes">sim</td>
+            <td class="yes">sim</td>
+            <td class="yes">sim, e o dono é o usuário</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="read">
+      <p>
+        A defesa competitiva não é o código — é o banco de memória. Quanto mais
+        tempo alguém usa, mais o produto sabe, e mais caro fica trocar. A
+        diferença é que aqui esse acúmulo pertence a quem usa, o que transforma
+        o argumento de retenção em argumento de venda.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule"><span class="rule-n">06</span> <span class="lbl">Modelo de negócio</span></div>
+    <div class="sec-head read">
+      <h2>Hipóteses, não projeções</h2>
+    </div>
+    <div class="read">
+      <p>
+        Nada abaixo foi validado com cliente pagante. São as três rotas que
+        parecem sustentar receita sem quebrar a promessa de o dado ficar na
+        máquina de quem usa — em ordem de proximidade.
+      </p>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <h3>Licença de uso profissional</h3>
+        <p>
+          Núcleo aberto e gratuito; cobrança pelo que uma equipe precisa e um
+          indivíduo não: várias pessoas no mesmo servidor, papéis, registro de
+          acesso.
+        </p>
+      </div>
+      <div class="col">
+        <h3>Instalação corporativa</h3>
+        <p>
+          O mesmo servidor dentro da rede da empresa, com o setor regulado como
+          alvo — justamente quem não pode mandar dado para fora e hoje fica sem
+          ferramenta boa.
+        </p>
+      </div>
+      <div class="col">
+        <h3>Sincronização entre aparelhos</h3>
+        <p>
+          Assinatura para manter a memória igual no computador e no celular sem
+          servidor no meio. Pago pela conveniência, não pelo acesso ao produto.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule"><span class="rule-n">07</span> <span class="lbl">Risco</span></div>
+    <div class="sec-head read">
+      <h2>O que ainda não existe</h2>
+    </div>
+    <div class="read">
+      <p>
+        Esta é a parte que costuma ser maquiada em apresentação, e é a que mais
+        importa para decidir. O estado real, sem arredondar:
+      </p>
+    </div>
+
+    <div class="panel alarm">
+      <ul class="plain small" style="margin-bottom:0">
+        <li><strong>Nenhum usuário além do autor.</strong> Não houve lançamento, nem lista de espera, nem teste com terceiros.</li>
+        <li><strong>Nenhuma receita e nenhum cliente.</strong> Os preços acima são hipótese; ninguém foi cobrado.</li>
+        <li><strong>Uma pessoa.</strong> Não há equipe, sócio nem contratação feita.</li>
+        <li><strong>Instalação ainda é para quem sabe.</strong> Roda com um comando no terminal; falta o instalador que a dona de casa abre com dois cliques.</li>
+        <li><strong>A promessa de "sem filtro" tem limite.</strong> Em modelo local ela se cumpre; em API hospedada o provedor continua aplicando a política dele, e o produto diz isso na tela em vez de prometer o que não entrega.</li>
+      </ul>
+    </div>
+
+    <div class="read">
+      <p>
+        O risco maior não é técnico: é uma plataforma grande decidir abrir a
+        própria memória para fora. Nenhuma tem incentivo hoje, mas nada impede.
+        A resposta é chegar antes, e a vantagem para chegar antes é ser o único
+        que não tem nada a perder mantendo o dado fechado.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule"><span class="rule-n">08</span> <span class="lbl">O pedido</span></div>
+    <div class="sec-head read">
+      <h2>O que o dinheiro compraria</h2>
+    </div>
+    <div class="read">
+      <p>
+        O produto já passou da fase cara de descobrir se dá para construir. O
+        que falta é a distância entre "funciona" e "qualquer um instala" — e
+        essa distância se mede em marcos, não em promessa de curva.
+      </p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Marco</th>
+            <th scope="col">O que entrega</th>
+            <th scope="col">Como se mede</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Instalador</th>
+            <td>Aplicativo nativo para Windows, macOS e Linux, e app instalável no celular</td>
+            <td>Instalação concluída sem terminal</td>
+          </tr>
+          <tr>
+            <th scope="row">Primeiros usuários</th>
+            <td>Lançamento aberto e acompanhamento dos primeiros cem instaladores</td>
+            <td>Quantos continuam usando na segunda semana</td>
+          </tr>
+          <tr>
+            <th scope="row">Prova de disposição a pagar</th>
+            <td>Versão de equipe com cobrança ligada</td>
+            <td>Primeiro pagamento recebido de alguém desconhecido</td>
+          </tr>
+          <tr>
+            <th scope="row">Piloto corporativo</th>
+            <td>Instalação dentro da rede de uma empresa de setor regulado</td>
+            <td>Contrato assinado</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel brass">
+      <p class="small" style="margin:0">
+        <strong>Valor e participação ficam em aberto de propósito.</strong>
+        Sem usuário e sem receita, qualquer número aqui seria invenção. O que
+        está sobre a mesa é um produto funcionando, publicado e verificável — a
+        conversa sobre quanto e por quanto vem depois de olhar o código rodando.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    IAUnifier · servidor pessoal de IA · Node 22.5+ · Windows, macOS, Linux<br />
+    Código: <a href="https://github.com/NspxMiguel/IAUnifier">github.com/NspxMiguel/IAUnifier</a> ·
+    Página: <a href="https://www.nspx.dev/IAUnifier/">nspx.dev/IAUnifier</a>
+
+    <div class="srcs">
+      Fontes dos dados de mercado —
+      Ollama e modelos abertos:
+      <a href="https://www.devtoolreviews.com/reviews/ollama-vs-lm-studio-vs-localai-2026">DevToolReviews, 2026</a>;
+      instalação local e crescimento do mercado corporativo:
+      <a href="https://www.fortunebusinessinsights.com/enterprise-llm-market-114178">Fortune Business Insights</a> e
+      <a href="https://www.futuremarketinsights.com/reports/enterprise-llm-market">Future Market Insights</a>;
+      Odysseus: <a href="https://github.com/pewdiepie-archdaemon/odysseus">repositório no GitHub</a>.
+      Os números de produto vêm da execução local descrita em cada linha.
+    </div>
+  </footer>
+</div>

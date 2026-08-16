@@ -100,6 +100,21 @@ Quebrado em itens:
 O visual de produção continua sendo do Claude Design; o que entra agora é
 função e estrutura, não desenho.
 
+## 16/08/2026 — apresentação para investidor
+
+> "apresente o projeto para um investidor"
+
+- [x] 17. Deck de apresentação do IAUnifier para investidor, em `pitch.html`.
+      Só entra número que dá pra provar: o produto existe e foi testado, mas
+      não há usuário, receita nem time — isso fica escrito no próprio deck em
+      vez de ser preenchido com estimativa inventada. Dado de mercado sai com
+      a fonte junto.
+
+> "apresente a ideia n visualmente"
+
+- [x] 18. A mesma apresentação em texto, na conversa, sem página. O deck
+      continua no repositório pra quando ele quiser mostrar.
+
 ## Pendências abertas
 
 - [ ] Empacotar como app nativo (Electron no PC, Capacitor no celular) — hoje
