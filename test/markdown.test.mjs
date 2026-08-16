@@ -84,3 +84,41 @@ test('texto vazio não quebra', () => {
 test('escapeHtml cobre as cinco entidades', () => {
   assert.equal(escapeHtml(`<&>"'`), '&lt;&amp;&gt;&quot;&#39;');
 });
+
+test('endereço com parêntese não estoura as aspas do href', () => {
+  // O `(` era aceito dentro da URL do link de markdown, e aí a passada do
+  // endereço solto reescrevia por dentro do href já emitido: o resto do texto
+  // virava atributo de verdade na tag do link.
+  const out = renderMarkdown('[t](https://a.com/(https://b.com/x)');
+  for (const href of out.matchAll(/href="([^"]*)"/g)) {
+    assert.ok(!href[1].includes('<'), `href com tag dentro: ${href[1]}`);
+  }
+  assert.equal((out.match(/<a /g) || []).length, (out.match(/<\/a>/g) || []).length);
+});
+
+test('parêntese em par continua dentro do endereço', () => {
+  const out = renderMarkdown('olha https://pt.wikipedia.org/wiki/Ruby_(linguagem) ali');
+  assert.match(out, /href="https:\/\/pt\.wikipedia\.org\/wiki\/Ruby_\(linguagem\)"/);
+});
+
+test('ponto final da frase não entra no endereço', () => {
+  const out = renderMarkdown('fonte: https://exemplo.com/pagina.');
+  assert.match(out, /href="https:\/\/exemplo\.com\/pagina"/);
+  assert.match(out, /<\/a>\.<\/p>/);
+});
+
+test('dentro de crase não vira link nem negrito', () => {
+  assert.equal(renderMarkdown('`a**b**c`'), '<p><code>a**b**c</code></p>');
+  assert.match(renderMarkdown('veja `https://x.com/a` aqui'), /<code>https:\/\/x\.com\/a<\/code>/);
+});
+
+test('rótulo do link ainda aceita negrito', () => {
+  assert.match(renderMarkdown('[**forte**](https://x.com)'), /<strong>forte<\/strong><\/a>/);
+});
+
+test('número dentro de comentário não engole o comentário', () => {
+  // O marcador do trecho já pintado era ` N `, e a passada de número comia o
+  // próprio N: o comentário inteiro sumia da tela.
+  const out = renderMarkdown('```js\n// espera 30 segundos\n```');
+  assert.match(out, /<span class="tok com">\/\/ espera 30 segundos<\/span>/);
+});
