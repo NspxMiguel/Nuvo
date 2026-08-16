@@ -62,5 +62,8 @@ Quebrado em itens:
 
 - [ ] Empacotar como app nativo (Electron no PC, Capacitor no celular) — hoje
       é PWA instalável, que já cobre celular e desktop.
-- [ ] Portar a landing pra `https://www.nspx.dev/IAUnifier/` (o app em si roda
-      no servidor da casa, não em host estático).
+- [x] Portar a landing pra `https://www.nspx.dev/IAUnifier/` — feito em
+      16/08/2026: página em `docs/`, GitHub Pages ligado no repositório
+      `NspxMiguel/IAUnifier`, endereço conferido no domínio (200, sem link
+      absoluto pro github.io). O app em si roda no servidor da casa, não em
+      host estático.
