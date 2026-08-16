@@ -5,7 +5,7 @@
 // do usuário — nada aqui pede senha de administrador.
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -209,12 +209,48 @@ export function installService() {
 export function uninstallService() {
   return handler().uninstall();
 }
-export function serviceStatus() {
+/**
+ * O caminho gravado no serviço ainda aponta pra este projeto?
+ *
+ * O arquivo instalado guarda o caminho absoluto de `bin/iaunifier.mjs`. Mover
+ * ou renomear a pasta do projeto deixa o serviço apontando pro vazio — e o
+ * launchd, com KeepAlive ligado, fica tentando subir um arquivo que não existe
+ * mais, sem que nada apareça na tela.
+ */
+/** Parte pura, testável sem tocar no que está instalado na máquina. */
+export function describesThisProject(content, entry = ENTRY) {
+  return String(content || '').includes(entry);
+}
+
+function pathMatches(file) {
+  if (!existsSync(file)) return null;
   try {
-    return handler().status();
+    return describesThisProject(readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+export function serviceStatus() {
+  let base;
+  try {
+    base = handler().status();
   } catch {
     return { installed: false, supported: false };
   }
+  if (!base.installed || !base.file) return base;
+
+  const combina = pathMatches(base.file);
+  if (combina === false) {
+    return {
+      ...base,
+      stale: true,
+      message:
+        'o serviço aponta pra outro caminho — o projeto foi movido desde a instalação. ' +
+        'Rode `iaunifier instalar-servico` de novo pra corrigir.'
+    };
+  }
+  return { ...base, stale: false };
 }
 
 /** O que seria escrito, sem escrever — usado pra mostrar antes de instalar. */

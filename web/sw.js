@@ -33,8 +33,12 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(event.request, copy));
+        // Só resposta boa entra no cache. Um 500 momentâneo no `app.js` viraria
+        // a versão offline permanente, e o app abriria quebrado sem servidor.
+        if (res.ok && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(event.request, copy));
+        }
         return res;
       })
       .catch(() => caches.match(event.request).then((hit) => hit || caches.match('/index.html')))

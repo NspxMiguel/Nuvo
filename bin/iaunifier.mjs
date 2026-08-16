@@ -161,6 +161,7 @@ if (command === 'servico' || command === 'service') {
   console.log(`arquivo:   ${plano.file}`);
   console.log(`instalado: ${estado.installed ? 'sim' : 'não'}`);
   if (estado.installed) console.log(`rodando:   ${estado.running ? 'sim' : 'não'}`);
+  if (estado.stale) console.log(`\nATENÇÃO: ${estado.message}`);
 
   const { desktopStatus } = await import('../server/desktop.mjs');
   const atalho = desktopStatus();
