@@ -9,6 +9,7 @@ import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync, statSync, 
 import { join, basename } from 'node:path';
 import { deflateRawSync, inflateRawSync, crc32 } from 'node:zlib';
 import { DATA_DIR, DB_PATH, CONFIG_PATH, UPLOAD_DIR } from './config.mjs';
+import { STAGED_PATH, PREVIOUS_PATH } from './pending-restore.mjs';
 import { db } from './db.mjs';
 
 const SIGNATURE = 'iaunifier-backup';
@@ -196,11 +197,12 @@ export function backupDate(name) {
 // ---------------------------------------------------------------- restauração
 
 /**
- * Escreve o conteúdo do backup por cima dos dados atuais.
+ * Prepara a restauração do conteúdo do backup.
  *
- * O banco em uso não pode ser trocado embaixo de um processo que já o abriu, e
- * por isso a restauração termina pedindo reinício. O que estava lá vai pra
- * `data.db.antes-da-restauracao`, então o passo é reversível.
+ * Anexos e configuração vão direto pro lugar; o banco fica em
+ * `data.db.restaurar` e só toma o lugar do atual no próximo start, quando não
+ * há conexão aberta pra desfazer a troca. O banco que estava valendo vai pra
+ * `data.db.antes-da-restauracao` nessa hora, então o passo é reversível.
  *
  * @param {Buffer} buffer conteúdo do .zip
  * @param {{keepSecrets?: boolean}} options
@@ -228,18 +230,14 @@ export function restoreBackup(buffer, { keepSecrets = false } = {}) {
   const restored = { db: false, config: false, uploads: 0, previous: null };
 
   // Só depois de validar tudo é que o que está no disco é tocado.
-  if (existsSync(DB_PATH)) {
-    const previous = `${DB_PATH}.antes-da-restauracao`;
-    rmSync(previous, { force: true });
-    writeFileSync(previous, readFileSync(DB_PATH));
-    restored.previous = previous;
-  }
-  writeFileSync(DB_PATH, database);
-  // O WAL antigo pertence ao banco antigo: deixá-lo aqui reintroduz dados que o
-  // backup não tem.
-  rmSync(`${DB_PATH}-wal`, { force: true });
-  rmSync(`${DB_PATH}-shm`, { force: true });
+  //
+  // O banco vai pra um arquivo à parte, não por cima do que está em uso: a
+  // conexão aberta neste processo ainda tem as páginas antigas em memória e as
+  // escreveria de volta, desfazendo a restauração inteira em silêncio. A troca
+  // acontece no próximo start, com o banco fechado.
+  writeFileSync(STAGED_PATH, database);
   restored.db = true;
+  restored.previous = existsSync(DB_PATH) ? PREVIOUS_PATH : null;
 
   const config = files.get('config.json');
   if (config && !keepSecrets) {

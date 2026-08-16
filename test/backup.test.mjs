@@ -13,6 +13,7 @@ const backup = await import('../server/backup.mjs');
 const { DATA_DIR, DB_PATH, UPLOAD_DIR, CONFIG_PATH } = await import('../server/config.mjs');
 const { run, all, one, uid, now } = await import('../server/db.mjs');
 const { addMemory, listMemories } = await import('../server/memory.mjs');
+const pendente = await import('../server/pending-restore.mjs');
 
 after(() => home.cleanup());
 
@@ -102,15 +103,31 @@ test('restauração recusa backup com banco corrompido', () => {
   assert.throws(() => backup.restoreBackup(ruim), /faltando ou corrompido/);
 });
 
-test('restauração guarda o banco anterior antes de sobrescrever', () => {
+test('restauração não toca no banco em uso, e a troca só vale no start seguinte', () => {
+  const { STAGED_PATH, PREVIOUS_PATH, applyPendingRestore } = pendente;
   const { buffer } = backup.createBackup();
   const antes = readFileSync(DB_PATH);
-  const resultado = backup.restoreBackup(buffer);
 
+  const resultado = backup.restoreBackup(buffer);
   assert.equal(resultado.db, true);
-  assert.ok(resultado.previous, 'o banco de antes tem que ficar guardado');
-  assert.deepEqual(readFileSync(resultado.previous), antes);
+  assert.ok(existsSync(STAGED_PATH), 'o banco restaurado tem que esperar num arquivo à parte');
+  assert.deepEqual(
+    readFileSync(DB_PATH),
+    antes,
+    'escrever por cima do banco aberto desfaz a restauração: a conexão devolve as páginas antigas'
+  );
+
+  // O que o start faz antes de abrir a conexão.
+  const troca = applyPendingRestore();
+  assert.equal(troca.applied, true);
+  assert.equal(troca.previous, PREVIOUS_PATH);
+  assert.deepEqual(readFileSync(PREVIOUS_PATH), antes, 'o banco de antes tem que ficar guardado');
+  assert.ok(!existsSync(STAGED_PATH), 'o arquivo de espera some depois da troca');
   assert.ok(!existsSync(`${DB_PATH}-wal`), 'o WAL antigo não pode sobrar apontando pro banco novo');
+
+  // Sem restauração pendente, o start não mexe em nada.
+  const semNada = applyPendingRestore();
+  assert.equal(semNada.applied, false);
 });
 
 test('restauração não escreve fora da pasta de anexos', () => {

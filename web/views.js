@@ -808,7 +808,11 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
     try {
       const done = await api('/restore', { method: 'POST', raw: true, body: await file.arrayBuffer() });
       toast(done.message, 'ok');
-      alert(`Restaurado: banco${done.config ? ', configuração' : ''}, ${done.uploads} anexo(s).\n\nReinicie o servidor pra carregar os dados.`);
+      alert(
+        `Backup lido: banco${done.config ? ', configuração' : ''}, ${done.uploads} anexo(s).\n\n` +
+          'O banco entra no lugar na próxima vez que o servidor subir — trocar agora não valeria, ' +
+          'porque este processo ainda está com o banco antigo aberto. Reinicie para concluir.'
+      );
     } catch (err) {
       toast(err.message, 'err');
     }

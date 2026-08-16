@@ -808,12 +808,13 @@ export async function handleApi(req, res, url) {
     const buffer = await readBuffer(req);
     try {
       const done = restoreBackup(buffer, { keepSecrets: url.searchParams.get('keep-secrets') === '1' });
-      // O banco restaurado só passa a valer no próximo start: este processo
-      // ainda tem o antigo aberto, com o WAL dele em memória.
+      // O banco restaurado fica esperando: trocá-lo agora não adiantaria nada,
+      // porque a conexão aberta aqui devolveria as páginas antigas por cima.
+      // A troca é a primeira coisa que o próximo start faz.
       return json(res, {
         ...done,
         restart: true,
-        message: 'restaurado — reinicie o servidor pra carregar os dados'
+        message: 'backup lido — reinicie o servidor para os dados entrarem no lugar'
       });
     } catch (err) {
       return json(res, { error: err.message }, 400);

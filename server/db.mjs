@@ -7,9 +7,14 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DB_PATH } from './config.mjs';
+import { applyPendingRestore } from './pending-restore.mjs';
 
 // O banco abre no import, que pode acontecer antes de qualquer loadConfig().
 mkdirSync(dirname(DB_PATH), { recursive: true });
+
+// Restauração pendente entra agora, com o banco ainda fechado — é o único
+// momento em que trocar o arquivo é seguro.
+export const restored = applyPendingRestore();
 
 export const db = new DatabaseSync(DB_PATH);
 

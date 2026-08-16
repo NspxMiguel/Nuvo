@@ -75,9 +75,9 @@ if (command === 'restore' || command === 'restaurar') {
   const { restoreBackup } = await import('../server/backup.mjs');
   try {
     const done = restoreBackup(readFileSync(resolve(origem)));
-    console.log(`restaurado: banco${done.config ? ', config' : ''}, ${done.uploads} anexo(s)`);
-    if (done.previous) console.log(`o banco anterior ficou em ${done.previous}`);
-    console.log('suba o servidor de novo pra carregar os dados restaurados.');
+    console.log(`backup lido: banco${done.config ? ', config' : ''}, ${done.uploads} anexo(s)`);
+    if (done.previous) console.log(`o banco de agora vai ficar guardado em ${done.previous}`);
+    console.log('suba o servidor de novo: a troca do banco é a primeira coisa que ele faz.');
   } catch (err) {
     console.error(`não deu pra restaurar: ${err.message}`);
     process.exit(1);
