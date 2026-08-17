@@ -187,12 +187,18 @@ Não é só teste automatizado: o app foi exercido contra modelo e web reais.
 
 ## Pedidos de 16/08/2026 (noite)
 
-- [ ] *"me avisa quando for pra criar no claude desing"* — avisar quando o app
-      estiver no ponto de entregar a UI pro Claude Design. Só marcar como feito
-      depois de eu ter avisado com o app funcionando e testado, que é a condição
-      que ele deu antes: *"fica fazendo o app, até ele estar praticamente pronto
-      pra producao, tudo funcionando e testado. pra dai eu fazer o desing com
-      claude desing"*.
+- [x] *"me avisa quando for pra criar no claude desing"* — avisado em
+      17/08/2026, com o app funcionando e testado. O que sustenta o aviso:
+      264 testes automatizados; as quatro rotas de stream (conversa, refazer,
+      conselho, pesquisa profunda) exercidas contra modelos de verdade nesta
+      máquina; PDF anexado lido e respondido por um modelo, com acento certo;
+      leitor de PDF conferido contra o `pypdf` nos arquivos reais do computador
+      dele e contra 29 arquivos hostis; celular a 375x812 sem estouro em nenhum
+      dos oito painéis, sem campo abaixo de 16px e sem alvo de toque pequeno.
+
+      Fica de fora, por ser mudança de arquitetura e não conserto: HTTPS na rede
+      local (sem ele o Android não oferece instalar) e ícone maskable com zona
+      de segurança.
 - [x] *"funcionando em mobile ja?"* — conferido em 16/08/2026 no navegador a
       375x812, com o app rodando: gaveta abre e fecha, os oito painéis abrem sem
       estouro horizontal, conversa e composição funcionam, tema claro e escuro.
