@@ -648,3 +648,50 @@ test('capítulo de EPUB vira parágrafos, sem CSS e com entidade decodificada', 
     'capítulo não pode sair numa linha só'
   );
 });
+
+test('cadeia de filtros: ASCII85 antes do FlateDecode', () => {
+  // /Filter pode ser uma lista, e o ASCII85 é de transporte — serve pra caber
+  // num arquivo que precisa ser só texto imprimível. Quem só olhava o
+  // FlateDecode tentava descomprimir a codificação, desistia, e dava a página
+  // inteira como digitalização em imagem.
+  const conteudo = 'BT /F1 12 Tf (certificado de conclusao) Tj ET';
+  const comprimido = deflateSync(Buffer.from(conteudo, 'latin1'));
+
+  // Codifica em ASCII85, que é o que o gerador faz.
+  let saida = '';
+  for (let i = 0; i < comprimido.length; i += 4) {
+    const pedaco = comprimido.subarray(i, i + 4);
+    const faltam = 4 - pedaco.length;
+    let n = 0;
+    for (let k = 0; k < 4; k++) n = n * 256 + (pedaco[k] ?? 0);
+    if (n === 0 && !faltam) {
+      saida += 'z';
+      continue;
+    }
+    const digitos = [];
+    for (let k = 0; k < 5; k++) {
+      digitos.unshift(String.fromCharCode(33 + (n % 85)));
+      n = Math.floor(n / 85);
+    }
+    saida += digitos.slice(0, 5 - faltam).join('');
+  }
+  saida += '~>';
+
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.4\n1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R >> >> /Contents 3 0 R >> endobj\n' +
+        '2 0 obj << /Type /Font /Subtype /Type1 /Encoding /WinAnsiEncoding >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    Buffer.from(
+      `3 0 obj << /Filter [ /ASCII85Decode /FlateDecode ] /Length ${saida.length} >>\nstream\n${saida}\nendstream endobj\n`,
+      'latin1'
+    ),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'certificado.pdf', 'application/pdf');
+  assert.equal(out.text, 'certificado de conclusao');
+  assert.equal(out.note, null);
+});

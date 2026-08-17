@@ -296,9 +296,20 @@ para analisador símbolo a símbolo, mais o mapa de fontes por página:
   escapava do extrator (`RangeError` ao juntar os dicionários num string só)
   deixou de existir.
 
-Medido: corpus de 15 casos, 5 certos antes e 12 depois — as 3 diferenças que
-sobram são escolhas minhas, não erros (ligadura desfeita de propósito, e dois
-fluxos da mesma página separados por uma quebra em vez de duas).
+- **cadeia de filtros** — `/Filter [ /ASCII85Decode /FlateDecode ]` tem o
+  ASCII85 como primeiro passo, e ele não era desfeito: a tentativa de
+  descomprimir a codificação falhava e a página inteira era dada como
+  digitalização em imagem. É o caso dos certificados que estão no Downloads
+  dele, que saíam vazios e agora saem com o nome.
+
+Medido de duas formas. Corpus de 15 casos montados à mão: 5 certos antes, 12
+depois — as 3 diferenças que sobram são escolhas minhas, não erros (ligadura
+desfeita de propósito, e dois fluxos da mesma página separados por uma quebra
+em vez de duas). E os 11 PDFs de verdade que existem nesta máquina, comparados
+com o `pypdf` como referência externa: 6 melhoraram, nenhum piorou. Os três
+piores saíam com 0%, 22% e 46% das palavras que o pypdf acha, e com mais de mil
+e seiscentas palavras inventadas cada um — metadado do arquivo vazando pro
+texto; passaram a sair com 94–95% e menos de dez.
 
 - **acento em PDF** — os bytes do fluxo eram lidos como latin1 puro, ignorando o
   `/Encoding` e o `/ToUnicode` que a fonte declara. Num PDF impresso no Mac,

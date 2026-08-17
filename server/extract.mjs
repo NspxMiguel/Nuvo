@@ -635,14 +635,75 @@ const FLUXO_SEM_TEXTO =
 // centenas de MB, e o processo morre antes de chegar a qualquer validação.
 const MAX_INFLADO = 64 * 1024 * 1024;
 
-function inflar(raw) {
+/**
+ * ASCII85: cinco caracteres imprimíveis para cada quatro bytes.
+ *
+ * É filtro de transporte, não de compressão — serve pra caber num arquivo que
+ * precisa ser só texto. Vem antes do FlateDecode numa lista, e quem só olhava o
+ * FlateDecode tentava descomprimir a codificação e desistia: a página inteira
+ * era dada como digitalização em imagem.
+ */
+function ascii85(buf) {
+  const out = Buffer.allocUnsafe(Math.ceil((buf.length * 4) / 5) + 4);
+  let escritos = 0;
+  let tupla = 0;
+  let n = 0;
+  const despejar = (quantos) => {
+    for (let i = 0; i < quantos; i++) {
+      out[escritos++] = Math.floor(tupla / 2 ** (24 - i * 8)) & 0xff;
+    }
+  };
+  for (let i = 0; i < buf.length && escritos < out.length - 4; i++) {
+    const c = buf[i];
+    if (c === 0x7e) break; // "~>" fecha
+    if (c <= 0x20) continue; // espaço em branco não conta
+    if (c === 0x7a && n === 0) {
+      // 'z' abrevia quatro zeros.
+      out.fill(0, escritos, escritos + 4);
+      escritos += 4;
+      continue;
+    }
+    if (c < 0x21 || c > 0x75) continue;
+    tupla = tupla * 85 + (c - 0x21);
+    if (++n === 5) {
+      despejar(4);
+      tupla = 0;
+      n = 0;
+    }
+  }
+  // Sobra parcial: completa com o maior dígito e guarda um byte a menos.
+  if (n > 1) {
+    for (let i = n; i < 5; i++) tupla = tupla * 85 + 84;
+    despejar(n - 1);
+  }
+  return out.subarray(0, escritos);
+}
+
+/** ASCIIHexDecode: dois dígitos por byte, terminado em ">". */
+function asciiHex(buf) {
+  const texto = buf.toString('latin1');
+  const fim = texto.indexOf('>');
+  const hex = (fim < 0 ? texto : texto.slice(0, fim)).replace(/[^0-9A-Fa-f]/g, '');
+  return Buffer.from(hex.length % 2 ? `${hex}0` : hex, 'hex');
+}
+
+/** Filtros de transporte, aplicados antes do descompressor. */
+function desfazerTransporte(raw, header) {
+  if (/\/ASCII85Decode\b/.test(header)) return ascii85(raw);
+  if (/\/ASCIIHexDecode\b/.test(header)) return asciiHex(raw);
+  return raw;
+}
+
+function inflar(raw, header = '') {
+  const bytes = desfazerTransporte(raw, header);
   try {
-    return inflateSync(raw, { maxOutputLength: MAX_INFLADO });
+    return inflateSync(bytes, { maxOutputLength: MAX_INFLADO });
   } catch {
     try {
-      return inflateRawSync(raw, { maxOutputLength: MAX_INFLADO });
+      return inflateRawSync(bytes, { maxOutputLength: MAX_INFLADO });
     } catch {
-      return null;
+      // Sem compressão nenhuma depois do transporte: o ASCII85 já era o filtro.
+      return bytes === raw ? null : bytes;
     }
   }
 }
@@ -822,7 +883,7 @@ function mapearFontes(fluxos, objetos) {
   for (const fluxo of fluxos) {
     if (/\/Type\s*\/ObjStm\b/.test(fluxo.header)) {
       if (objStmAberto > 32 * 1024 * 1024) continue;
-      const aberto = inflar(fluxo.raw);
+      const aberto = inflar(fluxo.raw, fluxo.header);
       if (aberto) {
         objStmAberto += aberto.length;
         for (const obj of objetosDeObjStm(fluxo.header, aberto)) {
@@ -835,7 +896,7 @@ function mapearFontes(fluxos, objetos) {
     // Só vale a pena abrir o que pode ser CMap: mapa de caracteres é pequeno, e
     // abrir página grande à toa custa tempo em documento de centenas de MB.
     if (!/\/Type\s*\/CMap\b|\/ToUnicode\b/.test(fluxo.header) && fluxo.raw.length > 256 * 1024) continue;
-    const aberto = inflar(fluxo.raw) ?? fluxo.raw;
+    const aberto = inflar(fluxo.raw, fluxo.header) ?? fluxo.raw;
     const texto = aberto.toString('latin1');
     if (!texto.includes('begincmap')) continue;
     const cmap = parseCMap(texto);
@@ -921,8 +982,10 @@ function fromPdf(buffer) {
   const abrir = (fluxo) => {
     if (!fluxo || FLUXO_SEM_TEXTO.test(fluxo.header)) return null;
     if (/DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode/.test(fluxo.header)) return null;
-    if (!/FlateDecode/.test(fluxo.header)) return fluxo.raw.toString('latin1');
-    const aberto = inflar(fluxo.raw);
+    if (!/FlateDecode|ASCII85Decode|ASCIIHexDecode/.test(fluxo.header)) {
+      return fluxo.raw.toString('latin1');
+    }
+    const aberto = inflar(fluxo.raw, fluxo.header);
     if (!aberto) {
       failed++;
       return null;
