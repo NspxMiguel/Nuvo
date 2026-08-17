@@ -785,3 +785,76 @@ test('a reindexação é consultável e roda sem modelo de embedding configurado
   assert.equal(rodada.data.done, true);
   assert.equal(rodada.data.updated, 0);
 });
+
+test('o provedor é chamado com um sinal vivo, não com um já cancelado', async () => {
+  // O sinal de cancelamento vinha do `req`, e num POST o `req` fecha assim que
+  // o corpo termina de ser lido — o que acontece uma linha antes daqui, em toda
+  // chamada saudável. O efeito era o pior possível: o provedor era chamado com
+  // o sinal já cancelado, largava tudo antes da primeira letra, e a conversa
+  // terminava em "o modelo não devolveu texto nenhum". Nenhum stub percebia,
+  // porque stub nenhum olha o sinal — este olha.
+  let sinalNoMomentoDaChamada = null;
+  const stub = stubFetch(async (_url, options) => {
+    sinalNoMomentoDaChamada = { existe: Boolean(options?.signal), abortado: options?.signal?.aborted };
+    return fakeResponse([
+      'data: {"choices":[{"delta":{"content":"resposta de verdade"}}]}\n\n',
+      'data: [DONE]\n\n'
+    ]);
+  });
+  try {
+    const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+    const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      body: JSON.stringify({ content: 'a pergunta', model: fakeRef })
+    });
+    const texto = await res.text();
+
+    assert.equal(sinalNoMomentoDaChamada?.existe, true, 'o provedor tem que receber um sinal');
+    assert.equal(
+      sinalNoMomentoDaChamada?.abortado,
+      false,
+      'ler o corpo do POST não pode contar como o navegador ter desistido'
+    );
+    assert.match(texto, /"type":"delta"/);
+    assert.ok(!/não devolveu texto nenhum/.test(texto), texto.slice(0, 400));
+  } finally {
+    stub.restore();
+  }
+});
+
+test('quando o navegador some de verdade, o sinal cancela', async () => {
+  // O outro lado da mesma moeda: trocar `req` por `res` não pode ter apagado o
+  // cancelamento — provedor que continua rodando depois da aba fechada gasta
+  // conta de API e prende a conversa.
+  let sinalDoProvedor = null;
+  const stub = stubFetch(async (_url, options) => {
+    sinalDoProvedor = options?.signal;
+    // Resposta que nunca termina sozinha: quem encerra é o cancelamento.
+    return fakeResponse(['data: {"choices":[{"delta":{"content":"vou escrevendo"}}]}\n\n'], {});
+  });
+  try {
+    const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
+    const controle = new AbortController();
+    const pedido = app
+      .raw(`/api/chats/${chat.data.id}/stream`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+        body: JSON.stringify({ content: 'a pergunta', model: fakeRef }),
+        signal: controle.signal
+      })
+      .then((r) => r.text())
+      .catch(() => null);
+
+    // Espera o provedor ser chamado e então desliga o cliente.
+    for (let i = 0; i < 100 && !sinalDoProvedor; i++) await new Promise((r) => setTimeout(r, 20));
+    assert.ok(sinalDoProvedor, 'o provedor tinha que ter sido chamado');
+    controle.abort();
+    await pedido;
+
+    for (let i = 0; i < 100 && !sinalDoProvedor.aborted; i++) await new Promise((r) => setTimeout(r, 20));
+    assert.equal(sinalDoProvedor.aborted, true, 'fechar a aba tem que cancelar o provedor');
+  } finally {
+    stub.restore();
+  }
+});

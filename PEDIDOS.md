@@ -266,6 +266,13 @@ provado com um caso que falhava antes e passa depois. Corrigidos:
   passou a sair com 0% e todas as 32;
 - **resposta vazia** não é mais gravada como sucesso, e o extrator de memória
   tem prazo próprio: modelo mudo deixou de prender a conversa;
+- **conversa cancelada antes de começar** — junto com o conserto do stream vazio
+  entrou uma linha que tratava `req.closed` como "o navegador desistiu". Num
+  POST o pedido fecha quando o corpo termina de ser lido, que é uma linha antes:
+  todo turno era cancelado antes da primeira letra, em todos os provedores. Só
+  apareceu ao conversar com um modelo de verdade — os 250 testes passavam,
+  porque stub nenhum olhava o sinal de cancelamento. Quem avisa que a aba fechou
+  é a resposta, não o pedido;
 - **permissões** — backup e `config.json` nascem 600, e a pasta de dados 700:
   os dois carregam as chaves de API;
 - **anexo curto** ia duplicado ao modelo, e a última linha do documento se

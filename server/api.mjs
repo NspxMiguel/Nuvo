@@ -92,10 +92,16 @@ function openStream(req, res) {
     'x-accel-buffering': 'no'
   });
   const controller = new AbortController();
-  req.on('close', () => controller.abort());
-  // O navegador pode ter desistido entre o pedido e este ponto — aba fechada,
-  // rede caída no celular. Aí o 'close' já passou e não vem de novo.
-  if (req.destroyed || req.closed) controller.abort();
+  // Quem avisa que o navegador foi embora é a RESPOSTA, não o pedido.
+  //
+  // Num POST, o pedido "fecha" assim que o corpo termina de ser lido — o que
+  // acontece em toda chamada saudável, porque o corpo é lido logo antes daqui.
+  // Cancelar por `req` significava cancelar todo turno de conversa antes de o
+  // modelo escrever a primeira letra, para todos os provedores.
+  res.on('close', () => controller.abort());
+  // A aba pode ter sido fechada entre o pedido e este ponto — rede caída no
+  // celular, por exemplo. Aí o 'close' já passou e não vem de novo.
+  if (res.destroyed || res.writableEnded) controller.abort();
 
   let last = Date.now();
   const ping = setInterval(() => {
@@ -109,7 +115,7 @@ function openStream(req, res) {
     closed = true;
     clearInterval(ping);
   };
-  req.on('close', finish);
+  res.on('close', finish);
 
   return {
     signal: controller.signal,
