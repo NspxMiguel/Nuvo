@@ -3,7 +3,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { useTempHome } from './helpers.mjs';
@@ -178,4 +178,17 @@ test('zip que abre gigante é recusado em vez de derrubar o processo', () => {
   ]);
   assert.ok(bomba.length < 2 * 1024 * 1024, 'o zip da bomba tem que ser pequeno');
   assert.throws(() => backup.restoreBackup(bomba));
+});
+
+test('backup e config restaurado nascem legíveis só pelo dono', () => {
+  // Os dois carregam o config.json inteiro, com as chaves de API dentro. Em
+  // máquina compartilhada, 644 é o mesmo que publicar as chaves.
+  if (process.platform === 'win32') return;
+
+  const feito = backup.autoBackup({ now: Date.UTC(2030, 0, 1) });
+  const modo = statSync(join(feito.dir, feito.name)).mode & 0o777;
+  assert.equal(modo.toString(8), '600', `o zip do backup nasceu ${modo.toString(8)}`);
+
+  const pasta = statSync(DATA_DIR).mode & 0o777;
+  assert.equal(pasta.toString(8), '700', `a pasta de dados está ${pasta.toString(8)}`);
 });

@@ -5,7 +5,16 @@
 // ZIP é escrito à mão, com `deflateRawSync` e `crc32` do próprio Node — o mesmo
 // formato que o leitor de docx/pptx/epub já sabe abrir.
 
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync, statSync, existsSync } from 'node:fs';
+import {
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  statSync,
+  existsSync,
+  chmodSync
+} from 'node:fs';
 import { join, basename } from 'node:path';
 import { deflateRawSync, inflateRawSync, crc32 } from 'node:zlib';
 import { DATA_DIR, DB_PATH, CONFIG_PATH, UPLOAD_DIR } from './config.mjs';
@@ -13,6 +22,15 @@ import { STAGED_PATH, PREVIOUS_PATH } from './pending-restore.mjs';
 import { db } from './db.mjs';
 
 const SIGNATURE = 'iaunifier-backup';
+
+/** Só o dono lê. Vale pra tudo que tem chave de API dentro. */
+function segredoNoDisco(caminho) {
+  try {
+    chmodSync(caminho, 0o600);
+  } catch {
+    /* windows não tem modo posix */
+  }
+}
 
 // Teto de descompressão por entrada do zip, contra o arquivo pequeno que abre
 // gigante. O banco inteiro de um uso caseiro cabe muito abaixo disso.
@@ -252,6 +270,7 @@ export function restoreBackup(buffer, { keepSecrets = false } = {}) {
   const config = files.get('config.json');
   if (config && !keepSecrets) {
     writeFileSync(CONFIG_PATH, config);
+    segredoNoDisco(CONFIG_PATH);
     restored.config = true;
   }
 
@@ -280,7 +299,7 @@ const KEEP = 7;
  * cheio seria o pior defeito possível deste app.
  */
 export function autoBackup({ now = Date.now() } = {}) {
-  mkdirSync(AUTO_DIR, { recursive: true });
+  mkdirSync(AUTO_DIR, { recursive: true, mode: 0o700 });
   const existing = readdirSync(AUTO_DIR)
     .filter((name) => name.endsWith('.zip'))
     .sort();
@@ -293,7 +312,11 @@ export function autoBackup({ now = Date.now() } = {}) {
 
   const { buffer } = createBackup();
   const name = backupName(new Date(now));
-  writeFileSync(join(AUTO_DIR, name), buffer);
+  const arquivo = join(AUTO_DIR, name);
+  writeFileSync(arquivo, buffer);
+  // O zip carrega o config.json inteiro, com as chaves de API. Nascer 644 é o
+  // mesmo que publicar as chaves pra quem mais usa a máquina.
+  segredoNoDisco(arquivo);
 
   for (const old of [...existing, name].slice(0, -KEEP)) {
     rmSync(join(AUTO_DIR, old), { force: true });

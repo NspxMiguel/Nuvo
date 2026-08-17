@@ -47,7 +47,14 @@ const DEFAULTS = {
 let cache = null;
 
 function ensureDirs() {
-  mkdirSync(DATA_DIR, { recursive: true });
+  mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+  // `mode` no mkdir só vale na criação: pasta que já existia de uma versão
+  // anterior continuaria aberta.
+  try {
+    chmodSync(DATA_DIR, 0o700);
+  } catch {
+    /* windows não tem modo posix */
+  }
   mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
