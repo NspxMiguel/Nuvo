@@ -261,6 +261,13 @@ function migrate() {
   addColumn('projects', 'icon', "TEXT NOT NULL DEFAULT 'folder'");
   addColumn('projects', 'color', "TEXT NOT NULL DEFAULT 'slate'");
 
+  // Qual modelo gerou cada vetor. Vetor de modelo diferente vive noutro
+  // espaço: comparar os dois por cosseno devolve número, e o número não quer
+  // dizer nada. Sem esta coluna, trocar o modelo de embedding estragava a busca
+  // em silêncio, porque a memória antiga continuava sendo comparada.
+  addColumn('memories', 'embedding_model', 'TEXT');
+  addColumn('chunks', 'embedding_model', 'TEXT');
+
   // Texto extraído do anexo, guardado inteiro. O prompt do arquivo curto
   // vinha da emenda dos trechos, e os trechos se sobrepõem de propósito: o
   // parágrafo comprido aparecia duas vezes pro modelo.

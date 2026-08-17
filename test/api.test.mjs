@@ -742,3 +742,16 @@ test('refazer com provedor desligado avisa sem apagar nada', async () => {
   const depois = (await app.api(`/chats/${chat.id}`)).data.messages;
   assert.equal(depois.length, 2, 'nada podia ter sido apagado');
 });
+
+test('a reindexação é consultável e roda sem modelo de embedding configurado', async () => {
+  // Sem embedding não há vetor nenhum, então a resposta certa é zero — e não
+  // um erro. A tela usa esse número pra decidir se mostra o aviso.
+  const estado = await app.api('/reindex');
+  assert.equal(estado.status, 200);
+  assert.deepEqual(estado.data, { model: null, memories: 0, chunks: 0, total: 0 });
+
+  const rodada = await app.api('/reindex', { method: 'POST' });
+  assert.equal(rodada.status, 200);
+  assert.equal(rodada.data.done, true);
+  assert.equal(rodada.data.updated, 0);
+});

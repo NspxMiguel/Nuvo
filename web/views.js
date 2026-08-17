@@ -657,7 +657,7 @@ views.memory = async function renderMemory(el, { switchView }) {
 // ----------------------------------------------------------------- config
 
 views.settings = async function renderSettings(el, { switchView, applyTheme }) {
-  const settings = await api('/settings');
+  const [settings, pendente] = await Promise.all([api('/settings'), api('/reindex')]);
   const inner = panel(
     el,
     'Configuração',
@@ -701,6 +701,14 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
              .join('')}
          </select>
        </label>
+       ${pendente.total
+         ? `<div class="aviso" id="reindex-box">
+              <div>${pendente.total} ${pendente.total === 1 ? 'item foi vetorizado' : 'itens foram vetorizados'} por outro modelo
+                (${pendente.memories} da memória, ${pendente.chunks} de documentos). Enquanto não recalcular,
+                eles só aparecem na busca por palavra.</div>
+              <button id="btn-reindex">${icon('refresh', 15)} Recalcular agora</button>
+            </div>`
+         : ''}
        <button id="btn-save-settings" class="primary"><span data-icon="check"></span> Salvar</button>
      </div>
      <div class="card">
@@ -743,6 +751,34 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
        <div class="meta">Esc — fechar paleta ou parar a resposta</div>
      </div>`
   );
+
+  const botaoReindex = inner.querySelector('#btn-reindex');
+  if (botaoReindex) {
+    botaoReindex.onclick = async () => {
+      const caixa = inner.querySelector('#reindex-box');
+      botaoReindex.disabled = true;
+      // Em lotes: o servidor tem teto por chamada pra não travar num pedido só.
+      let feitos = 0;
+      for (;;) {
+        botaoReindex.textContent = feitos ? `recalculando… ${feitos}` : 'recalculando…';
+        const r = await api('/reindex', { method: 'POST' });
+        feitos += r.updated;
+        if (r.done) {
+          caixa.textContent = feitos
+            ? `${feitos} ${feitos === 1 ? 'item recalculado' : 'itens recalculados'}.`
+            : 'nada a recalcular.';
+          return;
+        }
+        if (!r.updated) {
+          caixa.textContent = r.reason || 'não deu pra recalcular agora.';
+          botaoReindex.disabled = false;
+          botaoReindex.textContent = 'Tentar de novo';
+          caixa.appendChild(botaoReindex);
+          return;
+        }
+      }
+    };
+  }
 
   inner.querySelector('#btn-save-settings').onclick = async () => {
     await api('/settings', {

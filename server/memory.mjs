@@ -15,7 +15,15 @@ import {
   parseRef,
   withStallTimeout
 } from './providers/index.mjs';
-import { toBlob, fromBlob, cosine, embedTexts, embeddingAvailable, ftsQuery } from './vectors.mjs';
+import {
+  toBlob,
+  fromBlob,
+  cosine,
+  embedTexts,
+  embeddingAvailable,
+  embeddingModelRef,
+  ftsQuery
+} from './vectors.mjs';
 
 export { embeddingAvailable };
 
@@ -66,7 +74,14 @@ export async function addMemory({
   );
 
   const vectors = await embedTexts([clean]);
-  if (vectors?.[0]) run('UPDATE memories SET embedding = ? WHERE id = ?', toBlob(vectors[0]), id);
+  if (vectors?.[0]) {
+    run(
+      'UPDATE memories SET embedding = ?, embedding_model = ? WHERE id = ?',
+      toBlob(vectors[0]),
+      embeddingModelRef(),
+      id
+    );
+  }
 
   return one('SELECT * FROM memories WHERE id = ?', id);
 }
@@ -155,7 +170,9 @@ export async function recall(query, { projectId = null, limit = null } = {}) {
     const target = Float32Array.from(vectors[0]);
     const candidates = all(
       `SELECT * FROM memories
-       WHERE active = 1 AND embedding IS NOT NULL AND (scope = 'global' OR project_id = ?)`,
+       WHERE active = 1 AND embedding IS NOT NULL AND embedding_model IS ?
+         AND (scope = 'global' OR project_id = ?)`,
+      embeddingModelRef(),
       projectId
     );
     for (const row of candidates) {
@@ -186,6 +203,67 @@ export async function recall(query, { projectId = null, limit = null } = {}) {
     run(`UPDATE memories SET use_count = use_count + 1 WHERE id IN (${marks})`, ...out.map((m) => m.id));
   }
   return out;
+}
+
+/**
+ * Quanto da memória está fora do índice do modelo de embedding em uso.
+ *
+ * Trocar o modelo não invalida nada visível: as linhas continuam lá, a busca
+ * por palavra continua funcionando. O que some é a busca por significado, e
+ * some calada. Este número é o que dá pra mostrar na tela.
+ */
+export function reindexPending() {
+  const atual = embeddingModelRef();
+  if (!atual) return { model: null, memories: 0, chunks: 0, total: 0 };
+  const memories = one(
+    'SELECT COUNT(*) AS n FROM memories WHERE active = 1 AND embedding_model IS NOT ?',
+    atual
+  ).n;
+  const chunks = one('SELECT COUNT(*) AS n FROM chunks WHERE embedding_model IS NOT ?', atual).n;
+  return { model: atual, memories, chunks, total: memories + chunks };
+}
+
+/**
+ * Recalcula os vetores das linhas que ficaram para trás.
+ *
+ * Em lotes, e com teto por chamada: a interface chama de novo enquanto sobrar
+ * coisa, e assim uma memória de anos não trava o servidor num pedido só.
+ */
+export async function reindexEmbeddings({ batch = 64, max = 512 } = {}) {
+  const atual = embeddingModelRef();
+  if (!atual) return { done: true, updated: 0, remaining: 0, reason: 'sem modelo de embedding' };
+
+  let updated = 0;
+  for (const tabela of ['memories', 'chunks']) {
+    while (updated < max) {
+      const linhas = all(
+        `SELECT id, text FROM ${tabela}
+         WHERE embedding_model IS NOT ? ${tabela === 'memories' ? 'AND active = 1' : ''}
+         LIMIT ?`,
+        atual,
+        Math.min(batch, max - updated)
+      );
+      if (!linhas.length) break;
+
+      const vetores = await embedTexts(linhas.map((l) => l.text));
+      if (!vetores) return { done: false, updated, remaining: reindexPending().total, reason: 'o modelo de embedding não respondeu' };
+
+      linhas.forEach((linha, i) => {
+        const v = vetores[i];
+        if (!v) return;
+        run(
+          `UPDATE ${tabela} SET embedding = ?, embedding_model = ? WHERE id = ?`,
+          toBlob(v),
+          atual,
+          linha.id
+        );
+        updated += 1;
+      });
+    }
+  }
+
+  const remaining = reindexPending().total;
+  return { done: remaining === 0, updated, remaining };
 }
 
 /** Bloco de texto que entra no system prompt de qualquer modelo. */

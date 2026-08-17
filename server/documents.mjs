@@ -9,7 +9,7 @@ import { join, basename } from 'node:path';
 import { all, one, run, tx, uid, now } from './db.mjs';
 import { UPLOAD_DIR } from './config.mjs';
 import { extractText } from './extract.mjs';
-import { toBlob, fromBlob, cosine, embedTexts, ftsQuery } from './vectors.mjs';
+import { toBlob, fromBlob, cosine, embedTexts, embeddingModelRef, ftsQuery } from './vectors.mjs';
 
 const CHUNK_CHARS = 1400;
 const CHUNK_OVERLAP = 200;
@@ -120,7 +120,14 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
     const rows = all('SELECT id, ord FROM chunks WHERE attachment_id = ? ORDER BY ord', id);
     for (const row of rows) {
       const vector = vectors[row.ord];
-      if (vector) run('UPDATE chunks SET embedding = ? WHERE id = ?', toBlob(vector), row.id);
+      if (vector) {
+        run(
+          'UPDATE chunks SET embedding = ?, embedding_model = ? WHERE id = ?',
+          toBlob(vector),
+          embeddingModelRef(),
+          row.id
+        );
+      }
     }
   }
 
@@ -250,7 +257,8 @@ export async function recallChunks(query, { chatId = null, projectId = null, lim
     const target = Float32Array.from(vectors[0]);
     const rows = all(
       `SELECT c.*, a.name AS source FROM chunks c JOIN attachments a ON a.id = c.attachment_id
-       WHERE c.embedding IS NOT NULL AND ${where}`,
+       WHERE c.embedding IS NOT NULL AND c.embedding_model IS ? AND ${where}`,
+      embeddingModelRef(),
       ...params
     );
     for (const row of rows) {

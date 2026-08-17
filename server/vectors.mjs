@@ -36,6 +36,11 @@ export function embeddingAvailable() {
   return Boolean(loadConfig().memory.embeddingModel);
 }
 
+/** Referência do modelo de embedding em uso, ou null. É o carimbo dos vetores. */
+export function embeddingModelRef() {
+  return loadConfig().memory.embeddingModel || null;
+}
+
 /** @returns {Promise<number[][]|null>} null quando não há embedding configurado. */
 export async function embedTexts(texts) {
   const cfg = loadConfig();

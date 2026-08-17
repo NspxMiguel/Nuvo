@@ -28,7 +28,9 @@ import {
   updateMemory,
   deleteMemory,
   listMemories,
-  embeddingAvailable
+  embeddingAvailable,
+  reindexPending,
+  reindexEmbeddings
 } from './memory.mjs';
 import { importConversations } from './importers.mjs';
 import {
@@ -233,6 +235,12 @@ export async function handleApi(req, res, url) {
       q
     );
     return json(res, { chats, memories });
+  }
+
+  // --- reindexação da busca por significado --------------------------------
+  if (method === 'GET' && path === '/reindex') return json(res, reindexPending());
+  if (method === 'POST' && path === '/reindex') {
+    return json(res, await reindexEmbeddings());
   }
 
   // --- provedores ----------------------------------------------------------

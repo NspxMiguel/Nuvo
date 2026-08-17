@@ -228,3 +228,42 @@ por um segundo agente antes de valer. 25 confirmados, 7 derrubados. Corrigidos:
 Ficou de fora, por ser mudança de arquitetura e não conserto: servir HTTPS na
 rede local (sem ele o service worker não registra e o Chrome não oferece
 instalar) e trocar o ícone maskable por um com zona de segurança.
+
+### Auditoria de servidor (16/08/2026)
+
+Mesma forma da de celular: achado só vale depois de reproduzido. Cada um foi
+provado com um caso que falhava antes e passa depois. Corrigidos:
+
+- **markdown** — comentário com número dentro (`// espera 30 segundos`) sumia da
+  tela: a passada de destaque reescrevia o que a anterior tinha marcado. Agora
+  cada trecho pronto vira um marcador que as passadas seguintes não enxergam.
+  Link com parêntese no endereço deixou de gerar `<a>` aninhado com atributo
+  vazando pra fora da tag;
+- **prazo do stream** — a corrida entre o pedaço e o relógio deixava a promessa
+  perdedora sem tratamento, e uma fonte que ignora o `abort` pendurava o pedido
+  pra sempre. O corpo do stream passa a ser fechado no `finally`, em vez de o
+  soquete ficar preso até o servidor do modelo desistir;
+- **CLI** — prompt grande derrubava o processo com EPIPE, e matar o comando
+  deixava neto vivo. Agora o filho nasce em grupo próprio e morre em grupo,
+  com SIGKILL três segundos depois do SIGTERM;
+- **restaurar backup** — escrever por cima do banco aberto não restaurava nada:
+  a conexão devolvia as páginas antigas. O banco restaurado espera num arquivo
+  à parte e a troca acontece no start seguinte, guardando o anterior;
+- **índice de texto** — a checagem que decidia reconstruir o FTS5 usava
+  `COUNT(*)`, que numa tabela de conteúdo externo devolve o total do conteúdo e
+  não do índice. Buscas voltavam vazias com o índice vazio e a conta cheia;
+- **PDF** — fonte, imagem e metadado entravam como texto do documento (até 60%
+  de lixo não imprimível); **codificação** — arquivo em windows-1252 deixou de
+  virar caractere trocado; **EPUB** — capítulos passam a ser lidos como XHTML e
+  na ordem numérica;
+- **resposta vazia** não é mais gravada como sucesso, e o extrator de memória
+  tem prazo próprio: modelo mudo deixou de prender a conversa;
+- **permissões** — backup e `config.json` nascem 600, e a pasta de dados 700:
+  os dois carregam as chaves de API;
+- **anexo curto** ia duplicado ao modelo, e a última linha do documento se
+  perdia quando o pedaço final era curto demais;
+- **trocar o modelo de embedding** apagava a busca por significado em silêncio:
+  vetor gerado por um modelo não tem sentido nenhum na régua de outro, mas
+  continuava sendo comparado. Cada vetor passa a carregar o carimbo de quem o
+  gerou, o que ficou pra trás é ignorado na busca, e a Configuração mostra
+  quantos itens estão fora do índice com um botão que recalcula em lotes.
