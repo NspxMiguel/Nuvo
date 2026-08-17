@@ -256,6 +256,50 @@ provado com um caso que falhava antes e passa depois. Corrigidos:
   de lixo não imprimível); **codificação** — arquivo em windows-1252 deixou de
   virar caractere trocado; **EPUB** — capítulos passam a ser lidos como XHTML e
   na ordem numérica;
+### Auditoria do leitor de PDF (17/08/2026)
+
+Nove agentes em paralelo — geradores reais da máquina, arquivos hostis e revisão
+do código por lentes diferentes — sobre a correção de acento do dia anterior.
+Acharam 56 problemas; a fase de verificação não chegou a rodar (a conta bateu no
+limite de gasto do mês), então cada um foi conferido à mão contra o corpus de 15
+casos que um dos agentes montou e validou com o pypdf.
+
+O saldo foi uma reescrita do leitor do fluxo de conteúdo, de expressão regular
+para analisador símbolo a símbolo, mais o mapa de fontes por página:
+
+- **espaço entre palavras** — diagramador não escreve o espaço, desloca a
+  próxima palavra. Sem ler esse deslocamento, "Bem vindo ao Brasil" chegava ao
+  modelo como "BemvindoaoBrasil" — em qualquer PDF de revista, contrato ou
+  artigo;
+- **PDF do Chrome** — cada pedaço da mesma linha é posicionado em separado, e
+  isso era lido como troca de linha: a página saía com 137 linhas de um
+  caractere. Passou a sair com 14 linhas;
+- **parêntese na frase** — "total (com desconto) aprovado" virava "com
+  desconto": a leitura parava no primeiro fecha-parêntese;
+- **duas páginas, o mesmo /F1** — o apelido da fonte é local da página, e era
+  resolvido uma vez pro documento inteiro: página de outra origem saía com as
+  letras da fonte errada;
+- **página em vários fluxos** — /Contents com lista tinha só o primeiro pedaço
+  lido, e a fonte escolhida nele não valia no seguinte;
+- **T\*** — o operador que troca de linha nunca era reconhecido, porque a busca
+  exigia fronteira de palavra depois do asterisco e ali não existe nenhuma;
+- **string hexadecimal em fonte comum** — `<41424344>` virava dois ideogramas
+  chineses em vez de "ABCD";
+- **largura do código no /ToUnicode** — tirada do cabeçalho, que gerador
+  costuma declarar errado; passou a sair das próprias entradas do mapa. Do jeito
+  anterior, o texto inteiro de alguns PDFs sumia;
+- **ligadura** — o glifo "ﬁ" é um caractere só, e quem procura "confirmação"
+  não digita ele: o documento ficava invisível pra busca por palavra;
+- **custo** — 29 arquivos hostis, todos dentro do aceitável agora: 4 MB que
+  levavam 39 s levam 106 ms; 30 MB que viravam 527 MB de texto têm teto; mapa
+  de caracteres com 400 faixas de 65 mil entradas tem teto; e a exceção que
+  escapava do extrator (`RangeError` ao juntar os dicionários num string só)
+  deixou de existir.
+
+Medido: corpus de 15 casos, 5 certos antes e 12 depois — as 3 diferenças que
+sobram são escolhas minhas, não erros (ligadura desfeita de propósito, e dois
+fluxos da mesma página separados por uma quebra em vez de duas).
+
 - **acento em PDF** — os bytes do fluxo eram lidos como latin1 puro, ignorando o
   `/Encoding` e o `/ToUnicode` que a fonte declara. Num PDF impresso no Mac,
   onde `ó` é o byte 0x97, saía `relat—rio`; num PDF do Windows, aspa curva e

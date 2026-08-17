@@ -370,16 +370,232 @@ test('página escrita logo depois de uma fonte não é descartada como se fosse 
 
 test('símbolo que nenhuma tabela explica sai com aviso, não como se fosse a frase', () => {
   // Fonte sem /Encoding e sem /ToUnicode: sobra o palpite, e o palpite erra.
-  // Entregar isso calado é pior do que entregar dizendo que saiu torto.
-  const pdf = Buffer.concat([
+  // Entregar isso calado é pior do que entregar dizendo que saiu torto — mas o
+  // aviso tem que ser proporcional: dois símbolos estranhos num relatório de
+  // trezentas mil letras é um logotipo, e avisar ali ensina a ignorar o aviso.
+  const quebrado = Buffer.concat([
     Buffer.from('%PDF-1.4\n', 'latin1'),
-    objetoFluxo(1, 'BT /F9 12 Tf (relatorio \x81\x8d\x90 final) Tj ET'),
+    objetoFluxo(1, 'BT /F9 12 Tf (relatorio \x81\x8d\x90\x81\x8d\x90\x81\x8d\x90 final) Tj ET'),
     Buffer.from('%%EOF', 'latin1')
   ]);
+  const ruim = extractText(quebrado, 'sem-tabela.pdf', 'application/pdf');
+  assert.match(ruim.text, /relatorio/);
+  assert.match(ruim.note, /sem mapa de caracteres/);
 
-  const out = extractText(pdf, 'sem-tabela.pdf', 'application/pdf');
-  assert.match(out.text, /relatorio/);
-  assert.match(out.note, /sem mapa de caracteres/);
+  const raro = Buffer.concat([
+    Buffer.from('%PDF-1.4\n', 'latin1'),
+    objetoFluxo(1, `BT /F9 12 Tf (${'texto legivel de um relatorio comum. '.repeat(20)}\x81) Tj ET`),
+    Buffer.from('%%EOF', 'latin1')
+  ]);
+  const bom = extractText(raro, 'quase-limpo.pdf', 'application/pdf');
+  assert.match(bom.text, /texto legivel/);
+  assert.equal(bom.note, null, 'um símbolo perdido em setecentas letras não é leitura torta');
+});
+
+// -------------------------------------- leitura do fluxo de conteúdo do PDF
+
+/** Página completa: recursos, fonte e um fluxo de conteúdo comprimido. */
+function pdfDePagina(conteudo, { fonte = '<< /Type /Font /Subtype /Type1 /Encoding /WinAnsiEncoding >>', nome = 'F1' } = {}) {
+  return Buffer.concat([
+    Buffer.from(
+      `%PDF-1.4\n1 0 obj << /Type /Page /Resources << /Font << /${nome} 2 0 R >> >> /Contents 3 0 R >> endobj\n` +
+        `2 0 obj ${fonte} endobj\n`,
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(3, conteudo),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+}
+
+test('kerning do TJ vira espaço: as palavras param de sair coladas', () => {
+  // Diagramador não escreve o espaço entre as palavras: ele desloca a próxima.
+  // Sem traduzir esse deslocamento, todo PDF de revista, contrato ou artigo
+  // chegava ao modelo como uma palavra gigante sem separação nenhuma.
+  const out = extractText(
+    pdfDePagina('BT /F1 12 Tf 72 720 Td [ (Bem) -250 (vindo) -1000 (ao) -250 (Brasil) ] TJ ET'),
+    'kern.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'Bem vindo ao Brasil');
+});
+
+test('deslocamento pequeno dentro da palavra não vira espaço', () => {
+  // O mesmo operador ajusta o par "AV" por meia unidade. Virar espaço ali
+  // partiria a palavra no meio, que é o erro oposto e igualmente ruim.
+  const out = extractText(
+    pdfDePagina('BT /F1 12 Tf 72 720 Td [ (A) -20 (V) -15 (ISO) ] TJ ET'),
+    'kern2.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'AVISO');
+});
+
+test('parêntese dentro da frase não corta o resto da linha', () => {
+  // Parêntese equilibrado não precisa de escape no PDF. A leitura por expressão
+  // regular parava no primeiro fecha-parêntese e entregava só o miolo.
+  const out = extractText(
+    pdfDePagina('BT /F1 12 Tf (total (com desconto) aprovado) Tj ET'),
+    'paren.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'total (com desconto) aprovado');
+});
+
+test("os operadores ' e \" trocam de linha antes de escrever, não depois", () => {
+  const out = extractText(
+    pdfDePagina("BT /F1 12 Tf 14 TL 72 720 Td (linha um) Tj\n(linha dois) '\n0.25 0 (linha tres) \"\nET"),
+    'aspas.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'linha um\nlinha dois\nlinha tres');
+});
+
+test('T* troca de linha — o operador existe, apesar de o nome terminar em asterisco', () => {
+  // A busca antiga exigia fronteira de palavra depois do `*`, e entre `*` e
+  // espaço não existe fronteira nenhuma: o operador nunca era reconhecido e
+  // todo parágrafo saía emendado no seguinte.
+  const out = extractText(
+    pdfDePagina('BT /F1 12 Tf 14 TL 72 720 Td (primeira) Tj T* (segunda) Tj ET'),
+    'tstar.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'primeira\nsegunda');
+});
+
+test('deslocamento horizontal não quebra a linha, deslocamento vertical quebra', () => {
+  // Gerador de HTML — Chrome, wkhtmltopdf — posiciona cada pedaço da MESMA
+  // linha com Td horizontal. Tratar isso como troca de linha devolvia uma
+  // palavra por linha, e o texto nem parecia texto.
+  const out = extractText(
+    pdfDePagina(
+      'BT /F1 12 Tf 72 720 Td (uma) Tj 30 0 Td (linha) Tj 30 0 Td (so) Tj\n' +
+        '0 -14 Td (agora sim outra) Tj ET'
+    ),
+    'html.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'umalinhaso\nagora sim outra');
+});
+
+test('string hexadecimal em fonte simples é lida byte a byte, não como UTF-16', () => {
+  // `<41424344>` tem oito dígitos, mas a fonte é de um byte: ler de dois em
+  // dois devolvia dois ideogramas chineses no lugar de "ABCD".
+  const out = extractText(
+    pdfDePagina('BT /F1 12 Tf <41424344> Tj ET'),
+    'hex.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'ABCD');
+});
+
+test('cada página usa a fonte que ela declarou, mesmo com o apelido repetido', () => {
+  // `/F1` é apelido local da página. Num PDF de duas origens juntadas, as duas
+  // páginas chamam de `/F1` fontes diferentes; resolver uma vez só pro
+  // documento inteiro fazia a segunda página sair com as letras da primeira.
+  const cmapA = `begincmap
+1 begincodespacerange <00> <ff> endcodespacerange
+2 beginbfchar
+<01> <0041>
+<02> <0042>
+endbfchar
+endcmap`;
+  const cmapB = `begincmap
+1 begincodespacerange <00> <ff> endcodespacerange
+2 beginbfchar
+<01> <0058>
+<02> <0059>
+endbfchar
+endcmap`;
+
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.5\n' +
+        '1 0 obj << /Type /Page /Resources << /Font << /F1 10 0 R >> >> /Contents 20 0 R >> endobj\n' +
+        '2 0 obj << /Type /Page /Resources << /Font << /F1 11 0 R >> >> /Contents 21 0 R >> endobj\n' +
+        '10 0 obj << /Type /Font /Subtype /Type0 /ToUnicode 12 0 R >> endobj\n' +
+        '11 0 obj << /Type /Font /Subtype /Type0 /ToUnicode 13 0 R >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(12, cmapA),
+    ESPACO,
+    objetoFluxo(13, cmapB),
+    ESPACO,
+    objetoFluxo(20, 'BT /F1 12 Tf (\x01\x02) Tj ET'),
+    ESPACO,
+    objetoFluxo(21, 'BT /F1 12 Tf (\x01\x02) Tj ET'),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'duas-paginas.pdf', 'application/pdf');
+  assert.equal(out.text, 'AB\n\nXY');
+});
+
+test('página dividida em vários fluxos é lida inteira, com a fonte atravessando', () => {
+  // /Contents pode ser uma lista. O segundo pedaço costuma não abrir bloco de
+  // texto próprio — era descartado como se fosse binário — e a fonte escolhida
+  // no primeiro tem que continuar valendo nele.
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.4\n' +
+        '1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R >> >> /Contents [ 3 0 R 4 0 R ] >> endobj\n' +
+        '2 0 obj << /Type /Font /Subtype /Type1 /Encoding /MacRomanEncoding >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(3, 'BT /F1 12 Tf (primeira metade) Tj'),
+    ESPACO,
+    objetoFluxo(4, '0 -14 Td (segunda metade: vers\x8bo) Tj ET'),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'partido.pdf', 'application/pdf');
+  assert.equal(out.text, 'primeira metade\nsegunda metade: versão');
+});
+
+test('ligadura tipográfica volta a ser as letras que a busca procura', () => {
+  // O glifo "ﬁ" é um caractere só. Quem procura "confirmação" não digita ele,
+  // e o documento ficava invisível pra busca por palavra.
+  const out = extractText(
+    pdfDePagina('BT /F1 12 Tf (con) Tj (\xderma\xe7\xe3o) Tj ET', {
+      fonte: '<< /Type /Font /Subtype /Type1 /Encoding << /Differences [ 222 /fi ] >> >>'
+    }),
+    'ligadura.pdf',
+    'application/pdf'
+  );
+  assert.equal(out.text, 'confirmação');
+});
+
+test('mapa de caracteres gigante não vira memória sem fim', () => {
+  // Um `beginbfrange` pode declarar <0000> <FFFF>, e nada impede o arquivo de
+  // declarar centenas deles: poucos kB de PDF viravam gigabytes de memória
+  // antes de qualquer validação.
+  const faixas = Array.from({ length: 400 }, () => '<0000> <FFFF> <0041>').join('\n');
+  const bomba = `begincmap
+1 begincodespacerange <0000> <FFFF> endcodespacerange
+400 beginbfrange
+${faixas}
+endbfrange
+endcmap`;
+
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.5\n1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R >> >> /Contents 4 0 R >> endobj\n' +
+        '2 0 obj << /Type /Font /Subtype /Type0 /ToUnicode 3 0 R >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(3, bomba),
+    ESPACO,
+    objetoFluxo(4, 'BT /F1 12 Tf <00410042> Tj ET'),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const antes = Date.now();
+  const out = extractText(pdf, 'bomba.pdf', 'application/pdf');
+  assert.ok(Date.now() - antes < 5000, `demorou ${Date.now() - antes}ms; o teto do CMap não segurou`);
+  assert.equal(typeof out.text, 'string');
 });
 
 // -------------------------------------------------------------- codificação
