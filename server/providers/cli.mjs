@@ -135,7 +135,10 @@ export async function* stream(ctx, req) {
   child.stdin.end(useStdin ? prompt : undefined);
 
   const abort = () => encerrar();
-  req.signal?.addEventListener('abort', abort, { once: true });
+  // Sinal que já chegou cancelado não dispara 'abort' de novo: sem esta linha o
+  // processo era criado e ficava rodando até o fim, sem ninguém pra ouvir.
+  if (req.signal?.aborted) encerrar();
+  else req.signal?.addEventListener('abort', abort, { once: true });
 
   const chunks = [];
   let resolveNext;

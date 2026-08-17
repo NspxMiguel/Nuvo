@@ -30,7 +30,10 @@ function stripTags(html) {
 async function get(url, { signal, timeout = 15000 } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeout);
-  signal?.addEventListener('abort', () => ctrl.abort(), { once: true });
+  // Cancelado antes de começar não dispara evento nenhum: a página seria baixada
+  // inteira depois de o usuário já ter desistido.
+  if (signal?.aborted) ctrl.abort();
+  else signal?.addEventListener('abort', () => ctrl.abort(), { once: true });
   try {
     return await fetch(url, {
       signal: ctrl.signal,

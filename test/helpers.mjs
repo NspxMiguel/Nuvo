@@ -30,7 +30,11 @@ export function fakeResponse(body, { ok = true, status = 200, headers = {} } = {
   const chunks = Array.isArray(body) ? body : [body];
   const encoder = new TextEncoder();
   let i = 0;
+  // Quantas vezes o corpo foi fechado. O leitor de verdade tem `cancel`, e é
+  // ele que solta o soquete quando o stream acaba antes do fim do corpo.
+  const cancelado = { vezes: 0 };
   return {
+    cancelado,
     ok,
     status,
     statusText: ok ? 'OK' : 'Erro',
@@ -49,6 +53,9 @@ export function fakeResponse(body, { ok = true, status = 200, headers = {} } = {
           async read() {
             if (i >= chunks.length) return { done: true, value: undefined };
             return { done: false, value: encoder.encode(chunks[i++]) };
+          },
+          async cancel() {
+            cancelado.vezes += 1;
           }
         };
       }

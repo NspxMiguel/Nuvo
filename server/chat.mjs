@@ -280,6 +280,21 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
   };
   yield { type: 'stats', ...stats };
 
+  // Resposta vazia não é resposta. Gravá-la deixa um turno em branco no
+  // histórico — que vai junto no próximo prompt, ensinando o modelo a calar de
+  // novo — e some com o motivo, que costuma estar no stderr do CLI ou no
+  // raciocínio que veio antes do filtro cortar.
+  if (!answer.trim()) {
+    const pista = (reasoning || '').trim().split('\n').filter(Boolean).at(-1);
+    yield {
+      type: 'error',
+      message: pista
+        ? `o modelo não devolveu texto nenhum — o que ele disse antes de parar: ${pista.slice(0, 300)}`
+        : 'o modelo não devolveu texto nenhum (filtro de conteúdo, ou resposta vazia mesmo)'
+    };
+    return;
+  }
+
   const assistantMessage = addMessage(chatId, 'assistant', answer, ref, {
     usage,
     stats,

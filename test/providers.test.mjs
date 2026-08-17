@@ -439,3 +439,26 @@ test('cli: cancelar mata o neto, não só o filho', async () => {
     .filter((l) => l.includes(marca) && !l.includes('ps -A'));
   assert.deepEqual(vivos, [], `sobrou processo do teste: ${vivos.join(' | ')}`);
 });
+
+test('corpo da resposta é fechado quando o stream acaba antes do fim', async () => {
+  // O SSE do OpenAI termina em [DONE] e o gerador sai ali, com bytes ainda por
+  // vir. Sem fechar o corpo, o soquete fica preso e o provedor segue gerando —
+  // e cobrando — do outro lado.
+  const resposta = fakeResponse([
+    `data: ${JSON.stringify({ choices: [{ delta: { content: 'oi' } }] })}\n\n`,
+    'data: [DONE]\n\n',
+    'data: {"nunca":"lido"}\n\n'
+  ]);
+  const stub = stubFetch(async () => resposta);
+  try {
+    await collect(
+      openai.stream(
+        { config: {}, baseUrl: 'http://provedor.invalido/v1', secret: null },
+        { model: 'x', messages: [{ role: 'user', content: 'oi' }] }
+      )
+    );
+  } finally {
+    stub.restore();
+  }
+  assert.equal(resposta.cancelado.vezes, 1, 'o corpo tinha que ter sido fechado');
+});

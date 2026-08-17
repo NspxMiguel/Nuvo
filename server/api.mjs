@@ -89,6 +89,9 @@ function openStream(req, res) {
   });
   const controller = new AbortController();
   req.on('close', () => controller.abort());
+  // O navegador pode ter desistido entre o pedido e este ponto — aba fechada,
+  // rede caída no celular. Aí o 'close' já passou e não vem de novo.
+  if (req.destroyed || req.closed) controller.abort();
 
   let last = Date.now();
   const ping = setInterval(() => {

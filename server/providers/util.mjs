@@ -5,18 +5,26 @@ export async function* lines(res) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx;
-    while ((idx = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, idx).replace(/\r$/, '');
-      buffer = buffer.slice(idx + 1);
-      yield line;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, idx).replace(/\r$/, '');
+        buffer = buffer.slice(idx + 1);
+        yield line;
+      }
     }
+    if (buffer.trim()) yield buffer;
+  } finally {
+    // Qualquer saída antecipada — o `[DONE]` do SSE, um erro no meio, o usuário
+    // apertando parar — precisa fechar o corpo. Sem isto o soquete fica preso e
+    // o provedor continua gerando do outro lado, cobrando por texto que ninguém
+    // vai ler.
+    reader.cancel?.()?.catch?.(() => {});
   }
-  if (buffer.trim()) yield buffer;
 }
 
 /** Eventos `data:` de um stream SSE, já sem o prefixo e ignorando comentários. */
