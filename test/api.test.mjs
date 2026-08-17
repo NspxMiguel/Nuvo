@@ -689,3 +689,56 @@ test('sem token exigido, o manifest é o arquivo normal', async () => {
     patchConfig({ requireToken: true });
   }
 });
+
+test('refazer que não dá pra fazer não apaga a conversa', async () => {
+  // A ordem antiga era truncar primeiro e conferir depois: quando a conferência
+  // reprovava, a conversa já tinha perdido a resposta antiga e não ganhava
+  // nenhuma no lugar.
+  const chat = (await app.api('/chats', { method: 'POST', body: { title: 'refazer' } })).data;
+
+  // Só uma resposta, sem pergunta antes dela: refazer é impossível.
+  const { run, uid, now } = await import('../server/db.mjs');
+  run(
+    'INSERT INTO messages (id, chat_id, role, content, meta, created_at) VALUES (?,?,?,?,?,?)',
+    uid(), chat.id, 'assistant', 'resposta órfã', '{}', now()
+  );
+
+  const antes = (await app.api(`/chats/${chat.id}`)).data.messages;
+  assert.equal(antes.length, 1);
+
+  const res = await app.api(`/chats/${chat.id}/regenerate`, { method: 'POST', body: {} });
+  assert.equal(res.status, 400);
+  assert.match(res.data.error, /pergunta/);
+
+  const depois = (await app.api(`/chats/${chat.id}`)).data.messages;
+  assert.equal(depois.length, 1, 'a mensagem tinha que continuar lá');
+  assert.equal(depois[0].content, 'resposta órfã');
+});
+
+test('refazer com provedor desligado avisa sem apagar nada', async () => {
+  const { run, uid, now } = await import('../server/db.mjs');
+  const provedor = uid();
+  run(
+    `INSERT INTO providers (id, name, kind, base_url, secret_name, config, enabled, auto, created_at)
+     VALUES (?, 'Desligado', 'openai', 'http://x.invalido/v1', NULL, '{}', 0, 0, ?)`,
+    provedor, now()
+  );
+  const chat = (
+    await app.api('/chats', { method: 'POST', body: { title: 'refazer 2', model: `${provedor}:m` } })
+  ).data;
+  run(
+    'INSERT INTO messages (id, chat_id, role, content, meta, created_at) VALUES (?,?,?,?,?,?)',
+    uid(), chat.id, 'user', 'pergunta', '{}', now()
+  );
+  run(
+    'INSERT INTO messages (id, chat_id, role, content, meta, created_at) VALUES (?,?,?,?,?,?)',
+    uid(), chat.id, 'assistant', 'resposta velha', '{}', now()
+  );
+
+  const res = await app.api(`/chats/${chat.id}/regenerate`, { method: 'POST', body: {} });
+  assert.equal(res.status, 400);
+  assert.match(res.data.error, /desligado/);
+
+  const depois = (await app.api(`/chats/${chat.id}`)).data.messages;
+  assert.equal(depois.length, 2, 'nada podia ter sido apagado');
+});

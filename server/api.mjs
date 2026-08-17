@@ -11,7 +11,8 @@ import {
   getProvider,
   listProviders,
   refreshModels,
-  refOf
+  refOf,
+  parseRef
 } from './providers/index.mjs';
 import { discover } from './discovery.mjs';
 import {
@@ -586,11 +587,28 @@ export async function handleApi(req, res, url) {
         ? messages.find((m) => m.id === b.from)
         : [...messages].reverse().find((m) => m.role === 'assistant');
       if (!target) return json(res, { error: 'não há resposta pra refazer' }, 400);
-      truncateFrom(id, target.id);
 
-      const remaining = listMessages(id);
+      // Tudo que dá pra conferir antes de apagar é conferido antes de apagar.
+      // A ordem anterior era truncar e só então perguntar se havia pergunta e se
+      // o modelo existia: quando não havia, a conversa ficava sem a resposta
+      // antiga e sem a nova, e o 400 chegava tarde demais pra adiantar.
+      const corte = messages.findIndex((m) => m.id === target.id);
+      const remaining = messages.slice(0, corte);
       const lastUser = [...remaining].reverse().find((m) => m.role === 'user');
       if (!lastUser) return json(res, { error: 'não há pergunta antes dessa resposta' }, 400);
+
+      const ref = b.model || getChat(id)?.model;
+      if (!ref) return json(res, { error: 'nenhum modelo escolhido pra refazer' }, 400);
+      try {
+        const provedor = getProvider(parseRef(ref).providerId);
+        if (!provedor.enabled) {
+          return json(res, { error: `o provedor "${provedor.name}" está desligado` }, 400);
+        }
+      } catch (err) {
+        return json(res, { error: err.message }, 400);
+      }
+
+      truncateFrom(id, target.id);
 
       const stream = openStream(req, res);
       stream.send({ type: 'reset', keep: remaining.map((m) => m.id) });
