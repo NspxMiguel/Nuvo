@@ -70,6 +70,49 @@ function makeZip(name, content) {
   return Buffer.concat([localBlock, centralBlock, end]);
 }
 
+/** ZIP de vários arquivos, pro EPUB, que é um livro inteiro num zip só. */
+function zipEpub(entries) {
+  const locals = [];
+  const central = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const nameBuf = Buffer.from(entry.name, 'utf8');
+    const deflated = deflateRawSync(entry.data);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(deflated.length, 18);
+    local.writeUInt32LE(entry.data.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    locals.push(local, nameBuf, deflated);
+
+    const dir = Buffer.alloc(46);
+    dir.writeUInt32LE(0x02014b50, 0);
+    dir.writeUInt16LE(20, 6);
+    dir.writeUInt16LE(8, 10);
+    dir.writeUInt32LE(deflated.length, 20);
+    dir.writeUInt32LE(entry.data.length, 24);
+    dir.writeUInt16LE(nameBuf.length, 28);
+    dir.writeUInt32LE(offset, 42);
+    central.push(dir, nameBuf);
+
+    offset += local.length + nameBuf.length + deflated.length;
+  }
+
+  const dirBuffer = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(dirBuffer.length, 12);
+  end.writeUInt32LE(offset, 16);
+
+  return Buffer.concat([...locals, dirBuffer, end]);
+}
+
 test('DOCX tem o texto dos parágrafos extraído', () => {
   const xml =
     '<?xml version="1.0"?><w:document><w:body>' +
@@ -175,4 +218,55 @@ test('PDF sem bloco de texto admite que não tem texto', () => {
   const out = extractText(pdf, 'scan.pdf', 'application/pdf');
   assert.equal(out.text, '');
   assert.match(out.note, /digitalização em imagem/);
+});
+
+// -------------------------------------------------------------- codificação
+
+test('texto em latin1 sai com acento certo, e diz qual codificação assumiu', () => {
+  // Byte 0xE7 é "ç" em windows-1252 e sequência inválida em UTF-8. O
+  // `toString('utf8')` não falha: devolve o losango e ninguém fica sabendo.
+  const bytes = Buffer.from([0x63, 0x6f, 0x6e, 0x74, 0x72, 0x61, 0xe7, 0xe3, 0x6f]); // "contração"
+  const out = extractText(bytes, 'nota.txt', 'text/plain');
+  assert.equal(out.text, 'contração');
+  assert.match(out.note, /windows-1252|latin1/);
+  assert.ok(!out.text.includes('�'), 'nenhum losango de byte inválido');
+});
+
+test('UTF-8 continua sem aviso nenhum', () => {
+  const out = extractText(Buffer.from('contração', 'utf8'), 'nota.txt', 'text/plain');
+  assert.equal(out.text, 'contração');
+  assert.equal(out.note, null);
+});
+
+test('BOM de UTF-16 é reconhecido em vez de virar lixo', () => {
+  const bom = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('olá mundo', 'utf16le')]);
+  const out = extractText(bom, 'nota.txt', 'text/plain');
+  assert.equal(out.text, 'olá mundo');
+});
+
+// --------------------------------------------------------------------- EPUB
+
+test('capítulo de EPUB vira parágrafos, sem CSS e com entidade decodificada', () => {
+  const xhtml = `<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+<style type="text/css">p { margin: 0; text-indent: 1.2em; }</style>
+<script>var x = 1;</script>
+</head><body>
+<h1>Cap&#237;tulo I</h1>
+<p>Era uma vez&nbsp;&mdash; dizia ele &mdash; um servidor em casa.</p>
+<p>E a mem&oacute;ria era uma s&oacute;.</p>
+</body></html>`;
+  const epub = zipEpub([
+    { name: 'OEBPS/cap1.xhtml', data: Buffer.from(xhtml, 'utf8') }
+  ]);
+  const out = extractText(epub, 'livro.epub', '');
+  assert.equal(out.kind, 'epub');
+  assert.ok(!/margin|text-indent|var x/.test(out.text), 'CSS e script não são conteúdo do livro');
+  assert.match(out.text, /Capítulo I/);
+  assert.match(out.text, /Era uma vez — dizia ele — um servidor em casa\./);
+  assert.match(out.text, /E a memória era uma só\./);
+  assert.ok(
+    out.text.split('\n').filter((l) => l.trim()).length >= 3,
+    'capítulo não pode sair numa linha só'
+  );
 });

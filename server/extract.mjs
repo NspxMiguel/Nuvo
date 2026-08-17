@@ -17,6 +17,41 @@ const TEXT_EXT = new Set([
   '.pl', '.dart', '.ex', '.exs', '.gradle', '.make', '.dockerfile', '.gitignore'
 ]);
 
+/**
+ * Texto do arquivo, com a codificação descoberta em vez de suposta.
+ *
+ * `buffer.toString('utf8')` não falha nunca: byte inválido vira U+FFFD, o
+ * losango com a interrogação. Arquivo salvo em latin1 ou cp1252 — que é o que
+ * sai de Excel, de sistema antigo e de muito .txt em português — chegava ao
+ * modelo com todo acento trocado por esse losango, sem aviso nenhum.
+ *
+ * @returns {{text: string, note: string|null}}
+ */
+export function decodeText(buffer) {
+  // BOM manda mais que qualquer palpite.
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
+    return { text: new TextDecoder('utf-16le').decode(buffer.subarray(2)), note: null };
+  }
+  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) {
+    return { text: new TextDecoder('utf-16be').decode(buffer.subarray(2)), note: null };
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+    return { text: new TextDecoder('utf-8').decode(buffer.subarray(3)), note: null };
+  }
+
+  try {
+    // `fatal` é o que transforma "byte inválido" em erro em vez de losango.
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(buffer), note: null };
+  } catch {
+    // Não era UTF-8. O windows-1252 é o palpite certo pra quase todo arquivo
+    // ocidental que sobrou, e é superconjunto do latin1.
+    return {
+      text: new TextDecoder('windows-1252').decode(buffer),
+      note: 'o arquivo não estava em UTF-8; li como windows-1252 (latin1)'
+    };
+  }
+}
+
 /** Heurística pra decidir se um arquivo sem extensão conhecida é texto. */
 function looksLikeText(buffer) {
   const sample = buffer.subarray(0, 4096);
@@ -98,21 +133,59 @@ function fromDocx(buffer) {
   const files = unzip(buffer, (n) => n === 'word/document.xml');
   const doc = files.get('word/document.xml');
   if (!doc) return { text: '', note: 'não achei word/document.xml dentro do arquivo' };
-  return { text: xmlText(doc.toString('utf8')) };
+  return { text: xmlText(decodeText(doc).text) };
 }
 
 function fromPptx(buffer) {
   const files = unzip(buffer, (n) => /^ppt\/slides\/slide\d+\.xml$/.test(n));
   const slides = [...files.entries()]
     .sort((a, b) => Number(a[0].match(/\d+/)[0]) - Number(b[0].match(/\d+/)[0]))
-    .map(([name, data], i) => `## Slide ${i + 1}\n${xmlText(data.toString('utf8'))}`);
+    .map(([name, data], i) => `## Slide ${i + 1}\n${xmlText(decodeText(data).text)}`);
   if (!slides.length) return { text: '', note: 'nenhum slide legível' };
   return { text: slides.join('\n\n') };
 }
 
+// Entidades HTML que aparecem de verdade em livro: aspas curvas, travessão,
+// reticências, espaço fixo. O XML só define cinco, e o `xmlText` do OOXML só
+// conhecia essas — num EPUB elas ficavam escritas na tela como "&nbsp;".
+const ENTIDADES = {
+  nbsp: ' ', ndash: '–', mdash: '—', hellip: '…', laquo: '«', raquo: '»',
+  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', bull: '•', middot: '·',
+  deg: '°', copy: '©', reg: '®', trade: '™', euro: '€', pound: '£', sect: '§',
+  aacute: 'á', agrave: 'à', acirc: 'â', atilde: 'ã', ccedil: 'ç', eacute: 'é',
+  ecirc: 'ê', iacute: 'í', oacute: 'ó', ocirc: 'ô', otilde: 'õ', uacute: 'ú'
+};
+
+/** Texto de um XHTML de EPUB: estrutura de página, não de documento do Word. */
+function htmlText(html) {
+  return String(html)
+    // Estilo e script não são conteúdo do livro — viravam parágrafo de CSS.
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    // O que fecha bloco vira quebra: sem isso o capítulo inteiro saía numa linha.
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote|section|article)\s*>/gi, '\n\n')
+    .replace(/<\/(td|th)\s*>/gi, '\t')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&(\w+);/g, (todo, nome) => {
+      const basico = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }[nome];
+      return basico ?? ENTIDADES[nome.toLowerCase()] ?? todo;
+    })
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function fromEpub(buffer) {
+  // Ordem de leitura: os nomes dos capítulos quase sempre carregam o número, e
+  // a ordem do zip não é a do livro.
   const files = unzip(buffer, (n) => /\.x?html?$/i.test(n));
-  const parts = [...files.values()].map((d) => xmlText(d.toString('utf8'))).filter(Boolean);
+  const ordenados = [...files.entries()].sort(([a], [b]) =>
+    a.localeCompare(b, 'en', { numeric: true })
+  );
+  const parts = ordenados.map(([, d]) => htmlText(decodeText(d).text)).filter(Boolean);
   if (!parts.length) return { text: '', note: 'nenhum capítulo legível' };
   return { text: parts.join('\n\n') };
 }
@@ -256,7 +329,7 @@ export function extractText(buffer, filename = '', mime = '') {
   if (ext === '.epub') return { ...fromEpub(buffer), kind: 'epub' };
 
   if (TEXT_EXT.has(ext) || (mime || '').startsWith('text/') || looksLikeText(buffer)) {
-    return { text: buffer.toString('utf8'), note: null, kind: 'texto' };
+    return { ...decodeText(buffer), kind: 'texto' };
   }
 
   return {
