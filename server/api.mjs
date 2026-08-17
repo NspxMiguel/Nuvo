@@ -36,6 +36,7 @@ import { importConversations } from './importers.mjs';
 import {
   addAttachment,
   listAttachments,
+  publicAttachment,
   deleteAttachment,
   deleteAttachmentsOf
 } from './documents.mjs';
@@ -647,7 +648,7 @@ export async function handleApi(req, res, url) {
         mime: req.headers['content-type'] || '',
         chatId: id
       });
-      return json(res, attachment);
+      return json(res, publicAttachment(attachment));
     }
     if (method === 'GET' && seg[2] === 'attachments') {
       return json(res, listAttachments({ chatId: id }));
@@ -689,7 +690,7 @@ export async function handleApi(req, res, url) {
       chatId: url.searchParams.get('chat') || null,
       projectId: url.searchParams.get('project') || null
     });
-    return json(res, attachment);
+    return json(res, publicAttachment(attachment));
   }
   if (seg[0] === 'attachments' && seg[1] && method === 'DELETE') {
     deleteAttachment(seg[1]);

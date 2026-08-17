@@ -9,6 +9,9 @@ import { useTempHome, stubFetch, fakeResponse } from './helpers.mjs';
 const home = useTempHome();
 const { startServer } = await import('./helpers.mjs');
 const { run, now, uid } = await import('../server/db.mjs');
+const { UPLOAD_DIR } = await import('../server/config.mjs');
+const { readdirSync, existsSync } = await import('node:fs');
+const { join } = await import('node:path');
 
 let app;
 let fakeProviderId;
@@ -620,8 +623,34 @@ test('a chave só sai na transição de religar, nunca numa leitura comum', asyn
 
 // ----------------------------------------------- apagar leva o arquivo junto
 
+/** Caminho do arquivo guardado, achado pelo id — que é como ele é nomeado. */
+function acharNoDisco(id) {
+  const nome = readdirSync(UPLOAD_DIR).find((f) => f.startsWith(id));
+  return nome ? join(UPLOAD_DIR, nome) : null;
+}
+
+test('o anexo devolvido pela API não carrega o caminho no disco nem o documento inteiro', async () => {
+  // `path` é o caminho absoluto na máquina do servidor e `text` é o arquivo
+  // inteiro: a tela não usa nenhum dos dois, e mandar os dois expõe a árvore de
+  // pastas e repete o documento a cada listagem.
+  const chat = await app.api('/chats', { method: 'POST', body: {} });
+  const anexo = await app.api(`/chats/${chat.data.id}/attachments?name=doc.txt`, {
+    method: 'POST',
+    raw: true,
+    body: 'Documento curto o bastante pra ser guardado inteiro na linha do anexo.'
+  });
+  assert.equal(anexo.data.path, undefined);
+  assert.equal(anexo.data.text, undefined);
+  assert.equal(anexo.data.name, 'doc.txt');
+  assert.ok(anexo.data.chars > 0);
+
+  const lista = await app.api(`/chats/${chat.data.id}/attachments`);
+  assert.equal(lista.data.length, 1);
+  assert.equal(lista.data[0].path, undefined);
+  assert.equal(lista.data[0].text, undefined);
+});
+
 test('apagar conversa pela API não deixa o documento no disco', async () => {
-  const { existsSync } = await import('node:fs');
   const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
   const chatId = chat.data.id;
 
@@ -630,7 +659,9 @@ test('apagar conversa pela API não deixa o documento no disco', async () => {
     raw: true,
     body: 'Conteúdo que o usuário espera que suma junto com a conversa.'
   });
-  const caminho = anexo.data.path;
+  // A API não devolve o caminho no disco de propósito; quem quer conferir
+  // procura pelo id, que é como o arquivo é nomeado.
+  const caminho = acharNoDisco(anexo.data.id);
   assert.ok(caminho && existsSync(caminho), 'o original tinha que estar no disco');
 
   await app.api(`/chats/${chatId}`, { method: 'DELETE' });
@@ -641,7 +672,6 @@ test('apagar conversa pela API não deixa o documento no disco', async () => {
 });
 
 test('apagar projeto pela API também leva os arquivos dele', async () => {
-  const { existsSync } = await import('node:fs');
   const projeto = await app.api('/projects', { method: 'POST', body: { name: 'Projeto com arquivo' } });
   const id = projeto.data.id;
 
@@ -650,8 +680,8 @@ test('apagar projeto pela API também leva os arquivos dele', async () => {
     raw: true,
     body: 'Documento que pertence ao projeto inteiro.'
   });
-  const caminho = anexo.data?.path;
-  if (!caminho) return; // rota de anexo por projeto pode não existir; nada a provar
+  const caminho = acharNoDisco(anexo.data.id);
+  assert.ok(caminho && existsSync(caminho), 'o documento do projeto tinha que estar no disco');
 
   await app.api(`/projects/${id}`, { method: 'DELETE' });
   assert.ok(!existsSync(caminho), 'o documento do projeto tem que sair do disco junto');

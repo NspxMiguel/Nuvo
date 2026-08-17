@@ -134,24 +134,42 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
   return { ...one('SELECT * FROM attachments WHERE id = ?', id), chunks: pieces.length };
 }
 
+// O que a tela precisa saber de um anexo. Fica de fora o `path`, que é o
+// caminho absoluto no disco do servidor, e o `text`, que é o documento inteiro:
+// nenhum dos dois é usado pela interface, e mandar os dois significa expor a
+// árvore de pastas da máquina e repetir até 6 kB por anexo a cada listagem.
+const CAMPOS_PUBLICOS = [
+  'id', 'chat_id', 'project_id', 'name', 'mime',
+  'bytes', 'chars', 'status', 'note', 'created_at'
+];
+
+/** Recorta um anexo para o que pode sair pela API. */
+export function publicAttachment(row) {
+  if (!row) return row;
+  const fora = {};
+  for (const campo of [...CAMPOS_PUBLICOS, 'chunks']) {
+    if (campo in row) fora[campo] = row[campo];
+  }
+  return fora;
+}
+
 export function listAttachments({ chatId = null, projectId = null } = {}) {
+  const campos = CAMPOS_PUBLICOS.map((c) => `a.${c}`).join(', ');
+  const contagem = '(SELECT COUNT(*) FROM chunks WHERE attachment_id = a.id) AS chunks';
   if (chatId) {
     return all(
-      `SELECT a.*, (SELECT COUNT(*) FROM chunks WHERE attachment_id = a.id) AS chunks
-       FROM attachments a WHERE a.chat_id = ? ORDER BY a.created_at`,
+      `SELECT ${campos}, ${contagem} FROM attachments a WHERE a.chat_id = ? ORDER BY a.created_at`,
       chatId
     );
   }
   if (projectId) {
     return all(
-      `SELECT a.*, (SELECT COUNT(*) FROM chunks WHERE attachment_id = a.id) AS chunks
-       FROM attachments a WHERE a.project_id = ? ORDER BY a.created_at`,
+      `SELECT ${campos}, ${contagem} FROM attachments a WHERE a.project_id = ? ORDER BY a.created_at`,
       projectId
     );
   }
   return all(
-    `SELECT a.*, (SELECT COUNT(*) FROM chunks WHERE attachment_id = a.id) AS chunks
-     FROM attachments a ORDER BY a.created_at DESC LIMIT 200`
+    `SELECT ${campos}, ${contagem} FROM attachments a ORDER BY a.created_at DESC LIMIT 200`
   );
 }
 
@@ -293,11 +311,12 @@ export async function renderDocuments(query, { chatId, projectId }) {
 
   const short = attachments.filter((a) => a.chars > 0 && a.chars <= INLINE_LIMIT);
   for (const att of short) {
-    // O texto guardado é o do arquivo. Emendar os trechos repetia a
-    // sobreposição de 200 caracteres que existe entre eles de propósito.
-    // Anexo de antes desta coluna cai na emenda, que é o que havia.
+    // O texto guardado é o do arquivo, e é buscado aqui porque a listagem não
+    // carrega o documento inteiro — quem precisa dele é só o prompt. Emendar os
+    // trechos repetia a sobreposição de 200 caracteres que existe entre eles de
+    // propósito; anexo de antes desta coluna cai na emenda, que é o que havia.
     const text =
-      att.text ??
+      one('SELECT text FROM attachments WHERE id = ?', att.id)?.text ??
       all('SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord', att.id)
         .map((c) => c.text)
         .join('\n\n');
