@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deflateRawSync } from 'node:zlib';
+import { deflateRawSync, deflateSync } from 'node:zlib';
 import { extractText } from '../server/extract.mjs';
 
 test('texto simples sai inteiro', () => {
@@ -218,6 +218,168 @@ test('PDF sem bloco de texto admite que não tem texto', () => {
   const out = extractText(pdf, 'scan.pdf', 'application/pdf');
   assert.equal(out.text, '');
   assert.match(out.note, /digitalização em imagem/);
+});
+
+// ----------------------------------------------- codificação de fonte no PDF
+
+/** Objeto de PDF com fluxo comprimido, do jeito que gerador de verdade escreve. */
+function objetoFluxo(num, texto, extra = '') {
+  const dados = deflateSync(Buffer.from(texto, 'latin1'));
+  return Buffer.concat([
+    Buffer.from(`${num} 0 obj << /Length ${dados.length} /Filter /FlateDecode ${extra}>>\nstream\n`, 'latin1'),
+    dados,
+    Buffer.from('\nendstream endobj\n', 'latin1')
+  ]);
+}
+
+// Objetos separados por enchimento: sem isso o dicionário de um cai na janela
+// de leitura do outro, o que não acontece em PDF de tamanho real.
+const ESPACO = Buffer.from(`\n${'%'.repeat(600)}\n`, 'latin1');
+
+test('fonte do Windows: aspa curva e travessão deixam de virar controle invisível', () => {
+  // 0x97 travessão, 0x85 reticências, 0x93/0x94 aspas curvas. Lidos como
+  // latin1 — byte igual a ponto de código — são controles C1 que somem na tela.
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.4\n1 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> endobj\n' +
+        '2 0 obj << /Type /Page /Resources << /Font << /F1 1 0 R >> >> >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(3, 'BT /F1 12 Tf (O relat\xf3rio \x97 hoje\x85 diz \x93sim\x94) Tj ET'),
+    Buffer.from('trailer<</Root 2 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'win.pdf', 'application/pdf');
+  assert.equal(out.text, 'O relatório — hoje… diz “sim”');
+  assert.equal(out.note, null);
+});
+
+test('fonte do Mac: o mesmo byte que é travessão no Windows é "ó" no MacRoman', () => {
+  // É o caso de todo PDF impresso no macOS: 0x97 vale `ó`, e supor windows-1252
+  // troca a palavra inteira em vez de só a pontuação.
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.3\n1 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Times /Encoding /MacRomanEncoding >> endobj\n' +
+        '2 0 obj << /Type /Page /Resources << /Font << /F1 1 0 R >> >> >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(3, 'BT /F1 12 Tf (relat\x97rio de agosto \xd0 vers\x8bo 2) Tj ET'),
+    Buffer.from('trailer<</Root 2 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'mac.pdf', 'application/pdf');
+  assert.equal(out.text, 'relatório de agosto – versão 2');
+});
+
+test('fonte de subconjunto: sem o /ToUnicode os bytes não são texto, são índices', () => {
+  // Gerador moderno numera os glifos a partir de 1, na ordem em que aparecem.
+  // Sem ler o CMap, `\x01\x02\x03\x04` não é palavra em codificação nenhuma.
+  const cmap = `/CIDInit /ProcSet findresource begin
+12 dict begin begincmap
+1 begincodespacerange <00> <ff> endcodespacerange
+4 beginbfchar
+<01> <0043>
+<02> <0061>
+<03> <0066>
+<04> <00E9>
+endbfchar
+1 beginbfrange
+<05> <06> <0020>
+endbfrange
+endcmap CMapName currentdict /CMap defineresource pop end end`;
+
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.5\n1 0 obj << /Type /Page /Resources << /Font << /F2 4 0 R >> >> >> endobj\n' +
+        '4 0 obj << /Type /Font /Subtype /Type0 /BaseFont /AAAAAA+Minion /ToUnicode 5 0 R >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(5, cmap),
+    ESPACO,
+    objetoFluxo(6, 'BT /F2 12 Tf (\x01\x02\x03\x04\x05\x01\x02\x03\x04) Tj ET'),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'subconjunto.pdf', 'application/pdf');
+  assert.equal(out.text, 'Café Café');
+});
+
+test('/Differences dá nome a cada posição trocada, e o nome vira a letra', () => {
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.4\n1 0 obj << /Type /Page /Resources << /Font << /F3 2 0 R >> >> >> endobj\n' +
+        '2 0 obj << /Type /Font /Subtype /TrueType ' +
+        '/Encoding << /Differences [ 1 /C /a /f /eacute /exclam 200 /uni00E7 /atilde ] >> >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(3, 'BT /F3 12 Tf (\x01\x02\x03\x04\x05\xc8\xc9) Tj ET'),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'diff.pdf', 'application/pdf');
+  assert.equal(out.text, 'Café!çã');
+});
+
+test('a fonte vale por bloco: trocar de /Fx troca a tabela no meio da página', () => {
+  const cmap = `begincmap
+1 begincodespacerange <00> <ff> endcodespacerange
+2 beginbfchar
+<01> <004F>
+<02> <004B>
+endbfchar
+endcmap`;
+
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.5\n1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R /F2 3 0 R >> >> >> endobj\n' +
+        '2 0 obj << /Type /Font /Subtype /Type1 /Encoding /WinAnsiEncoding >> endobj\n' +
+        '3 0 obj << /Type /Font /Subtype /Type0 /ToUnicode 4 0 R >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(4, cmap),
+    ESPACO,
+    objetoFluxo(5, 'BT /F1 12 Tf (caf\xe9) Tj /F2 12 Tf (\x01\x02) Tj ET'),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'duas-fontes.pdf', 'application/pdf');
+  assert.equal(out.text, 'caféOK');
+});
+
+test('página escrita logo depois de uma fonte não é descartada como se fosse a fonte', () => {
+  // O dicionário do fluxo era procurado numa janela fixa de bytes atrás, que
+  // alcançava o objeto anterior: descritor de fonte antes da página fazia a
+  // página inteira sumir.
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.4\n7 0 obj << /Type /FontDescriptor /FontName /AAAAAA+Arial /Flags 4 >> endobj\n',
+      'latin1'
+    ),
+    objetoFluxo(8, 'BT /F1 12 Tf (pagina colada na fonte) Tj ET'),
+    Buffer.from('%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'colado.pdf', 'application/pdf');
+  assert.equal(out.text, 'pagina colada na fonte');
+});
+
+test('símbolo que nenhuma tabela explica sai com aviso, não como se fosse a frase', () => {
+  // Fonte sem /Encoding e sem /ToUnicode: sobra o palpite, e o palpite erra.
+  // Entregar isso calado é pior do que entregar dizendo que saiu torto.
+  const pdf = Buffer.concat([
+    Buffer.from('%PDF-1.4\n', 'latin1'),
+    objetoFluxo(1, 'BT /F9 12 Tf (relatorio \x81\x8d\x90 final) Tj ET'),
+    Buffer.from('%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'sem-tabela.pdf', 'application/pdf');
+  assert.match(out.text, /relatorio/);
+  assert.match(out.note, /sem mapa de caracteres/);
 });
 
 // -------------------------------------------------------------- codificação

@@ -256,6 +256,14 @@ provado com um caso que falhava antes e passa depois. Corrigidos:
   de lixo não imprimível); **codificação** — arquivo em windows-1252 deixou de
   virar caractere trocado; **EPUB** — capítulos passam a ser lidos como XHTML e
   na ordem numérica;
+- **acento em PDF** — os bytes do fluxo eram lidos como latin1 puro, ignorando o
+  `/Encoding` e o `/ToUnicode` que a fonte declara. Num PDF impresso no Mac,
+  onde `ó` é o byte 0x97, saía `relat—rio`; num PDF do Windows, aspa curva e
+  travessão viravam controle invisível; e em fonte de subconjunto — a que sai de
+  qualquer gerador moderno, com os glifos numerados a partir de 1 — não saía
+  nada, porque aqueles bytes não são texto em codificação nenhuma sem o mapa.
+  Um arquivo gerado aqui na máquina saía com 7,2% de lixo e 14 das 32 palavras;
+  passou a sair com 0% e todas as 32;
 - **resposta vazia** não é mais gravada como sucesso, e o extrator de memória
   tem prazo próprio: modelo mudo deixou de prender a conversa;
 - **permissões** — backup e `config.json` nascem 600, e a pasta de dados 700:

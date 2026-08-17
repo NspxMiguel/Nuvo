@@ -201,32 +201,235 @@ function unescapePdf(text) {
   });
 }
 
-/** Junta as strings dos operadores de texto de um fluxo já descomprimido. */
-function textFromContentStream(content) {
-  const out = [];
-  // Tj / TJ / ' / " — o que carrega texto visível.
-  const re = /\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]+>|\bTJ\b|\bTj\b|\bTD\b|\bTd\b|\bT\*\b|\bET\b/g;
-  let line = [];
-  for (const match of content.match(re) || []) {
-    if (match.startsWith('(')) {
-      line.push(unescapePdf(match.slice(1, -1)));
-    } else if (match.startsWith('<')) {
-      // String hexadecimal: costuma ser UTF-16BE em fonte com CMap.
-      const hex = match.slice(1, -1).replace(/\s+/g, '');
-      let decoded = '';
-      for (let i = 0; i + 3 < hex.length; i += 4) {
-        const code = parseInt(hex.slice(i, i + 4), 16);
-        if (code > 8 && code < 0xfffd) decoded += String.fromCharCode(code);
-      }
-      if (decoded) line.push(decoded);
-    } else if (match === 'TD' || match === 'Td' || match === 'T*' || match === 'ET') {
-      if (line.length) {
-        out.push(line.join(''));
-        line = [];
+// A única faixa em que o windows-1252 diverge do latin1 — e é justamente onde
+// PDF chama de /Encoding a tabela que liga byte a caractere, e são duas na
+// prática: a do Windows e a do Mac. Ler tudo como latin1 — byte igual a ponto
+// de código — acerta só o miolo: no windows-1252 a faixa 0x80–0x9F virava
+// controle invisível (lá moram aspas curvas, travessão e reticências), e num
+// PDF feito no Mac o acento inteiro sai trocado, porque `ó` é 0x97 lá e
+// travessão aqui. As duas tabelas já existem no `TextDecoder`; escrever à mão
+// seria copiar 256 linhas que o runtime tem certas.
+const PADRAO = 'windows-1252';
+const TABELAS = new Map();
+
+function tabelaBase(nome) {
+  let tabela = TABELAS.get(nome);
+  if (!tabela) {
+    const decoder = new TextDecoder(nome);
+    tabela = Array.from({ length: 256 }, (_, b) => decoder.decode(new Uint8Array([b])));
+    TABELAS.set(nome, tabela);
+  }
+  return tabela;
+}
+
+/** Byte de fonte que não foi identificada: o palpite é o do Windows. */
+function byteWinAnsi(b) {
+  return tabelaBase(PADRAO)[b];
+}
+
+// Nome de glifo do /Differences. Os compostos são gerados em vez de tabelados:
+// `eacute` é `e` mais o acento agudo combinante, normalizado. Cobre a família
+// inteira (`atilde`, `ccedilla`, `Ocircumflex`…) sem lista de trezentas linhas.
+const ACENTOS = {
+  acute: '\u0301', grave: '\u0300', circumflex: '\u0302', tilde: '\u0303',
+  dieresis: '\u0308', cedilla: '\u0327', ring: '\u030a', caron: '\u030c',
+  macron: '\u0304', breve: '\u0306', ogonek: '\u0328', dotaccent: '\u0307',
+  hungarumlaut: '\u030b'
+};
+const GLIFOS = {
+  space: ' ', exclam: '!', quotedbl: '"', numbersign: '#', dollar: '$',
+  percent: '%', ampersand: '&', quotesingle: "'", parenleft: '(', parenright: ')',
+  asterisk: '*', plus: '+', comma: ',', hyphen: '-', period: '.', slash: '/',
+  zero: '0', one: '1', two: '2', three: '3', four: '4', five: '5', six: '6',
+  seven: '7', eight: '8', nine: '9', colon: ':', semicolon: ';', less: '<',
+  equal: '=', greater: '>', question: '?', at: '@', bracketleft: '[',
+  backslash: '\\', bracketright: ']', asciicircum: '^', underscore: '_',
+  braceleft: '{', bar: '|', braceright: '}', asciitilde: '~',
+  quoteleft: '‘', quoteright: '’', quotedblleft: '“',
+  quotedblright: '”', quotesinglbase: '‚', quotedblbase: '„',
+  endash: '–', emdash: '—', ellipsis: '…', bullet: '•',
+  dagger: '†', daggerdbl: '‡', perthousand: '‰',
+  fi: 'ﬁ', fl: 'ﬂ', germandbls: 'ß', ae: 'æ', AE: 'Æ',
+  oe: 'œ', OE: 'Œ', eth: 'ð', Eth: 'Ð', thorn: 'þ',
+  Thorn: 'Þ', degree: '°', plusminus: '±', euro: '€',
+  sterling: '£', yen: '¥', cent: '¢', section: '§',
+  paragraph: '¶', copyright: '©', registered: '®',
+  trademark: '™', ordfeminine: 'ª', ordmasculine: 'º',
+  guillemotleft: '«', guillemotright: '»', questiondown: '¿',
+  exclamdown: '¡', multiply: '×', divide: '÷',
+  minus: '−', fraction: '⁄', nbspace: ' ', currency: '¤'
+};
+
+function glifoParaTexto(nome) {
+  if (GLIFOS[nome]) return GLIFOS[nome];
+  if (/^[A-Za-z]$/.test(nome)) return nome;
+  // `uni00E9` e `u00E9`: o próprio ponto de código, escrito no nome.
+  const direto = /^uni([0-9A-Fa-f]{4})$/.exec(nome) || /^u([0-9A-Fa-f]{4,6})$/.exec(nome);
+  if (direto) {
+    const cp = parseInt(direto[1], 16);
+    return cp > 0x10ffff ? null : String.fromCodePoint(cp);
+  }
+  const composto = /^([A-Za-z])([a-z]+)$/.exec(nome);
+  if (composto && ACENTOS[composto[2]]) {
+    return (composto[1] + ACENTOS[composto[2]]).normalize('NFC');
+  }
+  return null; // glifo desenhado (logo, ícone): não tem letra correspondente
+}
+
+/** Hexadecimal de destino do CMap: pares de 4 dígitos, UTF-16BE. */
+function hexParaTexto(hex) {
+  if (hex.length <= 2) return String.fromCharCode(parseInt(hex, 16));
+  let out = '';
+  for (let i = 0; i + 3 < hex.length; i += 4) {
+    out += String.fromCharCode(parseInt(hex.slice(i, i + 4), 16));
+  }
+  return out;
+}
+
+/**
+ * CMap do /ToUnicode: é ele que diz o que cada código da fonte quer dizer.
+ *
+ * Fonte de subconjunto — a que sai de qualquer gerador moderno — numera os
+ * glifos a partir de 1, na ordem em que aparecem no documento. Sem este mapa os
+ * bytes do fluxo não são texto em codificação nenhuma: são índices.
+ */
+function parseCMap(text) {
+  const mapa = new Map();
+  let largura = 2;
+  const espaco = /begincodespacerange([\s\S]*?)endcodespacerange/.exec(text);
+  const primeiro = espaco && /<([0-9A-Fa-f]+)>/.exec(espaco[1]);
+  if (primeiro) largura = Math.max(1, Math.min(2, Math.ceil(primeiro[1].length / 2)));
+
+  for (const bloco of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
+    for (const par of bloco[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      mapa.set(parseInt(par[1], 16), hexParaTexto(par[2]));
+    }
+  }
+  for (const bloco of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+    const re = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(?:<([0-9A-Fa-f]+)>|\[([\s\S]*?)\])/g;
+    for (const m of bloco[1].matchAll(re)) {
+      const lo = parseInt(m[1], 16);
+      const hi = parseInt(m[2], 16);
+      if (hi < lo || hi - lo > 0xffff) continue;
+      if (m[3] !== undefined) {
+        // Faixa contínua: o destino anda junto com o código de origem.
+        const base = parseInt(m[3], 16);
+        const digitos = m[3].length;
+        for (let c = lo; c <= hi; c++) {
+          mapa.set(c, hexParaTexto((base + c - lo).toString(16).padStart(digitos, '0')));
+        }
+      } else {
+        [...m[4].matchAll(/<([0-9A-Fa-f]+)>/g)].forEach((d, i) => {
+          if (lo + i <= hi) mapa.set(lo + i, hexParaTexto(d[1]));
+        });
       }
     }
   }
-  if (line.length) out.push(line.join(''));
+  return mapa.size ? { mapa, largura } : null;
+}
+
+/**
+ * Tabela de 256 posições da fonte: a base que ela declarou, com o /Differences
+ * por cima. É o /Differences que dá nome a cada posição trocada — `eacute` no
+ * lugar do byte 233 —, e sem ele a base sozinha já resolve o texto comum.
+ */
+function tabelaDeEncoding(dict) {
+  const base = /\/MacRomanEncoding\b/.test(dict) ? 'macintosh' : PADRAO;
+  const tabela = tabelaBase(base).slice();
+
+  const diferencas = /\/Differences\s*\[([\s\S]*?)\]/.exec(dict);
+  if (diferencas) {
+    let code = 0;
+    for (const item of diferencas[1].matchAll(/(\d+)|\/([^\s/\][()<>]+)/g)) {
+      if (item[1] !== undefined) {
+        code = Number(item[1]);
+      } else if (code < 256) {
+        const letra = glifoParaTexto(item[2]);
+        if (letra !== null) tabela[code] = letra;
+        code += 1;
+      }
+    }
+  }
+  return tabela;
+}
+
+/** Decodifica os bytes de uma string literal com o que a fonte declarou. */
+function bytesComFonte(bytes, fonte) {
+  if (fonte?.cmap) {
+    const { mapa, largura } = fonte.cmap;
+    let out = '';
+    for (let i = 0; i + largura <= bytes.length; i += largura) {
+      let code = 0;
+      for (let k = 0; k < largura; k++) code = (code << 8) | (bytes.charCodeAt(i + k) & 0xff);
+      out += mapa.get(code) ?? '';
+    }
+    return out;
+  }
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes.charCodeAt(i) & 0xff;
+    out += fonte?.tabela?.[b] ?? byteWinAnsi(b);
+  }
+  return out;
+}
+
+/** Decodifica string hexadecimal, que é a forma usual das fontes com CMap. */
+function hexComFonte(hex, fonte) {
+  if (fonte?.cmap) {
+    const passo = fonte.cmap.largura * 2;
+    let out = '';
+    for (let i = 0; i + passo <= hex.length; i += passo) {
+      out += fonte.cmap.mapa.get(parseInt(hex.slice(i, i + passo), 16)) ?? '';
+    }
+    return out;
+  }
+  if (fonte?.tabela && hex.length % 4 !== 0) {
+    let out = '';
+    for (let i = 0; i + 1 < hex.length; i += 2) {
+      const b = parseInt(hex.slice(i, i + 2), 16);
+      out += fonte.tabela[b] ?? byteWinAnsi(b);
+    }
+    return out;
+  }
+  // Sem fonte identificada, hexadecimal em PDF é quase sempre UTF-16BE.
+  let out = '';
+  for (let i = 0; i + 3 < hex.length; i += 4) {
+    const code = parseInt(hex.slice(i, i + 4), 16);
+    if (code > 8 && code < 0xfffd) out += String.fromCharCode(code);
+  }
+  return out;
+}
+
+/** Junta as strings dos operadores de texto de um fluxo já descomprimido. */
+function textFromContentStream(content, fontes) {
+  const out = [];
+  // Tj / TJ / ' / " — o que carrega texto visível. `Tf` entra porque é ele que
+  // diz qual fonte está valendo, e a fonte é quem sabe decodificar os bytes.
+  const re =
+    /\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]+>|\/[^\s/<>[\]()]+\s+[\d.]+\s+Tf|\bTJ\b|\bTj\b|\bTD\b|\bTd\b|\bT\*\b|\bET\b|'|"/g;
+  let line = [];
+  let fonte = null;
+  const fecharLinha = () => {
+    if (line.length) {
+      out.push(line.join(''));
+      line = [];
+    }
+  };
+  for (const match of content.match(re) || []) {
+    if (match.startsWith('(')) {
+      line.push(bytesComFonte(unescapePdf(match.slice(1, -1)), fonte));
+    } else if (match.startsWith('<')) {
+      line.push(hexComFonte(match.slice(1, -1).replace(/\s+/g, ''), fonte));
+    } else if (match.endsWith('Tf')) {
+      fonte = fontes?.get(/^\/(\S+)/.exec(match)[1]) ?? null;
+    } else if (match !== 'Tj' && match !== 'TJ') {
+      // Td / TD / T* / ET / ' / " — todos trocam de linha ou fecham o bloco.
+      // `Tj` e `TJ` não: dois deles seguidos escrevem na mesma linha, e quebrar
+      // ali parte no meio a frase que a página mostra inteira.
+      fecharLinha();
+    }
+  }
+  fecharLinha();
   return out.join('\n');
 }
 
@@ -235,20 +438,35 @@ function textFromContentStream(content) {
 // o mesmo FlateDecode do conteúdo — e descomprimidos viram binário que passava
 // por "texto do documento" e ia parar no prompt do modelo.
 const FLUXO_SEM_TEXTO =
-  /\/(?:FontFile\d?|Length1|ToUnicode|ICCBased)\b|\/Subtype\s*\/(?:Type1C|TrueType|OpenType|CIDFontType0C|CIDFontType2|Image|XML)\b|\/Type\s*\/(?:Metadata|ObjStm|XRef|EmbeddedFile|Font|FontDescriptor)\b/;
+  /\/(?:FontFile\d?|Length1|ToUnicode|ICCBased)\b|\/Subtype\s*\/(?:Type1C|TrueType|OpenType|CIDFontType0C|CIDFontType2|Image|XML)\b|\/Type\s*\/(?:Metadata|ObjStm|XRef|EmbeddedFile|Font|FontDescriptor|CMap)\b/;
 
 // Teto de descompressão por fluxo: zip e PDF podem declarar poucos kB e abrir
 // centenas de MB, e o processo morre antes de chegar a qualquer validação.
 const MAX_INFLADO = 64 * 1024 * 1024;
 
-function fromPdf(buffer) {
-  const parts = [];
-  let streams = 0;
-  let failed = 0;
+function inflar(raw) {
+  try {
+    return inflateSync(raw, { maxOutputLength: MAX_INFLADO });
+  } catch {
+    try {
+      return inflateRawSync(raw, { maxOutputLength: MAX_INFLADO });
+    } catch {
+      return null;
+    }
+  }
+}
 
-  // Cada `stream ... endstream` é um bloco; os de conteúdo vêm comprimidos.
+/**
+ * Todos os `stream ... endstream`, com o dicionário que pertence a cada um.
+ *
+ * O dicionário é procurado a partir do `obj` mais próximo, e não numa janela
+ * fixa de bytes atrás: a janela alcançava o objeto anterior, e uma página
+ * escrita logo depois de uma fonte era descartada como se fosse a fonte.
+ */
+function lerFluxos(buffer) {
   const marker = Buffer.from('stream');
   const endMarker = Buffer.from('endstream');
+  const fluxos = [];
   let cursor = 0;
 
   while (cursor < buffer.length) {
@@ -261,26 +479,115 @@ function fromPdf(buffer) {
     if (buffer[from] === 0x0d) from++;
     if (buffer[from] === 0x0a) from++;
 
-    const header = buffer.toString('latin1', Math.max(0, start - 400), start);
-    const raw = buffer.subarray(from, end);
+    const janela = buffer.toString('latin1', Math.max(0, start - 4000), start);
+    const abre = [...janela.matchAll(/(\d+)\s+\d+\s+obj\b/g)].pop();
+    fluxos.push({
+      num: abre ? Number(abre[1]) : null,
+      header: abre ? janela.slice(abre.index) : janela.slice(-400),
+      raw: buffer.subarray(from, end)
+    });
     cursor = end + endMarker.length;
-    streams++;
+  }
+  return fluxos;
+}
 
-    if (FLUXO_SEM_TEXTO.test(header)) continue;
+/** Objetos guardados dentro de um /ObjStm, que é onde o PDF 1.5+ põe as fontes. */
+function objetosDeObjStm(header, texto) {
+  const n = Number(/\/N\s+(\d+)/.exec(header)?.[1]);
+  const first = Number(/\/First\s+(\d+)/.exec(header)?.[1]);
+  if (!n || !Number.isFinite(first)) return [];
+  const pares = texto.slice(0, first).trim().split(/\s+/).map(Number);
+  const objetos = [];
+  for (let i = 0; i < n; i++) {
+    const num = pares[i * 2];
+    const off = pares[i * 2 + 1];
+    if (!Number.isFinite(num) || !Number.isFinite(off)) break;
+    const proximo = pares[i * 2 + 3];
+    const fim = i + 1 < n && Number.isFinite(proximo) ? first + proximo : texto.length;
+    objetos.push({ num, dict: texto.slice(first + off, fim) });
+  }
+  return objetos;
+}
 
-    let data = raw;
-    if (/FlateDecode/.test(header)) {
-      try {
-        data = inflateSync(raw, { maxOutputLength: MAX_INFLADO });
-      } catch {
-        try {
-          data = inflateRawSync(raw, { maxOutputLength: MAX_INFLADO });
-        } catch {
-          failed++;
-          continue;
+/**
+ * Nome de recurso (`/F1`) → como decodificar os bytes daquela fonte.
+ *
+ * Duas travessias: primeiro os dicionários — de onde saem `/Font << /F1 4 0 R >>`
+ * e o objeto de fonte com seu /ToUnicode —, depois os CMaps já descomprimidos.
+ */
+function mapearFontes(buffer, fluxos) {
+  const dicionarios = [buffer.toString('latin1')];
+  const cmapPorObjeto = new Map();
+
+  for (const fluxo of fluxos) {
+    if (/\/Type\s*\/ObjStm\b/.test(fluxo.header)) {
+      const aberto = inflar(fluxo.raw);
+      if (aberto) {
+        for (const obj of objetosDeObjStm(fluxo.header, aberto.toString('latin1'))) {
+          dicionarios.push(`${obj.num} 0 obj ${obj.dict} endobj`);
         }
       }
-    } else if (/DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode/.test(header)) {
+      continue;
+    }
+    if (fluxo.num === null) continue;
+    // Só vale a pena abrir o que pode ser CMap: mapa de caracteres é pequeno, e
+    // abrir página grande à toa custa tempo em documento de centenas de MB.
+    if (!/\/Type\s*\/CMap\b|\/ToUnicode\b/.test(fluxo.header) && fluxo.raw.length > 256 * 1024) continue;
+    const aberto = inflar(fluxo.raw) ?? fluxo.raw;
+    const texto = aberto.toString('latin1');
+    if (!texto.includes('begincmap')) continue;
+    const cmap = parseCMap(texto);
+    if (cmap) cmapPorObjeto.set(fluxo.num, cmap);
+  }
+
+  const tudo = dicionarios.join('\n');
+
+  // Objeto de fonte → o que ele declarou.
+  const fontePorObjeto = new Map();
+  for (const m of tudo.matchAll(/(\d+)\s+\d+\s+obj\b([\s\S]{0,4000}?)(?:endobj|stream\b)/g)) {
+    const dict = m[2];
+    if (!/\/Type\s*\/Font\b/.test(dict)) continue;
+    const toUnicode = /\/ToUnicode\s+(\d+)\s+\d+\s+R/.exec(dict);
+    const fonte = {
+      cmap: toUnicode ? cmapPorObjeto.get(Number(toUnicode[1])) ?? null : null,
+      tabela: tabelaDeEncoding(dict)
+    };
+    if (fonte.cmap || fonte.tabela) fontePorObjeto.set(Number(m[1]), fonte);
+  }
+
+  // Nome do recurso → objeto de fonte. O mesmo `/F1` costuma valer no documento
+  // inteiro; quando dois apontam pra fontes diferentes, fica a que tem CMap,
+  // que é a única capaz de decodificar índice de glifo.
+  const porNome = new Map();
+  for (const bloco of tudo.matchAll(/\/Font\s*<<([\s\S]{0,4000}?)>>/g)) {
+    for (const par of bloco[1].matchAll(/\/([^\s/<>[\]()]+)\s+(\d+)\s+\d+\s+R/g)) {
+      const fonte = fontePorObjeto.get(Number(par[2]));
+      if (!fonte) continue;
+      const atual = porNome.get(par[1]);
+      if (!atual || (!atual.cmap && fonte.cmap)) porNome.set(par[1], fonte);
+    }
+  }
+  return porNome;
+}
+
+function fromPdf(buffer) {
+  const parts = [];
+  let failed = 0;
+
+  const fluxos = lerFluxos(buffer);
+  const fontes = mapearFontes(buffer, fluxos);
+
+  for (const fluxo of fluxos) {
+    if (FLUXO_SEM_TEXTO.test(fluxo.header)) continue;
+
+    let data = fluxo.raw;
+    if (/FlateDecode/.test(fluxo.header)) {
+      data = inflar(fluxo.raw);
+      if (!data) {
+        failed++;
+        continue;
+      }
+    } else if (/DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode/.test(fluxo.header)) {
       continue; // imagem
     }
 
@@ -289,7 +596,7 @@ function fromPdf(buffer) {
     // por acaso tivesse os bytes de `Tj` era lido como se fosse frase.
     if (!/\bBT\b/.test(conteudo)) continue;
 
-    const text = textFromContentStream(conteudo);
+    const text = textFromContentStream(conteudo, fontes);
     // Basta ter palavra de verdade: um corte por tamanho descartaria a página
     // que só tem um título curto.
     if (/\p{L}{2,}/u.test(text)) parts.push(text);
@@ -305,12 +612,23 @@ function fromPdf(buffer) {
     return {
       text: '',
       note:
-        streams === 0
+        fluxos.length === 0
           ? 'PDF sem fluxo de conteúdo legível'
           : 'PDF sem texto extraível — provavelmente é digitalização em imagem, que precisaria de OCR'
     };
   }
-  return { text, note: failed ? `${failed} fluxo(s) do PDF não abriram` : null };
+
+  const avisos = [];
+  if (failed) avisos.push(`${failed} fluxo(s) do PDF não abriram`);
+  // Controle C1 no resultado é a assinatura de fonte cuja codificação não deu
+  // pra descobrir. Melhor dizer que a leitura saiu torta do que entregar a
+  // frase furada como se fosse o documento.
+  if (/[\u0080-\u009f]/.test(text)) {
+    avisos.push(
+      'parte do PDF usa fonte sem mapa de caracteres legível; alguns símbolos podem ter saído errados'
+    );
+  }
+  return { text, note: avisos.join('; ') || null };
 }
 
 // ------------------------------------------------------------------ entrada
