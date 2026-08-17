@@ -9,6 +9,7 @@ const home = useTempHome();
 const { addAttachment, listAttachments, deleteAttachment, recallChunks, renderDocuments, INLINE_LIMIT } =
   await import('../server/documents.mjs');
 const { run, all, now } = await import('../server/db.mjs');
+const { createChat } = await import('../server/chat.mjs');
 
 after(() => home.cleanup());
 
@@ -201,4 +202,47 @@ test('a varredura remove arquivo sem dono e poupa o que tem', async () => {
   assert.ok(resultado.removed >= 1);
   assert.ok(!existsSync(orfao), 'o órfão tinha que ter saído');
   assert.ok(existsSync(vivo.path), 'o anexo com dono não pode ser varrido junto');
+});
+
+test('arquivo curto entra no prompt sem repetir trecho', async () => {
+  // Parágrafo maior que o pedaço é fatiado com 200 caracteres de sobreposição —
+  // de propósito, pra busca não perder frase cortada na emenda. Remontar o
+  // arquivo a partir dos pedaços devolvia essa sobreposição pro modelo.
+  const paragrafo = `${'O contrato prevê entrega em trinta dias. '.repeat(70)}FIM-DO-DOCUMENTO.`;
+  const chat = createChat({ title: 'x' });
+  await addAttachment({
+    buffer: Buffer.from(paragrafo, 'utf8'),
+    name: 'contrato.txt',
+    mime: 'text/plain',
+    chatId: chat.id
+  });
+
+  const { block } = await renderDocuments('contrato', { chatId: chat.id, projectId: null });
+  const vezes = block.split('FIM-DO-DOCUMENTO').length - 1;
+  assert.equal(vezes, 1, 'o fim do arquivo não pode aparecer duas vezes no prompt');
+
+  // E o tamanho do bloco tem que bater com o do arquivo, não com a soma dos
+  // pedaços — que é maior justamente pela sobreposição.
+  const corpo = block.slice(block.indexOf('## contrato.txt'));
+  assert.ok(
+    corpo.length < paragrafo.length + 200,
+    `bloco com ${corpo.length} caracteres pra um arquivo de ${paragrafo.length}`
+  );
+});
+
+test('última linha curta do arquivo não some da indexação', async () => {
+  // Pedaço com 20 caracteres ou menos era descartado. A última linha de um
+  // documento costuma ser exatamente isso: assinatura, total, código.
+  const texto = `${'linha de conteúdo do relatório\n\n'.repeat(80)}Total: R$ 91,20`;
+  const chat = createChat({ title: 'y' });
+  const att = await addAttachment({
+    buffer: Buffer.from(texto, 'utf8'),
+    name: 'relatorio.txt',
+    mime: 'text/plain',
+    chatId: chat.id
+  });
+
+  const pedacos = all('SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord', att.id);
+  const inteiro = pedacos.map((p) => p.text).join('\n');
+  assert.match(inteiro, /Total: R\$ 91,20/, 'a última linha tinha que estar indexada');
 });

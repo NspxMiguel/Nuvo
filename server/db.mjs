@@ -261,6 +261,11 @@ function migrate() {
   addColumn('projects', 'icon', "TEXT NOT NULL DEFAULT 'folder'");
   addColumn('projects', 'color', "TEXT NOT NULL DEFAULT 'slate'");
 
+  // Texto extraído do anexo, guardado inteiro. O prompt do arquivo curto
+  // vinha da emenda dos trechos, e os trechos se sobrepõem de propósito: o
+  // parágrafo comprido aparecia duas vezes pro modelo.
+  addColumn('attachments', 'text', 'TEXT');
+
   // Ajustes por conversa: prompt, amostragem e organização da lista.
   addColumn('chats', 'system_prompt', 'TEXT');
   addColumn('chats', 'temperature', 'REAL');

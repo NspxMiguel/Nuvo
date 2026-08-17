@@ -45,7 +45,17 @@ function chunkText(text) {
     }
   }
   if (current) chunks.push(current);
-  return chunks.filter((c) => c.trim().length > 20);
+
+  // Pedaço curto era descartado, e com ele sumia a última linha de todo
+  // documento que termina em assinatura, código ou valor — justamente o que
+  // costuma ser perguntado. Em vez de apagar, cola no anterior.
+  const saida = [];
+  for (const pedaco of chunks) {
+    if (!pedaco.trim()) continue;
+    if (pedaco.trim().length <= 20 && saida.length) saida[saida.length - 1] += `\n\n${pedaco}`;
+    else saida.push(pedaco);
+  }
+  return saida;
 }
 
 /** Salva o arquivo, extrai o texto e indexa. */
@@ -70,8 +80,8 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
   // fosse pesquisável e nunca devolve nada.
   tx(() => {
     run(
-      `INSERT INTO attachments (id, chat_id, project_id, name, mime, bytes, chars, path, status, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO attachments (id, chat_id, project_id, name, mime, bytes, chars, path, status, note, text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       chatId,
       projectId,
@@ -82,6 +92,9 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
       path,
       text.trim() ? 'ok' : 'erro',
       note || null,
+      // Só o que cabe inteiro no prompt: acima disso o texto vem dos trechos
+      // recuperados, e guardar de novo seria dobrar o banco à toa.
+      text.length <= INLINE_LIMIT ? text : null,
       now()
     );
 
@@ -272,12 +285,14 @@ export async function renderDocuments(query, { chatId, projectId }) {
 
   const short = attachments.filter((a) => a.chars > 0 && a.chars <= INLINE_LIMIT);
   for (const att of short) {
-    const text = all(
-      'SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord',
-      att.id
-    )
-      .map((c) => c.text)
-      .join('\n\n');
+    // O texto guardado é o do arquivo. Emendar os trechos repetia a
+    // sobreposição de 200 caracteres que existe entre eles de propósito.
+    // Anexo de antes desta coluna cai na emenda, que é o que havia.
+    const text =
+      att.text ??
+      all('SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord', att.id)
+        .map((c) => c.text)
+        .join('\n\n');
     parts.push(`## ${att.name}\n${text}`);
     used.push({ source: att.name, whole: true });
   }
