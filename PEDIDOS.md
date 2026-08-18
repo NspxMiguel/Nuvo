@@ -713,3 +713,30 @@ Quatro coisas separadas aqui:
 4. **veredito sobre o meu rascunho:** ficou genérico, "app feito com IA", longe
    das referências. Falta personalidade e animação. O rascunho fica no branch
    como está; o prompt é que precisa carregar isso.
+
+**Feito** — o prompt está na terceira versão, com as quatro coisas:
+
+- **simplicidade em camadas**, escrita como regra e não como adjetivo: a
+  superfície nunca pede decisão nem usa palavra técnica ("provedor",
+  "embedding", "temperatura" só aparecem traduzidas); a profundidade fica a um
+  gesto; e **nada de "modo avançado"**, que seria virar dois apps;
+- **personalidade e animação**, que era o buraco de verdade. O prompt agora diz
+  em voz alta o que você disse — "não quero o app escuro com cartão e borda
+  fina que qualquer gerador devolve" — e pede três coisas: um **gesto próprio**
+  do IAUnifier (só um, proposto por ele), **movimento com sentido** (150–400 ms,
+  curva de verdade, mesma física no app inteiro) e o **detalhe que só quem
+  cuida põe**;
+- **a animação do Gemini descrita quadro a quadro.** Recortei o terço de baixo
+  do seu vídeo de 0,25 em 0,25 s pra ver o que ela faz mesmo: é uma malha de
+  pontinhos que **sobe do rodapé** e a cor **passa por âmbar → rosa → roxo →
+  azul** em ~1,5 s, assentando em azul escuro. E acontece **uma vez, na
+  entrada** — não é fundo animado o tempo todo. Virou a sexta referência,
+  `gemini-animacao.png`;
+- **a curadoria do LM Studio.** Conferi antes de escrever: o servidor **não sabe
+  nada da máquina hoje** — nenhuma linha lê RAM ou chip. O Node lê (aqui: 18 GB,
+  Apple M3 Pro, arm64), e em Apple Silicon a memória é compartilhada, então
+  "cabe" se mede pela RAM. O prompt pede a tela — resumo da máquina em
+  linguagem de gente, lista só do que cabe, uma frase de "pra que serve", e a
+  comparação "por que este e não aquele" — e **avisa que os dados ainda não
+  existem**, pra ele não inventar campo. Construir isso no back-end é tarefa
+  minha, e fica na fila.
