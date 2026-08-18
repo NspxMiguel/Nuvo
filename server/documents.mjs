@@ -17,6 +17,10 @@ const CHUNK_OVERLAP = 200;
 // algo que cabe todo. É o mesmo corte que o LM Studio faz no anexo.
 export const INLINE_LIMIT = 6000;
 
+// Teto do bloco inteiro, somando todos os anexos que entram por completo. O que
+// passar disso vira trecho recuperado, não sumiço.
+export const ORCAMENTO_INTEIRO = 24_000;
+
 /** Quebra por parágrafo, sem cortar frase no meio quando dá pra evitar. */
 function chunkText(text) {
   const clean = String(text).replace(/\r\n/g, '\n').trim();
@@ -309,7 +313,18 @@ export async function renderDocuments(query, { chatId, projectId }) {
   const parts = [];
   const used = [];
 
+  // Anexo curto entra inteiro, que é melhor do que picotar um arquivo de duas
+  // páginas. Só que "curto" é medida por arquivo, e projeto é justamente onde se
+  // junta arquivo: vinte notas de 5 mil caracteres viravam 103 mil no prompt —
+  // 26 mil tokens antes de a conversa começar, toda vez, independentemente da
+  // pergunta. Modelo local de 8k não recebe isso, e em API é conta subindo por
+  // causa de arquivo que ninguém citou.
+  //
+  // O orçamento não joga documento fora: o que não couber inteiro volta pra
+  // busca por trecho, junto com os longos, e entra só se a pergunta pedir.
   const short = attachments.filter((a) => a.chars > 0 && a.chars <= INLINE_LIMIT);
+  const rebaixados = new Set();
+  let orcamento = ORCAMENTO_INTEIRO;
   for (const att of short) {
     // O texto guardado é o do arquivo, e é buscado aqui porque a listagem não
     // carrega o documento inteiro — quem precisa dele é só o prompt. Emendar os
@@ -320,14 +335,20 @@ export async function renderDocuments(query, { chatId, projectId }) {
       all('SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord', att.id)
         .map((c) => c.text)
         .join('\n\n');
+    if (text.length > orcamento) {
+      rebaixados.add(att.name);
+      continue;
+    }
+    orcamento -= text.length;
     parts.push(`## ${att.name}\n${text}`);
     used.push({ source: att.name, whole: true });
   }
 
   const longIds = new Set(attachments.filter((a) => a.chars > INLINE_LIMIT).map((a) => a.id));
-  if (longIds.size) {
+  if (longIds.size || rebaixados.size) {
     const hits = await recallChunks(query, { chatId, projectId, limit: 6 });
-    for (const hit of hits.filter((h) => !short.some((s) => s.name === h.source))) {
+    const inteiros = new Set(short.map((a) => a.name).filter((n) => !rebaixados.has(n)));
+    for (const hit of hits.filter((h) => !inteiros.has(h.source))) {
       parts.push(`## ${hit.source} (trecho ${hit.ord + 1})\n${hit.text}`);
       used.push({ source: hit.source, ord: hit.ord, whole: false });
     }

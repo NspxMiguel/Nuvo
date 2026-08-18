@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { useTempHome } from './helpers.mjs';
 
 const home = useTempHome();
-const { addAttachment, listAttachments, deleteAttachment, recallChunks, renderDocuments, INLINE_LIMIT } =
+const { addAttachment, listAttachments, deleteAttachment, recallChunks, renderDocuments, INLINE_LIMIT, ORCAMENTO_INTEIRO } =
   await import('../server/documents.mjs');
 const { run, all, now } = await import('../server/db.mjs');
 const { createChat } = await import('../server/chat.mjs');
@@ -245,4 +245,64 @@ test('última linha curta do arquivo não some da indexação', async () => {
   const pedacos = all('SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord', att.id);
   const inteiro = pedacos.map((p) => p.text).join('\n');
   assert.match(inteiro, /Total: R\$ 91,20/, 'a última linha tinha que estar indexada');
+});
+
+test('projeto com muitos anexos não estoura o prompt', async () => {
+  // "Curto" é medida por arquivo, e projeto é onde se junta arquivo. Vinte
+  // notas de 5 mil caracteres entravam inteiras: 103 mil caracteres — uns 26
+  // mil tokens — antes de a conversa começar, toda vez, independentemente da
+  // pergunta. Modelo local de 8k não recebe isso.
+  const { uid } = await import('../server/db.mjs');
+  const projectId = uid();
+  run('INSERT INTO projects (id, name, created_at) VALUES (?,?,?)', projectId, 'muitos', now());
+
+  for (let i = 0; i < 20; i++) {
+    const corpo =
+      i === 17
+        ? 'Relatório sobre o gerador de vapor da caldeira Zephyr. ' + 'Detalhe operacional. '.repeat(200)
+        : `Nota ${i} do projeto. ` + `Conteúdo genérico sobre o assunto ${i}. `.repeat(140);
+    await addAttachment({
+      projectId,
+      name: `nota-${i}.txt`,
+      mime: 'text/plain',
+      buffer: Buffer.from(corpo, 'utf8')
+    });
+  }
+
+  const { block, used } = await renderDocuments('caldeira Zephyr gerador de vapor', {
+    chatId: null,
+    projectId
+  });
+
+  const inteiros = used.filter((u) => u.whole);
+  // Teto: o que entra inteiro cabe no orçamento (mais o último, que só é
+  // recusado depois de medido), e os trechos são 6 de 1400 no máximo.
+  const teto = ORCAMENTO_INTEIRO + INLINE_LIMIT + 6 * 1400;
+  assert.ok(block.length <= teto, `o bloco saiu com ${block.length} caracteres, teto ${teto}`);
+  assert.ok(inteiros.length < 20, `${inteiros.length} de 20 entraram inteiros`);
+  assert.ok(inteiros.length >= 1, 'o orçamento zerou o bloco em vez de reparti-lo');
+
+  // E o que foi rebaixado não sumiu: continua alcançável pela pergunta.
+  assert.ok(/Zephyr/.test(block), 'o anexo rebaixado ficou invisível pra busca');
+  assert.ok(
+    used.some((u) => !u.whole && u.source === 'nota-17.txt'),
+    `o trecho não foi creditado: ${JSON.stringify(used)}`
+  );
+});
+
+test('anexo único continua entrando inteiro', async () => {
+  // O orçamento não pode punir o caso comum: um arquivo de duas páginas é
+  // melhor inteiro do que picotado.
+  const { uid } = await import('../server/db.mjs');
+  const projectId = uid();
+  run('INSERT INTO projects (id, name, created_at) VALUES (?,?,?)', projectId, 'um só', now());
+  await addAttachment({
+    projectId,
+    name: 'contrato.txt',
+    mime: 'text/plain',
+    buffer: Buffer.from('Cláusula sobre prazo de entrega. '.repeat(140), 'utf8')
+  });
+
+  const { used } = await renderDocuments('qual o prazo', { chatId: null, projectId });
+  assert.deepEqual(used, [{ source: 'contrato.txt', whole: true }]);
 });

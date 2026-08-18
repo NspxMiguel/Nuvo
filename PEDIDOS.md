@@ -621,3 +621,27 @@ Isso expõe outra coisa que fica anotada: **o adaptador `anthropic.mjs` nunca fo
 exercitado contra a API de verdade** nesta instalação, só contra teste com rede
 encenada. O mesmo vale pro `google.mjs`. Quando você ligar uma chave dessas, o
 primeiro turno merece ser olhado de perto.
+
+### Documentos no prompt (18/08/2026)
+
+- **projeto com vários arquivos estourava o prompt, e sempre igual.** Anexo
+  "curto" (até 6 mil caracteres) entrava inteiro, o que é certo pra um arquivo
+  de duas páginas. Só que curto é medida **por arquivo**, e Projetos é
+  exatamente onde se junta arquivo. Medi: 1 anexo dá 5 mil caracteres, 5 dão 25
+  mil, 10 dão 51 mil, **20 dão 103 mil — uns 26 mil tokens** de prompt antes de
+  a conversa começar. E entravam todos, toda vez, **independentemente da
+  pergunta**: anexo curto pulava a busca inteira.
+
+  Modelo local de 8k não recebe isso, e em API é a conta subindo por causa de
+  arquivo que ninguém citou. Entrou um teto pro bloco todo (24 mil caracteres).
+  O teto **não descarta documento**: o que não couber inteiro volta pra busca
+  por trecho, junto com os longos, e entra se a pergunta pedir. Conferi com uma
+  nota escondida no meio de vinte — perguntando pelo assunto dela, ela chega por
+  trecho; o bloco caiu de 103 mil pra 22 mil caracteres e passou a depender da
+  pergunta. Anexo único continua entrando inteiro, que é o caso comum e não
+  podia piorar.
+
+O número 24 mil é meu, não seu: é o que sobra folga pra 40 mensagens de
+histórico e 12 memórias num modelo de 8k. Se for pouco quando você usar modelo de
+contexto grande, isso vira ajuste na Configuração — não mexi na tela agora pra
+não colidir com o Claude Design.
