@@ -645,3 +645,24 @@ O número 24 mil é meu, não seu: é o que sobra folga pra 40 mensagens de
 histórico e 12 memórias num modelo de 8k. Se for pouco quando você usar modelo de
 contexto grande, isso vira ajuste na Configuração — não mexi na tela agora pra
 não colidir com o Claude Design.
+
+### Repositório pro Claude Design (18/08/2026)
+
+*"sobe projeto no github pro claude desing analiza codigo"*
+
+Já estava no GitHub e já era público — `NspxMiguel/IAUnifier`, tudo sincronizado,
+nada pendente. Então o trabalho foi outro: conferir que dá pra ler de fora com
+segurança, e dizer ao Claude Design onde olhar.
+
+**Auditoria do que está exposto** (o repositório é público, então isso importa
+mais do que o resto): nenhuma chave, token, `.env` ou credencial no diretório de
+trabalho **nem no histórico inteiro** — procurei por `sk-`, `ghp_`, `gsk_`,
+`AIza`, `xox`, chave privada PEM e valor literal de `accessToken`. O
+`.gitignore` cobre banco, WAL e a pasta de dados. As quatro citações suas que
+estão no `PEDIDOS.md` público são inofensivas ("funcionando em mobile ja?",
+"prompt pro claude desing") — fica dito porque é público, não porque é problema.
+
+**O que entrou:** o `PROMPT-CLAUDE-DESIGN.md` agora leva o endereço do
+repositório e um mapa dos seis arquivos de `web/` com linha e responsabilidade,
+começando pelo `index.html` porque é onde estão os `id` que não podem sumir.
+Conferi que os quatro principais abrem sem login (200 no raw do GitHub).
