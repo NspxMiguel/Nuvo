@@ -302,6 +302,20 @@ para analisador símbolo a símbolo, mais o mapa de fontes por página:
   escapava do extrator (`RangeError` ao juntar os dicionários num string só)
   deixou de existir.
 
+- **entidade quebrada em EPUB** — `&#99999999;` não é caractere nenhum, e
+  converter isso responde com exceção. Num livro convertido por ferramenta, e
+  eles têm, a exceção subia até o upload e derrubava o pedido inteiro. Agora a
+  entidade impossível fica na tela como veio, e metade de par substituto — que
+  vira losango na volta do banco — some em vez de corromper calada;
+- **rede de segurança na leitura** — cada leitor desmonta formato binário
+  escrito por outra pessoa. Qualquer coisa que escape vira aviso no anexo, não
+  erro no pedido;
+- **/Length ignorado** — o fim do fluxo era achado procurando a palavra
+  `endstream`, e fluxo sem compressão pode ter esses nove bytes dentro do
+  próprio texto: a página era cortada ali, calada. Agora vale o tamanho
+  declarado, quando ele confere;
+- **CMap incompleto** — mapa que cobre parte dos códigos fazia o resto sumir.
+  O que ele não cobre cai na tabela que a fonte declarou;
 - **cadeia de filtros** — `/Filter [ /ASCII85Decode /FlateDecode ]` tem o
   ASCII85 como primeiro passo, e ele não era desfeito: a tentativa de
   descomprimir a codificação falhava e a página inteira era dada como

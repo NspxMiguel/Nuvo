@@ -156,6 +156,22 @@ const ENTIDADES = {
   ecirc: 'ê', iacute: 'í', oacute: 'ó', ocirc: 'ô', otilde: 'õ', uacute: 'ú'
 };
 
+/**
+ * Ponto de código de uma entidade numérica, ou a entidade como veio.
+ *
+ * `&#99999999;` não é caractere nenhum, e `String.fromCodePoint` responde a
+ * isso com exceção. Num livro com uma entidade quebrada — e livro convertido
+ * por ferramenta tem —, a exceção subia até o upload e derrubava o pedido
+ * inteiro, em vez de o capítulo sair com um pedaço estranho.
+ */
+function pontoDeCodigo(n, original) {
+  if (!Number.isFinite(n) || n < 0 || n > 0x10ffff) return original;
+  // Metade de par substituto sozinha não é texto: gravada no banco ela vira
+  // U+FFFD na volta, e some sem ninguém saber por quê.
+  if (n >= 0xd800 && n <= 0xdfff) return '';
+  return String.fromCodePoint(n);
+}
+
 /** Texto de um XHTML de EPUB: estrutura de página, não de documento do Word. */
 function htmlText(html) {
   return String(html)
@@ -167,8 +183,8 @@ function htmlText(html) {
     .replace(/<\/(p|div|h[1-6]|li|tr|blockquote|section|article)\s*>/gi, '\n\n')
     .replace(/<\/(td|th)\s*>/gi, '\t')
     .replace(/<[^>]+>/g, '')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-f]+);/gi, (todo, hex) => pontoDeCodigo(parseInt(hex, 16), todo))
+    .replace(/&#(\d+);/g, (todo, dec) => pontoDeCodigo(Number(dec), todo))
     .replace(/&(\w+);/g, (todo, nome) => {
       const basico = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }[nome];
       return basico ?? ENTIDADES[nome.toLowerCase()] ?? todo;
@@ -317,13 +333,20 @@ function parseCMap(text) {
   // /begincodespacerange. Fonte simples de um byte costuma declarar
   // <0000> <FFFF> por descuido do gerador e mapear com `<41> <0041>`: acreditar
   // no cabeçalho fazia ler dois bytes por vez e apagar o texto inteiro do PDF.
-  const fontes = [...text.matchAll(/<([0-9A-Fa-f]+)>\s*(?:<[0-9A-Fa-f]*>|\[)/g)];
-  const curtos = fontes.filter((m) => m[1].length <= 2).length;
-  let largura = fontes.length && curtos > fontes.length / 2 ? 1 : 2;
-  if (!fontes.length) {
+  const origens = [...text.matchAll(/<([0-9A-Fa-f]+)>\s*(?:<[0-9A-Fa-f]*>|\[)/g)];
+  let largura = 2;
+  if (origens.length) {
+    // A mais frequente entre as entradas: uma linha torta não muda a leitura.
+    const contagem = new Map();
+    for (const m of origens) {
+      const bytes = Math.max(1, Math.min(4, Math.ceil(m[1].length / 2)));
+      contagem.set(bytes, (contagem.get(bytes) || 0) + 1);
+    }
+    largura = [...contagem].sort((a, b) => b[1] - a[1])[0][0];
+  } else {
     const espaco = /begincodespacerange([\s\S]{0,4000}?)endcodespacerange/.exec(text);
     const primeiro = espaco && /<([0-9A-Fa-f]+)>/.exec(espaco[1]);
-    if (primeiro) largura = Math.max(1, Math.min(2, Math.ceil(primeiro[1].length / 2)));
+    if (primeiro) largura = Math.max(1, Math.min(4, Math.ceil(primeiro[1].length / 2)));
   }
 
   for (const bloco of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
@@ -364,6 +387,10 @@ function parseCMap(text) {
 function tabelaDeEncoding(dict) {
   const base = /\/MacRomanEncoding\b/.test(dict) ? 'macintosh' : PADRAO;
   const tabela = tabelaBase(base).slice();
+  // Declarou de verdade, ou é o palpite? A diferença importa quando a fonte
+  // também tem CMap: aí o que o CMap não cobre só pode cair na tabela se o
+  // arquivo tiver dito que aqueles bytes significam alguma coisa.
+  tabela.declarada = /\/(?:WinAnsi|MacRoman|MacExpert|Standard)Encoding\b|\/Differences\b/.test(dict);
 
   const diferencas = /\/Differences\s*\[([\s\S]*?)\]/.exec(dict);
   if (diferencas) {
@@ -394,11 +421,14 @@ const MAX_TEXTO_TOTAL = 32 * 1024 * 1024;
 function bytesComFonte(bytes, fonte) {
   if (fonte?.cmap) {
     const { mapa, largura } = fonte.cmap;
+    // CMap incompleto é comum: mapeia o que a fonte usa e ignora o resto.
+    // Jogar fora o que ele não cobre engolia trechos inteiros em silêncio.
+    const sobra = largura === 1 && fonte.tabela?.declarada ? fonte.tabela : null;
     let out = '';
     for (let i = 0; i + largura <= bytes.length && out.length < MAX_TEXTO_FLUXO; i += largura) {
       let code = 0;
       for (let k = 0; k < largura; k++) code = (code << 8) | (bytes.charCodeAt(i + k) & 0xff);
-      out += mapa.get(code) ?? '';
+      out += mapa.get(code) ?? sobra?.[code] ?? '';
     }
     return out;
   }
@@ -787,6 +817,12 @@ function objetosDeObjStm(header, aberto) {
 }
 
 /** Todos os `stream ... endstream`, com o número do objeto que é dono de cada um. */
+/** Depois do tamanho declarado só pode vir espaço e a palavra `endstream`. */
+function confereFim(buffer, pos) {
+  const depois = buffer.toString('latin1', pos, Math.min(pos + 20, buffer.length));
+  return /^[\s\0]{0,4}endstream/.test(depois);
+}
+
 function lerFluxos(buffer, texto, objetos) {
   const marker = Buffer.from('stream');
   const endMarker = Buffer.from('endstream');
@@ -819,12 +855,22 @@ function lerFluxos(buffer, texto, objetos) {
       }
     }
 
-    fluxos.push({
-      num: dono >= 0 ? objetos[dono].num : null,
-      header: dono >= 0 ? objetos[dono].dict : texto.slice(Math.max(0, start - 400), start),
-      raw: buffer.subarray(from, end)
-    });
-    cursor = end + endMarker.length;
+    const header = dono >= 0 ? objetos[dono].dict : texto.slice(Math.max(0, start - 400), start);
+
+    // O tamanho declarado manda mais que a busca pela palavra `endstream`.
+    // Fluxo não comprimido pode ter esses nove bytes no meio do conteúdo, e aí
+    // a página era cortada calada no ponto errado. Só vale quando o número está
+    // no próprio dicionário e cabe no arquivo — /Length que aponta pra outro
+    // objeto, ou que mente, cai na busca de novo.
+    const declarado = Number(/\/Length\s+(\d+)(?!\s+\d+\s+R)/.exec(header)?.[1]);
+    const porTamanho = Number.isFinite(declarado) ? from + declarado : -1;
+    const fim =
+      porTamanho > from && porTamanho <= buffer.length && confereFim(buffer, porTamanho)
+        ? porTamanho
+        : end;
+
+    fluxos.push({ num: dono >= 0 ? objetos[dono].num : null, header, raw: buffer.subarray(from, fim) });
+    cursor = Math.max(fim, end) + endMarker.length;
   }
   return fluxos;
 }
@@ -1075,18 +1121,34 @@ function fromPdf(buffer) {
 /**
  * @returns {{text: string, note: string|null, kind: string}}
  */
+/**
+ * Envelope que garante o contrato: ler arquivo do usuário devolve um resultado,
+ * nunca uma exceção.
+ *
+ * Cada leitor aqui desmonta formato binário escrito por outra pessoa. Um
+ * arquivo estranho — e o usuário vai mandar um — não pode derrubar o pedido de
+ * upload: o certo é o anexo aparecer na tela dizendo o que houve.
+ */
+function comRede(nome, ler) {
+  try {
+    return ler();
+  } catch (err) {
+    return { text: '', note: `não consegui ler este ${nome}: ${err.message.slice(0, 120)}` };
+  }
+}
+
 export function extractText(buffer, filename = '', mime = '') {
   const ext = extname(filename).toLowerCase();
 
   if (ext === '.pdf' || mime === 'application/pdf') {
-    return { ...fromPdf(buffer), kind: 'pdf' };
+    return { ...comRede('PDF', () => fromPdf(buffer)), kind: 'pdf' };
   }
-  if (ext === '.docx') return { ...fromDocx(buffer), kind: 'docx' };
-  if (ext === '.pptx') return { ...fromPptx(buffer), kind: 'pptx' };
-  if (ext === '.epub') return { ...fromEpub(buffer), kind: 'epub' };
+  if (ext === '.docx') return { ...comRede('DOCX', () => fromDocx(buffer)), kind: 'docx' };
+  if (ext === '.pptx') return { ...comRede('PPTX', () => fromPptx(buffer)), kind: 'pptx' };
+  if (ext === '.epub') return { ...comRede('EPUB', () => fromEpub(buffer)), kind: 'epub' };
 
   if (TEXT_EXT.has(ext) || (mime || '').startsWith('text/') || looksLikeText(buffer)) {
-    return { ...decodeText(buffer), kind: 'texto' };
+    return { ...comRede('arquivo', () => decodeText(buffer)), kind: 'texto' };
   }
 
   return {

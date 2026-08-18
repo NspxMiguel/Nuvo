@@ -695,3 +695,99 @@ test('cadeia de filtros: ASCII85 antes do FlateDecode', () => {
   assert.equal(out.text, 'certificado de conclusao');
   assert.equal(out.note, null);
 });
+
+test('/Length declarado manda mais que a palavra endstream no meio do texto', () => {
+  // Fluxo sem compressão pode ter esses nove bytes dentro do conteúdo. Achar
+  // o fim procurando a palavra cortava a página ali, calada.
+  const conteudo =
+    'BT /F1 12 Tf (a palavra endstream aparece aqui) Tj 0 -14 Td (e a frase continua) Tj ET';
+  const pdf = Buffer.from(
+    '%PDF-1.4\n' +
+      '1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R >> >> /Contents 3 0 R >> endobj\n' +
+      '2 0 obj << /Type /Font /Subtype /Type1 /Encoding /WinAnsiEncoding >> endobj\n' +
+      `3 0 obj << /Length ${conteudo.length} >>\nstream\n${conteudo}\nendstream endobj\n` +
+      'trailer<</Root 1 0 R>>\n%%EOF',
+    'latin1'
+  );
+
+  const out = extractText(pdf, 'length.pdf', 'application/pdf');
+  assert.equal(out.text, 'a palavra endstream aparece aqui\ne a frase continua');
+});
+
+test('/Length que mente não é obedecido: vale o que o arquivo mostra', () => {
+  const conteudo = 'BT /F1 12 Tf (frase inteira do documento) Tj ET';
+  const pdf = Buffer.from(
+    '%PDF-1.4\n' +
+      '1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R >> >> /Contents 3 0 R >> endobj\n' +
+      '2 0 obj << /Type /Font /Subtype /Type1 /Encoding /WinAnsiEncoding >> endobj\n' +
+      `3 0 obj << /Length 7 >>\nstream\n${conteudo}\nendstream endobj\n` +
+      'trailer<</Root 1 0 R>>\n%%EOF',
+    'latin1'
+  );
+
+  const out = extractText(pdf, 'mentira.pdf', 'application/pdf');
+  assert.equal(out.text, 'frase inteira do documento');
+});
+
+test('código que o mapa da fonte não cobre cai na tabela declarada, em vez de sumir', () => {
+  // CMap costuma mapear só o que a fonte usa. Descartar o resto engolia
+  // trechos inteiros sem nenhum sinal de que algo tinha sido perdido.
+  const cmap = `begincmap
+1 begincodespacerange <00> <ff> endcodespacerange
+1 beginbfchar
+<41> <0041>
+endbfchar
+endcmap`;
+
+  const pdf = Buffer.concat([
+    Buffer.from(
+      '%PDF-1.5\n1 0 obj << /Type /Page /Resources << /Font << /F1 2 0 R >> >> /Contents 4 0 R >> endobj\n' +
+        '2 0 obj << /Type /Font /Subtype /TrueType /Encoding /WinAnsiEncoding /ToUnicode 3 0 R >> endobj\n',
+      'latin1'
+    ),
+    ESPACO,
+    objetoFluxo(3, cmap),
+    ESPACO,
+    objetoFluxo(4, 'BT /F1 12 Tf (ABC) Tj ET'),
+    Buffer.from('trailer<</Root 1 0 R>>\n%%EOF', 'latin1')
+  ]);
+
+  const out = extractText(pdf, 'parcial.pdf', 'application/pdf');
+  assert.equal(out.text, 'ABC');
+});
+
+test('entidade numérica quebrada no EPUB não derruba a leitura do livro', () => {
+  // `&#99999999;` não é caractere nenhum, e converter isso responde com
+  // exceção — que subia até o upload e derrubava o pedido inteiro.
+  const capitulo = (corpo) =>
+    zipEpub([
+      { name: 'OEBPS/cap1.xhtml', data: Buffer.from(`<html><body>${corpo}</body></html>`, 'utf8') }
+    ]);
+
+  const fora = extractText(capitulo('<p>capitulo com &#99999999; no meio</p>'), 'l.epub');
+  assert.match(fora.text, /capitulo com/);
+  assert.match(fora.text, /&#99999999;/, 'entidade impossível fica como veio, à vista');
+
+  const substituto = extractText(capitulo('<p>meio de par &#55296; aqui</p>'), 'l.epub');
+  assert.equal(substituto.text, 'meio de par aqui', 'metade de par substituto não é texto');
+
+  const boa = extractText(capitulo('<p>caf&#233; e &#x2014; tra&ccedil;o</p>'), 'l.epub');
+  assert.equal(boa.text, 'café e — traço');
+});
+
+test('arquivo que derruba o leitor vira aviso, não erro no upload', () => {
+  // Cada leitor desmonta formato binário escrito por outra pessoa. O usuário
+  // vai mandar um arquivo estranho, e o certo é o anexo aparecer na tela
+  // dizendo o que houve — não o pedido inteiro cair.
+  const restos = Buffer.concat([
+    Buffer.from('%PDF-1.4\n'),
+    Buffer.from(Array.from({ length: 3000 }, (_, i) => (i * 37) % 256)),
+    Buffer.from('\nstream\n'),
+    Buffer.from(Array.from({ length: 500 }, (_, i) => (i * 91) % 256)),
+    Buffer.from('\nendstream\n%%EOF')
+  ]);
+  const out = extractText(restos, 'quebrado.pdf', 'application/pdf');
+  assert.equal(typeof out.text, 'string');
+  assert.equal(out.kind, 'pdf');
+  assert.ok(out.note, 'sem texto, tem que sair com aviso');
+});
