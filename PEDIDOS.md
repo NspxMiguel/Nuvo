@@ -532,3 +532,30 @@ Claude recusa registrar service worker** mesmo em contexto seguro, com o
 `/sw.js` respondendo 200. Parecia defeito meu; no Chrome de verdade registra
 limpo. Verificação de PWA — instalação, cache, manifest — só vale feita no
 navegador dele.
+
+### Prompt pro Claude Design (18/08/2026)
+
+*"prompt pro claude desing"*
+
+Escrito em `PROMPT-CLAUDE-DESIGN.md`, na pasta do projeto. Levantei o inventário
+do app antes de escrever, pra ele não sair genérico: as 8 telas conferidas no
+`index.html`, os 33 tokens de tema conferidos no `styles.css`, os `id` que são a
+fiação do JavaScript.
+
+O prompt diz três coisas que eu não deixaria de fora:
+
+- **a memória compartilhada é a ideia**, não mais um item de menu. Se o desenho
+  tratar como aba comum, perdeu o ponto do app;
+- **os momentos difíceis vêm nomeados** — conselho com colunas enchendo em
+  velocidades diferentes, placar da votação, andamento da pesquisa que cresce
+  por 40 segundos, streaming com bloco de raciocínio gigante, primeira abertura
+  sem modelo nenhum, erro de provedor. É onde desenho decide alguma coisa;
+  formulário qualquer um faz;
+- **o que não pode quebrar**: sem etapa de build, sem CDN (o app roda sem
+  internet), e os `id`/`data-view` são a fiação — pode mudar aparência,
+  estrutura e classe à vontade, mas `id` que some para o app. É o aviso que mais
+  facilmente ficaria de fora e o que custaria mais caro.
+
+Falei que a paleta de hoje não é decisão de desenho, é o que saiu de escrever o
+app às pressas — e que ela parece "mais um app de chat escuro com azul". Ele que
+decida se troca.
