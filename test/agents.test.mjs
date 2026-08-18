@@ -208,6 +208,75 @@ test('conselho: votação devolve nota média e vencedor', async () => {
   }
 });
 
+test('votação: a nota volta pro dono, mesmo com a ordem embaralhada', async () => {
+  // Cada jurado vê as candidatas em ordem diferente. Se o rodízio não for
+  // desfeito na volta, a nota que um jurado deu à candidata 1 é creditada ao
+  // modelo errado — e o placar fica plausível, só que trocado.
+  const refC = criarProvedor('gama');
+  const nomes = ['alfa', 'beta', 'gama'];
+  const stub = stubFetch(async (url, options) => {
+    const corpo = JSON.parse(options.body);
+    if (/avalia respostas candidatas/i.test(corpo.messages[0]?.content || '')) {
+      // O jurado reconhece pelo texto, não pela posição: alfa 10, beta 5, gama 1.
+      const notas = corpo.messages[1].content
+        .split('### Candidata')
+        .slice(1)
+        .map((bloco) => ({ nota: bloco.includes('do alfa') ? 10 : bloco.includes('do beta') ? 5 : 1, porque: 'x' }));
+      return respostaDe(JSON.stringify(notas));
+    }
+    return respostaDe(`resposta do ${nomes.find((n) => url.includes(n))}`);
+  });
+  try {
+    const eventos = await collect(runCouncil({ prompt: 'p', refs: [refA, refB, refC], mode: 'vote' }));
+    const { ranked } = eventos.find((e) => e.type === 'votes');
+    assert.deepEqual(
+      ranked.map((r) => r.average),
+      [10, 5, 1],
+      JSON.stringify(ranked.map((r) => [r.label, r.average]))
+    );
+    assert.equal(eventos.find((e) => e.type === 'winner').text, 'resposta do alfa');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('votação: jurado que responde fora da escala é anulado, não vira vencedor', async () => {
+  // Modelo local ignorando "nota de 0 a 10" e devolvendo de 0 a 100 é comum. O
+  // 80 dele sozinho enterrava o 10 de todos os outros: vencia a resposta que a
+  // maioria tinha posto em último lugar.
+  const refC = criarProvedor('delta');
+  const nomes = ['alfa', 'beta', 'delta'];
+  let primeiroJurado = true;
+  const stub = stubFetch(async (url, options) => {
+    const corpo = JSON.parse(options.body);
+    if (/avalia respostas candidatas/i.test(corpo.messages[0]?.content || '')) {
+      const blocos = corpo.messages[1].content.split('### Candidata').slice(1);
+      if (primeiroJurado) {
+        primeiroJurado = false;
+        return respostaDe(
+          JSON.stringify(blocos.map((b) => ({ nota: b.includes('do delta') ? 80 : 20, porque: 'x' })))
+        );
+      }
+      return respostaDe(
+        JSON.stringify(blocos.map((b) => ({ nota: b.includes('do alfa') ? 10 : 2, porque: 'x' })))
+      );
+    }
+    return respostaDe(`resposta do ${nomes.find((n) => url.includes(n))}`);
+  });
+  try {
+    const eventos = await collect(runCouncil({ prompt: 'p', refs: [refA, refB, refC], mode: 'vote' }));
+    const votos = eventos.find((e) => e.type === 'votes');
+    assert.equal(votos.anuladas, 1, 'a cédula fora da escala tinha que ter sido anulada');
+    assert.ok(
+      votos.ranked.every((r) => r.votes.every((v) => v.nota <= 10)),
+      'nota fora da escala entrou no placar'
+    );
+    assert.equal(eventos.find((e) => e.type === 'winner').text, 'resposta do alfa');
+  } finally {
+    stub.restore();
+  }
+});
+
 test('conselho: um modelo só é recusado', async () => {
   await assert.rejects(collect(runCouncil({ prompt: 'p', refs: [refA] })), /pelo menos dois/);
 });

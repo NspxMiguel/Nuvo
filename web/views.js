@@ -1009,7 +1009,13 @@ views.council = function renderCouncil(el) {
               'afterbegin',
               `<div class="card"><h3>${icon('users', 15)} Notas</h3>
                  <div class="table-wrap"><table><thead><tr><th>Modelo</th><th>Média</th><th>Votos</th></tr></thead>
-                 <tbody>${table}</tbody></table></div></div>`
+                 <tbody>${table}</tbody></table></div>${
+                   ev.anuladas
+                     ? `<p class="meta">${ev.anuladas} ${
+                         ev.anuladas === 1 ? 'voto anulado' : 'votos anulados'
+                       }: nota fora da escala de 0 a 10.</p>`
+                     : ''
+                 }</div>`
             );
             for (const [ref, col] of cols) {
               if (ev.ranked[0]?.ref === ref) col.classList.add('win');

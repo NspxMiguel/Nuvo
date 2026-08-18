@@ -404,3 +404,26 @@ modelo extrator configurado — ou seja, o que todo mundo pega na primeira vez:
 Ficou de fora por decisão: `uso X` / `utilizo X`. Pega "uso Node sem dependência
 nenhuma", mas pega também "uso isso pra testar", e não achei como separar os
 dois sem heurística frágil.
+
+### Conselho de IAs — votação (17/08/2026)
+
+O rodízio que embaralha as candidatas para cada jurado está certo: montei três
+modelos onde cada jurado reconhece as respostas pelo texto e dá 10, 5 e 1, e a
+nota chegou no dono certo nos três. Virou teste, porque é o tipo de erro que
+produz um placar plausível e trocado.
+
+O defeito estava na apuração:
+
+- **jurado fora da escala decidia a votação sozinho.** A nota pedida é de 0 a 10,
+  mas modelo local devolvendo de 0 a 100 é comum — e nada conferia. Com três
+  modelos, um jurado usando 0-100 fez vencer justamente a resposta que os outros
+  dois puseram em último: média 28 contra 13,3. Cédula fora da escala agora é
+  anulada inteira, não ajustada — cortar 80 em 10 manteria o voto errado com
+  peso máximo, e o que não dá pra ler não vota. Depois do conserto, no mesmo
+  cenário, vence quem dois dos três escolheram. A tela de notas diz quantos
+  votos foram anulados, em vez de esconder.
+
+Fica registrado como decisão, não como pendência: **cada modelo continua votando
+também na própria resposta.** Tirar o voto de si mesmo parece mais justo, mas com
+dois modelos sobraria um voto por candidata, e nota sem comparação não vale nada.
+O anonimato das candidatas é o que segura o viés.

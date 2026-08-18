@@ -96,7 +96,21 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
       })
     );
 
+    // Cédula fora da escala é anulada, não ajustada. Um jurado que responde de
+    // 0 a 100 — o que modelo local faz com frequência — decide sozinho a
+    // votação inteira: o 80 dele enterra o 10 de todos os outros, e vence a
+    // resposta que a maioria pôs em último. Cortar em 10 não resolve, porque
+    // mantém o voto errado com peso máximo; o que não dá pra ler não vota.
+    let anuladas = 0;
     for (const round of rounds) {
+      const dentroDaEscala = round.order.every((_, position) => {
+        const grade = Number(round.parsed[position]?.nota);
+        return !Number.isFinite(grade) || (grade >= 0 && grade <= 10);
+      });
+      if (!dentroDaEscala) {
+        anuladas++;
+        continue;
+      }
       round.order.forEach((idx, position) => {
         const vote = round.parsed[position];
         const grade = Number(vote?.nota);
@@ -114,7 +128,7 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
       })
       .sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
 
-    yield { type: 'votes', ranked };
+    yield { type: 'votes', ranked, anuladas };
 
     const winner = ranked[0];
     if (winner?.average != null) {
