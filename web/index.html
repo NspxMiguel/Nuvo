@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0e0e13" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <title>IAUnifier</title>
     <!-- iOS ignora o manifest pra tela cheia: precisa destas três. A quarta é
          a padrão, que o Chrome pede em lugar da variante apple- (e avisa no
@@ -28,10 +29,6 @@
           </button>
         </header>
 
-        <button id="btn-new-chat" class="primary block">
-          <span data-icon="plus"></span> Nova conversa
-        </button>
-
         <div class="side-search">
           <span data-icon="search"></span>
           <input id="side-search" type="search" placeholder="Buscar em tudo" />
@@ -51,6 +48,10 @@
         <div id="chat-list"></div>
 
         <footer class="side-foot">
+          <button id="btn-new-chat">
+            <span data-icon="plus"></span> Nova conversa
+          </button>
+          <span class="grow"></span>
           <button id="btn-theme" class="icon" title="tema" aria-label="trocar entre tema claro e escuro">
             <span data-icon="moon"></span>
           </button>

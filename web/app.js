@@ -422,18 +422,22 @@ function renderFirstRun() {
 function renderEmptyState() {
   if (!chatModels().length) return renderFirstRun();
   const gem = state.gems.find((g) => g.id === state.gemId);
+  // A estrela em degradê e a saudação no centro: a tela vazia é a cara do app.
   $('#messages').innerHTML = `
-    <div class="msg" style="text-align:center;color:var(--muted);margin-top:12vh">
-      <div style="display:flex;justify-content:center;margin-bottom:10px">
-        ${badge(gem?.icon || 'sparkle', gem?.color || 'indigo', 22)}
-      </div>
-      <div style="font-size:16px;color:var(--text)">${escapeHtml(gem?.name || 'IAUnifier')}</div>
-      <div style="font-size:13px;margin-top:4px">
-        ${state.model ? escapeHtml(modelLabel(state.model)) : 'nenhum modelo escolhido'}
-      </div>
-      <div style="font-size:12.5px;margin-top:14px">
-        Anexe arquivo, ligue a busca na web, ou chame o conselho pra perguntar a vários modelos de uma vez.
-      </div>
+    <div class="hello">
+      <svg class="spark" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true">
+        <defs>
+          <linearGradient id="spark-g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#0a84ff"/>
+            <stop offset=".55" stop-color="#bf5af2"/>
+            <stop offset="1" stop-color="#ff375f"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#spark-g)" d="M12 1.6c.9 5.6 4.8 9.5 10.4 10.4-5.6.9-9.5 4.8-10.4 10.4C11.1 16.8 7.2 12.9 1.6 12 7.2 11.1 11.1 7.2 12 1.6Z"/>
+      </svg>
+      <h1>${escapeHtml(gem?.name || 'Pode falar.')}</h1>
+      <div class="sub">O que você contar aqui, todas as suas IAs lembram.</div>
+      <div class="meta">${state.model ? escapeHtml(modelLabel(state.model)) : 'nenhum modelo escolhido'}</div>
     </div>`;
 }
 
