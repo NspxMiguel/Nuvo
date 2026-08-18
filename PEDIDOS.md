@@ -609,3 +609,15 @@ mensagens, não de tokens**. Quarenta mensagens longas estouram a janela de um
 modelo local de 4k ou 8k, e aí quem recusa é o modelo. Um teto por tamanho seria
 o certo, mas mexer nisso sem medir com modelo local de verdade é troca de um
 problema por outro.
+
+**Ressalva sobre o parágrafo acima:** a recusa da API da Anthropic é o que a
+documentação dela diz, não uma medição minha. Não dá pra medir nesta máquina:
+você não tem provedor de API da Anthropic configurado — só os três de CLI
+(Claude Code, Codex, OpenCode) e uma chave da Groq. O conserto vale igual, porque
+resposta sem pergunta na frente é contexto errado em qualquer provedor; o que eu
+não posso afirmar por medição é o "para de funcionar".
+
+Isso expõe outra coisa que fica anotada: **o adaptador `anthropic.mjs` nunca foi
+exercitado contra a API de verdade** nesta instalação, só contra teste com rede
+encenada. O mesmo vale pro `google.mjs`. Quando você ligar uma chave dessas, o
+primeiro turno merece ser olhado de perto.
