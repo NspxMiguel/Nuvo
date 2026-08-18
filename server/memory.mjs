@@ -295,15 +295,25 @@ const HEURISTICS = [
   `\\b(?:eu\\s+)?(?:moro|trabalho|estudo)\\s+(?:em|na|no|com|para)\\s+${ateOFimDaFrase(2, 80)}`,
   `\\b(?:meu|minha)\\s+(?:projeto|empresa|time|cachorro|gato|carro|site|dominio|domínio)\\s+${ateOFimDaFrase(2, 80)}`,
   `\\b(?:sempre|nunca)\\s+(?:me|use|usa|faça|faz|responda)\\s+${ateOFimDaFrase(3, 90)}`,
+  `\\b(?:eu\\s+)?estou\\s+(?:construindo|desenvolvendo|criando|fazendo|montando|escrevendo)\\s+${ateOFimDaFrase(3, 90)}`,
   `\\bmy\\s+name\\s+is\\s+${ateOFimDaFrase(2, 60)}`,
   `\\bi\\s+(?:like|love|hate|prefer|work|live)\\s+${ateOFimDaFrase(3, 90)}`
 ].map((source) => new RegExp(source, 'gi'));
+
+/**
+ * Negação logo antes do verbo. Os padrões começam no verbo, então "não gosto
+ * de café" casava a partir de "gosto" e gravava o oposto do que foi dito — e
+ * memória é permanente e compartilhada: o fato invertido passa a valer para
+ * todos os modelos, em todas as conversas seguintes.
+ */
+const NEGADO = /\b(?:n[ãa]o|nunca|jamais|nem|don'?t|doesn'?t|never)\s+(?:eu\s+)?$/i;
 
 /** Extração sem modelo: pega padrões óbvios de preferência e identidade. */
 export function extractHeuristic(text) {
   const out = [];
   for (const re of HEURISTICS) {
     for (const match of String(text || '').matchAll(re)) {
+      if (NEGADO.test(match.input.slice(0, match.index))) continue;
       const fact = match[0].trim().replace(/\s+/g, ' ');
       if (fact.length >= 8 && !out.includes(fact)) out.push(fact);
     }

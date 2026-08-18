@@ -153,3 +153,41 @@ test('ponto final continua terminando a frase', () => {
   assert.ok(fatos.some((f) => /Florian[oó]polis$/.test(f)), JSON.stringify(fatos));
   assert.ok(fatos.some((f) => /café$/.test(f)), JSON.stringify(fatos));
 });
+
+test('negação não vira o fato do avesso', () => {
+  // Os padrões começam no verbo, então "não gosto de café" casava a partir de
+  // "gosto" e a memória gravava exatamente o contrário do que foi dito. Como a
+  // memória é compartilhada e permanente, o erro não fica na conversa: passa a
+  // valer para todo modelo, em toda conversa seguinte.
+  for (const frase of [
+    'eu não gosto de café',
+    'não gosto de reuniões longas',
+    'eu não moro em São Paulo',
+    'nunca gosto de ser interrompido',
+    'jamais trabalho com PHP',
+    'não estou construindo nada disso',
+    'i do not like long meetings'
+  ]) {
+    assert.deepEqual(extractHeuristic(frase), [], frase);
+  }
+});
+
+test('negação distante não cala a frase inteira', () => {
+  // Só o "não" colado no verbo nega. "não sei" mais adiante não pode apagar o
+  // fato que veio antes dele.
+  const fatos = extractHeuristic('Eu gosto de café. Não sei se isso importa.');
+  assert.ok(fatos.some((f) => /café$/.test(f)), JSON.stringify(fatos));
+});
+
+test('"nunca me mande X" continua sendo instrução, não negação', () => {
+  // Aqui o "nunca" é o começo do próprio padrão: é o fato, não o que o anula.
+  assert.deepEqual(extractHeuristic('nunca me mande emojis'), ['nunca me mande emojis']);
+});
+
+test('projeto em andamento vira fato', () => {
+  // Quem conversa com estas IAs diz o que está construindo, e isso continua
+  // valendo daqui a meses — era exatamente o tipo de frase que a heurística
+  // deixava passar quando não há modelo extrator configurado.
+  const fatos = extractHeuristic('Estou construindo o IAUnifier, um app que roda no servidor de casa.');
+  assert.ok(fatos.some((f) => /IAUnifier/.test(f)), JSON.stringify(fatos));
+});

@@ -370,3 +370,37 @@ texto; passaram a sair com 94–95% e menos de dez.
   continuava sendo comparado. Cada vetor passa a carregar o carimbo de quem o
   gerou, o que ficou pra trás é ignorado na busca, e a Configuração mostra
   quantos itens estão fora do índice com um botão que recalcula em lotes.
+
+### Extração de memória (17/08/2026)
+
+Auditoria do item 10 (memória scraping de IAs). O importador em si passou nos
+sete formatos reais de exportação que testei — ChatGPT com imagem no meio da
+mensagem, ChatGPT com bloco de raciocínio (que não pode vazar pra memória),
+Claude com `tool_use`, conversa vazia, lista vazia, JSON que não é exportação,
+e markdown solto — mais uma importação de ponta a ponta pelo servidor rodando
+(`POST /memories/import`: 2 conversas, 4 mensagens, 4 memórias antes e 6
+depois). Não precisou de correção nenhuma ali.
+
+O defeito estava no extrator heurístico, que é o que roda enquanto não há
+modelo extrator configurado — ou seja, o que todo mundo pega na primeira vez:
+
+- **negação gravava o oposto do que foi dito.** Os padrões começam no verbo,
+  então "eu não gosto de café" casava a partir de "gosto" e a memória guardava
+  "gosto de café". Cinco de oito frases negadas saíam invertidas: `não gosto`,
+  `não moro`, `nunca gosto`, `jamais trabalho`, `nem`. Numa memória que é
+  compartilhada e permanente isso não fica na conversa — o fato invertido passa
+  a valer pra todo modelo, em toda conversa seguinte, e quanto mais tempo passa
+  menos dá pra saber de onde veio. Agora um `não`/`nunca`/`jamais`/`nem` colado
+  no verbo bloqueia a extração, sem calar o resto: "Eu gosto de café. Não sei se
+  isso importa." continua virando fato, e "nunca me mande emojis" também, porque
+  ali o `nunca` é o próprio fato e não o que o anula;
+- **projeto em andamento não era capturado.** "Estou construindo o IAUnifier"
+  não casava com padrão nenhum, e é o tipo de frase que continua verdadeira
+  daqui a meses. Entrou uma lista fechada de verbos (`construindo`,
+  `desenvolvendo`, `criando`, `fazendo`, `montando`, `escrevendo`) — fechada de
+  propósito: em memória permanente, errar pra mais custa mais caro que deixar
+  passar, e o modelo extrator cobre o caso geral quando está configurado.
+
+Ficou de fora por decisão: `uso X` / `utilizo X`. Pega "uso Node sem dependência
+nenhuma", mas pega também "uso isso pra testar", e não achei como separar os
+dois sem heurística frágil.
