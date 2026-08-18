@@ -68,6 +68,39 @@ function clearAttempts(ip) {
   attempts.delete(ip);
 }
 
+/** Esquece as tentativas erradas de todo mundo. Usado pelo teste da tranca. */
+export function resetAttempts() {
+  attempts.clear();
+}
+
+/**
+ * Tranca única pra todo caminho que confere token.
+ *
+ * O limite de tentativas existe pra que o token não possa ser martelado, e
+ * valia só em `/api/`. Quem quisesse adivinhar era só bater no
+ * `/manifest.webmanifest`, que confere o mesmo token: 40 tentativas erradas
+ * seguidas continuavam devolvendo 401, sem nunca chegar no 429. Proteção que se
+ * contorna por outra porta não protege.
+ *
+ * @returns {boolean} true quando já respondeu e o chamador deve parar.
+ */
+function barrado(req, res, url) {
+  const ip = req.socket.remoteAddress || 'desconhecido';
+  if (tooManyAttempts(ip)) {
+    res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' });
+    res.end(JSON.stringify({ error: 'tentativas demais — espere um minuto' }));
+    return true;
+  }
+  if (!authorized(req, url)) {
+    noteFailure(ip);
+    res.writeHead(401, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'token inválido' }));
+    return true;
+  }
+  clearAttempts(ip);
+  return false;
+}
+
 function authorized(req, url) {
   const cfg = loadConfig();
   if (!cfg.requireToken) return true;
@@ -213,10 +246,7 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
     // o token dentro, ele deixa de ser estático livre e passa pela mesma
     // tranca do resto — a página pede com `?token=` (web/core.js).
     if (url.pathname === '/manifest.webmanifest') {
-      if (!authorized(req, url)) {
-        res.writeHead(401, { 'content-type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'token inválido' }));
-      }
+      if (barrado(req, res, url)) return;
       try {
         const base = JSON.parse(await readFile(join(WEB_DIR, 'manifest.webmanifest'), 'utf8'));
         const cfg = loadConfig();
@@ -238,18 +268,7 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
         res.setHeader('access-control-allow-origin', origin);
         res.setHeader('vary', 'Origin');
       }
-      const ip = req.socket.remoteAddress || 'desconhecido';
-
-      if (tooManyAttempts(ip)) {
-        res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' });
-        return res.end(JSON.stringify({ error: 'tentativas demais — espere um minuto' }));
-      }
-      if (!authorized(req, url)) {
-        noteFailure(ip);
-        res.writeHead(401, { 'content-type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'token inválido' }));
-      }
-      clearAttempts(ip);
+      if (barrado(req, res, url)) return;
 
       try {
         return await handleApi(req, res, url);

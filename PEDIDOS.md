@@ -497,3 +497,23 @@ O que estava mesmo faltando, e entrou agora:
   conversa com todas as IAs e os anexos, que é o mesmo motivo que já fazia o
   `config.json` nascer 600. Agora os quatro são apertados na subida, e o teste
   falha contra a versão anterior.
+
+### Tranca do token (17/08/2026)
+
+Ataquei o servidor rodando de verdade, com token ligado, pelo endereço público
+dele na máquina. O que resistiu, e fica registrado como conferido: travessia de
+caminho no estático não passa em nenhuma das cinco formas que tentei
+(`../`, `..%2f`, `%2e%2e`, `./../`, prefixo falso — todas 404); a API devolve
+401 sem token e com token errado; o limite de tentativas por IP funciona, 429
+depois de 20; e a contagem é pelo endereço do soquete, não por cabeçalho, então
+não dá pra fingir outro IP.
+
+O defeito estava na cobertura do limite:
+
+- **dava pra martelar o token por outra porta.** O limite valia só em `/api/`,
+  mas o `/manifest.webmanifest` confere exatamente o mesmo token — e ali eram
+  tentativas infinitas: 40 erradas seguidas, 40 vezes 401, nenhum 429. Proteção
+  que se contorna por outra porta não protege. As duas rotas passaram a usar a
+  mesma tranca; medi de novo no servidor rodando e agora o manifest devolve 429
+  na vigésima primeira, e o token bom volta a valer quando a janela de um minuto
+  passa.

@@ -858,3 +858,28 @@ test('quando o navegador some de verdade, o sinal cancela', async () => {
     stub.restore();
   }
 });
+
+// ------------------------------------------------- tranca única do token
+
+test('o limite de tentativas vale em toda rota que confere token', async () => {
+  // O limite existe pra que o token não possa ser martelado, e valia só em
+  // `/api/`. Quem quisesse adivinhar bastava bater no `/manifest.webmanifest`,
+  // que confere exatamente o mesmo token: quarenta tentativas erradas seguidas
+  // continuavam devolvendo 401, sem nunca chegar no 429. Proteção que se
+  // contorna por outra porta não protege.
+  let barrou = false;
+  for (let i = 0; i < 25 && !barrou; i++) {
+    const res = await app.raw(`/manifest.webmanifest?token=errado-${i}`);
+    if (res.status === 429) barrou = true;
+    else assert.equal(res.status, 401, `tentativa ${i} devolveu ${res.status}`);
+  }
+  assert.ok(barrou, '25 tentativas erradas no manifest e nenhum 429');
+
+  // E o token bom volta a valer assim que a janela passa — aqui basta limpar a
+  // contagem, que é o que o próprio servidor faz em qualquer acerto.
+  const { resetAttempts } = await import('../server/index.mjs');
+  resetAttempts();
+  const bom = await app.raw(`/manifest.webmanifest?token=${encodeURIComponent(app.token)}`);
+  assert.equal(bom.status, 200);
+  assert.match((await bom.json()).start_url, /token=/);
+});
