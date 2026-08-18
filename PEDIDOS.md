@@ -517,3 +517,18 @@ O defeito estava na cobertura do limite:
   mesma tranca; medi de novo no servidor rodando e agora o manifest devolve 429
   na vigésima primeira, e o token bom volta a valer quando a janela de um minuto
   passa.
+
+### Conferência no navegador de verdade (17/08/2026)
+
+Com tudo aplicado, subi o servidor e conferi como o visitante vê. Todas as 12
+rotas da API respondem (`/api/models` dá 404 de propósito: modelo é sub-rota de
+provedor), os 5 arquivos da casca abrem, e a subida não escreve erro nenhum no
+log. No Chrome dele: as 8 telas — Conversas, Conselho, Pesquisa, Projetos, Gems,
+Memória, Provedores, Config — abrem sem um erro de console entre elas, o service
+worker registra no escopo `/` e guarda os 11 arquivos da casca.
+
+Fica anotado pra não me enganar de novo: **o painel de navegação embutido do
+Claude recusa registrar service worker** mesmo em contexto seguro, com o
+`/sw.js` respondendo 200. Parecia defeito meu; no Chrome de verdade registra
+limpo. Verificação de PWA — instalação, cache, manifest — só vale feita no
+navegador dele.
