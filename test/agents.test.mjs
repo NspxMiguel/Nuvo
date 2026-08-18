@@ -353,6 +353,56 @@ test('pesquisa: página que não abre é relatada, e a pesquisa segue', async ()
   }
 });
 
+test('pesquisa: a cota de leitura se reparte entre os ângulos planejados', async () => {
+  // O plano quebra a pergunta em ângulos diferentes de propósito. Lendo na
+  // ordem em que as buscas voltaram, as duas primeiras consultas consumiam o
+  // teto de páginas inteiro e as demais não eram lidas nunca: o relatório saía
+  // com metade da pesquisa que ele mesmo tinha planejado.
+  const angulos = ['definicao', 'atualidade', 'comparacao', 'critica'];
+  const stub = stubFetch(async (url, options) => {
+    if (url.includes('duckduckgo')) {
+      const q = decodeURIComponent(new URL(url).searchParams.get('q') || '');
+      const angulo = angulos.find((a) => q.includes(a));
+      return fakeResponse(
+        `<html><body>${Array.from(
+          { length: 6 },
+          (_, i) =>
+            `<div class="result results_links">
+               <a class="result__a" href="https://${angulo}.exemplo/${i}">${angulo} ${i}</a>
+               <a class="result__snippet" href="#">resumo</a>
+             </div>`
+        ).join('')}</body></html>`
+      );
+    }
+    if (url.includes('exemplo')) {
+      return fakeResponse(`<html><body><main><p>${'conteúdo desta página. '.repeat(40)}</p></main></body></html>`, {
+        headers: { 'content-type': 'text/html' }
+      });
+    }
+    const corpo = JSON.parse(options.body);
+    if (/planeja uma pesquisa/i.test(corpo.messages[0]?.content || '')) {
+      return respostaDe(JSON.stringify(angulos.map((a) => `IAUnifier ${a}`)));
+    }
+    return respostaDe('relatório final');
+  });
+  try {
+    const eventos = await collect(
+      runResearch({ question: 'o que é o IAUnifier', ref: refA, breadth: 4, depth: 3 })
+    );
+    const lidas = eventos.filter((e) => e.type === 'read');
+    assert.equal(lidas.length, 12, 'o teto de leitura mudou');
+    const cobertos = new Set(lidas.map((l) => angulos.find((a) => l.url.includes(a))));
+    assert.equal(cobertos.size, 4, `só ${cobertos.size} ângulo(s) chegaram à leitura: ${[...cobertos]}`);
+    // Repartição pareja: 12 páginas entre 4 ângulos.
+    for (const angulo of angulos) {
+      const quantas = lidas.filter((l) => l.url.includes(angulo)).length;
+      assert.equal(quantas, 3, `${angulo} ficou com ${quantas}`);
+    }
+  } finally {
+    stub.restore();
+  }
+});
+
 test('pesquisa: modelo que não planeja cai na pergunta direta', async () => {
   const stub = stubFetch(async (url, options) => {
     if (url.includes('duckduckgo')) return fakeResponse(RESULTADO_HTML);

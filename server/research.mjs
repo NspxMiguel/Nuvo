@@ -69,7 +69,29 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
     }
   }
 
-  const hits = [...found.values()];
+  // Rodízio entre as consultas: o primeiro resultado de cada uma antes do
+  // segundo de qualquer outra.
+  //
+  // O plano quebra a pergunta em ângulos diferentes de propósito — definição,
+  // dado atual, comparação, crítica. Lendo na ordem em que as buscas voltaram,
+  // a cota de páginas acabava nos dois primeiros ângulos: com 4 consultas de 6
+  // resultados e teto de 12 páginas, o terceiro e o quarto nunca eram lidos, e
+  // o relatório saía com metade da pesquisa que ele mesmo planejou.
+  const porConsulta = new Map(queries.map((q) => [q, []]));
+  for (const hit of found.values()) porConsulta.get(hit.query)?.push(hit);
+
+  const hits = [];
+  for (let i = 0; hits.length < found.size; i++) {
+    let avancou = false;
+    for (const lista of porConsulta.values()) {
+      if (lista[i]) {
+        hits.push(lista[i]);
+        avancou = true;
+      }
+    }
+    if (!avancou) break;
+  }
+
   yield { type: 'hits', hits: hits.map((h) => ({ title: h.title, url: h.url, host: h.host })) };
   if (!hits.length) {
     yield { type: 'error', message: 'nenhum resultado de busca — sem fonte não escrevo relatório' };

@@ -427,3 +427,21 @@ Fica registrado como decisão, não como pendência: **cada modelo continua vota
 também na própria resposta.** Tirar o voto de si mesmo parece mais justo, mas com
 dois modelos sobraria um voto por candidata, e nota sem comparação não vale nada.
 O anonimato das candidatas é o que segura o viés.
+
+### Pesquisa profunda (17/08/2026)
+
+- **metade da pesquisa planejada não era lida.** O plano quebra a pergunta em
+  ângulos diferentes de propósito — definição, dado atual, comparação, crítica —
+  mas a leitura pegava as páginas na ordem em que as buscas voltaram, e o teto de
+  12 páginas acabava nos dois primeiros ângulos. Com 4 consultas de 6 resultados,
+  o terceiro e o quarto não eram lidos nunca: medi 12 páginas lidas de 2 ângulos
+  só, e o relatório saía citando 12 fontes que vinham todas das mesmas duas
+  buscas. Agora a leitura vai em rodízio — o primeiro resultado de cada consulta
+  antes do segundo de qualquer outra — e os quatro ângulos entram com 3 páginas
+  cada. O teste falha contra a versão antiga (`só 2 ângulo(s) chegaram à
+  leitura`), que é o que garante que ele mede alguma coisa.
+
+Conferido e sem defeito: a numeração das citações bate com a lista de fontes (as
+duas saem da mesma lista de páginas aproveitadas), e falha do modelo na hora de
+escrever o relatório já vira evento de erro na tela — o `pump` da API cobre, não
+derruba a conexão.
