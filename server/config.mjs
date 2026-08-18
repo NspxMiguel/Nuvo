@@ -56,6 +56,23 @@ function ensureDirs() {
     /* windows não tem modo posix */
   }
   mkdirSync(UPLOAD_DIR, { recursive: true });
+  // Mesmo motivo do `config.json`: a pasta 700 protege enquanto ela for 700.
+  // O `--home` aceita qualquer caminho — pendrive, pasta sincronizada, volume
+  // de rede — e sistema de arquivos que não guarda modo posix devolve tudo
+  // aberto. O que está dentro carrega conversa com todas as IAs e os anexos.
+  soDoDono(UPLOAD_DIR, 0o700);
+  soDoDono(DB_PATH, 0o600);
+  soDoDono(`${DB_PATH}-wal`, 0o600);
+  soDoDono(`${DB_PATH}-shm`, 0o600);
+}
+
+/** Aperta o modo de um caminho que já existe. Silencioso onde não há posix. */
+export function soDoDono(caminho, mode) {
+  try {
+    chmodSync(caminho, mode);
+  } catch {
+    /* não existe ainda, ou windows */
+  }
 }
 
 export function loadConfig() {

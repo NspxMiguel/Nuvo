@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { DB_PATH } from './config.mjs';
+import { DB_PATH, soDoDono } from './config.mjs';
 import { applyPendingRestore } from './pending-restore.mjs';
 
 // O banco abre no import, que pode acontecer antes de qualquer loadConfig().
@@ -20,6 +20,13 @@ export const db = new DatabaseSync(DB_PATH);
 
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
+
+// O `-wal` e o `-shm` nascem aqui, depois do WAL ligar — antes disso não havia
+// o que apertar. O `-wal` guarda as páginas ainda não fundidas: é conversa
+// legível igual ao banco.
+soDoDono(DB_PATH, 0o600);
+soDoDono(`${DB_PATH}-wal`, 0o600);
+soDoDono(`${DB_PATH}-shm`, 0o600);
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS providers (

@@ -478,3 +478,22 @@ Conferido e sem defeito: `basename` já cortava `../` de zip forjado, a troca do
 banco continua acontecendo só no próximo start (com o anterior guardado), o
 backup automático guarda 7 dias e a ordem alfabética do nome é a ordem
 cronológica.
+
+### Permissões da pasta de dados (17/08/2026)
+
+Reparei olhando a instalação de verdade: `~/.iaunifier` estava `drwxr-xr-x` —
+aberta pra qualquer usuário da máquina. Não é defeito de código: o conserto que
+aperta a pasta já existe e roda na subida, e essa instalação não foi aberta
+desde então. Conferi criando uma pasta 755 de propósito e subindo o servidor:
+virou 700 sozinha. **Basta ele abrir o app uma vez que corrige.**
+
+O que estava mesmo faltando, e entrou agora:
+
+- **a pasta `uploads/` nunca era apertada** (ficava 755) e o **`data.db` nascia
+  644**, junto com o `-wal`, que guarda as páginas ainda não fundidas e é tão
+  legível quanto o banco. Enquanto a pasta de dados for 700 nada disso está
+  exposto — mas `--home` aceita qualquer caminho, e pendrive, pasta
+  sincronizada e volume de rede não guardam modo posix. Lá dentro está a
+  conversa com todas as IAs e os anexos, que é o mesmo motivo que já fazia o
+  `config.json` nascer 600. Agora os quatro são apertados na subida, e o teste
+  falha contra a versão anterior.

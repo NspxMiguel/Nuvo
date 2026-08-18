@@ -28,6 +28,28 @@ test('o arquivo de configuração não fica legível pra outros usuários', { sk
   assert.equal(modo, 0o600, `permissão ${modo.toString(8)} — a chave de API mora nesse arquivo`);
 });
 
+test('banco e anexos também não ficam legíveis pra outros', { skip: platform() === 'win32' }, async () => {
+  // A pasta 700 só protege enquanto ela for 700, e `--home` aceita qualquer
+  // caminho: pendrive, pasta sincronizada, volume de rede. O que está lá dentro
+  // é a conversa com todas as IAs e os anexos — o mesmo motivo que já fazia o
+  // `config.json` nascer 600.
+  const { chmodSync, writeFileSync, mkdirSync } = await import('node:fs');
+  mkdirSync(config.UPLOAD_DIR, { recursive: true });
+  writeFileSync(config.DB_PATH, 'SQLite format 3\0');
+
+  // Como se a pasta viesse de uma versão anterior, ou de um disco que não
+  // guardou o modo.
+  chmodSync(config.DATA_DIR, 0o755);
+  chmodSync(config.UPLOAD_DIR, 0o755);
+  chmodSync(config.DB_PATH, 0o644);
+
+  config.saveConfig(config.loadConfig()); // é aqui que o servidor aperta tudo
+
+  assert.equal(statSync(config.DATA_DIR).mode & 0o777, 0o700, 'a pasta de dados ficou aberta');
+  assert.equal(statSync(config.UPLOAD_DIR).mode & 0o777, 0o700, 'a pasta de anexos ficou aberta');
+  assert.equal(statSync(config.DB_PATH).mode & 0o777, 0o600, 'o banco ficou legível pra outros');
+});
+
 test('segredo guardado sai por getSecret e nunca por listSecretNames', () => {
   config.setSecret('MINHA_CHAVE', 'sk-valor-secreto-123');
   assert.equal(config.getSecret('MINHA_CHAVE'), 'sk-valor-secreto-123');
