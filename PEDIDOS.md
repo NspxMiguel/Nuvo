@@ -690,3 +690,26 @@ cinco fotos que você mandou (recortadas do vídeo e das capturas, em
 `docs/design-refs/`) e descreve cada uma ponto por ponto — preto de verdade,
 lista sem borda, pílula, uma cor só, brilho atrás do campo de escrever. As
 restrições técnicas e o mapa de arquivos continuam.
+
+*"adiciona ao prompt deixa algo bem simplificado, minimalista, o suficiente para
+ser facil para leigos, mas tbm ser confortavel para entendentes. outra coisa
+legal q podemos copiar do lm studio. ele puxa os modelos q cabem na sua
+maquina, e recomenda os melhores pra ela. fala oq é melhor em cada, e porque
+escolher um e nao outro. aquela animação ali do gemini eu gostei viu, poderia
+ter algo parecido. ainda ta bem diferente das referencias, nao ta legal nao
+esse app q vc fez. parece um app generico feito com ia... nos queremos algo
+bom, bonito, minimalista, facil pro usuario, e o mais importante,
+personalidade, animaçÕes, um app realmente respeitavel"*
+
+Quatro coisas separadas aqui:
+
+1. **no prompt:** simplicidade em camadas — leigo não tropeça, quem entende
+   não fica preso; minimalista;
+2. **no prompt, e depois no servidor:** a ideia do LM Studio — puxar os modelos
+   que cabem na máquina dela e recomendar os melhores, dizendo o que cada um
+   faz bem e por que escolher um e não outro;
+3. **no prompt:** a animação do Gemini (o brilho que respira atrás do campo, e
+   a estrela) — quer algo parecido;
+4. **veredito sobre o meu rascunho:** ficou genérico, "app feito com IA", longe
+   das referências. Falta personalidade e animação. O rascunho fica no branch
+   como está; o prompt é que precisa carregar isso.
