@@ -666,3 +666,13 @@ estão no `PEDIDOS.md` público são inofensivas ("funcionando em mobile ja?",
 repositório e um mapa dos seis arquivos de `web/` com linha e responsabilidade,
 começando pelo `index.html` porque é onde estão os `id` que não podem sumir.
 Conferi que os quatro principais abrem sem login (200 no raw do GitHub).
+
+## 18/08/2026 — refazer o desenho da interface
+
+*"recrie o claude desing, ficou ruim.. vo manda refs"*
+
+O Claude Design não entregou. As referências que ele mandou são o aplicativo do
+ChatGPT no iPhone (duas capturas + uma gravação de tela): preto de verdade,
+lista sem borda nenhuma, texto grande, botão-pílula azul flutuante, campo de
+escrever redondo. A tarefa vira minha: redesenhar o `web/` inteiro nesse
+espírito, sem quebrar a fiação (`id`, `data-view`) e sem etapa de build.
