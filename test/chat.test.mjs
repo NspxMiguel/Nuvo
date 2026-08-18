@@ -540,14 +540,50 @@ test('conversa longa avisa que o modelo não recebeu tudo', async () => {
     const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'a última' }));
     const corte = eventos.find((e) => e.type === 'history-cut');
     assert.ok(corte, 'o corte silencioso é o que faz o modelo parecer amnésico');
-    assert.equal(corte.sent, 40);
     assert.equal(corte.total, 45, '44 gravadas antes mais a desta rodada');
-    assert.equal(corte.dropped, 5);
+
+    // 39, e não 40: a pergunta desta rodada torna a contagem ímpar, então a
+    // janela de 40 cairia num `assistant` e a primeira mensagem seria uma
+    // resposta sem pergunta. Sobra uma a menos, de propósito.
+    assert.equal(corte.sent, 39);
+    assert.equal(corte.dropped, 6);
 
     // E o que foi de fato enviado bate com o anunciado.
     const enviadas = pedido(stub).messages.filter((m) => m.role !== 'system');
-    assert.equal(enviadas.length, 40);
+    assert.equal(enviadas.length, 39);
+    assert.equal(enviadas[0].role, 'user');
     assert.equal(enviadas.at(-1).content, 'a última', 'o fim da conversa é o que tem que ir');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('o corte nunca começa numa resposta sem a pergunta dela', async () => {
+  // O corte por quantidade cai onde calhar. Basta a contagem de par quebrar
+  // — e ela quebra sozinha, porque resposta vazia não é gravada e regenerar
+  // apaga a última — pra janela começar num `assistant`. A API da Anthropic
+  // recusa isso de saída ("first message must use the user role") e a conversa
+  // para de funcionar até o corte andar; nos outros o modelo lê uma resposta
+  // órfã como contexto.
+  const c = chat.createChat({ title: 'x', model: REF });
+  for (let i = 0; i < 22; i++) {
+    chat.addMessage(c.id, 'user', `pergunta ${i}`, null);
+    // Uma resposta falhou lá atrás e não foi gravada — resposta vazia não vira
+    // sucesso. É o que desloca a contagem de par pro resto da conversa.
+    if (i !== 1) chat.addMessage(c.id, 'assistant', `resposta ${i}`, REF);
+  }
+
+  const stub = stubFetch(async () => respostaEm(['ok']));
+  try {
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'a última' }));
+    const enviadas = pedido(stub).messages.filter((m) => m.role !== 'system');
+    assert.equal(enviadas[0].role, 'user', `a janela começou em ${enviadas[0].role}`);
+    assert.equal(enviadas.at(-1).content, 'a última');
+
+    // E o aviso na tela diz quantas foram de verdade, não o teto.
+    const corte = eventos.find((e) => e.type === 'history-cut');
+    assert.equal(corte.sent, enviadas.length, 'o anunciado não bate com o enviado');
+    assert.equal(corte.total - corte.dropped, corte.sent);
   } finally {
     stub.restore();
   }

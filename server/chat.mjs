@@ -197,16 +197,27 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
   });
 
   const todas = listMessages(chatId).filter((m) => m.role !== 'system');
-  const history = todas.slice(-HISTORY_LIMIT).map((m) => ({ role: m.role, content: m.content }));
+
+  // O corte por quantidade cai onde calhar, e pode deixar uma resposta na
+  // frente sem a pergunta que a gerou. Acontece assim que a contagem de par
+  // quebra — e ela quebra sozinha: resposta vazia não é gravada, e regenerar
+  // apaga a última. A janela então começa num `assistant`, que a API da
+  // Anthropic recusa de saída ("first message must use the user role"): a
+  // conversa para de funcionar até o corte andar. Nos outros provedores passa,
+  // e o modelo lê uma resposta órfã como se fosse contexto.
+  const janela = todas.slice(-HISTORY_LIMIT);
+  const primeiraPergunta = janela.findIndex((m) => m.role === 'user');
+  const enviadas = primeiraPergunta > 0 ? janela.slice(primeiraPergunta) : janela;
+  const history = enviadas.map((m) => ({ role: m.role, content: m.content }));
 
   // A tela mostra a conversa inteira, mas o modelo só recebe as últimas. Sem
   // dizer isso, ele "esquece" o começo e o usuário não tem como saber por quê.
-  if (todas.length > HISTORY_LIMIT) {
+  if (todas.length > history.length) {
     yield {
       type: 'history-cut',
       total: todas.length,
-      sent: HISTORY_LIMIT,
-      dropped: todas.length - HISTORY_LIMIT
+      sent: history.length,
+      dropped: todas.length - history.length
     };
   }
 

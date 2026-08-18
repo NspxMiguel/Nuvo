@@ -586,3 +586,26 @@ O defeito estava no orçamento:
   enquanto houver busca pra dividir, e o resto dele entra logo depois — ninguém
   perde o lugar, só a ordem muda. Sem resultado de busca, o fixado continua
   ficando com tudo, pra não desperdiçar espaço.
+
+### Corte de histórico (18/08/2026)
+
+- **toda conversa passada de 40 mensagens mandava uma resposta órfã na frente.**
+  O modelo recebe as últimas 40 mensagens, e o corte cai onde calhar. Como a
+  pergunta da rodada atual já está gravada quando o corte acontece, a contagem
+  fica ímpar — e a janela de 40 começa num `assistant`: uma resposta sem a
+  pergunta que a gerou. Não é caso de canto, é o caso normal; o teste que já
+  existia media 40 mensagens enviadas e passava porque conferia a quantidade,
+  nunca o papel da primeira.
+
+  O tamanho do estrago depende do provedor: a API da Anthropic recusa de saída
+  (*"first message must use the user role"*) e a conversa **para de funcionar**
+  até o corte andar sozinho; nos outros passa, e o modelo lê a resposta órfã
+  como se fosse contexto. Agora a janela é aparada até a primeira pergunta —
+  custa uma mensagem — e o aviso na tela passa a dizer quantas foram de verdade
+  (39, não o teto de 40).
+
+Achado que não virou conserto, anotado pra depois: o limite é de **quantidade de
+mensagens, não de tokens**. Quarenta mensagens longas estouram a janela de um
+modelo local de 4k ou 8k, e aí quem recusa é o modelo. Um teto por tamanho seria
+o certo, mas mexer nisso sem medir com modelo local de verdade é troca de um
+problema por outro.
