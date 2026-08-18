@@ -676,3 +676,17 @@ ChatGPT no iPhone (duas capturas + uma gravação de tela): preto de verdade,
 lista sem borda nenhuma, texto grande, botão-pílula azul flutuante, campo de
 escrever redondo. A tarefa vira minha: redesenhar o `web/` inteiro nesse
 espírito, sem quebrar a fiação (`id`, `data-view`) e sem etapa de build.
+
+*"era pra recria o prompt..."*
+
+Entendi errado o pedido anterior e comecei a redesenhar o CSS. Parei. O que fiz
+até ali ficou guardado no branch `redesenho-chatgpt-gemini` (não está na `main`)
+— serve de rascunho se você quiser, e some sem custo se não quiser.
+
+O prompt novo está em `PROMPT-CLAUDE-DESIGN.md`. A diferença pro primeiro é uma
+só, e é a que faltava: **referência visual**. O primeiro descrevia o app e
+deixava a cara em aberto; este diz "é o ChatGPT e o Gemini do iPhone", anexa as
+cinco fotos que você mandou (recortadas do vídeo e das capturas, em
+`docs/design-refs/`) e descreve cada uma ponto por ponto — preto de verdade,
+lista sem borda, pílula, uma cor só, brilho atrás do campo de escrever. As
+restrições técnicas e o mapa de arquivos continuam.
