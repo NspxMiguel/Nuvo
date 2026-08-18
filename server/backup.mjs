@@ -13,10 +13,12 @@ import {
   rmSync,
   statSync,
   existsSync,
-  chmodSync
+  chmodSync,
+  renameSync
 } from 'node:fs';
 import { join, basename } from 'node:path';
 import { deflateRawSync, inflateRawSync, crc32 } from 'node:zlib';
+import { DatabaseSync } from 'node:sqlite';
 import { DATA_DIR, DB_PATH, CONFIG_PATH, UPLOAD_DIR } from './config.mjs';
 import { STAGED_PATH, PREVIOUS_PATH } from './pending-restore.mjs';
 import { db } from './db.mjs';
@@ -125,27 +127,45 @@ export function unzip(buffer) {
   let pointer = buffer.readUInt32LE(end + 16);
   const files = new Map();
 
+  // Todo deslocamento vem de dentro do próprio arquivo, que pode estar
+  // truncado ou forjado. Sem conferir, `readUInt16LE` num ponteiro absurdo sobe
+  // um RangeError sobre memória fora do buffer — e o usuário lê isso no lugar
+  // de "esse arquivo não presta".
+  const dentro = (pos, bytes) => pos >= 0 && pos + bytes <= buffer.length;
+
   for (let i = 0; i < count; i++) {
-    if (buffer.readUInt32LE(pointer) !== 0x02014b50) break;
+    if (!dentro(pointer, 46) || buffer.readUInt32LE(pointer) !== 0x02014b50) break;
     const method = buffer.readUInt16LE(pointer + 10);
+    const declaredCrc = buffer.readUInt32LE(pointer + 16);
     const compressed = buffer.readUInt32LE(pointer + 20);
     const nameLength = buffer.readUInt16LE(pointer + 28);
     const extraLength = buffer.readUInt16LE(pointer + 30);
     const commentLength = buffer.readUInt16LE(pointer + 32);
     const localOffset = buffer.readUInt32LE(pointer + 42);
+    if (!dentro(pointer + 46, nameLength)) throw new Error('o arquivo zip está truncado');
     const name = buffer.toString('utf8', pointer + 46, pointer + 46 + nameLength);
 
+    if (!dentro(localOffset, 30)) throw new Error('o arquivo zip aponta pra fora de si mesmo');
     const localNameLength = buffer.readUInt16LE(localOffset + 26);
     const localExtraLength = buffer.readUInt16LE(localOffset + 28);
     const start = localOffset + 30 + localNameLength + localExtraLength;
+    if (!dentro(start, compressed)) throw new Error('o arquivo zip está truncado');
     const body = buffer.subarray(start, start + compressed);
     // Teto por entrada: um zip de poucos kB pode abrir em centenas de MB, e a
     // restauração aceita arquivo de qualquer origem. Estourar aqui vira erro
     // tratado ("não deu pra restaurar"), não processo morto.
-    files.set(
-      name,
-      method === 0 ? Buffer.from(body) : inflateRawSync(body, { maxOutputLength: MAX_INFLADO })
-    );
+    const data =
+      method === 0 ? Buffer.from(body) : inflateRawSync(body, { maxOutputLength: MAX_INFLADO });
+
+    // A soma de verificação existe exatamente pra isto e estava sendo escrita
+    // sem nunca ser lida. Um bit trocado no meio do zip — pendrive, disco
+    // velho, sincronização de nuvem — descomprimia sem reclamar e virava o
+    // banco novo: de 40 backups com um único byte alterado, 38 passavam, todos
+    // com o banco malformado. Backup que não confere não é backup.
+    if (crc32(data) !== declaredCrc) {
+      throw new Error(`o backup está corrompido: "${name}" não bate com a soma de verificação`);
+    }
+    files.set(name, data);
 
     pointer += 46 + nameLength + extraLength + commentLength;
   }
@@ -263,7 +283,31 @@ export function restoreBackup(buffer, { keepSecrets = false } = {}) {
   // conexão aberta neste processo ainda tem as páginas antigas em memória e as
   // escreveria de volta, desfazendo a restauração inteira em silêncio. A troca
   // acontece no próximo start, com o banco fechado.
-  writeFileSync(STAGED_PATH, database);
+  // Segunda camada, depois da soma de verificação do zip: o zip pode estar
+  // íntegro e o banco lá dentro não. Vem de outra máquina, de uma versão
+  // antiga, de um disco que já estava com defeito quando o backup foi feito —
+  // e o cabeçalho "SQLite format 3" continua lá. Quem responde é o próprio
+  // SQLite, com o arquivo ainda de lado: recusar aqui é perder a restauração,
+  // deixar passar é perder o banco que estava funcionando.
+  const conferindo = `${STAGED_PATH}.conferindo`;
+  rmSync(conferindo, { force: true });
+  writeFileSync(conferindo, database);
+  try {
+    const teste = new DatabaseSync(conferindo, { readOnly: true });
+    try {
+      const veredito = teste.prepare('PRAGMA quick_check').get();
+      const resposta = Object.values(veredito || {})[0];
+      if (resposta !== 'ok') throw new Error(String(resposta).slice(0, 120));
+    } finally {
+      teste.close();
+    }
+  } catch (err) {
+    rmSync(conferindo, { force: true });
+    throw new Error(`o banco dentro do backup não abre: ${err.message}`);
+  }
+
+  rmSync(STAGED_PATH, { force: true });
+  renameSync(conferindo, STAGED_PATH);
   restored.db = true;
   restored.previous = existsSync(DB_PATH) ? PREVIOUS_PATH : null;
 

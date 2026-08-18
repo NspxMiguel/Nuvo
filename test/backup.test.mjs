@@ -192,3 +192,70 @@ test('backup e config restaurado nascem legíveis só pelo dono', () => {
   const pasta = statSync(DATA_DIR).mode & 0o777;
   assert.equal(pasta.toString(8), '700', `a pasta de dados está ${pasta.toString(8)}`);
 });
+
+test('backup com um byte trocado é recusado, não restaurado', () => {
+  // A soma de verificação existe pra isto e estava sendo escrita sem nunca ser
+  // lida: de 40 backups com um único byte alterado, 38 passavam, e o banco
+  // encostado pra troca vinha malformado — `PRAGMA integrity_check` respondia
+  // "database disk image is malformed". Pendrive, disco velho ou sincronização
+  // de nuvem bastam pra produzir esse byte.
+  for (let i = 0; i < 20; i++) {
+    addMemory({ text: `memória número ${i} com texto suficiente pra ocupar página`, kind: 'fact' });
+  }
+  const bom = backup.createBackup().buffer;
+
+  let aceitos = 0;
+  for (let tentativa = 0; tentativa < 20; tentativa++) {
+    const estragado = Buffer.from(bom);
+    estragado[400 + Math.floor(((estragado.length - 900) * tentativa) / 20)] ^= 0xff;
+    try {
+      backup.restoreBackup(estragado);
+      aceitos += 1;
+    } catch {
+      /* recusado, que é o esperado */
+    }
+  }
+  assert.equal(aceitos, 0, `${aceitos} backups corrompidos passariam`);
+  // E o backup íntegro continua entrando.
+  assert.equal(backup.restoreBackup(bom).db, true);
+});
+
+test('zip forjado apontando pra fora de si mesmo dá erro legível', () => {
+  // Sem conferir os deslocamentos, `readUInt16LE` num ponteiro absurdo sobe um
+  // RangeError sobre "memória fora do buffer" — que o usuário lê no lugar de
+  // "esse arquivo não presta".
+  const bom = backup.createBackup().buffer;
+  const forjado = Buffer.from(bom);
+  let fim = -1;
+  for (let i = forjado.length - 22; i >= 0; i--) {
+    if (forjado.readUInt32LE(i) === 0x06054b50) {
+      fim = i;
+      break;
+    }
+  }
+  forjado.writeUInt32LE(0x7ffffff0, forjado.readUInt32LE(fim + 16) + 42);
+  assert.throws(() => backup.restoreBackup(forjado), (err) => {
+    assert.ok(!(err instanceof RangeError), `vazou RangeError: ${err.message}`);
+    assert.match(err.message, /zip|backup/i);
+    return true;
+  });
+});
+
+test('banco quebrado dentro de zip íntegro não toma o lugar do que funciona', () => {
+  // O zip pode estar perfeito e o banco lá dentro não: veio de outra máquina,
+  // de versão antiga, de disco que já tinha defeito quando o backup foi feito.
+  // O cabeçalho "SQLite format 3" continua lá, então só o próprio SQLite
+  // responde — e responde com o arquivo ainda de lado.
+  const arquivos = backup.unzip(backup.createBackup().buffer);
+  const banco = Buffer.from(arquivos.get('data.db'));
+  const alvo = Math.floor(banco.length / 2);
+  for (let i = alvo; i < alvo + 600 && i < banco.length; i++) banco[i] ^= 0xa5;
+
+  const refeito = backup.zip([
+    { name: 'manifest.json', data: arquivos.get('manifest.json') },
+    { name: 'data.db', data: banco }
+  ]);
+
+  assert.throws(() => backup.restoreBackup(refeito), /não abre/);
+  assert.equal(existsSync(`${pendente.STAGED_PATH}.conferindo`), false, 'sobrou arquivo de conferência');
+});

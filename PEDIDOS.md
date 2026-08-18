@@ -445,3 +445,36 @@ Conferido e sem defeito: a numeração das citações bate com a lista de fontes
 duas saem da mesma lista de páginas aproveitadas), e falha do modelo na hora de
 escrever o relatório já vira evento de erro na tela — o `pump` da API cobre, não
 derruba a conexão.
+
+### Backup e restauração (17/08/2026)
+
+Auditoria do que guarda tudo — conversas, memória, gems, projetos, chaves. Achei
+três defeitos, todos no caminho de restaurar:
+
+- **backup corrompido era aceito e virava o banco novo.** O zip guarda uma soma
+  de verificação em cada entrada, e o escritor calculava certinho — só que a
+  leitura nunca conferia. Medi: de 40 backups com **um único byte trocado**, 38
+  passavam, e o banco que ia tomar o lugar do atual vinha malformado (o próprio
+  SQLite respondia "database disk image is malformed"). Pendrive, disco velho ou
+  sincronização de nuvem bastam pra produzir esse byte. Agora confere, e passam
+  0 de 40, com mensagem dizendo qual arquivo não bateu;
+- **banco quebrado dentro de zip íntegro passava.** A soma de verificação prova
+  que o zip chegou inteiro, não que o banco lá dentro presta — backup vindo de
+  outra máquina, de versão antiga ou de disco que já tinha defeito continua com
+  o cabeçalho "SQLite format 3" no lugar. Entrou uma segunda camada: o arquivo é
+  escrito de lado, quem responde é o próprio SQLite (`PRAGMA quick_check`), e só
+  depois de passar é que ele é encostado pra troca. Recusar é perder a
+  restauração; deixar passar é perder o banco que estava funcionando;
+- **zip forjado vazava erro de memória.** Deslocamento apontando pra fora do
+  arquivo subia `RangeError: value of "offset" is out of range... Received
+  2147483658` — que é o que o usuário lia ao subir um arquivo errado. Os
+  deslocamentos passaram a ser conferidos contra o tamanho do arquivo e a
+  mensagem virou "o arquivo zip aponta pra fora de si mesmo".
+
+Os três testes falham contra a versão anterior, que é o que garante que medem
+alguma coisa. Nenhum deles deixa arquivo pra trás quando recusa.
+
+Conferido e sem defeito: `basename` já cortava `../` de zip forjado, a troca do
+banco continua acontecendo só no próximo start (com o anterior guardado), o
+backup automático guarda 7 dias e a ordem alfabética do nome é a ordem
+cronológica.
