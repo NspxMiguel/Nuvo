@@ -107,6 +107,29 @@ decisão de desenho. Se tiver um caminho melhor, quero ver — inclusive um que 
 pareça "mais um app de chat escuro com azul", que é exatamente o que ele parece
 hoje.
 
+## O código está aberto
+
+**https://github.com/NspxMiguel/IAUnifier** — público, pode ler tudo.
+
+O que interessa pro desenho está em `web/`, e são poucos arquivos:
+
+| arquivo | linhas | o que é |
+| --- | ---: | --- |
+| `web/index.html` | 126 | a casca. **Aqui moram os `id` e os `data-view` que são a fiação** — é o arquivo pra ler primeiro |
+| `web/styles.css` | 772 | tudo que é aparência hoje, e os tokens de tema no `:root` |
+| `web/views.js` | 1153 | o que cada tela desenha: `renderCouncil`, `renderResearch`, `renderMemory`, `renderProviders`, `renderSettings`, `renderFirstRun`, `renderOllamaManager` |
+| `web/app.js` | 1201 | a conversa e o streaming: é onde os eventos `delta`, `reasoning`, `phase`, `stats` viram tela |
+| `web/icons.js` | 79 | os ícones, em SVG inline |
+| `web/md.js` | 272 | markdown e bloco de código |
+
+O resto (`server/`, `test/`, `bin/`) é o back-end e não entra no desenho — mas
+serve pra entender o que cada tela recebe: os eventos que chegam por streaming
+estão em `server/chat.mjs`, `server/council.mjs` e `server/research.mjs`, e são
+eles que definem os estados que a tela precisa saber mostrar.
+
+`PEDIDOS.md`, na raiz, é o registro do que foi pedido e consertado — dá o
+histórico de por que as coisas estão do jeito que estão.
+
 ## O que eu quero de volta
 
 O desenho das 8 telas, em celular e computador, com os momentos difíceis acima
