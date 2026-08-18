@@ -559,3 +559,30 @@ O prompt diz três coisas que eu não deixaria de fora:
 Falei que a paleta de hoje não é decisão de desenho, é o que saiu de escrever o
 app às pressas — e que ela parece "mais um app de chat escuro com azul". Ele que
 decida se troca.
+
+### Recuperação de memória (18/08/2026)
+
+O caminho que sustenta a ideia do app. Duas medidas primeiro, pra saber se ele
+funciona do jeito que **você** escreve, sem acento:
+
+- montei oito fatos com acento (como o extrator grava) e perguntei sem acento
+  ("qual e o meu dominio", "voce lembra da minha maquina", "pq n usar
+  dependencia"). **7 de 8 acharam o fato certo.** O FTS5 tira acento sozinho, e
+  isso agora está conferido em vez de suposto;
+- a que perdeu foi "quais projetos eu tenho" contra "Trabalho com TrainerKit,
+  nspx e Cadenza": nenhuma palavra em comum. Não é defeito da busca, é o limite
+  de procurar por palavra — e é exatamente o que o embedding resolve. Vale
+  lembrar que **embedding vem desligado de fábrica**, então todo mundo começa
+  com busca por palavra só.
+
+O defeito estava no orçamento:
+
+- **memória fixada engolia a busca em silêncio.** O teto é 12 memórias
+  injetadas, e os fixados entravam primeiro, até 12. Com doze recados fixados —
+  coisa de meses de uso — a busca parava de aparecer **inteira**: o fato do seu
+  domínio, casando palavra por palavra, não chegava ao modelo, e nada na tela
+  dizia que a memória tinha parado de procurar. Fixar quer dizer "isto sempre
+  entra", não "só isto entra". Agora o fixado leva no máximo metade do orçamento
+  enquanto houver busca pra dividir, e o resto dele entra logo depois — ninguém
+  perde o lugar, só a ordem muda. Sem resultado de busca, o fixado continua
+  ficando com tudo, pra não desperdiçar espaço.

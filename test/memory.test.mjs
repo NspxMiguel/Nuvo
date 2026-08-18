@@ -191,3 +191,32 @@ test('projeto em andamento vira fato', () => {
   const fatos = extractHeuristic('Estou construindo o IAUnifier, um app que roda no servidor de casa.');
   assert.ok(fatos.some((f) => /IAUnifier/.test(f)), JSON.stringify(fatos));
 });
+
+test('memória fixada não engole a busca', async () => {
+  // Fixar quer dizer "isto sempre entra", não "só isto entra". Com o teto de 12
+  // memórias injetadas e doze recados fixados, a busca sumia inteira e sem
+  // aviso nenhum: um fato que casa palavra por palavra deixava de chegar ao
+  // modelo, e a tela continuava dizendo que a memória estava ligada.
+  await addMemory({ text: 'Meu domínio é nspx.dev e o painel fica em /admin.html', kind: 'fact' });
+  for (let i = 0; i < 12; i++) {
+    await addMemory({ text: `Recado fixado número ${i}, nada a ver com domínio`, kind: 'note', pinned: 1 });
+  }
+
+  const out = await recall('qual é o meu domínio');
+  assert.ok(
+    out.some((m) => /nspx\.dev/.test(m.text)),
+    `a busca foi engolida pelos fixados: ${out.map((m) => m.text.slice(0, 20))}`
+  );
+  // E os fixados continuam entrando — o conserto reparte, não troca um pelo outro.
+  assert.ok(out.filter((m) => m.pinned).length >= 6, 'os fixados perderam o lugar');
+});
+
+test('sem resultado de busca, o fixado ocupa o orçamento inteiro', async () => {
+  // O outro lado do mesmo conserto: reservar espaço pra busca não pode virar
+  // espaço desperdiçado quando não há o que buscar.
+  for (let i = 0; i < 12; i++) {
+    await addMemory({ text: `Lembrete fixado ${i} sobre assunto totalmente distinto`, kind: 'note', pinned: 1 });
+  }
+  const out = await recall('xilofone berimbau capivara');
+  assert.equal(out.length, 12, `voltaram ${out.length} — sobrou orçamento sem motivo`);
+});

@@ -189,9 +189,17 @@ export async function recall(query, { projectId = null, limit = null } = {}) {
     .map(([id]) => byId.get(id))
     .filter(Boolean);
 
+  // Fixar quer dizer "isto sempre entra", não "só isto entra". Com o teto de 12
+  // e doze recados fixados, a busca sumia inteira e sem aviso: um fato que
+  // casava palavra por palavra — o domínio dele — não chegava ao modelo, e nada
+  // na tela dizia que a memória tinha parado de procurar. Fixado leva no máximo
+  // metade do orçamento enquanto houver resultado de busca pra dividir; sem
+  // resultado nenhum, fica com tudo, que é o certo em vez de desperdiçar.
+  const tetoFixado = ranked.length ? Math.max(1, Math.floor(max / 2)) : max;
+
   const out = [];
   const seen = new Set();
-  for (const row of [...pinned, ...ranked]) {
+  for (const row of [...pinned.slice(0, tetoFixado), ...ranked, ...pinned.slice(tetoFixado)]) {
     if (seen.has(row.id)) continue;
     seen.add(row.id);
     out.push(row);
