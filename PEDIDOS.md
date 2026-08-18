@@ -302,6 +302,19 @@ para analisador símbolo a símbolo, mais o mapa de fontes por página:
   escapava do extrator (`RangeError` ao juntar os dicionários num string só)
   deixou de existir.
 
+### Leitura de página da web (17/08/2026)
+
+Exercida contra a internet de verdade, não só contra dublê:
+
+- **página de blog perdia tudo menos o primeiro item** — cada notícia num
+  `<article>`, e a busca casava o primeiro que aparecesse. De três posts na
+  página, um chegava ao modelo. O `https://www.nspx.dev/` era um dos afetados:
+  saía com zero caractere, agora sai com 1.170;
+- **entidade numérica impossível derrubava a leitura** — mesma causa do EPUB,
+  em outro arquivo;
+- **página montada por JavaScript** saía vazia sem motivo, e modelo que recebe
+  página vazia conclui que o assunto não existe. Agora a nota diz o que houve.
+
 - **entidade quebrada em EPUB** — `&#99999999;` não é caractere nenhum, e
   converter isso responde com exceção. Num livro convertido por ferramenta, e
   eles têm, a exceção subia até o upload e derrubava o pedido inteiro. Agora a

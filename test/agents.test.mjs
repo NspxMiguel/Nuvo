@@ -306,3 +306,62 @@ test('pesquisa: modelo que não planeja cai na pergunta direta', async () => {
     stub.restore();
   }
 });
+
+test('página com vários artigos entrega todos, não só o primeiro', async () => {
+  // Índice de blog e página de notícias põem cada item num <article>. Casar o
+  // primeiro que aparecesse entregava um item de uma lista de dez, e o modelo
+  // respondia como se o resto não existisse.
+  const stub = stubFetch(async () =>
+    fakeResponse(
+      `<html><head><title>Blog</title></head><body><main>
+       <article><h2>Primeiro</h2><p>conteudo um</p></article>
+       <article><h2>Segundo</h2><p>conteudo dois</p></article>
+       <article><h2>Terceiro</h2><p>conteudo tres</p></article>
+       </main></body></html>`,
+      { headers: { 'content-type': 'text/html' } }
+    )
+  );
+  try {
+    const page = await web.readPage('https://exemplo.com/blog');
+    for (const item of ['conteudo um', 'conteudo dois', 'conteudo tres']) {
+      assert.match(page.text, new RegExp(item), `faltou "${item}"`);
+    }
+  } finally {
+    stub.restore();
+  }
+});
+
+test('entidade numérica impossível não derruba a leitura da página', async () => {
+  // `&#99999999;` não é caractere nenhum, e converter isso responde com
+  // exceção. Numa pesquisa profunda, uma página torta derrubava a leitura.
+  const stub = stubFetch(async () =>
+    fakeResponse(
+      '<html><head><title>t</title></head><body><p>antes &#99999999; depois &#233;</p></body></html>',
+      { headers: { 'content-type': 'text/html' } }
+    )
+  );
+  try {
+    const page = await web.readPage('https://exemplo.com/torta');
+    assert.match(page.text, /antes/);
+    assert.match(page.text, /depois é/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('página montada por JavaScript diz que está vazia, em vez de sair calada', async () => {
+  // HTML grande sem uma letra de texto é aplicação de página única. Entregar
+  // vazio sem motivo faz o modelo concluir que o assunto não existe.
+  const stub = stubFetch(async () =>
+    fakeResponse(`<html><head></head><body><div id="root"></div></body></html>${' '.repeat(600)}`, {
+      headers: { 'content-type': 'text/html' }
+    })
+  );
+  try {
+    const page = await web.readPage('https://exemplo.com/app');
+    assert.equal(page.text, '');
+    assert.match(page.note, /JavaScript/);
+  } finally {
+    stub.restore();
+  }
+});

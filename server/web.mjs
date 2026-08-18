@@ -11,12 +11,21 @@ const ENTITIES = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'", '#x27': "'"
 };
 
+/** Ponto de código de uma entidade, ou a entidade como veio. */
+function pontoDeCodigo(n, original) {
+  // Página com `&#99999999;` existe, e `String.fromCodePoint` responde a isso
+  // com exceção: a leitura inteira morria por causa de uma entidade torta.
+  if (!Number.isFinite(n) || n < 0 || n > 0x10ffff) return original;
+  if (n >= 0xd800 && n <= 0xdfff) return '';
+  return String.fromCodePoint(n);
+}
+
 function decodeEntities(text) {
   return String(text).replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, code) => {
     const key = code.toLowerCase();
     if (ENTITIES[key]) return ENTITIES[key];
-    if (key.startsWith('#x')) return String.fromCodePoint(parseInt(key.slice(2), 16));
-    if (key.startsWith('#')) return String.fromCodePoint(parseInt(key.slice(1), 10));
+    if (key.startsWith('#x')) return pontoDeCodigo(parseInt(key.slice(2), 16), whole);
+    if (key.startsWith('#')) return pontoDeCodigo(parseInt(key.slice(1), 10), whole);
     return whole;
   });
 }
@@ -107,10 +116,15 @@ export async function readPage(url, { maxChars = 12000, signal } = {}) {
 
   const title = (body.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || url).trim();
 
-  // Prefere <article> ou <main>; sem eles, o corpo inteiro.
+  // Prefere <main>, depois TODOS os <article>; sem eles, o corpo inteiro.
+  //
+  // A ordem importa: numa página de blog o <main> contém vários <article>, e
+  // pegar o primeiro que casasse devolvia só a primeira notícia da lista. E são
+  // todos, no plural — antes, de três posts na página chegava um ao modelo.
+  const artigos = body.match(/<article[\s\S]*?<\/article>/gi);
   const main =
-    body.match(/<article[\s\S]*?<\/article>/i)?.[0] ||
     body.match(/<main[\s\S]*?<\/main>/i)?.[0] ||
+    (artigos?.length ? artigos.join('\n') : '') ||
     body;
 
   const text = main
@@ -118,14 +132,20 @@ export async function readPage(url, { maxChars = 12000, signal } = {}) {
     .replace(/<\/(p|div|li|h[1-6]|tr|section|br)>/gi, '\n')
     .replace(/<[^>]*>/g, ' ');
 
+  const limpo = decodeEntities(text)
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim()
+    .slice(0, maxChars);
+
   return {
     url,
     title: decodeEntities(title).slice(0, 200),
-    text: decodeEntities(text)
-      .replace(/[ \t]+/g, ' ')
-      .replace(/\n\s*\n\s*\n+/g, '\n\n')
-      .trim()
-      .slice(0, maxChars)
+    text: limpo,
+    // HTML grande sem uma letra de texto é página montada por JavaScript. Vale
+    // dizer isso: o modelo recebendo página vazia sem motivo conclui que o
+    // assunto não existe.
+    note: !limpo && body.length > 500 ? 'a página monta o conteúdo por JavaScript; não há texto no HTML' : null
   };
 }
 
@@ -137,7 +157,7 @@ export async function searchAndRead(query, { results = 4, read = 3, signal } = {
     hits.slice(0, read).map(async (hit) => {
       try {
         const page = await readPage(hit.url, { maxChars: 6000, signal });
-        pages.push({ ...hit, text: page.text });
+        pages.push({ ...hit, text: page.text, error: page.note || undefined });
       } catch (err) {
         pages.push({ ...hit, text: '', error: err.message });
       }
