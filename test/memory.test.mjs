@@ -134,6 +134,42 @@ test('pergunta que casa com o padrão de fato não vira memória', () => {
   assert.deepEqual(extractHeuristic('meu gato se chama Farofa'), ['meu gato se chama Farofa']);
 });
 
+test('heurística pega fato nos três idiomas da interface', () => {
+  // O app fala português, inglês e espanhol, e a memória sem extrator é o caso
+  // comum (o extrator custa uma chamada de modelo por turno). Enquanto os
+  // padrões eram quase só de português, quem usava em espanhol nunca via a
+  // memória encher — a promessa da primeira tela não valia pra ele.
+  const pt = extractHeuristic('Estou construindo o IAUnifier, um app de IA.');
+  assert.ok(pt.some((f) => /construindo o IAUnifier/i.test(f)), `pt: ${JSON.stringify(pt)}`);
+
+  const en = extractHeuristic("I'm building IAUnifier, and I prefer short answers.");
+  assert.ok(en.some((f) => /building IAUnifier/i.test(f)), `en: ${JSON.stringify(en)}`);
+  assert.ok(en.some((f) => /prefer short answers/i.test(f)), `en: ${JSON.stringify(en)}`);
+
+  const es = extractHeuristic('Estoy construyendo IAUnifier. Me gusta el café sin azúcar.');
+  assert.ok(es.some((f) => /construyendo IAUnifier/i.test(f)), `es: ${JSON.stringify(es)}`);
+  assert.ok(es.some((f) => /gusta el caf/i.test(f)), `es: ${JSON.stringify(es)}`);
+});
+
+test('negação e pergunta valem nos três idiomas', () => {
+  // O oposto do que foi dito é pior que fato nenhum: memória é permanente e
+  // vale pra todas as IAs. E `no` (espanhol) não casava com o `n[ãa]o` que
+  // existia — "No me gusta el café" gravava "gosto de café".
+  assert.deepEqual(extractHeuristic('No me gusta el café.'), []);
+  assert.deepEqual(extractHeuristic("I don't like coffee."), []);
+  // "Nunca me chame de X" é instrução, não negação de fato — em espanhol
+  // também. É o mesmo caso que o teste do português já trava.
+  assert.deepEqual(extractHeuristic('Nunca me llames por el apellido.'), [
+    'Nunca me llames por el apellido'
+  ]);
+
+  // Pergunta em espanhol abre com `¿`, que não é letra — o `\b` do fim do
+  // padrão de interrogativa não casava depois dele.
+  assert.deepEqual(extractHeuristic('¿Cómo se llama mi gato?'), []);
+  assert.deepEqual(extractHeuristic('Cuál es mi proyecto?'), []);
+  assert.deepEqual(extractHeuristic('What is my project called?'), []);
+});
+
 test('pergunta antes não engole o fato que vem depois', () => {
   const fatos = extractHeuristic('Qual a capital da França? eu moro em Curitiba');
   assert.deepEqual(fatos, ['eu moro em Curitiba']);

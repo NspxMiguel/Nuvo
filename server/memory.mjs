@@ -297,15 +297,35 @@ export function renderForPrompt(memories) {
  */
 const ateOFimDaFrase = (min, max) => `(?:(?!\\s*[.!?](?:\\s|$))[^\\n]){${min},${max}}`;
 
+// Um bloco por idioma da interface. Sem extrator configurado, é isto que a
+// memória enxerga — e é o caso mais comum, porque o extrator custa uma chamada
+// de modelo por turno. Enquanto só havia português (mais duas frases soltas em
+// inglês), o app falava três línguas e lembrava numa: quem usasse em espanhol
+// nunca via a memória encher, e a promessa da primeira tela não valia pra ele.
 const HEURISTICS = [
+  // português
   `\\b(?:eu\\s+)?(?:me\\s+chamo|meu\\s+nome\\s+(?:é|e))\\s+${ateOFimDaFrase(2, 60)}`,
   `\\b(?:eu\\s+)?(?:gosto|amo|odeio|detesto|prefiro)\\s+(?:de\\s+)?${ateOFimDaFrase(3, 90)}`,
   `\\b(?:eu\\s+)?(?:moro|trabalho|estudo)\\s+(?:em|na|no|com|para)\\s+${ateOFimDaFrase(2, 80)}`,
   `\\b(?:meu|minha)\\s+(?:projeto|empresa|time|cachorro|gato|carro|site|dominio|domínio)\\s+${ateOFimDaFrase(2, 80)}`,
   `\\b(?:sempre|nunca)\\s+(?:me|use|usa|faça|faz|responda)\\s+${ateOFimDaFrase(3, 90)}`,
   `\\b(?:eu\\s+)?estou\\s+(?:construindo|desenvolvendo|criando|fazendo|montando|escrevendo)\\s+${ateOFimDaFrase(3, 90)}`,
+  `\\b(?:eu\\s+)?(?:vou|pretendo)\\s+(?:lançar|publicar|abrir|montar)\\s+${ateOFimDaFrase(3, 90)}`,
+
+  // inglês
   `\\bmy\\s+name\\s+is\\s+${ateOFimDaFrase(2, 60)}`,
-  `\\bi\\s+(?:like|love|hate|prefer|work|live)\\s+${ateOFimDaFrase(3, 90)}`
+  `\\bi\\s+(?:like|love|hate|prefer|work|live|use|study)\\s+${ateOFimDaFrase(3, 90)}`,
+  `\\bi(?:'m|\\s+am)\\s+(?:building|developing|creating|making|writing|working\\s+on)\\s+${ateOFimDaFrase(3, 90)}`,
+  `\\bmy\\s+(?:project|company|team|dog|cat|car|site|domain)\\s+${ateOFimDaFrase(2, 80)}`,
+  `\\b(?:always|never)\\s+(?:call\\s+me|use|answer|reply|write)\\s+${ateOFimDaFrase(3, 90)}`,
+
+  // espanhol
+  `\\b(?:me\\s+llamo|mi\\s+nombre\\s+es)\\s+${ateOFimDaFrase(2, 60)}`,
+  `\\b(?:me\\s+gusta|me\\s+encanta|amo|odio|detesto|prefiero)\\s+${ateOFimDaFrase(3, 90)}`,
+  `\\b(?:vivo|trabajo|estudio)\\s+(?:en|con|para)\\s+${ateOFimDaFrase(2, 80)}`,
+  `\\bmi\\s+(?:proyecto|empresa|equipo|perro|gato|coche|sitio|dominio)\\s+${ateOFimDaFrase(2, 80)}`,
+  `\\b(?:siempre|nunca)\\s+(?:me|usa|use|responde|responda|escribe)\\s+${ateOFimDaFrase(3, 90)}`,
+  `\\bestoy\\s+(?:construyendo|desarrollando|creando|haciendo|escribiendo)\\s+${ateOFimDaFrase(3, 90)}`
 ].map((source) => new RegExp(source, 'gi'));
 
 /**
@@ -314,7 +334,7 @@ const HEURISTICS = [
  * memória é permanente e compartilhada: o fato invertido passa a valer para
  * todos os modelos, em todas as conversas seguintes.
  */
-const NEGADO = /\b(?:n[ãa]o|nunca|jamais|nem|don'?t|doesn'?t|never)\s+(?:eu\s+)?$/i;
+const NEGADO = /\b(?:n[ãa]o|no|nunca|jamais|jam[áa]s|nem|ni|tampoco|don'?t|doesn'?t|never)\s+(?:eu\s+|yo\s+)?$/i;
 
 /**
  * A frase é uma pergunta?
@@ -328,7 +348,10 @@ const NEGADO = /\b(?:n[ãa]o|nunca|jamais|nem|don'?t|doesn'?t|never)\s+(?:eu\s+)
  * para antes do "?" justamente porque `ateOFimDaFrase` não deixa pontuação
  * entrar.
  */
-const INTERROGATIVA = /^\s*(?:qual|quais|quem|quando|onde|aonde|como|quanto|quantos|quantas|por\s?que|porque|o\s+que|what|where|who|when|how|why|which|do|does|did|can|could|is|are)\b/i;
+// O `¿` do espanhol fica fora do grupo com `\b` no fim: `\b` depois de um sinal
+// de pontuação não casa, e a pergunta escrita com ele passaria batido.
+const INTERROGATIVA =
+  /^\s*(?:¿|(?:qual|quais|quem|quando|onde|aonde|como|quanto|quantos|quantas|por\s?que|porque|o\s+que|cu[áa]l|cu[áa]les|qu[ée]|qui[ée]n|d[óo]nde|cu[áa]ndo|cu[áa]nto|c[óo]mo|what|where|who|when|how|why|which|do|does|did|can|could|is|are)\b)/i;
 
 function ehPergunta(texto, inicio) {
   const antes = texto.lastIndexOf('\n', inicio - 1) + 1;
