@@ -667,6 +667,48 @@ repositório e um mapa dos seis arquivos de `web/` com linha e responsabilidade,
 começando pelo `index.html` porque é onde estão os `id` que não podem sumir.
 Conferi que os quatro principais abrem sem login (200 no raw do GitHub).
 
+## 19/08/2026 — mensagem grande, ele indo pra escola
+
+> *"continua. nao peça nenhuma permisao, q vou ta na escola"*
+
+Quebrado em itens, com as palavras dele:
+
+- [ ] **escolher o navegador ao ligar o modo agente**
+  > *"pensei agr, dava pra ao clicar no modo agente, ele pergunta se qr usa o
+  > teu chrome, ou baixa um cromium"*
+- [ ] **modo code, com painel de IDE ao lado mostrando a IA testando**
+  > *"modo code e etc, podia ter isso al ide ali no lado aparece a ia testando,
+  > e etc"*
+- [ ] **i18n no app e no site, com idioma pelo IP, e trocar o nome**
+  > *"falta i18n, site app e etc. puxa localizacao + idioma via localizacao ip
+  > sla, e trocar o nome pro novo nome"*
+- [ ] **varredura de ortografia, maiúsculas e sentido, no app inteiro**
+  > *"corrigir em todo o app, letras maisculas e minusculas erradas, faz uma
+  > varredura de ortografia e sentido das palavras, nem tudo se traduz.. na
+  > landing page ja vejo varios...."*
+- [ ] **o "Pode falar" vira uma sequência de nomes**
+  > *"e tbm ta escrito só PODE FALAR. coloca pode falar, miguel, joao e etc, ai
+  > vai aparecendo varios nomes, e no final aparece "SEU NOME" Baixe o app
+  > agora, e teste você mesmo."*
+- [ ] **acesso guiado: nada de "falta tal coisa", só um botão Instalar**
+  > *"o app tem q ser todo acesso guiado tlg? n tem um negocio falando: falta
+  > tal coisa. se falta, aparece na tela so um botao: Instalar e pronto, GG.
+  > total acessivel pro usuario leigo."*
+- [ ] **opções avançadas com IA de linha de comando pra bate-papo**
+  > *"opcoes avançadas permite o uso de ias cli para batepapo, para por
+  > exemplo, nao ter q colocar api key, e gastar mais com ias"*
+- [ ] **as 100 IAs mais conhecidas, baixando direto do Hugging Face**
+  > *"adiciona varias ias, pega as 100 mais famosas e adiciona todas como uma
+  > opção. download das ias direto do huugieface, 100% atualizado sempre, sem eu
+  > ter q atualiza manualmente. deixe o app autosustentavel"*
+
+**Sobre "o novo nome":** ele não escreveu qual é. O único nome novo em jogo é
+**Nuvo**, que veio do desenho que ele mandou usar: o prompt dele pedia "um app
+chamado IAUnifier" e o Claude Design devolveu tudo com a marca Nuvo
+(`referencias-design/nuvo/HANDOFF.md`). Ao montar a landing eu tinha trocado
+Nuvo → IAUnifier; o pedido é o caminho de volta.
+
+
 ## 18/08/2026 — refazer o desenho da interface
 
 *"recrie o claude desing, ficou ruim.. vo manda refs"*
