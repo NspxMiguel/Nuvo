@@ -114,9 +114,9 @@ export function ligarBrilho(canvas) {
   return { pulsar, assentar, apagar: () => { cancelAnimationFrame(quadro); canvas.classList.remove('on'); } };
 }
 
-// A marca do Nuvo: roseta de cinco lóbulos, sólida, com gradiente e brilho
-// de dentro. Três modos: fixa (logo), pensa (lóbulos respirando) e grande
-// (modo voz, girando devagar).
+// A marca do IAUnifier: roseta de seis lóbulos em volta de um miolo, sólida,
+// com gradiente e brilho de dentro. Modos: fixa (logo), bloom e pensa (lóbulos
+// respirando) e grande (modo voz, girando devagar).
 export function marca(tamanho = 44, mini = false, fixa = false) {
   return roseta(tamanho, mini || fixa ? 'fixa' : 'bloom');
 }
