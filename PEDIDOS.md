@@ -857,3 +857,27 @@ Linkar com `vercel link --project nspx --scope nspx` antes.
 Apaguei as 8 conversas de teste que eu criei nesta madrugada; o app ficou com
 zero conversa, zero memória e zero anexo, como estava.
 
+## 19/08/2026 — pedidos da manhã (ele foi pra escola)
+
+Mensagem dele, com o print do botão do globo em anexo, mais o zip
+`Formulário enviado e acesso ao código.zip`:
+
+> *"esse aq é o modo agente, o modo agente de navegador, tipo o claude in
+> chrome, ou codex in chrome e etc. fiz land com claude desing, segue ai. hj
+> fico o dia inteiro na escola, entao pode trabalhar a terde inteira no projeto,
+> quero ver ele testado e funcionando quando eu chegar, e release rodando no
+> mac, linux e windows. landing page e tudo bonitinho. boa sorte, vou la"*
+
+Quebrado em itens:
+
+- [ ] **o botão do globo é modo agente de navegador**, não busca na web. Tipo o
+  Claude in Chrome, o Codex in Chrome. Hoje ele só liga busca na web na
+  conversa — é outra coisa;
+- [ ] **usar a landing que ele fez no Claude Design** (`landing.html` +
+  `LANDING.md` + as imagens de `lp/` dentro do zip), no lugar da atual;
+- [ ] **release rodando no Mac, no Linux e no Windows**;
+- [ ] **"landing page e tudo bonitinho"** — acabamento;
+- [ ] **testado e funcionando quando ele chegar.**
+
+Ele volta no fim da tarde.
+
