@@ -28,6 +28,15 @@ const CACHE_PATH = join(DATA_DIR, 'catalogo-hf.json');
 // a cada abertura de tela gastaria a cota de pedidos pra ver a mesma coisa.
 const VALIDADE_MS = 24 * 60 * 60 * 1000;
 
+// Formato do arquivo de cache. Subir este número descarta o cache de todo mundo
+// na próxima leitura, que é o jeito de mudar o formato do item sem quebrar a
+// tela de quem já tem arquivo gravado.
+const VERSAO_CACHE = 1;
+
+// Teto do recuo do 429 quando já existe cache velho no disco: a resposta boa já
+// está em mãos, então esperar é opcional e curto.
+const ESPERA_COM_CACHE_MS = 2000;
+
 // Igual ao machine.mjs: GB binário, que é o número do "Sobre este Mac" e o que
 // a régua do `classificarCabe` espera receber.
 const GB = 1024 ** 3;
@@ -93,7 +102,10 @@ function nomeLegivel(id) {
     .filter((parte) => parte && !/^i?gguf$/i.test(parte))
     .map((parte) => {
       // `30b`, `8x7b`, `1.5b`: tamanho é sempre B maiúsculo pra não virar bit.
-      if (/^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?)?b$/i.test(parte)) return parte.toUpperCase();
+      // O `x` do meio fica minúsculo porque ali ele é multiplicação, não sigla:
+      // subindo a palavra inteira o Mixtral saía como `8X7B`, e o nome que todo
+      // mundo escreve é `8x7B`.
+      if (/^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?)?b$/i.test(parte)) return parte.toUpperCase().replace(/X/g, 'x');
       if (SIGLAS.has(parte.toLowerCase())) return parte.toUpperCase();
       return parte;
     });
@@ -151,23 +163,148 @@ function tagsUteis(tags) {
 
 // -------------------------------------------------------------------- rede
 
-/** Fetch com prazo, no mesmo desenho do web.mjs. */
+/**
+ * Prazo estourado, já em português e com código pra quem chamou reconhecer.
+ *
+ * O `fetch` e a leitura do corpo rejeitam com `AbortError` — "This operation
+ * was aborted", em inglês. Traduzir aqui na borda é o que impede esse texto de
+ * aparecer ao lado do cartão do modelo, numa tela em português, como se fosse
+ * defeito do repositório.
+ */
+function erroDePrazo(timeout) {
+  const err = new Error(`o Hugging Face não respondeu em ${Math.round(timeout / 1000)}s`);
+  err.code = 'PRAZO';
+  return err;
+}
+
+/** Cancelamento pedido por quem chamou, separado de falha de rede. */
+function erroCancelado() {
+  const err = new Error('a busca no Hugging Face foi cancelada');
+  err.code = 'CANCELADO';
+  return err;
+}
+
+function ehAborto(err) {
+  return err?.name === 'AbortError' || err?.code === 'ABORT_ERR';
+}
+
+/**
+ * Solta o corpo que ninguém vai ler.
+ *
+ * No undici a conexão só volta pro pool quando o corpo é consumido ou
+ * cancelado: sair de um 429 ou de um 401 sem fazer isso segura o soquete até o
+ * coletor de lixo passar, justamente no caminho que roda quando a cota já está
+ * apertada.
+ */
+async function soltarCorpo(res) {
+  const corpo = res?.body;
+  if (!corpo) return;
+  try {
+    if (typeof corpo.cancel === 'function') await corpo.cancel();
+    else if (typeof corpo.getReader === 'function') await corpo.getReader().cancel();
+  } catch {
+    // Corpo já fechado ou já lido: não há o que soltar.
+  }
+}
+
+/**
+ * A resposta com o prazo ainda de pé, porque o corpo também tem que caber nele.
+ *
+ * Defeito concreto que isto conserta: com o `clearTimeout` logo depois do
+ * `await fetch`, um servidor que responde `200` + `content-type: json`, escreve
+ * `[` e para (proxy, portal cativo, CDN meia-boca) deixava o `res.json()`
+ * pendurado pra sempre — e o `GET /api/catalogo`, que chama sem signal, nunca
+ * respondia. O prazo cobria só a chegada dos cabeçalhos.
+ */
+function comPrazoNoCorpo(res, { corrida, encerrar }) {
+  const ateOFim = async (promessa) => {
+    try {
+      return await corrida(promessa);
+    } finally {
+      encerrar();
+    }
+  };
+  return {
+    ok: res.ok,
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+    json: () => ateOFim(res.json()),
+    text: () => ateOFim(res.text()),
+    /** Sai sem ler: solta o corpo e para o relógio. */
+    async descartar() {
+      try {
+        await soltarCorpo(res);
+      } finally {
+        encerrar();
+      }
+    }
+  };
+}
+
+/** Fetch com prazo que vale até o fim do corpo, não só até o cabeçalho. */
 async function buscarComPrazo(url, { signal, timeout = 15000 } = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeout);
   // Cancelado antes de começar não dispara evento nenhum: sem esta linha o
   // pedido sairia mesmo depois de quem pediu já ter desistido.
-  if (signal?.aborted) ctrl.abort();
-  else signal?.addEventListener('abort', () => ctrl.abort(), { once: true });
-  try {
-    return await fetch(url, {
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: { 'user-agent': UA, accept: 'application/json' }
-    });
-  } finally {
+  if (signal?.aborted) throw erroCancelado();
+
+  const ctrl = new AbortController();
+  let estourou = false;
+  let interromper;
+  const interrupcao = new Promise((_, reject) => {
+    interromper = reject;
+  });
+  // No caminho normal ninguém espera esta promessa (o corpo chega antes do
+  // prazo); sem este catch vazio, o dia em que ela rejeita derruba o processo
+  // por unhandledRejection.
+  interrupcao.catch(() => {});
+
+  const timer = setTimeout(() => {
+    estourou = true;
+    ctrl.abort();
+    interromper(erroDePrazo(timeout));
+  }, timeout);
+
+  const aoAbortar = () => {
+    ctrl.abort();
+    interromper(erroCancelado());
+  };
+  signal?.addEventListener?.('abort', aoAbortar, { once: true });
+
+  // Defeito concreto: sem tirar o ouvinte no caminho de sucesso, 50 medições
+  // com o mesmo AbortController deixavam 50 ouvintes pendurados no signal de
+  // quem chamou, cada um segurando o controller interno daquele pedido.
+  const encerrar = () => {
     clearTimeout(timer);
+    signal?.removeEventListener?.('abort', aoAbortar);
+  };
+
+  const corrida = async (promessa) => {
+    try {
+      return await Promise.race([promessa, interrupcao]);
+    } catch (err) {
+      if (err?.code === 'PRAZO' || err?.code === 'CANCELADO') throw err;
+      if (!ehAborto(err)) throw err;
+      // O AbortError cru chega aqui quando o `fetch` reage ao nosso controller
+      // antes de a interrupção resolver a corrida. Traduzir na borda.
+      throw estourou ? erroDePrazo(timeout) : erroCancelado();
+    }
+  };
+
+  let res;
+  try {
+    res = await corrida(
+      fetch(url, {
+        signal: ctrl.signal,
+        redirect: 'follow',
+        headers: { 'user-agent': UA, accept: 'application/json' }
+      })
+    );
+  } catch (err) {
+    encerrar();
+    throw err;
   }
+  return comPrazoNoCorpo(res, { corrida, encerrar });
 }
 
 /**
@@ -189,10 +326,10 @@ function esperaDoCabecalho(cabecalho, esperaMaxMs) {
 
 function dormir(ms, signal) {
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(new Error('cancelado'));
+    if (signal?.aborted) return reject(erroCancelado());
     const aoAbortar = () => {
       clearTimeout(timer);
-      reject(new Error('cancelado'));
+      reject(erroCancelado());
     };
     const timer = setTimeout(() => {
       signal?.removeEventListener?.('abort', aoAbortar);
@@ -207,7 +344,11 @@ async function pedir(url, { signal, timeout, tentativas = 3, esperaMaxMs = 60000
   for (let tentativa = 1; ; tentativa += 1) {
     const res = await buscarComPrazo(url, { signal, timeout });
     if (res.status !== 429 || tentativa >= tentativas) return res;
-    await dormir(esperaDoCabecalho(res.headers?.get?.('ratelimit'), esperaMaxMs), signal);
+    const espera = esperaDoCabecalho(res.headers?.get?.('ratelimit'), esperaMaxMs);
+    // O corpo do 429 ninguém lê: soltar antes de dormir devolve o soquete pro
+    // pool em vez de deixá-lo preso durante a espera inteira.
+    await res.descartar();
+    await dormir(espera, signal);
   }
 }
 
@@ -259,11 +400,14 @@ function normalizar(bruto) {
  * @returns {Promise<Array<{id: string, nome_legivel: string, downloads: number,
  *   likes: number, familia: string, tags: string[], atualizado: string|null}>>}
  */
-export async function buscarCatalogo({ limite = LIMITE_DA_LISTA, signal, tentativas, esperaMaxMs } = {}) {
+export async function buscarCatalogo({ limite = LIMITE_DA_LISTA, signal, timeout, tentativas, esperaMaxMs } = {}) {
   const pedido = Math.trunc(Number(limite));
   const alvo = urlDaLista(Math.min(Math.max(Number.isFinite(pedido) ? pedido : LIMITE_DA_LISTA, 1), LIMITE_DA_LISTA));
-  const res = await pedir(alvo, { signal, tentativas, esperaMaxMs });
-  if (!res.ok) throw new Error(`catálogo do Hugging Face falhou: HTTP ${res.status}`);
+  const res = await pedir(alvo, { signal, timeout, tentativas, esperaMaxMs });
+  if (!res.ok) {
+    await res.descartar();
+    throw new Error(`catálogo do Hugging Face falhou: HTTP ${res.status}`);
+  }
   const bruto = await res.json();
   if (!Array.isArray(bruto)) throw new Error('catálogo do Hugging Face veio fora do formato');
   return bruto.map(normalizar).filter(Boolean);
@@ -298,28 +442,43 @@ async function motivoDoCorpo(res) {
  *   400 "only contains sharded GGUF"   → `fragmentado` (o `apps=ollama` deixa passar)
  *   401/403                            → `gated`
  *
- * @returns {Promise<{gb: number|null, estado: 'ok'|'sem_gguf'|'fragmentado'|'gated'|'erro', motivo?: string}>}
+ * `cancelado` é estado próprio, e não `erro`: quem passou o `signal` e desistiu
+ * precisa distinguir isso de "o repositório está quebrado".
+ *
+ * @returns {Promise<{gb: number|null, estado: 'ok'|'sem_gguf'|'fragmentado'|'gated'|'cancelado'|'erro', motivo?: string}>}
  */
-export async function medirModelo(id, { signal, tentativas, esperaMaxMs } = {}) {
+export async function medirModelo(id, { signal, timeout, tentativas, esperaMaxMs } = {}) {
   const limpo = String(id ?? '').trim().replace(/^\/+|\/+$/g, '');
   if (!limpo) return { gb: null, estado: 'erro', motivo: 'sem id de modelo' };
 
   // Codifica pedaço por pedaço pra barra entre dono e repositório continuar
   // sendo caminho, e não virar `%2F`.
-  const caminho = limpo.split('/').map(encodeURIComponent).join('/');
+  //
+  // `.` e `..` caem fora antes disso porque `encodeURIComponent` não codifica
+  // ponto: o `fetch` normalizava a URL e `a/../../settings/tokens` chegava no
+  // servidor como `/settings/tokens/manifests/latest`, fora do `/v2/`. O id vem
+  // cru do query string, e id nenhum pode escolher a rota.
+  const partes = limpo.split('/').filter((parte) => parte && parte !== '.' && parte !== '..');
+  if (!partes.length) return { gb: null, estado: 'erro', motivo: 'sem id de modelo' };
+  const caminho = partes.map(encodeURIComponent).join('/');
 
   let res;
   try {
     res = await pedir(`https://huggingface.co/v2/${caminho}/manifests/latest`, {
       signal,
+      timeout,
       tentativas,
       esperaMaxMs
     });
   } catch (err) {
+    if (err?.code === 'CANCELADO') {
+      return { gb: null, estado: 'cancelado', motivo: 'a medição foi cancelada' };
+    }
     return { gb: null, estado: 'erro', motivo: err.message };
   }
 
   if (res.status === 401 || res.status === 403) {
+    await res.descartar();
     return {
       gb: null,
       estado: 'gated',
@@ -344,6 +503,7 @@ export async function medirModelo(id, { signal, tentativas, esperaMaxMs } = {}) 
   // novo não muda —, então vale o mesmo estado em vez de um `erro` que convida
   // a repetir o pedido.
   if (res.status === 404) {
+    await res.descartar();
     return { gb: null, estado: 'sem_gguf', motivo: 'não existe manifesto pra esse repositório' };
   }
 
@@ -355,7 +515,14 @@ export async function medirModelo(id, { signal, tentativas, esperaMaxMs } = {}) 
   let manifesto;
   try {
     manifesto = await res.json();
-  } catch {
+  } catch (err) {
+    // Corpo que trava depois do 200 e cancelamento no meio da leitura chegam
+    // por aqui: dizer "fora do formato" pra esses dois é acusar o repositório
+    // de um defeito que é da conexão.
+    if (err?.code === 'CANCELADO') {
+      return { gb: null, estado: 'cancelado', motivo: 'a medição foi cancelada' };
+    }
+    if (err?.code === 'PRAZO') return { gb: null, estado: 'erro', motivo: err.message };
     return { gb: null, estado: 'erro', motivo: 'o manifesto veio fora do formato' };
   }
 
@@ -378,6 +545,11 @@ function lerCache() {
   try {
     const dados = JSON.parse(readFileSync(CACHE_PATH, 'utf8'));
     if (!dados || !Array.isArray(dados.modelos) || typeof dados.quando !== 'string') return null;
+    // O carimbo de versão só serve pra alguma coisa se alguém conferir: sem
+    // isto, o dia em que o formato do item mudar (renomear `nome_legivel`, por
+    // exemplo) todo mundo que já tem cache vê a tela quebrada por 24h, sem jeito
+    // de invalidar.
+    if (dados.versao !== VERSAO_CACHE) return null;
     if (!Number.isFinite(Date.parse(dados.quando))) return null;
     const modelos = dados.modelos.filter((m) => m && typeof m.id === 'string');
     if (!modelos.length) return null;
@@ -392,19 +564,26 @@ function lerCache() {
 function gravarCache(conteudo) {
   try {
     mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
-    writeFileSync(CACHE_PATH, JSON.stringify({ versao: 1, ...conteudo }));
-  } catch {
+    writeFileSync(CACHE_PATH, JSON.stringify({ versao: VERSAO_CACHE, ...conteudo }));
+  } catch (err) {
     // Disco cheio ou pasta só de leitura não pode derrubar a tela: o catálogo
     // já está em memória, só não vai sobreviver ao próximo start.
+    //
+    // Mas engolir calado apaga a proteção de cota que justifica este cache
+    // existir: com `~/.iaunifier` só-leitura, três aberturas de tela viravam
+    // três idas à rede (1 listagem + N manifestos cada) e ninguém ficava
+    // sabendo — até chegar o 429.
+    console.warn(`catálogo do Hugging Face: não deu pra gravar o cache em ${CACHE_PATH}: ${err.message}`);
   }
 }
 
 /**
  * O catálogo pronto pra tela: da rede quando vale a pena, do disco quando não.
  *
- * Nunca levanta exceção. O app roda na máquina da pessoa e precisa abrir no
- * avião: sem rede e sem cache a resposta é lista vazia com `de: 'vazio'`, e
- * quem chama é que decide cair no catálogo curado do machine.mjs.
+ * Não levanta exceção por falha de rede. O app roda na máquina da pessoa e
+ * precisa abrir no avião: sem rede e sem cache a resposta é lista vazia com
+ * `de: 'vazio'`, e quem chama é que decide cair no catálogo curado do
+ * machine.mjs. A única exceção que sai daqui é o cancelamento pelo `signal`.
  *
  * @returns {Promise<{modelos: Array<object>, de: 'rede'|'cache'|'vazio', quando: string|null}>}
  */
@@ -412,17 +591,30 @@ export async function catalogoEmCache({
   signal,
   limite = LIMITE_DA_LISTA,
   validadeMs = VALIDADE_MS,
+  timeout,
   tentativas,
   esperaMaxMs
 } = {}) {
   const cache = lerCache();
   const agora = Date.now();
-  if (cache && agora - Date.parse(cache.quando) < validadeMs) {
+  // `Math.abs` porque carimbo no futuro também é carimbo errado: cache gravado
+  // com o relógio adiantado (ou copiado de outra máquina) dava diferença
+  // negativa, passava por "fresco" e a tela ficava presa nele até a data
+  // alcançar o carimbo — 400 dias à frente, medido, sem um pedido de rede.
+  if (cache && Math.abs(agora - Date.parse(cache.quando)) < validadeMs) {
     return { modelos: cache.modelos, de: 'cache', quando: cache.quando };
   }
 
+  // Com cache velho em mãos, o recuo do 429 é curto: a lista que ele devolveria
+  // já estava lida em memória no milissegundo zero. Com o teto padrão de 60s e
+  // três tentativas, um `ratelimit: "api";r=0;t=241` fazia o `GET /api/catalogo`
+  // dormir 120s pra no fim entregar exatamente esse cache.
+  const recuo = cache
+    ? { tentativas: tentativas ?? 2, esperaMaxMs: esperaMaxMs ?? ESPERA_COM_CACHE_MS }
+    : { tentativas, esperaMaxMs };
+
   try {
-    const modelos = await buscarCatalogo({ limite, signal, tentativas, esperaMaxMs });
+    const modelos = await buscarCatalogo({ limite, signal, timeout, ...recuo });
     // Lista vazia não é resposta: ou o filtro mudou de nome do lado deles, ou
     // deu algo errado no meio. Cair no cache velho mostra modelo de ontem, que
     // é melhor que uma tela sem nada.
@@ -430,7 +622,11 @@ export async function catalogoEmCache({
     const quando = new Date(agora).toISOString();
     gravarCache({ quando, modelos });
     return { modelos, de: 'rede', quando };
-  } catch {
+  } catch (err) {
+    // Cancelamento é pedido explícito de parar, não falha de rede: devolver o
+    // cache velho aqui esconderia de quem cancelou que ele mesmo desistiu, e
+    // `de: 'vazio'` mentiria dizendo que não há catálogo nenhum.
+    if (err?.code === 'CANCELADO') throw err;
     if (cache) return { modelos: cache.modelos, de: 'cache', quando: cache.quando };
     return { modelos: [], de: 'vazio', quando: null };
   }

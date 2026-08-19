@@ -4,7 +4,8 @@
 
 import { test, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { getEventListeners } from 'node:events';
 import { join } from 'node:path';
 import { useTempHome, stubFetch, fakeResponse } from './helpers.mjs';
 
@@ -16,7 +17,9 @@ after(() => home.cleanup());
 const CACHE = join(home.dir, 'catalogo-hf.json');
 
 beforeEach(() => {
-  rmSync(CACHE, { force: true });
+  // `recursive` porque um dos testes põe um diretório no lugar do arquivo pra
+  // forçar a falha de escrita.
+  rmSync(CACHE, { force: true, recursive: true });
 });
 
 /** Um item da listagem, no formato exato que a API devolve. */
@@ -159,10 +162,12 @@ test('o nome legível tira o dono, o GGUF e arruma o tamanho', async () => {
   ]);
   try {
     const nomes = (await buscarCatalogo()).map((m) => m.nome_legivel);
+    // `8x7B` e não `8X7B`: o `x` do meio é multiplicação, não sigla, e é assim
+    // que a Mistral e todo mundo escrevem o nome.
     assert.deepEqual(nomes, [
       'GPT OSS 20B',
       'Deepseek v4',
-      'Mixtral 8X7B Instruct v0.1',
+      'Mixtral 8x7B Instruct v0.1',
       'Sem dono nenhum'
     ]);
   } finally {
@@ -490,6 +495,295 @@ test('429 na listagem também é respeitado e a segunda tentativa vale', async (
     const r = await catalogoEmCache({ esperaMaxMs: 20 });
     assert.equal(r.de, 'rede');
     assert.equal(vezes, 2);
+  } finally {
+    stub.restore();
+  }
+});
+
+// ------------------------------------------------------- prazo e cancelamento
+
+/**
+ * `200` com cabeçalho bom e corpo que nunca chega: é o proxy, o portal cativo
+ * ou o CDN meia-boca que responde `content-type: application/json`, escreve `[`
+ * e para. O prazo antigo terminava na chegada do cabeçalho, então este caso
+ * ficava pendurado pra sempre.
+ */
+function respostaQueTrava() {
+  const nunca = () => new Promise(() => {});
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: { get: () => null },
+    json: nunca,
+    text: nunca,
+    body: { getReader: () => ({ read: nunca, async cancel() {} }) }
+  };
+}
+
+test('o prazo cobre o corpo, e não só a chegada do cabeçalho', async () => {
+  const stub = stubFetch(async () => respostaQueTrava());
+  try {
+    await assert.rejects(() => buscarCatalogo({ timeout: 50 }), /não respondeu em/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('corpo travado depois do 200 cai no cache em vez de pendurar a tela', async () => {
+  const quando = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  writeFileSync(CACHE, JSON.stringify({ versao: 1, quando, modelos: [{ id: 'velho/Modelo-GGUF' }] }));
+  const stub = stubFetch(async () => respostaQueTrava());
+  try {
+    const r = await catalogoEmCache({ timeout: 50 });
+    assert.equal(r.de, 'cache');
+    assert.equal(r.modelos[0].id, 'velho/Modelo-GGUF');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('corpo travado na medição vira prazo estourado, não "fora do formato"', async () => {
+  const stub = stubFetch(async () => respostaQueTrava());
+  try {
+    const medida = await medirModelo('a/b', { timeout: 50 });
+    assert.equal(medida.estado, 'erro');
+    assert.match(medida.motivo, /não respondeu em/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('signal já cancelado nem chega a mandar o pedido', async () => {
+  const ac = new AbortController();
+  ac.abort();
+  const stub = stubFetch(async () => fakeResponse(manifesto(2 * 1024 ** 3)));
+  try {
+    const medida = await medirModelo('a/b', { signal: ac.signal });
+    assert.equal(stub.calls.length, 0, 'não podia ter saído pedido nenhum');
+    assert.equal(medida.estado, 'cancelado');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('cancelar no meio do corpo fala português, não "This operation was aborted"', async () => {
+  const ac = new AbortController();
+  const stub = stubFetch(async () => {
+    setTimeout(() => ac.abort(), 5);
+    return respostaQueTrava();
+  });
+  try {
+    const medida = await medirModelo('a/b', { signal: ac.signal });
+    assert.equal(medida.estado, 'cancelado', 'cancelar não é o modelo estar quebrado');
+    assert.doesNotMatch(medida.motivo, /abort/i);
+    assert.match(medida.motivo, /cancelada/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('cancelar o catálogo levanta o cancelamento em vez de virar cache ou vazio', async () => {
+  const quando = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  writeFileSync(CACHE, JSON.stringify({ versao: 1, quando, modelos: [{ id: 'velho/Modelo-GGUF' }] }));
+  const ac = new AbortController();
+  const stub = stubFetch(async () => {
+    setTimeout(() => ac.abort(), 5);
+    return respostaQueTrava();
+  });
+  try {
+    await assert.rejects(() => catalogoEmCache({ signal: ac.signal }), /cancelada/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('medição em série não deixa ouvinte pendurado no signal de quem chamou', async () => {
+  // Cada `buscarComPrazo` registra um `abort` no signal recebido. Sem tirar o
+  // ouvinte no caminho de sucesso, a tela que medir os 100 modelos com o mesmo
+  // controller acumula 100 ouvintes, cada um segurando um AbortController.
+  const ac = new AbortController();
+  const stub = stubFetch(async () => fakeResponse(manifesto(2 * 1024 ** 3)));
+  try {
+    for (let i = 0; i < 5; i += 1) await medirModelo('a/b', { signal: ac.signal });
+    assert.equal(getEventListeners(ac.signal, 'abort').length, 0);
+  } finally {
+    stub.restore();
+  }
+});
+
+// -------------------------------------------------------------- cota e 429
+
+test('a espera do 429 sai do cabeçalho e respeita o teto', async () => {
+  // O teste antigo mandava `t=0`, que não mede espera nenhuma: `esperaDoCabecalho`
+  // podia devolver zero sempre que ninguém reclamava.
+  let vezes = 0;
+  const stub = stubFetch(async () => {
+    vezes += 1;
+    if (vezes === 1) {
+      return fakeResponse('', { ok: false, status: 429, headers: { ratelimit: '"api";r=0;t=1' } });
+    }
+    return fakeResponse(manifesto(2 * 1024 ** 3));
+  });
+  const comeco = Date.now();
+  try {
+    const medida = await medirModelo('a/b', { esperaMaxMs: 300 });
+    const gasto = Date.now() - comeco;
+    assert.equal(medida.estado, 'ok');
+    assert.equal(vezes, 2);
+    // `t=1` pede 1000 ms; o teto de 300 ms corta. Tem que dormir o teto — nem
+    // zero (ignorando o cabeçalho), nem o segundo inteiro (ignorando o teto).
+    assert.ok(gasto >= 250, `dormiu só ${gasto} ms, como se o cabeçalho não existisse`);
+    assert.ok(gasto < 900, `dormiu ${gasto} ms, como se o teto não existisse`);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('429 com cache velho devolve o cache em vez de dormir dois minutos', async () => {
+  const quando = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  writeFileSync(CACHE, JSON.stringify({ versao: 1, quando, modelos: [{ id: 'velho/Modelo-GGUF' }] }));
+  let vezes = 0;
+  const stub = stubFetch(async () => {
+    vezes += 1;
+    // Formato real do cabeçalho num 429 do Hugging Face.
+    return fakeResponse('', { ok: false, status: 429, headers: { ratelimit: '"api";r=0;t=241' } });
+  });
+  const comeco = Date.now();
+  try {
+    // Sem `esperaMaxMs`: o que está sob teste é justamente o padrão.
+    const r = await catalogoEmCache();
+    const gasto = Date.now() - comeco;
+    assert.equal(r.de, 'cache');
+    assert.equal(r.modelos[0].id, 'velho/Modelo-GGUF');
+    assert.ok(vezes >= 1);
+    assert.ok(gasto < 10000, `segurou a resposta por ${gasto} ms pra entregar o que já estava no disco`);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('o corpo do 429 e o do 401 são soltos em vez de ficarem abertos', async () => {
+  const corpos = [];
+  let vezes = 0;
+  const stub = stubFetch(async () => {
+    vezes += 1;
+    const res =
+      vezes < 3
+        ? fakeResponse('', { ok: false, status: 429, headers: { ratelimit: '"api";r=0;t=0' } })
+        : fakeResponse(JSON.stringify({ error: 'restrito' }), { ok: false, status: 401 });
+    corpos.push(res);
+    return res;
+  });
+  try {
+    const medida = await medirModelo('a/b', { tentativas: 3, esperaMaxMs: 5 });
+    assert.equal(medida.estado, 'gated');
+    assert.equal(corpos.length, 3);
+    assert.deepEqual(
+      corpos.map((c) => c.cancelado.vezes),
+      [1, 1, 1],
+      'corpo não lido tem que ser cancelado pra conexão voltar pro pool'
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
+// ------------------------------------------------------------- id e limite
+
+test('o limite pedido não passa de 100 nem cai abaixo de 1', async () => {
+  const stub = listaDe([item()]);
+  try {
+    await buscarCatalogo({ limite: 5000 });
+    assert.equal(new URL(stub.calls[0].url).searchParams.get('limit'), '100', 'o teto de 100 sumiu');
+    await buscarCatalogo({ limite: 0 });
+    assert.equal(new URL(stub.calls[1].url).searchParams.get('limit'), '1');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('id não escolhe a rota do pedido', async () => {
+  // `encodeURIComponent` não codifica ponto: os segmentos `..` sobreviviam e o
+  // `fetch` normalizava a URL, tirando o pedido de baixo do `/v2/`.
+  const stub = stubFetch(async () => fakeResponse(manifesto(2 * 1024 ** 3)));
+  try {
+    await medirModelo('a/../../settings/tokens');
+    const pedida = new URL(stub.calls[0].url);
+    assert.equal(pedida.host, 'huggingface.co');
+    assert.ok(pedida.pathname.startsWith('/v2/'), `saiu do /v2/: ${pedida.pathname}`);
+    assert.ok(!pedida.pathname.includes('..'), pedida.pathname);
+    assert.equal(pedida.pathname, '/v2/a/settings/tokens/manifests/latest');
+
+    await medirModelo('../api/models');
+    assert.equal(new URL(stub.calls[1].url).pathname, '/v2/api/models/manifests/latest');
+
+    const so = await medirModelo('../..');
+    assert.equal(so.estado, 'erro');
+    assert.equal(stub.calls.length, 2, 'id que vira caminho vazio não podia virar pedido');
+  } finally {
+    stub.restore();
+  }
+});
+
+// -------------------------------------------------------- cache: escrita e data
+
+test('falha ao gravar o cache aparece no log em vez de sumir calada', async () => {
+  // Diretório no lugar do arquivo: `writeFileSync` dá EISDIR, do mesmo jeito que
+  // daria com a pasta só-leitura ou o disco cheio.
+  mkdirSync(CACHE, { recursive: true });
+  const avisos = [];
+  const original = console.warn;
+  console.warn = (...args) => avisos.push(args.join(' '));
+  const stub = listaDe([item()]);
+  try {
+    const r = await catalogoEmCache();
+    assert.equal(r.de, 'rede', 'não gravar o cache não pode derrubar a resposta');
+    assert.equal(avisos.length, 1, 'cache que não grava tem que aparecer no log');
+    assert.match(avisos[0], /cache/i);
+    assert.match(avisos[0], /catalogo-hf\.json/);
+  } finally {
+    console.warn = original;
+    stub.restore();
+    rmSync(CACHE, { recursive: true, force: true });
+  }
+});
+
+test('cache de outra versão de formato é descartado', async () => {
+  writeFileSync(
+    CACHE,
+    JSON.stringify({
+      versao: 99,
+      quando: new Date().toISOString(),
+      modelos: [{ id: 'formato/Antigo', campo_que_nao_existe_mais: true }]
+    })
+  );
+  const stub = listaDe([item()]);
+  try {
+    const r = await catalogoEmCache();
+    assert.equal(r.de, 'rede', 'formato desconhecido não podia ser servido pra tela');
+    assert.equal(r.modelos[0].id, 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('carimbo no futuro é cache vencido, não cache eterno', async () => {
+  // Relógio adiantado ou arquivo copiado de outra máquina: a conta
+  // `agora - quando` dava negativo e passava por "dentro das 24h" até 2027.
+  writeFileSync(
+    CACHE,
+    JSON.stringify({
+      versao: 1,
+      quando: new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString(),
+      modelos: [{ id: 'futuro/Modelo-GGUF' }]
+    })
+  );
+  const stub = listaDe([item()]);
+  try {
+    const r = await catalogoEmCache();
+    assert.equal(r.de, 'rede');
+    assert.equal(stub.calls.length, 1, 'carimbo no futuro tinha que mandar buscar de novo');
   } finally {
     stub.restore();
   }

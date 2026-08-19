@@ -7,6 +7,7 @@ import {
 import { icon } from './icons.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { roseta } from './glow.js';
+import { t, plural, formatarNumero } from './i18n.js';
 
 /** Cada painel se redesenha inteiro; o estado real está no servidor. */
 export const views = {};
@@ -24,7 +25,7 @@ function panel(el, title, iconName, hint, inner) {
 
 // ----------------------------------------------------------- IAs ligadas
 
-const gbTxt = (n) => `${Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
+const gbTxt = (n) => `${formatarNumero(n || 0, { maximumFractionDigits: 1 })} GB`;
 const pctTxt = (v, total) => `${Math.max(0, Math.min(100, (v / (total || 1)) * 100)).toFixed(1)}%`;
 
 /**
@@ -51,7 +52,7 @@ const KIND_ROT = {
 /** Endereço de casa é motor local, mesmo falando a API da OpenAI. */
 const ehLocal = (p) =>
   /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])/.test(p.base_url || '');
-const kindRot = (p) => (ehLocal(p) ? 'roda nesta máquina' : KIND_ROT[p.kind] || 'paga por uso');
+const kindRot = (p) => t(ehLocal(p) ? 'roda nesta máquina' : KIND_ROT[p.kind] || 'paga por uso');
 
 /** O cartão da máquina: quanto de memória tem, o que é o chip e o que cabe nela. */
 function cartaoMaquina(m) {
@@ -64,18 +65,26 @@ function cartaoMaquina(m) {
   const teto =
     (m.modelos || []).filter((x) => x.cabe === 'folga').reduce((s, x) => Math.max(s, x.gb || 0), 0) ||
     Math.max(0, livre - 2);
+  const placa = vram
+    ? t('com placa de vídeo de <b>{vram}</b>', { vram: gbTxt(vram) })
+    : t('sem placa de vídeo dedicada');
   return `<div class="maquina">
-      Seu servidor tem <b>${gbTxt(total)} de memória</b> e um <b>${escapeHtml(m.chip || 'processador desconhecido')}</b>,
-      ${vram ? `com placa de vídeo de <b>${gbTxt(vram)}</b>` : 'sem placa de vídeo dedicada'}.
-      Cabe modelo de até uns <b>${gbTxt(teto)}</b> com folga pro resto da máquina respirar.
+      ${t('Seu servidor tem <b>{ram} de memória</b> e um <b>{chip}</b>, {placa}.', {
+        ram: gbTxt(total),
+        chip: escapeHtml(m.chip || t('processador desconhecido')),
+        placa
+      })}
+      ${t('Cabe modelo de até uns <b>{teto}</b> com folga pro resto da máquina respirar.', {
+        teto: gbTxt(teto)
+      })}
       <div class="barra-mem">
         <i style="width:${pctTxt(baixados, total)};background:var(--accent)"></i>
         <i style="width:${pctTxt(sistema, total)};background:var(--slate)"></i>
       </div>
       <div class="legenda">
-        <span><i style="background:var(--accent)"></i> modelos baixados · ${gbTxt(baixados)}</span>
-        <span><i style="background:var(--slate)"></i> resto do sistema · ${gbTxt(sistema)}</span>
-        <span><i style="background:var(--panel-3)"></i> livre · ${gbTxt(livre)}</span>
+        <span><i style="background:var(--accent)"></i> ${t('modelos baixados')} · ${gbTxt(baixados)}</span>
+        <span><i style="background:var(--slate)"></i> ${t('resto do sistema')} · ${gbTxt(sistema)}</span>
+        <span><i style="background:var(--panel-3)"></i> ${t('livre')} · ${gbTxt(livre)}</span>
       </div>
     </div>`;
 }
@@ -90,15 +99,15 @@ function linhaModelo(m) {
       </div>
       <div class="pra-que">${escapeHtml(m.pra_que || '')}</div>
       <div class="compara">${escapeHtml(m.compara || '')}</div>
-      <div class="cabe ${cabe}">${icon(cabe === 'nao' ? 'alert' : 'check', 16)} ${CABE_ROT[cabe]}</div>
+      <div class="cabe ${cabe}">${icon(cabe === 'nao' ? 'alert' : 'check', 16)} ${t(CABE_ROT[cabe])}</div>
       <div class="acoes">${
         m.instalado
-          ? `<button class="ghost" type="button" data-usar="${escapeHtml(m.id)}">${icon('play', 17)} Usar agora</button>
-             <button class="danger" type="button" data-apagar="${escapeHtml(m.id)}">${icon('trash', 17)} Apagar</button>`
+          ? `<button class="ghost" type="button" data-usar="${escapeHtml(m.id)}">${icon('play', 17)} ${t('Usar agora')}</button>
+             <button class="danger" type="button" data-apagar="${escapeHtml(m.id)}">${icon('trash', 17)} ${t('Apagar')}</button>`
           : cabe === 'nao'
-            ? `<button disabled type="button">${icon('download', 17)} Baixar</button>
-               <button class="ghost" type="button" data-porque="${escapeHtml(m.id)}">Por que não cabe</button>`
-            : `<button class="primary" type="button" data-baixar="${escapeHtml(m.id)}">${icon('download', 17)} Baixar ${gbTxt(m.gb)}</button>`
+            ? `<button disabled type="button">${icon('download', 17)} ${t('Baixar')}</button>
+               <button class="ghost" type="button" data-porque="${escapeHtml(m.id)}">${t('Por que não cabe')}</button>`
+            : `<button class="primary" type="button" data-baixar="${escapeHtml(m.id)}">${icon('download', 17)} ${t('Baixar {tam}', { tam: gbTxt(m.gb) })}</button>`
       }</div>
       <div class="progress" hidden><span style="width:0%"></span></div>
     </div>`;
@@ -114,7 +123,8 @@ function ligarRecomendados(inner, maquina, switchView) {
   if (!lista || !maquina) return;
   const local =
     state.providers.find((p) => p.manageable && p.enabled) || state.providers.find((p) => p.manageable);
-  const semLocal = () => toast('nenhuma IA que roda aqui está ligada — ligue o Ollama primeiro', 'err');
+  const semLocal = () =>
+    toast(t('nenhuma IA que roda aqui está ligada — ligue o Ollama primeiro'), 'err');
 
   for (const linha of lista.querySelectorAll('.modelo')) {
     const m = (maquina.modelos || []).find((x) => x.id === linha.dataset.modelo);
@@ -128,7 +138,7 @@ function ligarRecomendados(inner, maquina, switchView) {
         const ref = `${local.id}:${m.id}`;
         state.model = ref;
         localStorage.setItem('iaunifier.model', ref);
-        toast(`${nome} escolhida`, 'ok');
+        toast(t('{nome} escolhida', { nome }), 'ok');
         switchView('chat');
       };
     }
@@ -137,10 +147,10 @@ function ligarRecomendados(inner, maquina, switchView) {
     if (apagar) {
       apagar.onclick = async () => {
         if (!local) return semLocal();
-        if (!confirm(`Apagar ${nome} do disco?`)) return;
+        if (!confirm(t('Apagar {nome} do disco?', { nome }))) return;
         try {
           await api(`/providers/${local.id}/models/${encodeURIComponent(m.id)}`, { method: 'DELETE' });
-          toast(`${nome} apagada`, 'ok');
+          toast(t('{nome} apagada', { nome }), 'ok');
           await refreshState();
           switchView('providers');
         } catch (err) {
@@ -163,7 +173,7 @@ function ligarRecomendados(inner, maquina, switchView) {
             else if (ev.type === 'error') toast(ev.message, 'err');
           });
           fill.style.width = '100%';
-          toast(`${nome} baixado`, 'ok');
+          toast(t('{nome} baixado', { nome }), 'ok');
           await refreshState();
           switchView('providers');
         } catch (err) {
@@ -180,8 +190,9 @@ function ligarRecomendados(inner, maquina, switchView) {
         if (aberto) return aberto.remove();
         linha.querySelector('.acoes').insertAdjacentHTML(
           'afterend',
-          `<div class="aviso err"><div><b>Não cabe nesta máquina.</b> ${escapeHtml(
-            m.compara || `Ela pede ${gbTxt(m.gb)} só pra ela, e sobraria pouco pro resto.`
+          `<div class="aviso err"><div><b>${t('Não cabe nesta máquina.')}</b> ${escapeHtml(
+            m.compara ||
+              t('Ela pede {tam} só pra ela, e sobraria pouco pro resto.', { tam: gbTxt(m.gb) })
           )}</div></div>`
         );
       };
@@ -199,53 +210,53 @@ views.providers = async function renderProviders(el, { switchView }) {
 
   const inner = panel(
     el,
-    'IAs ligadas',
+    t('IAs ligadas'),
     'plug',
-    'Três jeitos de ligar uma IA: a que roda aqui, a que é paga por uso e a que é um programa do terminal.',
+    t('Três jeitos de ligar uma IA: a que roda aqui, a que é paga por uso e a que é um programa do terminal.'),
     `${cartaoMaquina(maquina)}
      ${
        maquina && maquina.modelos && maquina.modelos.length
-         ? `<h3 class="sec">Roda aqui, de graça — recomendados pra esta máquina</h3>
+         ? `<h3 class="sec">${t('Roda aqui, de graça — recomendados pra esta máquina')}</h3>
             <div id="lista-modelos">${maquina.modelos.map(linhaModelo).join('')}</div>`
          : ''
      }
-     <h3 class="sec">Todas as IAs ligadas</h3>
+     <h3 class="sec">${t('Todas as IAs ligadas')}</h3>
      <div class="row" style="margin-bottom:12px">
-       <button id="btn-discover" type="button"><span data-icon="search"></span> Procurar IA nesta máquina</button>
-       <button id="btn-health" type="button"><span data-icon="activity"></span> Testar todas</button>
+       <button id="btn-discover" type="button"><span data-icon="search"></span> ${t('Procurar IA nesta máquina')}</button>
+       <button id="btn-health" type="button"><span data-icon="activity"></span> ${t('Testar todas')}</button>
        <span id="health-status" class="meta"></span>
      </div>
      <div id="providers-cards"></div>
-     <h3 class="sec">Adicionar uma IA</h3>
+     <h3 class="sec">${t('Adicionar uma IA')}</h3>
      <div class="card">
-       <label class="field">Começar de um pronto
+       <label class="field">${t('Começar de um pronto')}
          <select id="new-preset">
-           <option value="">— do zero —</option>
+           <option value="">${t('— do zero —')}</option>
            ${presets.map((p) => `<option value="${escapeHtml(p.key)}">${escapeHtml(p.name)}</option>`).join('')}
          </select>
        </label>
        <div class="grid">
-         <label class="field">Nome <input id="new-name" placeholder="Minha IA" /></label>
-         <label class="field">Como ela é ligada
+         <label class="field">${t('Nome')} <input id="new-name" placeholder="${t('Minha IA')}" /></label>
+         <label class="field">${t('Como ela é ligada')}
            <select id="new-kind">
-             <option value="openai">compatível com a API da OpenAI (paga por uso ou local)</option>
-             <option value="anthropic">paga por uso · Anthropic</option>
-             <option value="google">paga por uso · Google</option>
-             <option value="ollama">roda nesta máquina · Ollama</option>
-             <option value="cli">programa do terminal</option>
+             <option value="openai">${t('compatível com a API da OpenAI (paga por uso ou local)')}</option>
+             <option value="anthropic">${t('paga por uso')} · Anthropic</option>
+             <option value="google">${t('paga por uso')} · Google</option>
+             <option value="ollama">${t('roda nesta máquina')} · Ollama</option>
+             <option value="cli">${t('programa do terminal')}</option>
            </select>
          </label>
        </div>
-       <label class="field">Endereço <input id="new-url" placeholder="http://127.0.0.1:1234/v1" /></label>
+       <label class="field">${t('Endereço')} <input id="new-url" placeholder="http://127.0.0.1:1234/v1" /></label>
        <div class="grid">
-         <label class="field">Nome da chave <input id="new-secret" placeholder="OPENAI_API_KEY" /></label>
-         <label class="field">Chave (fica só no servidor) <input id="new-value" type="password" /></label>
+         <label class="field">${t('Nome da chave')} <input id="new-secret" placeholder="OPENAI_API_KEY" /></label>
+         <label class="field">${t('Chave (fica só no servidor)')} <input id="new-value" type="password" /></label>
        </div>
-       <label class="field">Ajuste do programa do terminal (JSON)
+       <label class="field">${t('Ajuste do programa do terminal (JSON)')}
          <textarea id="new-config" rows="2" placeholder='{"command":"claude","args":["-p"],"stdin":true,"models":["default"]}'></textarea>
        </label>
        <div class="row">
-         <button id="btn-add-provider" class="primary" type="button"><span data-icon="plus"></span> Adicionar</button>
+         <button id="btn-add-provider" class="primary" type="button"><span data-icon="plus"></span> ${t('Adicionar')}</button>
        </div>
      </div>`
   );
@@ -257,24 +268,31 @@ views.providers = async function renderProviders(el, { switchView }) {
     const card = document.createElement('div');
     card.className = 'card prov';
     card.innerHTML = `
-      <div class="kind">${KIND_ROT[p.kind] || 'paga por uso'}${p.auto ? ' · encontrada sozinha' : ''}</div>
+      <div class="kind">${t(KIND_ROT[p.kind] || 'paga por uso')}${
+        p.auto ? ` · ${t('encontrada sozinha')}` : ''
+      }</div>
       <h3>${escapeHtml(p.name)}
         ${
           p.enabled
-            ? '<span class="tag on"><span class="pt"></span>ligada</span>'
-            : '<span class="tag warn"><span class="pt"></span>desligada por você</span>'
+            ? `<span class="tag on"><span class="pt"></span>${t('ligada')}</span>`
+            : `<span class="tag warn"><span class="pt"></span>${t('desligada por você')}</span>`
         }
         ${
           p.secret_name
             ? `<span class="tag ${p.has_secret ? 'on' : 'off'}"><span class="pt"></span>${
-                p.has_secret ? 'com chave' : 'sem chave'
+                p.has_secret ? t('com chave') : t('sem chave')
               }</span>`
             : ''
         }
       </h3>
       <div class="meta">${escapeHtml(p.base_url || p.config.command || '')}${
         p.gasto_mes != null
-          ? ` · <span class="custo">US$ ${Number(p.gasto_mes).toFixed(2).replace('.', ',')} este mês</span>`
+          ? ` · <span class="custo">${t('US$ {valor} este mês', {
+              valor: formatarNumero(p.gasto_mes, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            })}</span>`
           : ''
       }</div>
       <div class="health" id="health-${p.id}"></div>
@@ -282,14 +300,14 @@ views.providers = async function renderProviders(el, { switchView }) {
       <div class="models">${
         p.models.length
           ? p.models.map((m) => `<span class="model-pill">${escapeHtml(m.label)}</span>`).join('')
-          : '<span class="model-pill">nenhum modelo ainda</span>'
+          : `<span class="model-pill">${t('nenhum modelo ainda')}</span>`
       }</div>
       <div class="row">
-        <button data-act="refresh" type="button"><span data-icon="refresh"></span> Atualizar modelos</button>
-        <button data-act="key" type="button"><span data-icon="key"></span> Trocar chave</button>
-        <button data-act="toggle" type="button">${p.enabled ? 'Desligar' : 'Ligar'}</button>
-        ${p.manageable ? '<button data-act="manage" type="button"><span data-icon="download"></span> Modelos</button>' : ''}
-        <button data-act="del" class="danger" type="button"><span data-icon="trash"></span> Remover</button>
+        <button data-act="refresh" type="button"><span data-icon="refresh"></span> ${t('Atualizar modelos')}</button>
+        <button data-act="key" type="button"><span data-icon="key"></span> ${t('Trocar chave')}</button>
+        <button data-act="toggle" type="button">${p.enabled ? t('Desligar') : t('Ligar')}</button>
+        ${p.manageable ? `<button data-act="manage" type="button"><span data-icon="download"></span> ${t('Modelos')}</button>` : ''}
+        <button data-act="del" class="danger" type="button"><span data-icon="trash"></span> ${t('Remover')}</button>
       </div>`;
 
     const reload = async () => {
@@ -300,22 +318,22 @@ views.providers = async function renderProviders(el, { switchView }) {
     card.querySelector('[data-act=refresh]').onclick = async () => {
       try {
         await api(`/providers/${p.id}/refresh`, { method: 'POST' });
-        toast(`${p.name}: lista de modelos atualizada`, 'ok');
+        toast(t('{nome}: lista de modelos atualizada', { nome: p.name }), 'ok');
         await reload();
       } catch (err) {
         toast(err.message, 'err');
       }
     };
     card.querySelector('[data-act=key]').onclick = async () => {
-      const name = p.secret_name || prompt('Nome da variável da chave:', 'API_KEY');
+      const name = p.secret_name || prompt(t('Nome da variável da chave:'), 'API_KEY');
       if (!name) return;
-      const value = prompt(`Valor de ${name}:`);
+      const value = prompt(t('Valor de {nome}:', { nome: name }));
       if (value === null) return;
       await api(`/providers/${p.id}`, {
         method: 'PATCH',
         body: { secretName: name, secretValue: value }
       });
-      toast('chave guardada no servidor', 'ok');
+      toast(t('chave guardada no servidor'), 'ok');
       await reload();
     };
     card.querySelector('[data-act=toggle]').onclick = async () => {
@@ -323,7 +341,7 @@ views.providers = async function renderProviders(el, { switchView }) {
       await reload();
     };
     card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(`Remover ${p.name}?`)) return;
+      if (!confirm(t('Remover {nome}?', { nome: p.name }))) return;
       await api(`/providers/${p.id}`, { method: 'DELETE' });
       await reload();
     };
@@ -338,10 +356,14 @@ views.providers = async function renderProviders(el, { switchView }) {
   inner.querySelector('#btn-discover').onclick = async (ev) => {
     const btn = ev.currentTarget;
     btn.disabled = true;
-    btn.textContent = 'procurando...';
+    btn.textContent = t('procurando...');
     try {
       const { found } = await api('/discover', { method: 'POST' });
-      toast(found.length ? `encontrado: ${found.map((f) => f.name).join(', ')}` : 'nada novo encontrado');
+      toast(
+        found.length
+          ? t('encontrado: {lista}', { lista: found.map((f) => f.name).join(', ') })
+          : t('nada novo encontrado')
+      );
       await refreshState();
       switchView('providers');
     } catch (err) {
@@ -356,7 +378,7 @@ views.providers = async function renderProviders(el, { switchView }) {
     const btn = ev.currentTarget;
     const status = inner.querySelector('#health-status');
     btn.disabled = true;
-    status.textContent = 'testando...';
+    status.textContent = t('testando...');
     try {
       const results = await api('/health');
       for (const r of results) {
@@ -369,18 +391,21 @@ views.providers = async function renderProviders(el, { switchView }) {
           const resto = corte > 0 ? r.message.slice(corte + 2) : '';
           alvo.className = 'aviso err';
           alvo.innerHTML = `<div><b>${escapeHtml(causa)}</b> ${escapeHtml(resto)}</div>
-            <button class="primary" type="button" data-act="key"><span data-icon="key"></span> Trocar chave</button>`;
+            <button class="primary" type="button" data-act="key"><span data-icon="key"></span> ${t('Trocar chave')}</button>`;
           paintIcons(alvo);
           alvo.querySelector('[data-act=key]').onclick = () =>
             alvo.closest('.prov').querySelector('.row [data-act=key]').click();
           continue;
         }
-        const rotulo = r.status === 'ok' ? `respondeu em ${r.ms} ms · ${r.models} modelo(s)` : r.message;
+        const rotulo =
+          r.status === 'ok'
+            ? t('respondeu em {ms} ms · {n} modelo(s)', { ms: r.ms, n: r.models })
+            : r.message;
         alvo.className = `health ${r.status}`;
         alvo.innerHTML = `${icon('check', 14)} ${escapeHtml(rotulo)}`;
       }
       const ruins = results.filter((r) => r.status === 'erro').length;
-      status.textContent = ruins ? `${ruins} com problema` : 'todas responderam';
+      status.textContent = ruins ? t('{n} com problema', { n: ruins }) : t('todas responderam');
     } catch (err) {
       status.textContent = '';
       toast(err.message, 'err');
@@ -405,14 +430,14 @@ views.providers = async function renderProviders(el, { switchView }) {
       try {
         config = JSON.parse(configText);
       } catch {
-        return toast('o ajuste do programa do terminal não é JSON válido', 'err');
+        return toast(t('o ajuste do programa do terminal não é JSON válido'), 'err');
       }
     }
     try {
       const out = await api('/providers', {
         method: 'POST',
         body: {
-          name: inner.querySelector('#new-name').value || 'Nova IA',
+          name: inner.querySelector('#new-name').value || t('Nova IA'),
           kind: inner.querySelector('#new-kind').value,
           baseUrl: inner.querySelector('#new-url').value || null,
           secretName: inner.querySelector('#new-secret').value || null,
@@ -422,8 +447,8 @@ views.providers = async function renderProviders(el, { switchView }) {
       });
       await refreshState();
       switchView('providers');
-      if (out.error) toast(`IA adicionada, mas não listou modelos: ${out.error}`, 'err');
-      else toast('IA adicionada', 'ok');
+      if (out.error) toast(t('IA adicionada, mas não listou modelos: {erro}', { erro: out.error }), 'err');
+      else toast(t('IA adicionada'), 'ok');
     } catch (err) {
       toast(err.message, 'err');
     }
@@ -441,11 +466,11 @@ function renderOllamaManager(host, provider, reload) {
   }
   host.dataset.open = '1';
   host.innerHTML = `
-    <div class="grupo-rot">Modelos que rodam aqui</div>
+    <div class="grupo-rot">${t('Modelos que rodam aqui')}</div>
     <div class="grupo" style="padding:14px 18px">
       <div class="row" style="margin:0">
-        <input id="pull-name" placeholder="ex.: llama3.2, qwen2.5:7b, nomic-embed-text" style="flex:1;min-width:200px" />
-        <button id="pull-go" class="primary" type="button">Baixar</button>
+        <input id="pull-name" placeholder="${t('ex.: llama3.2, qwen2.5:7b, nomic-embed-text')}" style="flex:1;min-width:200px" />
+        <button id="pull-go" class="primary" type="button">${t('Baixar')}</button>
       </div>
       <div id="pull-status" class="meta" style="margin-top:8px"></div>
       <div class="progress" hidden><span style="width:0"></span></div>
@@ -460,19 +485,19 @@ function renderOllamaManager(host, provider, reload) {
             `<div class="mem-item"><div class="txt">${escapeHtml(m.label)}<div class="src">${escapeHtml(
               m.kind
             )}</div></div>
-             <button class="icon danger" type="button" data-del="${escapeHtml(m.model_id)}" title="apagar"
-               aria-label="apagar ${escapeHtml(m.label)}">${icon('trash', 16)}</button></div>`
+             <button class="icon danger" type="button" data-del="${escapeHtml(m.model_id)}" title="${t('apagar')}"
+               aria-label="${t('apagar {nome}', { nome: escapeHtml(m.label) })}">${icon('trash', 16)}</button></div>`
         )
         .join('')
-    : '<div class="meta">nenhum modelo baixado ainda</div>';
+    : `<div class="meta">${t('nenhum modelo baixado ainda')}</div>`;
 
   for (const btn of installed.querySelectorAll('[data-del]')) {
     btn.onclick = async () => {
       const model = btn.dataset.del;
-      if (!confirm(`Apagar ${model} do disco?`)) return;
+      if (!confirm(t('Apagar {nome} do disco?', { nome: model }))) return;
       try {
         await api(`/providers/${provider.id}/models/${encodeURIComponent(model)}`, { method: 'DELETE' });
-        toast(`${model} apagado`, 'ok');
+        toast(t('{nome} apagado', { nome: model }), 'ok');
         await reload();
       } catch (err) {
         toast(err.message, 'err');
@@ -488,7 +513,7 @@ function renderOllamaManager(host, provider, reload) {
     const model = host.querySelector('#pull-name').value.trim();
     if (!model) return;
     bar.hidden = false;
-    status.textContent = 'começando...';
+    status.textContent = t('começando...');
     try {
       await stream(`/providers/${provider.id}/pull`, { model }, (ev) => {
         if (ev.type === 'progress') {
@@ -504,21 +529,23 @@ function renderOllamaManager(host, provider, reload) {
               pills.appendChild(pill);
             }
             pill.textContent =
-              ev.percent != null ? `${model} · baixando ${ev.percent}%` : `${model} · ${ev.status}`;
+              ev.percent != null
+                ? t('{nome} · baixando {pct}%', { nome: model, pct: ev.percent })
+                : `${model} · ${ev.status}`;
           }
         } else if (ev.type === 'error') {
-          status.textContent = `falhou: ${ev.message}`;
+          status.textContent = t('falhou: {erro}', { erro: ev.message });
         } else if (ev.type === 'done') {
-          status.textContent = 'pronto';
+          status.textContent = t('pronto');
           fill.style.width = '100%';
           const pill = host.closest('.prov') && host.closest('.prov').querySelector('.model-pill.baixando');
           if (pill) pill.remove();
         }
       });
-      toast(`${model} baixado`, 'ok');
+      toast(t('{nome} baixado', { nome: model }), 'ok');
       await reload();
     } catch (err) {
-      status.textContent = `falhou: ${err.message}`;
+      status.textContent = t('falhou: {erro}', { erro: err.message });
     }
   };
 }
@@ -528,43 +555,44 @@ function renderOllamaManager(host, provider, reload) {
 views.gems = function renderGems(el, { switchView, startChatWithGem }) {
   const inner = panel(
     el,
-    'Perfis',
+    t('Perfis'),
     'sparkle',
-    'Um jeito salvo de responder: a instrução, qual IA responde e o quanto ela pode inventar. Todos leem a mesma memória. "Sem filtro" vale de verdade em IA que roda aqui; em IA paga por uso quem manda é a política de quem hospeda.',
+    t('Um jeito salvo de responder: a instrução, qual IA responde e o quanto ela pode inventar. Todos leem a mesma memória. "Sem filtro" vale de verdade em IA que roda aqui; em IA paga por uso quem manda é a política de quem hospeda.'),
     `<div id="gems-cards"></div>
      <div class="card">
-       <h3>Novo perfil</h3>
-       <label class="field">Nome <input id="g-name" placeholder="Revisor de contrato" /></label>
-       <label class="field">Ícone e cor<div id="g-picker"></div></label>
-       <label class="field">Como essa IA deve se comportar
-         <textarea id="g-prompt" rows="4" placeholder="Leia como advogado do inquilino. Aponte cláusula por cláusula o que é abusivo."></textarea>
+       <h3>${t('Novo perfil')}</h3>
+       <label class="field">${t('Nome')} <input id="g-name" placeholder="${t('Revisor de contrato')}" /></label>
+       <label class="field">${t('Ícone e cor')}<div id="g-picker"></div></label>
+       <label class="field">${t('Como essa IA deve se comportar')}
+         <textarea id="g-prompt" rows="4" placeholder="${t('Leia como advogado do inquilino. Aponte cláusula por cláusula o que é abusivo.')}"></textarea>
        </label>
        <div class="grid">
-         <label class="field">Pra que serve
-           <select id="g-mode"><option value="chat">conversa</option><option value="coding">programar</option></select>
+         <label class="field">${t('Pra que serve')}
+           <select id="g-mode"><option value="chat">${t('conversa')}</option><option value="coding">${t('programar')}</option></select>
          </label>
-         <label class="field">Qual IA responde
-           <select id="g-model"><option value="">— a que estiver escolhida na conversa —</option>${modelOptions()}</select>
+         <label class="field">${t('Qual IA responde')}
+           <select id="g-model"><option value="">${t('— a que estiver escolhida na conversa —')}</option>${modelOptions()}</select>
          </label>
-         <label class="field">Quão criativa (0 é nada, 2 é muito)
+         <label class="field">${t('Quão criativa (0 é nada, 2 é muito)')}
            <input id="g-temp" type="number" step="0.1" min="0" max="2" placeholder="0,7" />
          </label>
        </div>
-       <label class="check"><input type="checkbox" id="g-unfiltered" /> sem filtro</label>
-       <div class="row"><button id="btn-add-gem" class="primary" type="button"><span data-icon="plus"></span> Criar perfil</button></div>
+       <label class="check"><input type="checkbox" id="g-unfiltered" /> ${t('sem filtro')}</label>
+       <div class="row"><button id="btn-add-gem" class="primary" type="button"><span data-icon="plus"></span> ${t('Criar perfil')}</button></div>
      </div>`
   );
 
   const cards = inner.querySelector('#gems-cards');
   for (const g of state.gems) {
-    const criativa =
+    const criativa = t(
       g.temperature == null
         ? 'como estiver na conversa'
         : g.temperature <= 0.3
           ? 'nada criativa'
           : g.temperature <= 0.8
             ? 'pouco criativa'
-            : 'bem criativa';
+            : 'bem criativa'
+    );
 
     const card = document.createElement('article');
     card.className = 'card';
@@ -572,29 +600,29 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
     card.innerHTML = `
       <h3>${badge(g.icon, g.color, 17)} ${escapeHtml(g.name)}
         <span class="tag"><span class="pt" style="background: var(--tint)"></span>${
-          g.mode === 'coding' ? 'programar' : 'conversa'
+          g.mode === 'coding' ? t('programar') : t('conversa')
         }</span>
-        ${g.unfiltered ? '<span class="tag off"><span class="pt"></span>sem filtro</span>' : ''}
+        ${g.unfiltered ? `<span class="tag off"><span class="pt"></span>${t('sem filtro')}</span>` : ''}
         <span class="tag ${g.memory_read ? 'on' : 'off'}"><span class="pt"></span>${
-          g.memory_read ? 'lê a memória' : 'não lê a memória'
+          g.memory_read ? t('lê a memória') : t('não lê a memória')
         }</span>
         <span class="tag ${g.memory_write ? 'on' : 'off'}"><span class="pt"></span>${
-          g.memory_write ? 'guarda o que aprende' : 'não guarda nada'
+          g.memory_write ? t('guarda o que aprende') : t('não guarda nada')
         }</span>
       </h3>
       <div class="meta">${escapeHtml((g.system_prompt || '').slice(0, 240))}</div>
       <div class="models row">
-        <span class="model-pill">${escapeHtml(g.model ? modelLabel(g.model) : 'qualquer IA')}</span>
+        <span class="model-pill">${escapeHtml(g.model ? modelLabel(g.model) : t('qualquer IA'))}</span>
         <span class="model-pill">${criativa}</span>
       </div>
       <div class="row">
-        <button data-act="use" class="primary" type="button"><span data-icon="play"></span> Usar</button>
-        <button data-act="edit" class="ghost" type="button"><span data-icon="edit"></span> Mudar</button>
+        <button data-act="use" class="primary" type="button"><span data-icon="play"></span> ${t('Usar')}</button>
+        <button data-act="edit" class="ghost" type="button"><span data-icon="edit"></span> ${t('Mudar')}</button>
         <button data-act="mem" class="ghost" type="button"><span data-icon="brain"></span> ${
-          g.memory_read ? 'Parar de usar a memória' : 'Usar a memória'
+          g.memory_read ? t('Parar de usar a memória') : t('Usar a memória')
         }</button>
-        <button data-act="del" class="icon danger" type="button" title="apagar"
-          aria-label="apagar o perfil ${escapeHtml(g.name)}"><span data-icon="trash"></span></button>
+        <button data-act="del" class="icon danger" type="button" title="${t('apagar')}"
+          aria-label="${t('apagar o perfil {nome}', { nome: escapeHtml(g.name) })}"><span data-icon="trash"></span></button>
       </div>`;
 
     card.querySelector('[data-act=use]').onclick = () => startChatWithGem(g);
@@ -608,7 +636,7 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
       switchView('gems');
     };
     card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(`Apagar o perfil ${g.name}?`)) return;
+      if (!confirm(t('Apagar o perfil {nome}?', { nome: g.name }))) return;
       await api(`/gems/${g.id}`, { method: 'DELETE' });
       await refreshState();
       switchView('gems');
@@ -622,7 +650,7 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
     await api('/gems', {
       method: 'POST',
       body: {
-        name: inner.querySelector('#g-name').value || 'Novo perfil',
+        name: inner.querySelector('#g-name').value || t('Novo perfil'),
         icon: picker.icon,
         color: picker.color,
         system_prompt: inner.querySelector('#g-prompt').value,
@@ -636,7 +664,7 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
     });
     await refreshState();
     switchView('gems');
-    toast('perfil criado', 'ok');
+    toast(t('perfil criado'), 'ok');
   };
 
   paintIcons(el);
@@ -646,29 +674,29 @@ function editGem(card, gem, switchView) {
   const form = document.createElement('div');
   form.style.marginTop = '10px';
   form.innerHTML = `
-    <label class="field">Nome <input class="e-name" value="${escapeHtml(gem.name)}" /></label>
-    <label class="field">Ícone e cor<div class="e-picker"></div></label>
-    <label class="field">Como essa IA deve se comportar
+    <label class="field">${t('Nome')} <input class="e-name" value="${escapeHtml(gem.name)}" /></label>
+    <label class="field">${t('Ícone e cor')}<div class="e-picker"></div></label>
+    <label class="field">${t('Como essa IA deve se comportar')}
       <textarea class="e-prompt" rows="5">${escapeHtml(gem.system_prompt || '')}</textarea>
     </label>
     <div class="grid">
-      <label class="field">Pra que serve
+      <label class="field">${t('Pra que serve')}
         <select class="e-mode">
-          <option value="chat"${gem.mode === 'chat' ? ' selected' : ''}>conversa</option>
-          <option value="coding"${gem.mode === 'coding' ? ' selected' : ''}>programar</option>
+          <option value="chat"${gem.mode === 'chat' ? ' selected' : ''}>${t('conversa')}</option>
+          <option value="coding"${gem.mode === 'coding' ? ' selected' : ''}>${t('programar')}</option>
         </select>
       </label>
-      <label class="field">Qual IA responde
-        <select class="e-model"><option value="">— a que estiver escolhida na conversa —</option>${modelOptions(gem.model)}</select>
+      <label class="field">${t('Qual IA responde')}
+        <select class="e-model"><option value="">${t('— a que estiver escolhida na conversa —')}</option>${modelOptions(gem.model)}</select>
       </label>
-      <label class="field">Quão criativa (0 é nada, 2 é muito)
+      <label class="field">${t('Quão criativa (0 é nada, 2 é muito)')}
         <input class="e-temp" type="number" step="0.1" min="0" max="2" value="${gem.temperature ?? ''}" />
       </label>
     </div>
-    <label class="check"><input type="checkbox" class="e-unf" ${gem.unfiltered ? 'checked' : ''} /> sem filtro</label>
+    <label class="check"><input type="checkbox" class="e-unf" ${gem.unfiltered ? 'checked' : ''} /> ${t('sem filtro')}</label>
     <div class="row">
-      <button type="button" class="primary e-save">Salvar mudanças</button>
-      <button type="button" class="e-cancel ghost">Cancelar</button>
+      <button type="button" class="primary e-save">${t('Salvar mudanças')}</button>
+      <button type="button" class="e-cancel ghost">${t('Cancelar')}</button>
     </div>`;
   card.appendChild(form);
   const picker = iconPicker(form.querySelector('.e-picker'), gem);
@@ -692,7 +720,7 @@ function editGem(card, gem, switchView) {
     });
     await refreshState();
     switchView('gems');
-    toast('perfil salvo', 'ok');
+    toast(t('perfil salvo'), 'ok');
   };
 }
 
@@ -701,21 +729,21 @@ function editGem(card, gem, switchView) {
 views.projects = function renderProjects(el, { switchView, startChatInProject }) {
   const inner = panel(
     el,
-    'Projetos',
+    t('Projetos'),
     'folder',
-    'Pasta de trabalho com arquivos, instrução e memória próprios. O que é aprendido dentro fica dentro.',
+    t('Pasta de trabalho com arquivos, instrução e memória próprios. O que é aprendido dentro fica dentro.'),
     `<div id="proj-cards"></div>
      <div class="card">
-       <h3>Novo projeto</h3>
-       <label class="field">Nome <input id="p-name" placeholder="Casa" /></label>
-       <label class="field">Ícone e cor<div id="p-picker"></div></label>
-       <label class="field">Instrução que vale em toda conversa daqui
-         <textarea id="p-inst" rows="3" placeholder="Português claro, sem jargão. Quando citar norma, cite o artigo."></textarea>
+       <h3>${t('Novo projeto')}</h3>
+       <label class="field">${t('Nome')} <input id="p-name" placeholder="${t('Casa')}" /></label>
+       <label class="field">${t('Ícone e cor')}<div id="p-picker"></div></label>
+       <label class="field">${t('Instrução que vale em toda conversa daqui')}
+         <textarea id="p-inst" rows="3" placeholder="${t('Português claro, sem jargão. Quando citar norma, cite o artigo.')}"></textarea>
        </label>
-       <label class="field">Pasta de trabalho
-         <input id="p-dir" placeholder="/Users/você/Projetos/algo" />
+       <label class="field">${t('Pasta de trabalho')}
+         <input id="p-dir" placeholder="${t('/Users/você/Projetos/algo')}" />
        </label>
-       <div class="row"><button id="btn-add-proj" class="primary" type="button"><span data-icon="plus"></span> Criar projeto</button></div>
+       <div class="row"><button id="btn-add-proj" class="primary" type="button"><span data-icon="plus"></span> ${t('Criar projeto')}</button></div>
      </div>`
   );
 
@@ -727,25 +755,27 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
     card.style.setProperty('--tint', `var(--${p.color || 'slate'})`);
     card.innerHTML = `
       <h3>${badge(p.icon, p.color, 17)} ${escapeHtml(p.name)}
-        <span class="tag"><span class="pt" style="background: var(--tint)"></span>${chats} ${
-          chats === 1 ? 'conversa' : 'conversas'
-        }</span>
+        <span class="tag"><span class="pt" style="background: var(--tint)"></span>${plural(
+          chats,
+          '1 conversa',
+          '{n} conversas'
+        )}</span>
       </h3>
-      <div class="meta">${escapeHtml(p.workdir || 'sem pasta de trabalho')}</div>
+      <div class="meta">${escapeHtml(p.workdir || t('sem pasta de trabalho'))}</div>
       <div class="meta">${escapeHtml((p.instructions || '').slice(0, 220))}</div>
       <div id="files-${p.id}"></div>
       <div class="row">
-        <button data-act="use" class="primary" type="button"><span data-icon="chat"></span> Conversar aqui</button>
-        <button data-act="files" class="ghost" type="button"><span data-icon="file"></span> Arquivos</button>
-        <button data-act="del" class="icon danger" type="button" title="apagar"
-          aria-label="apagar o projeto ${escapeHtml(p.name)}"><span data-icon="trash"></span></button>
+        <button data-act="use" class="primary" type="button"><span data-icon="chat"></span> ${t('Conversar aqui')}</button>
+        <button data-act="files" class="ghost" type="button"><span data-icon="file"></span> ${t('Arquivos')}</button>
+        <button data-act="del" class="icon danger" type="button" title="${t('apagar')}"
+          aria-label="${t('apagar o projeto {nome}', { nome: escapeHtml(p.name) })}"><span data-icon="trash"></span></button>
       </div>`;
 
     card.querySelector('[data-act=use]').onclick = () => startChatInProject(p);
     card.querySelector('[data-act=files]').onclick = () =>
       renderProjectFiles(card.querySelector(`#files-${p.id}`), p);
     card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(`Apagar o projeto ${p.name}?`)) return;
+      if (!confirm(t('Apagar o projeto {nome}?', { nome: p.name }))) return;
       await api(`/projects/${p.id}`, { method: 'DELETE' });
       await refreshState();
       switchView('projects');
@@ -759,7 +789,7 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
     await api('/projects', {
       method: 'POST',
       body: {
-        name: inner.querySelector('#p-name').value || 'Novo projeto',
+        name: inner.querySelector('#p-name').value || t('Novo projeto'),
         icon: picker.icon,
         color: picker.color,
         instructions: inner.querySelector('#p-inst').value,
@@ -768,7 +798,7 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
     });
     await refreshState();
     switchView('projects');
-    toast('projeto criado', 'ok');
+    toast(t('projeto criado'), 'ok');
   };
 
   paintIcons(el);
@@ -783,11 +813,11 @@ async function renderProjectFiles(host, project) {
   host.dataset.open = '1';
   const files = await api(`/attachments?project=${project.id}`);
   host.innerHTML = `
-    <div class="grupo-rot">Arquivos do projeto</div>
+    <div class="grupo-rot">${t('Arquivos do projeto')}</div>
     <div class="grupo p-list"></div>
     <div class="row">
-      <button type="button" class="ghost p-add"><span data-icon="plus"></span> Adicionar arquivo</button>
-      <span class="meta">Arquivo daqui entra em toda conversa do projeto.</span>
+      <button type="button" class="ghost p-add"><span data-icon="plus"></span> ${t('Adicionar arquivo')}</button>
+      <span class="meta">${t('Arquivo daqui entra em toda conversa do projeto.')}</span>
     </div>
     <input type="file" class="p-file" multiple hidden />`;
 
@@ -799,17 +829,17 @@ async function renderProjectFiles(host, project) {
             (f) => `<div class="linha">
                 <span class="ico">${icon('file', 18)}</span>
                 <span class="rot">${escapeHtml(f.name)}
-                  <small>${f.chunks} trecho(s) · ${Math.round(f.bytes / 1000)} kB${
+                  <small>${t('{n} trecho(s)', { n: f.chunks })} · ${Math.round(f.bytes / 1000)} kB${
                     f.note ? ` · ${escapeHtml(f.note)}` : ''
                   }</small>
                 </span>
-                <button type="button" class="icon danger" data-del="${f.id}" title="tirar do projeto"
-                  aria-label="tirar ${escapeHtml(f.name)} do projeto">${icon('trash', 16)}</button>
+                <button type="button" class="icon danger" data-del="${f.id}" title="${t('tirar do projeto')}"
+                  aria-label="${t('tirar {nome} do projeto', { nome: escapeHtml(f.name) })}">${icon('trash', 16)}</button>
               </div>`
           )
           .join('')
-      : `<div class="linha"><span class="rot">Nenhum arquivo ainda.
-           <small>O que você puser aqui vale em toda conversa do projeto.</small></span></div>`;
+      : `<div class="linha"><span class="rot">${t('Nenhum arquivo ainda.')}
+           <small>${t('O que você puser aqui vale em toda conversa do projeto.')}</small></span></div>`;
     for (const btn of list.querySelectorAll('[data-del]')) {
       btn.onclick = async () => {
         await api(`/attachments/${btn.dataset.del}`, { method: 'DELETE' });
@@ -829,7 +859,7 @@ async function renderProjectFiles(host, project) {
           body: await file.arrayBuffer(),
           raw: true
         });
-        toast(`${file.name} indexado`, 'ok');
+        toast(t('{nome} indexado', { nome: file.name }), 'ok');
       } catch (err) {
         toast(`${file.name}: ${err.message}`, 'err');
       }
@@ -851,29 +881,29 @@ views.memory = async function renderMemory(el, { switchView }) {
 
   const inner = panel(
     el,
-    'Memória',
+    t('Memória'),
     'brain',
-    'Uma memória só, lida por todas as IAs. O que você contou pra uma, as outras sabem.',
+    t('Uma memória só, lida por todas as IAs. O que você contou pra uma, as outras sabem.'),
     `<div class="reg-topo">
-       <div><span class="num">${memories.length}</span><span class="rot">coisas guardadas</span></div>
-       <div><span class="num">${settings.memory.maxInjected}</span><span class="rot">no máximo por resposta</span></div>
-       <div><span class="num">${hoje}</span><span class="rot">aprendidas hoje</span></div>
+       <div><span class="num">${memories.length}</span><span class="rot">${t('coisas guardadas')}</span></div>
+       <div><span class="num">${settings.memory.maxInjected}</span><span class="rot">${t('no máximo por resposta')}</span></div>
+       <div><span class="num">${hoje}</span><span class="rot">${t('aprendidas hoje')}</span></div>
      </div>
      <div class="card">
-       <h3>Contar uma coisa nova</h3>
-       <label class="field">O que você quer que todas as IAs saibam
-         <input id="m-text" placeholder="Ex.: prefiro resposta curta, sem introdução" />
+       <h3>${t('Contar uma coisa nova')}</h3>
+       <label class="field">${t('O que você quer que todas as IAs saibam')}
+         <input id="m-text" placeholder="${t('Ex.: prefiro resposta curta, sem introdução')}" />
        </label>
-       <label class="check"><input type="checkbox" id="m-pin" /> entra em toda resposta</label>
+       <label class="check"><input type="checkbox" id="m-pin" /> ${t('entra em toda resposta')}</label>
        <div class="row">
-         <button id="btn-add-mem" class="primary" type="button"><span data-icon="plus"></span> Guardar</button>
-         <button id="btn-import" class="ghost" type="button"><span data-icon="upload"></span> Importar conversas</button>
+         <button id="btn-add-mem" class="primary" type="button"><span data-icon="plus"></span> ${t('Guardar')}</button>
+         <button id="btn-import" class="ghost" type="button"><span data-icon="upload"></span> ${t('Importar conversas')}</button>
        </div>
-       <div class="meta">Traz conversas do ChatGPT, do Claude ou do Gemini (conversations.json), ou texto solto.</div>
+       <div class="meta">${t('Traz conversas do ChatGPT, do Claude ou do Gemini (conversations.json), ou texto solto.')}</div>
        <div id="import-status" class="meta"></div>
        <input type="file" id="m-file" accept=".json,.md,.txt" hidden />
      </div>
-     <h3 class="sec">O que está guardado</h3>
+     <h3 class="sec">${t('O que está guardado')}</h3>
      <div id="mem-list"></div>`
   );
 
@@ -891,7 +921,7 @@ views.memory = async function renderMemory(el, { switchView }) {
           ${escopoDoFato(m)}
           <span>${origemDoFato(m)}</span>
           <span>·</span>
-          <span>usada ${m.use_count} ${m.use_count === 1 ? 'vez' : 'vezes'}</span>
+          <span>${plural(m.use_count, 'usada 1 vez', 'usada {n} vezes')}</span>
         </div>
       </div>`;
 
@@ -899,7 +929,7 @@ views.memory = async function renderMemory(el, { switchView }) {
     fixar.type = 'button';
     fixar.className = `icon${m.pinned ? ' toggle on' : ''}`;
     fixar.innerHTML = icon('pin', 16);
-    fixar.title = m.pinned ? 'não entrar em toda resposta' : 'entrar em toda resposta';
+    fixar.title = m.pinned ? t('não entrar em toda resposta') : t('entrar em toda resposta');
     fixar.setAttribute('aria-label', fixar.title);
     fixar.onclick = async () => {
       await api(`/memories/${m.id}`, { method: 'PATCH', body: { pinned: !m.pinned } });
@@ -910,10 +940,10 @@ views.memory = async function renderMemory(el, { switchView }) {
     mudar.type = 'button';
     mudar.className = 'icon';
     mudar.innerHTML = icon('edit', 16);
-    mudar.title = 'mudar';
-    mudar.setAttribute('aria-label', 'mudar o que está guardado');
+    mudar.title = t('mudar');
+    mudar.setAttribute('aria-label', t('mudar o que está guardado'));
     mudar.onclick = async () => {
-      const novo = prompt('Mudar o que está guardado:', m.text);
+      const novo = prompt(t('Mudar o que está guardado:'), m.text);
       if (novo == null || !novo.trim() || novo.trim() === m.text) return;
       await api(`/memories/${m.id}`, { method: 'PATCH', body: { text: novo.trim() } });
       switchView('memory');
@@ -923,10 +953,10 @@ views.memory = async function renderMemory(el, { switchView }) {
     esquecer.type = 'button';
     esquecer.className = 'icon danger';
     esquecer.innerHTML = icon('trash', 16);
-    esquecer.title = 'esquecer';
-    esquecer.setAttribute('aria-label', 'esquecer este fato');
+    esquecer.title = t('esquecer');
+    esquecer.setAttribute('aria-label', t('esquecer este fato'));
     esquecer.onclick = async () => {
-      if (!confirm(`Esquecer isto?\n\n"${m.text}"`)) return;
+      if (!confirm(t('Esquecer isto?\n\n"{texto}"', { texto: m.text }))) return;
       await api(`/memories/${m.id}`, { method: 'DELETE' });
       switchView('memory');
     };
@@ -941,7 +971,7 @@ views.memory = async function renderMemory(el, { switchView }) {
     const mais = document.createElement('button');
     mais.type = 'button';
     mais.className = 'link-btn';
-    mais.innerHTML = `${icon('chevron', 16)} ver as outras ${memories.length - MOSTRA}`;
+    mais.innerHTML = `${icon('chevron', 16)} ${t('ver as outras {n}', { n: memories.length - MOSTRA })}`;
     mais.onclick = () => {
       for (const m of memories.slice(MOSTRA)) list.insertBefore(linhaDoFato(m), mais);
       mais.remove();
@@ -963,7 +993,7 @@ views.memory = async function renderMemory(el, { switchView }) {
     const file = ev.target.files[0];
     if (!file) return;
     const status = inner.querySelector('#import-status');
-    status.textContent = 'lendo e separando o que vale guardar… arquivo grande demora.';
+    status.textContent = t('lendo e separando o que vale guardar… arquivo grande demora.');
     try {
       const text = await file.text();
       const out = await api(`/memories/import?filename=${encodeURIComponent(file.name)}`, {
@@ -973,11 +1003,20 @@ views.memory = async function renderMemory(el, { switchView }) {
       });
       // O corte tem que aparecer: "200 conversas lidas" num export de mil
       // parece o arquivo inteiro.
-      const corte = out.skipped ? ` — ${out.skipped} conversa(s) além do limite ficaram de fora` : '';
-      toast(`${out.facts.length} coisa(s) nova(s) de ${out.conversations} conversa(s)${corte}`, 'ok');
+      const corte = out.skipped
+        ? t(' — {n} conversa(s) além do limite ficaram de fora', { n: out.skipped })
+        : '';
+      toast(
+        t('{fatos} coisa(s) nova(s) de {conversas} conversa(s){corte}', {
+          fatos: out.facts.length,
+          conversas: out.conversations,
+          corte
+        }),
+        'ok'
+      );
       switchView('memory');
     } catch (err) {
-      status.textContent = `falhou: ${err.message}`;
+      status.textContent = t('falhou: {erro}', { erro: err.message });
     }
   };
 
@@ -1019,115 +1058,124 @@ const cfgChave = (id, on) =>
    <span class="chave${on ? ' on' : ''}" data-chave="${id}" role="switch" aria-checked="${!!on}" tabindex="0"></span>`;
 
 const CFG_SECOES = {
-  geral: () => `<h3>Geral</h3>
-    ${cfgLin('Qual IA responde por padrão', 'Vale pra conversa nova; dá pra trocar dentro de cada uma.',
+  geral: () => `<h3>${t('Geral')}</h3>
+    ${cfgLin(t('Qual IA responde por padrão'), t('Vale pra conversa nova; dá pra trocar dentro de cada uma.'),
       `<select id="s-modelo-padrao">${modelOptions(state.model)}</select>`)}
-    ${cfgLin('Perfil que abre junto', 'O jeito salvo de responder que já vem escolhido.',
-      `<select id="s-perfil-padrao"><option value="">— nenhum —</option>${state.gems
+    ${cfgLin(t('Perfil que abre junto'), t('O jeito salvo de responder que já vem escolhido.'),
+      `<select id="s-perfil-padrao"><option value="">${t('— nenhum —')}</option>${state.gems
         .map((g) => `<option value="${escapeHtml(g.id)}"${g.id === state.gemId ? ' selected' : ''}>${escapeHtml(g.name)}</option>`)
         .join('')}</select>`)}`,
 
-  memoria: (s, pendente) => `<h3>Memória</h3>
-    ${cfgLin('Lembrar do que eu conto', 'Uma memória só, lida por todas as IAs.', cfgChave('s-enabled', s.memory.enabled))}
-    ${cfgLin('Aprender sozinho depois de cada resposta', 'Sem isso, só guarda o que você mandar guardar.', cfgChave('s-auto', s.memory.autoExtract))}
-    ${cfgLin('Quantas coisas entram por resposta', 'Mais que 20 costuma atrapalhar em vez de ajudar.',
+  memoria: (s, pendente) => `<h3>${t('Memória')}</h3>
+    ${cfgLin(t('Lembrar do que eu conto'), t('Uma memória só, lida por todas as IAs.'), cfgChave('s-enabled', s.memory.enabled))}
+    ${cfgLin(t('Aprender sozinho depois de cada resposta'), t('Sem isso, só guarda o que você mandar guardar.'), cfgChave('s-auto', s.memory.autoExtract))}
+    ${cfgLin(t('Quantas coisas entram por resposta'), t('Mais que 20 costuma atrapalhar em vez de ajudar.'),
       `<input id="s-max" type="number" min="1" max="50" value="${s.memory.maxInjected}" style="max-width:120px;text-align:center" />`)}
-    ${cfgLin('Nota mínima pra entrar', 'Abaixo disso a lembrança é fraca demais e fica de fora.',
+    ${cfgLin(t('Nota mínima pra entrar'), t('Abaixo disso a lembrança é fraca demais e fica de fora.'),
       `<input id="s-min" type="number" step="0.01" min="0" max="1" value="${s.memory.minScore}" style="max-width:120px;text-align:center" />`)}
-    ${cfgLin('Quem separa o que vale guardar', '',
+    ${cfgLin(t('Quem separa o que vale guardar'), '',
       `<select id="s-extractor">
-         <option value="">— sem chamar IA, só a regra local —</option>
+         <option value="">${t('— sem chamar IA, só a regra local —')}</option>
          ${chatModels().map((m) => `<option value="${escapeHtml(m.ref)}"${s.memory.extractorModel === m.ref ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('')}
        </select>`)}
-    ${cfgLin('O jeito de indexar', 'É o que faz a busca entender sentido, não só palavra igual.',
+    ${cfgLin(t('O jeito de indexar'), t('É o que faz a busca entender sentido, não só palavra igual.'),
       `<select id="s-embed">
-         <option value="">— sem indexar, só busca por palavra —</option>
+         <option value="">${t('— sem indexar, só busca por palavra —')}</option>
          ${embeddingModels().map((m) => `<option value="${escapeHtml(m.ref)}"${s.memory.embeddingModel === m.ref ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('')}
        </select>`)}
     ${pendente.total
       ? `<div class="aviso" id="reindex-box">
-           <div><b>${pendente.total} ${pendente.total === 1 ? 'coisa foi indexada' : 'coisas foram indexadas'} pelo jeito antigo</b>
-             (${pendente.memories} da memória, ${pendente.chunks} de documentos). Até refazer, elas só aparecem na busca por palavra.</div>
-           <button id="btn-reindex" class="primary" type="button">${icon('refresh', 17)} Refazer agora</button>
+           <div><b>${plural(
+             pendente.total,
+             '1 coisa foi indexada pelo jeito antigo',
+             '{n} coisas foram indexadas pelo jeito antigo'
+           )}</b>
+             ${t('({memorias} da memória, {chunks} de documentos). Até refazer, elas só aparecem na busca por palavra.', {
+               memorias: pendente.memories,
+               chunks: pendente.chunks
+             })}</div>
+           <button id="btn-reindex" class="primary" type="button">${icon('refresh', 17)} ${t('Refazer agora')}</button>
          </div>`
       : ''}
-    ${cfgLin('Guardar o que eu mudei aqui', '', '<button id="btn-save-settings" class="primary" type="button">Salvar</button>')}`,
+    ${cfgLin(t('Guardar o que eu mudei aqui'), '', `<button id="btn-save-settings" class="primary" type="button">${t('Salvar')}</button>`)}`,
 
-  ias: () => `<h3>IAs ligadas</h3>
+  ias: () => `<h3>${t('IAs ligadas')}</h3>
     ${state.providers
       .map((p) =>
         cfgLin(
           escapeHtml(p.name),
-          escapeHtml(`${KIND_ROT[p.kind] || 'paga por uso'} · ${p.models.length} modelo(s)`),
+          escapeHtml(
+            `${t(KIND_ROT[p.kind] || 'paga por uso')} · ${t('{n} modelo(s)', { n: p.models.length })}`
+          ),
           `${p.enabled
-            ? '<span class="tag on"><span class="pt"></span>ligada</span>'
-            : '<span class="tag warn"><span class="pt"></span>desligada</span>'}
-           <button class="ghost" type="button" data-ir="providers">Abrir</button>`
+            ? `<span class="tag on"><span class="pt"></span>${t('ligada')}</span>`
+            : `<span class="tag warn"><span class="pt"></span>${t('desligada')}</span>`}
+           <button class="ghost" type="button" data-ir="providers">${t('Abrir')}</button>`
         )
       )
       .join('')}
-    ${cfgLin('Procurar IA nesta máquina', 'Olha as portas conhecidas, o PATH e as chaves guardadas no sistema.',
-      '<button class="primary" type="button" data-ir="providers">Abrir IAs ligadas</button>')}`,
+    ${cfgLin(t('Procurar IA nesta máquina'), t('Olha as portas conhecidas, o PATH e as chaves guardadas no sistema.'),
+      `<button class="primary" type="button" data-ir="providers">${t('Abrir IAs ligadas')}</button>`)}`,
 
-  acesso: (s) => `<h3>Acesso</h3>
-    ${cfgLin('Pedir senha pra abrir', 'Sem isso, qualquer aparelho da sua rede abre este app.', cfgChave('s-token', s.requireToken))}
+  acesso: (s) => `<h3>${t('Acesso')}</h3>
+    ${cfgLin(t('Pedir senha pra abrir'), t('Sem isso, qualquer aparelho da sua rede abre este app.'), cfgChave('s-token', s.requireToken))}
     ${s.requireToken
       ? ''
-      : `<div class="aviso err"><div><b>Este app está aberto pra rede inteira.</b>
-           Qualquer aparelho no seu wi-fi entra, lê suas conversas e gasta suas chaves de API. Ligue a senha aí em cima.</div></div>`}
-    ${cfgLin('Onde ele está escutando', '', `<span class="val">${escapeHtml(s.host)}:${s.port}</span>`)}
-    ${cfgLin('Chaves guardadas no servidor', 'Elas nunca chegam ao navegador.',
-      `<span class="val">${s.secrets.length ? escapeHtml(s.secrets.join(' · ')) : 'nenhuma'}</span>`)}
-    ${cfgLin('Busca por sentido', '', `<span class="val">${s.embeddingAvailable ? 'ligada' : 'desligada — só por palavra'}</span>`)}`,
+      : `<div class="aviso err"><div><b>${t('Este app está aberto pra rede inteira.')}</b>
+           ${t('Qualquer aparelho no seu wi-fi entra, lê suas conversas e gasta suas chaves de API. Ligue a senha aí em cima.')}</div></div>`}
+    ${cfgLin(t('Onde ele está escutando'), '', `<span class="val">${escapeHtml(s.host)}:${s.port}</span>`)}
+    ${cfgLin(t('Chaves guardadas no servidor'), t('Elas nunca chegam ao navegador.'),
+      `<span class="val">${s.secrets.length ? escapeHtml(s.secrets.join(' · ')) : t('nenhuma')}</span>`)}
+    ${cfgLin(t('Busca por sentido'), '', `<span class="val">${s.embeddingAvailable ? t('ligada') : t('desligada — só por palavra')}</span>`)}`,
 
-  dados: () => `<h3>Seus dados</h3>
-    ${cfgLin('Baixar cópia agora', 'Um zip com conversas, memória, perfis, projetos, ajustes e anexos.',
-      '<button id="btn-backup" class="ghost" type="button"><span data-icon="download"></span> Baixar</button>')}
-    ${cfgLin('Restaurar de um arquivo', 'Substitui o que está aqui. O banco de agora fica guardado antes da troca.',
-      '<button id="btn-restore" class="ghost" type="button"><span data-icon="upload"></span> Escolher arquivo</button><input id="restore-file" type="file" accept=".zip" hidden />')}
-    ${cfgLin('Cópias automáticas', 'Uma por dia, quando o servidor sobe. Guarda as sete últimas.',
-      '<span class="val" id="backup-list">carregando…</span>', true)}`,
+  dados: () => `<h3>${t('Seus dados')}</h3>
+    ${cfgLin(t('Baixar cópia agora'), t('Um zip com conversas, memória, perfis, projetos, ajustes e anexos.'),
+      `<button id="btn-backup" class="ghost" type="button"><span data-icon="download"></span> ${t('Baixar')}</button>`)}
+    ${cfgLin(t('Restaurar de um arquivo'), t('Substitui o que está aqui. O banco de agora fica guardado antes da troca.'),
+      `<button id="btn-restore" class="ghost" type="button"><span data-icon="upload"></span> ${t('Escolher arquivo')}</button><input id="restore-file" type="file" accept=".zip" hidden />`)}
+    ${cfgLin(t('Cópias automáticas'), t('Uma por dia, quando o servidor sobe. Guarda as sete últimas.'),
+      `<span class="val" id="backup-list">${t('carregando…')}</span>`, true)}`,
 
-  perfis: () => `<h3>Perfis</h3>
+  perfis: () => `<h3>${t('Perfis')}</h3>
     ${state.gems
       .map((g) =>
-        cfgLin(escapeHtml(g.name), escapeHtml(g.model ? modelLabel(g.model) : 'usa a IA escolhida na conversa'),
-          '<button class="ghost" type="button" data-ir="gems">Mudar</button>')
+        cfgLin(escapeHtml(g.name), escapeHtml(g.model ? modelLabel(g.model) : t('usa a IA escolhida na conversa')),
+          `<button class="ghost" type="button" data-ir="gems">${t('Mudar')}</button>`)
       )
       .join('')}
-    ${cfgLin('Novo perfil', '', '<button class="primary" type="button" data-ir="gems">Criar</button>')}`,
+    ${cfgLin(t('Novo perfil'), '', `<button class="primary" type="button" data-ir="gems">${t('Criar')}</button>`)}`,
 
   terminal: () => {
     const clis = state.providers.filter((p) => p.kind === 'cli');
-    return `<h3>Programas do terminal</h3>
+    return `<h3>${t('Programas do terminal')}</h3>
     ${clis.length
       ? clis
           .map((p) =>
             cfgLin(
               escapeHtml(p.name),
-              escapeHtml(p.config.command || 'sem caminho apontado'),
+              escapeHtml(p.config.command || t('sem caminho apontado')),
               `${p.enabled
-                ? '<span class="tag on"><span class="pt"></span>ligado</span>'
-                : '<span class="tag warn"><span class="pt"></span>desligado por você</span>'}
-               <button class="ghost" type="button" data-ir="providers">Abrir</button>`
+                ? `<span class="tag on"><span class="pt"></span>${t('ligado')}</span>`
+                : `<span class="tag warn"><span class="pt"></span>${t('desligado por você')}</span>`}
+               <button class="ghost" type="button" data-ir="providers">${t('Abrir')}</button>`
             )
           )
           .join('')
-      : cfgLin('Nenhum programa ligado', 'Claude Code, Codex, Gemini e OpenCode entram sozinhos se estiverem instalados.',
-          '<button class="primary" type="button" data-ir="providers">Procurar agora</button>')}`;
+      : cfgLin(t('Nenhum programa ligado'), t('Claude Code, Codex, Gemini e OpenCode entram sozinhos se estiverem instalados.'),
+          `<button class="primary" type="button" data-ir="providers">${t('Procurar agora')}</button>`)}`;
   },
 
-  atalhos: () => `<h3>Atalhos de teclado</h3>
+  atalhos: () => `<h3>${t('Atalhos de teclado')}</h3>
     ${[
-      ['Lista de comandos', '⌘K'],
+      [t('Lista de comandos'), '⌘K'],
       // A tabela precisa bater com o listener de web/app.js: ⌘N é conversa
       // nova e ⇧⌘N é a anônima. Trocados, quem seguisse esta tela abriria uma
       // conversa anônima achando que abriu uma normal.
-      ['Nova conversa', '⌘N'],
-      ['Conversa anônima', '⇧⌘N'],
-      ['Ajustes desta conversa', '⌘,'],
-      ['Enviar mesmo com quebra de linha', '⌘↵'],
-      ['Sair do modo voz, fechar a lista ou parar a resposta', 'Esc']
+      [t('Nova conversa'), '⌘N'],
+      [t('Conversa anônima'), '⇧⌘N'],
+      [t('Ajustes desta conversa'), '⌘,'],
+      [t('Enviar mesmo com quebra de linha'), '⌘↵'],
+      [t('Sair do modo voz, fechar a lista ou parar a resposta'), 'Esc']
     ]
       .map(([r, k]) => cfgLin(r, '', `<span class="val" style="font-family:var(--font-mono)">${k}</span>`))
       .join('')}`
@@ -1151,56 +1199,56 @@ function cfgMobile(s, pendente) {
     </button>`;
 
   return `<div class="cfg-mob panel-inner">
-    <h2>Ajustes</h2>
+    <h2>${t('Ajustes')}</h2>
 
-    <div class="grupo-rot" style="padding-top:12px">Aparência</div>
+    <div class="grupo-rot" style="padding-top:12px">${t('Aparência')}</div>
     <div class="grupo">
-      ${lin('moon', 'Tema', val(document.documentElement.dataset.theme === 'light' ? 'claro' : 'escuro'), ' data-mob="tema"')}
+      ${lin('moon', t('Tema'), val(document.documentElement.dataset.theme === 'light' ? t('claro') : t('escuro')), ' data-mob="tema"')}
     </div>
 
-    <div class="grupo-rot">Memória</div>
+    <div class="grupo-rot">${t('Memória')}</div>
     <div class="grupo">
-      ${lin('brain', 'Ver e editar memória', '', ' data-ir="memory"')}
-      ${trava('check', 'Lembrar do que eu conto', 's-enabled', s.memory.enabled)}
-      ${trava('sparkle', 'Aprender sozinho', 's-auto', s.memory.autoExtract)}
-      ${pendente.total ? lin('refresh', 'Refazer o índice', val(pendente.total), ' data-mob="reindex"') : ''}
+      ${lin('brain', t('Ver e editar memória'), '', ' data-ir="memory"')}
+      ${trava('check', t('Lembrar do que eu conto'), 's-enabled', s.memory.enabled)}
+      ${trava('sparkle', t('Aprender sozinho'), 's-auto', s.memory.autoExtract)}
+      ${pendente.total ? lin('refresh', t('Refazer o índice'), val(pendente.total), ' data-mob="reindex"') : ''}
     </div>
 
-    <div class="grupo-rot">IAs</div>
+    <div class="grupo-rot">${t('IAs')}</div>
     <div class="grupo">
-      ${lin('plug', 'IAs ligadas', val(state.providers.filter((p) => p.enabled).length), ' data-ir="providers"')}
+      ${lin('plug', t('IAs ligadas'), val(state.providers.filter((p) => p.enabled).length), ' data-ir="providers"')}
       ${lin(
         'bot',
         // O nome da IA é "provedor · modelo" e não cabe na coluna da direita a
         // 375px: vai como sublinha do rótulo, que é o que `.linha .rot small` desenha.
-        `Qual responde por padrão<small>${escapeHtml(curto(modelLabel(state.model), 40))}</small>`,
+        `${t('Qual responde por padrão')}<small>${escapeHtml(curto(modelLabel(state.model), 40))}</small>`,
         '',
         ' data-ir="providers"'
       )}
-      ${lin('sparkle', 'Perfis', val(state.gems.length), ' data-ir="gems"')}
-      ${lin('folder', 'Projetos', val(state.projects.length), ' data-ir="projects"')}
+      ${lin('sparkle', t('Perfis'), val(state.gems.length), ' data-ir="gems"')}
+      ${lin('folder', t('Projetos'), val(state.projects.length), ' data-ir="projects"')}
     </div>
 
-    <div class="grupo-rot">Acesso</div>
+    <div class="grupo-rot">${t('Acesso')}</div>
     <div class="grupo">
-      ${trava('key', 'Pedir senha pra abrir', 's-token', s.requireToken)}
-      ${lin('command', `Onde ele está escutando<small>${escapeHtml(s.host)}:${s.port}</small>`)}
+      ${trava('key', t('Pedir senha pra abrir'), 's-token', s.requireToken)}
+      ${lin('command', `${t('Onde ele está escutando')}<small>${escapeHtml(s.host)}:${s.port}</small>`)}
     </div>
 
-    <div class="grupo-rot">Seus dados</div>
+    <div class="grupo-rot">${t('Seus dados')}</div>
     <div class="grupo">
-      ${lin('download', 'Baixar cópia agora', '', ' data-mob="backup"')}
-      ${lin('upload', 'Restaurar de um arquivo', '', ' data-mob="restore"')}
+      ${lin('download', t('Baixar cópia agora'), '', ' data-mob="backup"')}
+      ${lin('upload', t('Restaurar de um arquivo'), '', ' data-mob="restore"')}
     </div>
 
     <div class="grupo" style="margin-top:14px">
       <button class="linha perigo" type="button" data-mob="apagar-conversas">
         <span class="ico" data-icon="trash" data-size="20"></span>
-        <span class="rot">Apagar todas as conversas</span>
+        <span class="rot">${t('Apagar todas as conversas')}</span>
       </button>
     </div>
 
-    <div class="versao">IAUnifier · roda em ${escapeHtml(s.host)}:${s.port}</div>
+    <div class="versao">IAUnifier · ${t('roda em {host}:{porta}', { host: escapeHtml(s.host), porta: s.port })}</div>
   </div>`;
 }
 
@@ -1209,14 +1257,16 @@ function baixarCopia() {
   const link = document.createElement('a');
   link.href = `/api/backup?token=${encodeURIComponent(TOKEN)}`;
   link.click();
-  toast('a cópia está sendo gerada e vai baixar em instantes');
+  toast(t('a cópia está sendo gerada e vai baixar em instantes'));
 }
 
 async function aplicarRestauracao(file) {
   if (!file) return;
   if (
     !confirm(
-      `Restaurar de "${file.name}"?\n\nO que está aqui agora é substituído. O banco atual fica guardado como cópia antes de trocar.`
+      t('Restaurar de "{nome}"?\n\nO que está aqui agora é substituído. O banco atual fica guardado como cópia antes de trocar.', {
+        nome: file.name
+      })
     )
   ) {
     return;
@@ -1224,10 +1274,11 @@ async function aplicarRestauracao(file) {
   try {
     const done = await api('/restore', { method: 'POST', raw: true, body: await file.arrayBuffer() });
     toast(done.message, 'ok');
+    const lido = done.config
+      ? t('Cópia lida: banco, ajustes, {n} anexo(s).', { n: done.uploads })
+      : t('Cópia lida: banco, {n} anexo(s).', { n: done.uploads });
     alert(
-      `Cópia lida: banco${done.config ? ', ajustes' : ''}, ${done.uploads} anexo(s).\n\n` +
-        'O banco entra no lugar na próxima vez que o servidor subir — trocar agora não valeria, ' +
-        'porque este processo ainda está com o banco antigo aberto. Reinicie para concluir.'
+      `${lido}\n\n${t('O banco entra no lugar na próxima vez que o servidor subir — trocar agora não valeria, porque este processo ainda está com o banco antigo aberto. Reinicie para concluir.')}`
     );
   } catch (err) {
     toast(err.message, 'err');
@@ -1264,14 +1315,14 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
   el.innerHTML = `
     <div class="cfg">
       <nav class="cfg-rail">
-        <div class="busca">${icon('search', 18)}<input type="search" placeholder="Procurar nos ajustes" /></div>
+        <div class="busca">${icon('search', 18)}<input type="search" placeholder="${t('Procurar nos ajustes')}" /></div>
         ${CFG_TRILHA.map(
           ([rot, itens]) =>
-            `<div class="cfg-rot">${rot}</div>` +
+            `<div class="cfg-rot">${t(rot)}</div>` +
             itens
               .map(
                 ([k, ic, nome]) =>
-                  `<button class="cfg-item${k === secao ? ' sel' : ''}" type="button" data-secao="${k}"><span class="ico">${icon(ic, 19)}</span> ${nome}</button>`
+                  `<button class="cfg-item${k === secao ? ' sel' : ''}" type="button" data-secao="${k}"><span class="ico">${icon(ic, 19)}</span> ${t(nome)}</button>`
               )
               .join('')
         ).join('')}
@@ -1279,8 +1330,8 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       <div class="cfg-corpo">
         ${CFG_SECOES[secao](settings, pendente)}
         <div class="cfg-pe">
-          <button data-theme="dark" type="button" class="${tema === 'dark' ? 'sel' : ''}" title="escuro" aria-label="tema escuro">${icon('moon', 19)}</button>
-          <button data-theme="light" type="button" class="${tema === 'light' ? 'sel' : ''}" title="claro" aria-label="tema claro">${icon('sun', 19)}</button>
+          <button data-theme="dark" type="button" class="${tema === 'dark' ? 'sel' : ''}" title="${t('escuro')}" aria-label="${t('tema escuro')}">${icon('moon', 19)}</button>
+          <button data-theme="light" type="button" class="${tema === 'light' ? 'sel' : ''}" title="${t('claro')}" aria-label="${t('tema claro')}">${icon('sun', 19)}</button>
         </div>
       </div>
     </div>
@@ -1337,7 +1388,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       localStorage.setItem('iaunifier.model', state.model);
       const sel = document.querySelector('#sel-model');
       if (sel) sel.value = state.model;
-      toast('IA padrão trocada', 'ok');
+      toast(t('IA padrão trocada'), 'ok');
     };
   }
   const perfilPadrao = q('#s-perfil-padrao');
@@ -1347,7 +1398,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       localStorage.setItem('iaunifier.gem', state.gemId);
       const sel = document.querySelector('#sel-gem');
       if (sel) sel.value = state.gemId;
-      toast('perfil padrão trocado', 'ok');
+      toast(t('perfil padrão trocado'), 'ok');
     };
   }
 
@@ -1358,19 +1409,19 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
     botaoReindex.onclick = async () => {
       const caixa = q('#reindex-box');
       botaoReindex.disabled = true;
-      botaoReindex.textContent = 'refazendo…';
+      botaoReindex.textContent = t('refazendo…');
       const r = await rodarReindex((feitos) => {
-        botaoReindex.textContent = feitos ? `refazendo… ${feitos}` : 'refazendo…';
+        botaoReindex.textContent = feitos ? t('refazendo… {n}', { n: feitos }) : t('refazendo…');
       });
       if (r.done) {
         caixa.textContent = r.feitos
-          ? `${r.feitos} ${r.feitos === 1 ? 'coisa refeita' : 'coisas refeitas'}.`
-          : 'nada a refazer.';
+          ? plural(r.feitos, '1 coisa refeita.', '{n} coisas refeitas.')
+          : t('nada a refazer.');
         return;
       }
-      caixa.textContent = r.reason || 'não deu pra refazer agora.';
+      caixa.textContent = r.reason || t('não deu pra refazer agora.');
       botaoReindex.disabled = false;
-      botaoReindex.textContent = 'Tentar de novo';
+      botaoReindex.textContent = t('Tentar de novo');
       caixa.appendChild(botaoReindex);
     };
   }
@@ -1391,7 +1442,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
           }
         }
       });
-      toast('ajustes salvos', 'ok');
+      toast(t('ajustes salvos'), 'ok');
       switchView('settings');
     };
   }
@@ -1404,7 +1455,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
     if (
       !marcado &&
       !confirm(
-        'Desligar a senha?\n\nQualquer aparelho na sua rede vai poder abrir este app, ler suas conversas e usar suas chaves de API.'
+        t('Desligar a senha?\n\nQualquer aparelho na sua rede vai poder abrir este app, ler suas conversas e usar suas chaves de API.')
       )
     ) {
       desfazer();
@@ -1416,10 +1467,10 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       // pedido desta aba levaria 401 e o botão teria trancado o próprio dono.
       if (out.accessToken) {
         localStorage.setItem('iaunifier.token', out.accessToken);
-        toast('senha religada — este aparelho já está com a chave; os outros precisam dela');
+        toast(t('senha religada — este aparelho já está com a chave; os outros precisam dela'));
         return location.reload();
       }
-      toast(marcado ? 'senha religada' : 'senha desligada — cuidado', marcado ? 'ok' : 'err');
+      toast(marcado ? t('senha religada') : t('senha desligada — cuidado'), marcado ? 'ok' : 'err');
       switchView('settings');
     } catch (err) {
       desfazer();
@@ -1463,7 +1514,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
         const alvo = q('#backup-list');
         if (!alvo) return;
         if (!lista.length) {
-          alvo.textContent = 'nenhuma ainda';
+          alvo.textContent = t('nenhuma ainda');
           return;
         }
         const tamanho = (b) => (b >= 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} kB`);
@@ -1473,7 +1524,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       })
       .catch(() => {
         const alvo = q('#backup-list');
-        if (alvo) alvo.textContent = 'não consegui listar as cópias automáticas';
+        if (alvo) alvo.textContent = t('não consegui listar as cópias automáticas');
       });
   }
 
@@ -1494,7 +1545,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       const campo = b.dataset.trava === 's-enabled' ? 'enabled' : 'autoExtract';
       try {
         await api('/settings', { method: 'PATCH', body: { memory: { [campo]: ligado } } });
-        toast('ajuste salvo', 'ok');
+        toast(t('ajuste salvo'), 'ok');
       } catch (err) {
         pintar(!ligado);
         toast(err.message, 'err');
@@ -1516,9 +1567,9 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
         toast(
           r.done
             ? r.feitos
-              ? `${r.feitos} ${r.feitos === 1 ? 'coisa refeita' : 'coisas refeitas'}`
-              : 'nada a refazer'
-            : r.reason || 'não deu pra refazer agora',
+              ? plural(r.feitos, '1 coisa refeita', '{n} coisas refeitas')
+              : t('nada a refazer')
+            : r.reason || t('não deu pra refazer agora'),
           r.done ? 'ok' : 'err'
         );
         return switchView('settings');
@@ -1526,8 +1577,14 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       if (acao === 'apagar-conversas') {
         // Não existe apagar em lote no servidor: é laço no cliente, uma a uma.
         const total = state.chats.length;
-        if (!total) return toast('não há conversa pra apagar');
-        if (!confirm(`Apagar ${total} ${total === 1 ? 'conversa' : 'conversas'}?\n\nIsso não volta.`)) return;
+        if (!total) return toast(t('não há conversa pra apagar'));
+        if (
+          !confirm(
+            `${plural(total, 'Apagar 1 conversa?', 'Apagar {n} conversas?')}\n\n${t('Isso não volta.')}`
+          )
+        ) {
+          return;
+        }
         b.disabled = true;
         for (const c of [...state.chats]) {
           try {
@@ -1537,7 +1594,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
           }
         }
         await refreshState();
-        toast('conversas apagadas', 'ok');
+        toast(t('conversas apagadas'), 'ok');
         return switchView('settings');
       }
     };
@@ -1554,32 +1611,32 @@ views.council = function renderCouncil(el, { switchView }) {
 
   const inner = panel(
     el,
-    'Perguntar pra várias',
+    t('Perguntar pra várias'),
     'users',
-    'A mesma pergunta em várias IAs ao mesmo tempo. Todas leem a mesma memória.',
+    t('A mesma pergunta em várias IAs ao mesmo tempo. Todas leem a mesma memória.'),
     models.length < 2
       ? `<div class="card">
-           <p>Você precisa de pelo menos duas IAs ligadas pra perguntar pra várias.</p>
-           <div class="row"><button id="c-ligar" class="primary" type="button">Ver IAs ligadas</button></div>
+           <p>${t('Você precisa de pelo menos duas IAs ligadas pra perguntar pra várias.')}</p>
+           <div class="row"><button id="c-ligar" class="primary" type="button">${t('Ver IAs ligadas')}</button></div>
          </div>`
       : `<div class="card">
-           <label class="field">Pergunta
-             <textarea id="c-prompt" rows="3" placeholder="O que você quer perguntar pra todas elas"></textarea>
+           <label class="field">${t('Pergunta')}
+             <textarea id="c-prompt" rows="3" placeholder="${t('O que você quer perguntar pra todas elas')}"></textarea>
            </label>
-           <label class="field">Quais IAs respondem
+           <label class="field">${t('Quais IAs respondem')}
              <div id="c-models" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"></div>
            </label>
-           <label class="field" id="c-judge-campo">Quem costura a resposta final
-             <select id="c-judge"><option value="">— a primeira escolhida —</option>${modelOptions()}</select>
+           <label class="field" id="c-judge-campo">${t('Quem costura a resposta final')}
+             <select id="c-judge"><option value="">${t('— a primeira escolhida —')}</option>${modelOptions()}</select>
            </label>
            <select id="c-mode" hidden>
-             <option value="council">Uma resposta só</option>
-             <option value="compare">Lado a lado</option>
-             <option value="vote">Elas votam</option>
+             <option value="council">${t('Uma resposta só')}</option>
+             <option value="compare">${t('Lado a lado')}</option>
+             <option value="vote">${t('Elas votam')}</option>
            </select>
            <div class="row">
-             <button id="c-go" class="primary" type="button">Perguntar pra todas</button>
-             <button id="c-stop" class="danger" type="button" hidden>${icon('stop', 18)} Parar</button>
+             <button id="c-go" class="primary" type="button">${t('Perguntar pra todas')}</button>
+             <button id="c-stop" class="danger" type="button" hidden>${icon('stop', 18)} ${t('Parar')}</button>
            </div>
          </div>
          <div class="council-head">
@@ -1588,12 +1645,12 @@ views.council = function renderCouncil(el, { switchView }) {
              <div class="trilho" id="c-trilho"></div>
              <span class="col-state" id="c-status"></span>
              <span class="grow"></span>
-             <button id="c-replay" class="icon" type="button" title="perguntar de novo" aria-label="perguntar de novo" hidden>${icon('refresh', 18)}</button>
+             <button id="c-replay" class="icon" type="button" title="${t('perguntar de novo')}" aria-label="${t('perguntar de novo')}" hidden>${icon('refresh', 18)}</button>
            </div>
            <div class="segmentado" id="c-modos">
-             <button type="button" data-modo="council" class="sel">Uma resposta só</button>
-             <button type="button" data-modo="compare">Lado a lado</button>
-             <button type="button" data-modo="vote">Elas votam</button>
+             <button type="button" data-modo="council" class="sel">${t('Uma resposta só')}</button>
+             <button type="button" data-modo="compare">${t('Lado a lado')}</button>
+             <button type="button" data-modo="vote">${t('Elas votam')}</button>
            </div>
          </div>
          <div id="c-out"></div>`
@@ -1634,11 +1691,11 @@ views.council = function renderCouncil(el, { switchView }) {
 
   inner.querySelector('#c-go').onclick = async () => {
     const chosen = [...picker.querySelectorAll('input:checked')].map((i) => i.value);
-    if (chosen.length < 2) return toast('escolha pelo menos duas IAs', 'err');
+    if (chosen.length < 2) return toast(t('escolha pelo menos duas IAs'), 'err');
     localStorage.setItem('iaunifier.council', JSON.stringify(chosen));
 
     const promptText = inner.querySelector('#c-prompt').value.trim();
-    if (!promptText) return toast('escreva a pergunta', 'err');
+    if (!promptText) return toast(t('escreva a pergunta'), 'err');
 
     const total = chosen.length;
     const pergunta = inner.querySelector('#c-pergunta');
@@ -1658,15 +1715,22 @@ views.council = function renderCouncil(el, { switchView }) {
     let falhas = 0;
     const relogio = setInterval(() => {
       const dt = (Date.now() - t0) / 1000;
-      status.textContent = `${prontas} de ${total} prontas · ${dt.toFixed(0)} s`;
+      status.textContent = t('{prontas} de {total} prontas · {seg} s', {
+        prontas,
+        total,
+        seg: dt.toFixed(0)
+      });
       for (const col of cols.values()) {
         if (!col.classList.contains('run')) continue;
-        col.querySelector('header .col-state').textContent = `${dt.toFixed(1).replace('.', ',')} s`;
+        col.querySelector('header .col-state').textContent = `${formatarNumero(dt, {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1
+        })} s`;
       }
     }, 100);
     controller = new AbortController();
     stopBtn.hidden = false;
-    status.textContent = `0 de ${total} prontas · 0 s`;
+    status.textContent = t('{prontas} de {total} prontas · {seg} s', { prontas: 0, total, seg: 0 });
 
     // Ao costurar, as colunas recolhem numa tira de pastilhas e a resposta
     // final assume a página. A grade é escondida, não removida: quem clicar na
@@ -1714,7 +1778,7 @@ views.council = function renderCouncil(el, { switchView }) {
                 </header>
                 <div class="body"></div>
                 <footer>
-                  <button class="icon" type="button" data-copiar title="copiar" aria-label="copiar a resposta">${icon('copy', 18)}</button>
+                  <button class="icon" type="button" data-copiar title="${t('copiar')}" aria-label="${t('copiar a resposta')}">${icon('copy', 18)}</button>
                   <span class="grow"></span>
                   <span class="col-state"></span>
                 </footer>`;
@@ -1732,10 +1796,10 @@ views.council = function renderCouncil(el, { switchView }) {
               falhas++;
               col.className = 'council-col fail';
               if (marca) marca.className = 'fail';
-              estado.textContent = 'falhou';
+              estado.textContent = t('falhou');
               col.querySelector('.body').innerHTML = `<div class="aviso err" style="margin:0">
-                  <div><b>essa IA não respondeu</b><br />${escapeHtml(ev.error)}<br />Veja se ela está ligada e com chave em IAs ligadas.</div>
-                  <button class="primary" type="button" data-resolver>Resolver</button>
+                  <div><b>${t('essa IA não respondeu')}</b><br />${escapeHtml(ev.error)}<br />${t('Veja se ela está ligada e com chave em IAs ligadas.')}</div>
+                  <button class="primary" type="button" data-resolver>${t('Resolver')}</button>
                 </div>`;
               col.querySelector('[data-resolver]').onclick = () => switchView('providers');
               return;
@@ -1743,25 +1807,36 @@ views.council = function renderCouncil(el, { switchView }) {
             ok++;
             col.className = 'council-col done';
             if (marca) marca.className = 'done';
-            estado.textContent = `${(ev.ms / 1000).toFixed(1).replace('.', ',')} s`;
+            estado.textContent = `${formatarNumero(ev.ms / 1000, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1
+            })} s`;
             col.querySelector('.body').innerHTML = renderMarkdown(ev.text);
-            col.querySelector('footer .col-state').textContent = `${ev.text.trim().split(/\s+/).length} palavras`;
+            col.querySelector('footer .col-state').textContent = t('{n} palavras', {
+              n: ev.text.trim().split(/\s+/).length
+            });
             col.querySelector('[data-copiar]').onclick = () =>
-              navigator.clipboard.writeText(ev.text).then(() => toast('resposta copiada'));
+              navigator.clipboard.writeText(ev.text).then(() => toast(t('resposta copiada')));
             wireCodeCopy(col);
           } else if (ev.type === 'phase') {
             const seg = ((Date.now() - t0) / 1000).toFixed(0);
-            const fase = modeSel.value === 'vote' ? 'elas estão se avaliando…' : 'costurando a resposta final…';
-            status.textContent = `${total} de ${total} · ${seg} s · ${fase}`;
+            const fase =
+              modeSel.value === 'vote'
+                ? t('elas estão se avaliando…')
+                : t('costurando a resposta final…');
+            status.textContent = t('{total} de {total} · {seg} s · {fase}', { total, seg, fase });
           } else if (ev.type === 'synthesis') {
             const tira = recolher();
             tira.insertAdjacentHTML(
               'beforebegin',
               `<div class="final">
-                 <div class="quem">${roseta(20, 'fixa')}<span class="rot">as ${ok} respostas viraram uma · costurada pelo ${escapeHtml(ev.label)}</span></div>
+                 <div class="quem">${roseta(20, 'fixa')}<span class="rot">${t(
+                   'as {n} respostas viraram uma · costurada pelo {quem}',
+                   { n: ok, quem: escapeHtml(ev.label) }
+                 )}</span></div>
                  <div class="txt">${renderMarkdown(ev.text)}</div>
                </div>
-               <p class="hint" style="margin:0 0 12px">as respostas separadas continuam aqui:</p>`
+               <p class="hint" style="margin:0 0 12px">${t('as respostas separadas continuam aqui:')}</p>`
             );
             wireCodeCopy(out);
           } else if (ev.type === 'votes') {
@@ -1774,11 +1849,11 @@ views.council = function renderCouncil(el, { switchView }) {
               .map((r) => {
                 const venceu = r.ref === vencedor;
                 const curtas = r.votes.length
-                  ? `notas recebidas: ${r.votes.map((v) => v.nota).join(', ')}`
-                  : 'não recebeu nota';
+                  ? t('notas recebidas: {notas}', { notas: r.votes.map((v) => v.nota).join(', ') })
+                  : t('não recebeu nota');
                 const longas = r.votes.length
                   ? r.votes.map((v) => `${v.from}: ${v.nota}`).join(' · ')
-                  : 'não recebeu nota';
+                  : t('não recebeu nota');
                 // Os dois `style` consertam o ramo de computador da folha
                 // (styles.css 1478-1480): lá a linha vira `1.2fr 2fr auto` e a
                 // barra cai na trilha `auto`, que mede 0 porque uma barra não
@@ -1787,8 +1862,15 @@ views.council = function renderCouncil(el, { switchView }) {
                 // coluna em vez da linha inteira. No celular os dois valores
                 // são os mesmos que a folha já aplica.
                 return `<tr class="${venceu ? 'win' : ''}">
-                  <td>${venceu ? `<span class="crown">${icon('check', 16)}</span> ` : ''}${escapeHtml(r.label)}${venceu ? ' · venceu' : ''}</td>
-                  <td class="nota">${r.average == null ? '—' : r.average.toFixed(1).replace('.', ',')}</td>
+                  <td>${venceu ? `<span class="crown">${icon('check', 16)}</span> ` : ''}${escapeHtml(r.label)}${venceu ? ` · ${t('venceu')}` : ''}</td>
+                  <td class="nota">${
+                    r.average == null
+                      ? '—'
+                      : formatarNumero(r.average, {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1
+                        })
+                  }</td>
                   <td style="min-width:120px"><div class="barra"><span style="width:${r.average == null ? 0 : (r.average / 10) * 100}%"></span></div></td>
                   <td class="votos" style="grid-column:1/-1" data-curtas="${escapeHtml(curtas)}" data-longas="${escapeHtml(longas)}">${escapeHtml(curtas)}</td>
                 </tr>`;
@@ -1800,16 +1882,18 @@ views.council = function renderCouncil(el, { switchView }) {
                  <table><tbody>${linhas}</tbody></table>
                  ${
                    ev.anuladas
-                     ? `<div class="placar-nota">${icon('alert', 16)} <span>${
-                         ev.anuladas === 1 ? '1 voto anulado' : `${ev.anuladas} votos anulados`
-                       }: a nota veio fora da escala de 0 a 10.</span></div>`
+                     ? `<div class="placar-nota">${icon('alert', 16)} <span>${plural(
+                         ev.anuladas,
+                         '1 voto anulado: a nota veio fora da escala de 0 a 10.',
+                         '{n} votos anulados: a nota veio fora da escala de 0 a 10.'
+                       )}</span></div>`
                      : ''
                  }
-                 <div class="placar-nota">${icon('users', 16)} <span>cada IA avaliou as outras sem saber de quem era cada resposta.${
+                 <div class="placar-nota">${icon('users', 16)} <span>${t('cada IA avaliou as outras sem saber de quem era cada resposta.')}${
                    falharam.length === 1
-                     ? ` A ${escapeHtml(falharam[0])} falhou e não votou.`
+                     ? ` ${t('A {quem} falhou e não votou.', { quem: escapeHtml(falharam[0]) })}`
                      : falharam.length
-                       ? ` ${escapeHtml(falharam.join(', '))} falharam e não votaram.`
+                       ? ` ${t('{quem} falharam e não votaram.', { quem: escapeHtml(falharam.join(', ')) })}`
                        : ''
                  }</span></div>
                </div>`
@@ -1822,8 +1906,8 @@ views.council = function renderCouncil(el, { switchView }) {
               placar.insertAdjacentHTML(
                 'afterend',
                 `<div class="row" style="margin:18px 0">
-                   <button class="ghost" type="button" id="c-quem-votou">Quem votou o quê</button>
-                   <button class="ghost" type="button" id="c-seguir">Continuar com o vencedor</button>
+                   <button class="ghost" type="button" id="c-quem-votou">${t('Quem votou o quê')}</button>
+                   <button class="ghost" type="button" id="c-seguir">${t('Continuar com o vencedor')}</button>
                  </div>`
               );
               let aberto = false;
@@ -1843,14 +1927,16 @@ views.council = function renderCouncil(el, { switchView }) {
             toast(ev.message, 'err');
             out.insertAdjacentHTML(
               'beforeend',
-              `<div class="aviso err"><div><b>não deu certo</b><br />${escapeHtml(ev.message)}</div></div>`
+              `<div class="aviso err"><div><b>${t('não deu certo')}</b><br />${escapeHtml(ev.message)}</div></div>`
             );
           } else if (ev.type === 'done') {
             clearInterval(relogio);
             const seg = ((Date.now() - t0) / 1000).toFixed(0);
-            status.textContent = `${total} de ${total} · ${seg} s${
-              falhas ? ` · ${falhas === 1 ? '1 falhou' : `${falhas} falharam`}` : ''
-            }`;
+            status.textContent = t('{total} de {total} · {seg} s{falhou}', {
+              total,
+              seg,
+              falhou: falhas ? ` · ${plural(falhas, '1 falhou', '{n} falharam')}` : ''
+            });
           }
         },
         controller.signal
@@ -1962,26 +2048,26 @@ function marcarCitacoes(root) {
 views.research = function renderResearch(el, { switchView }) {
   const inner = panel(
     el,
-    'Pesquisar na web',
+    t('Pesquisar na web'),
     'globe',
-    'A IA vai à web, lê as páginas e escreve um relatório com as fontes.',
+    t('A IA vai à web, lê as páginas e escreve um relatório com as fontes.'),
     `<div class="card plain">
-       <label class="field">O que você quer descobrir
-         <textarea id="r-question" rows="2" placeholder="Ex.: vale trocar um disco com setores realocados agora?"></textarea>
+       <label class="field">${t('O que você quer descobrir')}
+         <textarea id="r-question" rows="2" placeholder="${t('Ex.: vale trocar um disco com setores realocados agora?')}"></textarea>
        </label>
        <div class="grid">
-         <label class="field">Qual IA responde
+         <label class="field">${t('Qual IA responde')}
            <select id="r-model">${modelOptions(state.model)}</select>
          </label>
-         <label class="field">Quantas buscas <input id="r-breadth" type="number" min="1" max="8" value="4" /></label>
-         <label class="field">Páginas por busca <input id="r-depth" type="number" min="1" max="5" value="3" /></label>
+         <label class="field">${t('Quantas buscas')} <input id="r-breadth" type="number" min="1" max="8" value="4" /></label>
+         <label class="field">${t('Páginas por busca')} <input id="r-depth" type="number" min="1" max="5" value="3" /></label>
        </div>
        <div class="row">
-         <button id="r-go" class="primary" type="button"><span data-icon="search" data-size="18"></span> Pesquisar</button>
-         <button id="r-stop" class="danger" type="button" hidden><span data-icon="stop" data-size="18"></span> Parar</button>
+         <button id="r-go" class="primary" type="button"><span data-icon="search" data-size="18"></span> ${t('Pesquisar')}</button>
+         <button id="r-stop" class="danger" type="button" hidden><span data-icon="stop" data-size="18"></span> ${t('Parar')}</button>
          <span id="r-status" class="meta" aria-live="polite"></span>
        </div>
-       <div class="meta">Não usa chave de API: a busca sai pelo DuckDuckGo.</div>
+       <div class="meta">${t('Não usa chave de API: a busca sai pelo DuckDuckGo.')}</div>
      </div>
      <div id="r-log"></div>
      <div id="r-report"></div>`
@@ -2019,16 +2105,16 @@ views.research = function renderResearch(el, { switchView }) {
 
   inner.querySelector('#r-go').onclick = async () => {
     const question = inner.querySelector('#r-question').value.trim();
-    if (!question) return toast('escreva a pergunta', 'err');
+    if (!question) return toast(t('escreva a pergunta'), 'err');
 
     report.innerHTML = '';
     buscas = lidas = guardadas = descartadas = 0;
     t0 = Date.now();
     log.innerHTML = `<div class="reg-topo">
-        <div><span class="num live" id="r-seg">0</span><span class="rot">segundos</span></div>
-        <div><span class="num" id="r-buscas">0</span><span class="rot">buscas</span></div>
-        <div><span class="num" id="r-lidas">0</span><span class="rot">páginas lidas</span></div>
-        <div><span class="num" id="r-guardadas">0</span><span class="rot">fontes guardadas</span></div>
+        <div><span class="num live" id="r-seg">0</span><span class="rot">${t('segundos')}</span></div>
+        <div><span class="num" id="r-buscas">0</span><span class="rot">${t('buscas')}</span></div>
+        <div><span class="num" id="r-lidas">0</span><span class="rot">${t('páginas lidas')}</span></div>
+        <div><span class="num" id="r-guardadas">0</span><span class="rot">${t('fontes guardadas')}</span></div>
       </div>
       <div class="reg" id="r-reg"></div>`;
     clearInterval(cronometro);
@@ -2053,33 +2139,33 @@ views.research = function renderResearch(el, { switchView }) {
             status.textContent = ev.text;
             if (ev.phase === 'busca') {
               buscas++;
-              passo('Buscando', ev.text.replace(/^buscando:\s*/i, ''));
+              passo(t('Buscando'), ev.text.replace(/^buscando:\s*/i, ''));
               subirNumero(inner.querySelector('#r-buscas'), buscas);
             } else if (ev.phase === 'relatório') {
-              passo('Escrevendo o relatório', `com ${guardadas} ${guardadas === 1 ? 'fonte' : 'fontes'}`);
+              passo(t('Escrevendo o relatório'), plural(guardadas, 'com 1 fonte', 'com {n} fontes'));
             }
             // 'plano' e 'leitura' não viram passo: quem conta a história são os
             // eventos `plan` e `read`, que já trazem o detalhe.
           } else if (ev.type === 'plan') {
-            passo('Entendi a pergunta', `separei em ${ev.queries.length} buscas`);
+            passo(t('Entendi a pergunta'), t('separei em {n} buscas', { n: ev.queries.length }));
           } else if (ev.type === 'read') {
             const onde = dominio(ev.url);
             if (ev.error) {
               descartadas++;
-              passo('Descartei 1 página', `${onde} — não abriu: ${ev.error}`);
+              passo(t('Descartei 1 página'), t('{onde} — não abriu: {erro}', { onde, erro: ev.error }));
             } else if (ev.chars <= 200) {
               // Mesmo corte que o servidor usa pra decidir o que vira fonte.
               descartadas++;
-              passo('Descartei 1 página', `${onde} — veio quase vazia`);
+              passo(t('Descartei 1 página'), t('{onde} — veio quase vazia', { onde }));
             } else {
               guardadas++;
-              passo('Lendo', `${onde} — ${ev.title || 'sem título'}`);
+              passo(t('Lendo'), `${onde} — ${ev.title || t('sem título')}`);
               subirNumero(inner.querySelector('#r-guardadas'), guardadas);
             }
             lidas++;
             subirNumero(inner.querySelector('#r-lidas'), lidas);
           } else if (ev.type === 'note') {
-            passo('Aviso', ev.text);
+            passo(t('Aviso'), ev.text);
           } else if (ev.type === 'report') {
             clearInterval(cronometro);
             fecharPassos();
@@ -2087,12 +2173,12 @@ views.research = function renderResearch(el, { switchView }) {
             const reg = inner.querySelector('#r-reg');
             const passos = reg ? reg.querySelectorAll('.step').length : 0;
             const conta =
-              `${passos} ${passos === 1 ? 'passo' : 'passos'} · ${seg} s · ` +
-              `${guardadas} ${guardadas === 1 ? 'fonte guardada' : 'fontes guardadas'}, ` +
-              `${descartadas} ${descartadas === 1 ? 'descartada' : 'descartadas'}`;
+              `${plural(passos, '1 passo', '{n} passos')} · ${seg} s · ` +
+              `${plural(guardadas, '1 fonte guardada', '{n} fontes guardadas')}, ` +
+              `${plural(descartadas, '1 descartada', '{n} descartadas')}`;
             reg?.remove();
             log.innerHTML = `<details class="reg-fechado">
-                <summary>${icon('chevron', 16)} o passo a passo · ${conta}</summary>
+                <summary>${icon('chevron', 16)} ${t('o passo a passo')} · ${conta}</summary>
               </details>`;
             if (reg) log.querySelector('details').append(reg);
 
@@ -2109,9 +2195,9 @@ views.research = function renderResearch(el, { switchView }) {
                   )
                   .join('')}</ol>
                 <div class="row">
-                  <button id="r-copy" class="ghost" type="button"><span data-icon="copy" data-size="17"></span> Copiar</button>
-                  <button id="r-continuar" class="ghost" type="button"><span data-icon="chat" data-size="17"></span> Continuar conversando</button>
-                  <button id="r-guardar" class="ghost" type="button"><span data-icon="brain" data-size="17"></span> Guardar na memória</button>
+                  <button id="r-copy" class="ghost" type="button"><span data-icon="copy" data-size="17"></span> ${t('Copiar')}</button>
+                  <button id="r-continuar" class="ghost" type="button"><span data-icon="chat" data-size="17"></span> ${t('Continuar conversando')}</button>
+                  <button id="r-guardar" class="ghost" type="button"><span data-icon="brain" data-size="17"></span> ${t('Guardar na memória')}</button>
                 </div>
               </div>`;
             marcarCitacoes(report.querySelector('.relatorio'));
@@ -2119,13 +2205,13 @@ views.research = function renderResearch(el, { switchView }) {
             paintIcons(report);
             report.querySelector('#r-copy').onclick = () => {
               navigator.clipboard.writeText(ev.text);
-              toast('relatório copiado', 'ok');
+              toast(t('relatório copiado'), 'ok');
             };
             report.querySelector('#r-continuar').onclick = () => {
               switchView('chat');
               const campo = document.querySelector('#input');
               if (!campo) return;
-              campo.value = `Sobre a pesquisa "${question}":\n\n`;
+              campo.value = `${t('Sobre a pesquisa "{pergunta}":', { pergunta: question })}\n\n`;
               campo.dispatchEvent(new Event('input'));
               campo.focus();
             };
@@ -2133,17 +2219,20 @@ views.research = function renderResearch(el, { switchView }) {
               const resumo = String(ev.text).replace(/\s+/g, ' ').trim().slice(0, 400);
               await api('/memories', {
                 method: 'POST',
-                body: { text: `Pesquisa "${question}": ${resumo}`, pinned: false }
+                body: {
+                  text: t('Pesquisa "{pergunta}": {resumo}', { pergunta: question, resumo }),
+                  pinned: false
+                }
               });
-              toast('guardado na memória', 'ok');
+              toast(t('guardado na memória'), 'ok');
             };
-            status.textContent = 'pronto';
+            status.textContent = t('pronto');
           } else if (ev.type === 'error') {
             clearInterval(cronometro);
             fecharPassos();
             report.innerHTML = `<div class="aviso err">
-                <div><b>Não deu pra escrever o relatório.</b> ${escapeHtml(ev.message)}</div>
-                <button id="r-de-novo" class="ghost" type="button">Tentar de novo</button>
+                <div><b>${t('Não deu pra escrever o relatório.')}</b> ${escapeHtml(ev.message)}</div>
+                <button id="r-de-novo" class="ghost" type="button">${t('Tentar de novo')}</button>
               </div>`;
             report.querySelector('#r-de-novo').onclick = () => inner.querySelector('#r-go').click();
             status.textContent = ev.message;

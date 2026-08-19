@@ -161,11 +161,18 @@ test('ligar sem ter o programa instalado responde não, sem estourar', async () 
   }
 });
 
-test('ligar um programa que não roda responde não em vez de travar', async () => {
+test('ligar um programa que não roda diz por que, em vez de um não mudo', async () => {
+  // Devolver `false` calado deixava a tela repetindo "não consegui ligar" sem
+  // nunca dizer o motivo — e o motivo (sem permissão de execução, binário de
+  // outra arquitetura) é justamente o que resolve o problema de quem está lá.
   const stub = portaMorta();
   binarioDeMentira();
   try {
-    assert.equal(await ligarOllama(), false);
+    await assert.rejects(() => ligarOllama(), (err) => {
+      assert.match(err.message, /instalado em/, 'a mensagem tem que dizer onde ele achou');
+      assert.match(err.message, /não consegui ligar/, 'e o que falhou');
+      return true;
+    });
   } finally {
     stub.restore();
   }
@@ -217,7 +224,11 @@ test('o download conta o quanto já veio e fecha em 100%', async () => {
   // e sem esperar nada os três chegariam no mesmo milissegundo.
   const stub = stubFetch(async () => respostaEmPedacos(pedacos, { intervaloMs: 260 }));
   try {
-    const { eventos, retorno } = await coletar(baixarArquivo('https://ollama.com/download/x.zip', destino));
+    // O piso de 5 MB que protege de portal cativo não cabe num teste de
+    // progresso: aqui o que se mede é a barra andando, com 300 bytes.
+    const { eventos, retorno } = await coletar(
+      baixarArquivo('https://ollama.com/download/x.zip', destino, { minimo: 0 })
+    );
 
     assert.equal(retorno, 300, 'devolve quantos bytes gravou');
     assert.ok(eventos.length >= 3, `poucos avisos de progresso: ${eventos.length}`);

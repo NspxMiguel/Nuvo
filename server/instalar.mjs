@@ -44,12 +44,64 @@ const MINIMO_PLAUSIVEL = 5 * 1024 * 1024;
  * Endereço em que o Ollama atende. `OLLAMA_HOST` é a variável oficial dele —
  * quem trocou a porta já a tem configurada, e ignorar isso faria o app dizer
  * "não está instalado" pra quem está com ele aberto na frente.
+ *
+ * A leitura é a mesma que o Ollama faz da variável (`envconfig.Host`), porque
+ * quem serve e quem sonda precisam concordar sobre onde é a porta. Sem isso,
+ * `OLLAMA_HOST=0.0.0.0` — o valor que a documentação dele manda usar pra servir
+ * na rede — virava a sonda `http://0.0.0.0/api/tags`, na porta 80, e o app dizia
+ * "ausente" com o Ollama rodando na frente da pessoa.
  */
 function enderecoBase() {
   const bruto = String(process.env.OLLAMA_HOST || '').trim();
   if (!bruto) return BASE_PADRAO;
-  const comEsquema = /^https?:\/\//i.test(bruto) ? bruto : `http://${bruto}`;
-  return comEsquema.replace(/\/+$/, '');
+
+  const marca = bruto.indexOf('://');
+  const temEsquema = /^https?:\/\//i.test(bruto);
+  const esquema = temEsquema ? bruto.slice(0, marca).toLowerCase() : 'http';
+  // Sem esquema escrito, a porta que falta é a 11434 do Ollama; com `http://`
+  // ou `https://` na frente vale a porta padrão do protocolo, que é como o
+  // próprio Ollama resolve o mesmo valor.
+  const portaPadrao = !temEsquema ? '11434' : esquema === 'https' ? '443' : '80';
+
+  const semEsquema = temEsquema ? bruto.slice(marca + 3) : bruto;
+  const barra = semEsquema.indexOf('/');
+  const autoridade = barra === -1 ? semEsquema : semEsquema.slice(0, barra);
+  // Caminho preservado por causa de quem põe o Ollama atrás de proxy num
+  // prefixo; só a barra do fim sai, pra não virar `//api/tags`.
+  const caminho = (barra === -1 ? '' : semEsquema.slice(barra)).replace(/\/+$/, '');
+
+  let host = autoridade;
+  let porta = '';
+  // `lastIndexOf(']')` separa o IPv6 entre colchetes dos dois-pontos da porta.
+  const fechaColchete = autoridade.lastIndexOf(']');
+  const doisPontos = autoridade.lastIndexOf(':');
+  if (doisPontos > fechaColchete) {
+    host = autoridade.slice(0, doisPontos);
+    porta = autoridade.slice(doisPontos + 1);
+  }
+  if (!/^\d+$/.test(porta) || Number(porta) > 65535) porta = portaPadrao;
+  if (!host) host = '127.0.0.1';
+  // 0.0.0.0 e :: são endereços de escuta, não de destino: no Windows o connect
+  // neles falha, e é justamente o valor que quem serve na rede escreve aqui.
+  if (host === '0.0.0.0') host = '127.0.0.1';
+  else if (host === '::' || host === '[::]') host = '[::1]';
+
+  return `${esquema}://${host}:${porta}${caminho}`;
+}
+
+/**
+ * Se este erro é o botão Cancelar, e não defeito.
+ *
+ * Cancelar chega de dois jeitos, e o segundo é o que enganava: além do nosso
+ * `signal.aborted`, o `fetch` e o `execFile` rejeitam o que estava pendente com
+ * um `AbortError` — o `reader.read()` do download rejeita antes de qualquer
+ * checagem de sinal, e a mensagem crua "This operation was aborted" chegava na
+ * tela. Vale só onde o prazo interno já foi desarmado; enquanto ele está de pé,
+ * um AbortError pode ser o nosso próprio tempo esgotado, que é outra história.
+ */
+function foiCancelamento(err, signal) {
+  if (signal?.aborted) return true;
+  return err?.name === 'AbortError' || err?.code === 'ABORT_ERR';
 }
 
 /**
@@ -242,6 +294,14 @@ async function subir(achado) {
 
 /**
  * Liga um Ollama já instalado. Não baixa nada.
+ *
+ * Devolve `false` quando não há o que ligar ou quando o programa subiu e não
+ * atendeu a tempo, e estoura quando o arranque falhou com um motivo — a mesma
+ * regra de instalarOllama. Engolir esse motivo num `catch { return false }`
+ * fazia a rota de ligar responder `{ok:false, estado:'instalado_parado'}` sem
+ * razão nenhuma, e a tela seguia oferecendo um botão Ligar que nunca ia
+ * funcionar: o "não consegui rodar <caminho>: EACCES" existia e era jogado fora.
+ *
  * @param {{signal?: AbortSignal}} [opcoes]
  * @returns {Promise<boolean>}
  */
@@ -251,8 +311,10 @@ export async function ligarOllama({ signal } = {}) {
   if (!achado) return false;
   try {
     await subir(achado);
-  } catch {
-    return false;
+  } catch (err) {
+    // Quem cancelou já sabe por que não ligou; não é erro pra mostrar.
+    if (foiCancelamento(err, signal)) return false;
+    throw new Error(`o Ollama está instalado em ${achado.caminho}, mas não consegui ligar: ${err.message}`);
   }
   return esperarNoAr(30000, signal);
 }
@@ -260,7 +322,15 @@ export async function ligarOllama({ signal } = {}) {
 function emMega(bytes) {
   const gb = bytes / 1024 ** 3;
   if (gb >= 1) return `${gb.toFixed(1)} GB`;
-  return `${Math.round(bytes / 1024 ** 2)} MB`;
+  const mb = bytes / 1024 ** 2;
+  if (mb >= 10) return `${Math.round(mb)} MB`;
+  // Arredondar tudo pra MB inteiro imprimia "0 MB" em qualquer corte abaixo de
+  // meio mega — a frase virava "veio pela metade (0 MB de 1.0 GB)", que não
+  // diz nada a quem lê.
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  const kb = bytes / 1024;
+  if (kb >= 1) return `${Math.round(kb)} KB`;
+  return `${bytes} bytes`;
 }
 
 /**
@@ -274,7 +344,7 @@ function emMega(bytes) {
  * @param {string} destino
  * @param {{signal?: AbortSignal}} [opcoes]
  */
-export async function* baixarArquivo(url, destino, { signal } = {}) {
+export async function* baixarArquivo(url, destino, { signal, minimo = MINIMO_PLAUSIVEL } = {}) {
   // Prazo só até o servidor responder o cabeçalho. Depois que os bytes começam
   // a andar, não existe prazo: baixar 1 GB numa internet de casa é lento e
   // isso não é defeito. O elo com o cancelamento de quem chamou, esse fica de
@@ -299,6 +369,14 @@ export async function* baixarArquivo(url, destino, { signal } = {}) {
   }
 
   const total = Number(res.headers.get('content-length')) || 0;
+  // `content-length` de resposta comprimida conta os bytes comprimidos, e o
+  // fetch entrega o corpo já descomprimido. Comparar um com o outro recusava
+  // download inteiro e íntegro: 8 MB servidos com gzip no meio do caminho
+  // viravam "veio pela metade (8 MB de 0 MB)".
+  const codificacao = String(res.headers.get('content-encoding') || '')
+    .trim()
+    .toLowerCase();
+  const jaDescomprimido = codificacao !== '' && codificacao !== 'identity';
   const arquivo = await open(destino, 'w');
   let feito = 0;
   let ultimoAviso = 0;
@@ -306,35 +384,49 @@ export async function* baixarArquivo(url, destino, { signal } = {}) {
   const reader = res.body.getReader();
 
   try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      // O AbortSignal chega no fetch, mas o corpo falso dos testes — e um
-      // proxy que segure a conexão aberta — não reagem a ele. A checagem no
-      // laço é o que garante que Cancelar cancela mesmo.
-      if (signal?.aborted) throw new Error('o download do Ollama foi cancelado.');
-      await arquivo.write(value);
-      feito += value.length;
-      const agora = Date.now();
-      // Um aviso a cada quarto de segundo. Sem essa contenção seriam dezenas de
-      // milhares de eventos numa barra que só tem 100 posições.
-      if (agora - ultimoAviso >= 250) {
-        ultimoAviso = agora;
-        yield { type: 'progresso', feito, total, pct: total ? Math.floor((feito / total) * 100) : null };
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        // Rede de segurança pra corpo que ignora o abort (o encenado dos testes,
+        // um proxy que segure a conexão): com corpo de verdade quem reage é o
+        // `reader.read()` acima, e é o catch abaixo que traduz.
+        if (signal?.aborted) throw new Error('o download do Ollama foi cancelado.');
+        await arquivo.write(value);
+        feito += value.length;
+        const agora = Date.now();
+        // Um aviso a cada quarto de segundo. Sem essa contenção seriam dezenas de
+        // milhares de eventos numa barra que só tem 100 posições.
+        if (agora - ultimoAviso >= 250) {
+          ultimoAviso = agora;
+          yield { type: 'progresso', feito, total, pct: total ? Math.floor((feito / total) * 100) : null };
+        }
       }
-    }
 
-    if (total && feito !== total) {
-      throw new Error(
-        `o download do Ollama veio pela metade (${emMega(feito)} de ${emMega(total)}). Costuma ser a internet caindo no meio: tente de novo.`
-      );
+      if (total && !jaDescomprimido && feito !== total) {
+        throw new Error(
+          `o download do Ollama veio pela metade (${emMega(feito)} de ${emMega(total)}). Costuma ser a internet caindo no meio: tente de novo.`
+        );
+      }
+      // O piso vale mesmo quando o servidor mandou content-length: portal
+      // cativo de wi-fi manda o cabeçalho certinho junto com o HTML de "faça
+      // login", e antes disso o HTML era gravado como Ollama-darwin.zip pra
+      // estourar depois no unzip com erro técnico.
+      if (feito < minimo) {
+        throw new Error(
+          `o que baixou de ollama.com tem só ${emMega(feito)} e não é o programa do Ollama. Tente de novo mais tarde.`
+        );
+      }
+      completo = true;
+    } catch (err) {
+      // Cancelar no meio do corpo chega aqui como AbortError do próprio
+      // reader.read(), que rejeita antes de o laço acima olhar o signal. Sem
+      // traduzir nesta borda, quem apertou Cancelar lia "AbortError: This
+      // operation was aborted" — e quem chama baixarArquivo direto lia isso
+      // sempre, porque a tradução só existia dentro de instalarOllama.
+      if (foiCancelamento(err, signal)) throw new Error('o download do Ollama foi cancelado.');
+      throw err;
     }
-    if (!total && feito < MINIMO_PLAUSIVEL) {
-      throw new Error(
-        `o que baixou de ollama.com tem só ${emMega(feito)} e não é o programa do Ollama. Tente de novo mais tarde.`
-      );
-    }
-    completo = true;
   } finally {
     prazo.limpar();
     await arquivo.close();
@@ -530,11 +622,16 @@ export async function* instalarOllama({ signal } = {}) {
     try {
       await subir(achado);
     } catch (err) {
+      if (foiCancelamento(err, signal)) throw new Error(CANCELADA);
       throw new Error(
         `o Ollama está instalado em ${achado.caminho}, mas não consegui ligar: ${err.message} Abra-o na mão uma vez e tente de novo.`
       );
     }
     if (!(await esperarNoAr(30000, signal))) {
+      // Este ramo dá return antes do try/catch lá de baixo, então a tradução do
+      // cancelamento precisa estar aqui: sem ela, Cancelar durante a espera de
+      // 30 s acusava o Ollama de não ter atendido.
+      if (signal?.aborted) throw new Error(CANCELADA);
       throw new Error(`o Ollama abriu mas não atendeu em ${enderecoBase()}. Abra-o na mão uma vez e tente de novo.`);
     }
     return { ok: true };

@@ -29,7 +29,7 @@ import {
   rmSync,
   writeFileSync
 } from 'node:fs';
-import { basename, delimiter, join, sep } from 'node:path';
+import { basename, delimiter, join, resolve, sep } from 'node:path';
 import { DATA_DIR } from './config.mjs';
 
 const INDICE =
@@ -121,20 +121,26 @@ function acharPrograma(nome) {
  * cinco como arquivo comum monta um .app que não abre. Por isso a extração sai
  * daqui pro sistema, que sabe reconstruir as duas coisas.
  *
+ * As sondas entram por parâmetro porque elas olham o disco DESTA máquina: sem
+ * isso não dá pra conferir o mapeamento de um sistema no outro, e o teste do
+ * galho do macOS quebrava o `npm test` inteiro em Linux e Windows, onde não
+ * existe `ditto` nenhum pra achar.
+ *
  * @param {string} so valor no estilo de `process.platform`
+ * @param {{achar?: (nome: string) => string|null, existe?: (caminho: string) => boolean}} sondas
  * @returns {{nome: string, programa: string, args: (zip: string, destino: string) => string[]}}
  */
-export function ferramentaDeDescompactar(so = process.platform) {
+export function ferramentaDeDescompactar(so = process.platform, { achar = acharPrograma, existe = existsSync } = {}) {
   if (so === 'darwin') {
     // `ditto -x -k` é o extrator de zip do próprio macOS e é o único aqui que
     // reconstrói link simbólico e permissão do jeito que o .app espera.
-    const programa = acharPrograma('ditto') || (existsSync('/usr/bin/ditto') ? '/usr/bin/ditto' : null);
+    const programa = achar('ditto') || (existe('/usr/bin/ditto') ? '/usr/bin/ditto' : null);
     if (!programa) throw new Error('não achei o `ditto` nesta máquina — sem ele não dá pra abrir o pacote do Chromium sem quebrar o .app');
     return { nome: 'ditto', programa, args: (zip, destino) => ['-x', '-k', zip, destino] };
   }
 
   if (so === 'linux') {
-    const programa = acharPrograma('unzip') || ['/usr/bin/unzip', '/bin/unzip'].find((p) => existsSync(p));
+    const programa = achar('unzip') || ['/usr/bin/unzip', '/bin/unzip'].find((p) => existe(p));
     if (!programa) {
       throw new Error(
         'não achei o `unzip` nesta máquina — instale-o (`apt install unzip`, `dnf install unzip`) e tente de novo'
@@ -146,10 +152,10 @@ export function ferramentaDeDescompactar(so = process.platform) {
   if (so === 'win32') {
     // O tar do Windows 10+ é o bsdtar e lê zip. Onde ele não existir, o
     // PowerShell resolve — mais lento, e é justamente por isso que é o plano B.
-    const tar = acharPrograma('tar');
+    const tar = achar('tar');
     if (tar) return { nome: 'tar', programa: tar, args: (zip, destino) => ['-xf', zip, '-C', destino] };
 
-    const posh = acharPrograma('powershell') || acharPrograma('pwsh');
+    const posh = achar('powershell') || achar('pwsh');
     if (posh) {
       return {
         nome: 'Expand-Archive',
@@ -175,12 +181,24 @@ function rodar(programa, args, { signal, timeout = 10 * 60_000 } = {}) {
   return new Promise((ok, erro) => {
     execFile(programa, args, { signal, timeout, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (!err) return ok(String(stdout || '').trim());
+      // Cancelamento não é falha do programa: embrulhar o AbortError em
+      // "ditto falhou: ..." apagava a marca que a borda usa pra traduzir, e a
+      // tela mostrava um erro de extração pra quem só apertou "cancelar".
+      if (abortou(err)) return erro(err);
       // A última linha do stderr é a que diz o que houve; o resto costuma ser
       // uso do comando, que não ajuda quem está olhando a tela do app.
       const detalhe = String(stderr || '').trim().split('\n').filter(Boolean).pop() || err.message;
       erro(new Error(`${basename(programa)} falhou: ${detalhe}`));
     });
   });
+}
+
+/**
+ * Se o erro é de cancelamento — o do `fetch` é um DOMException 'AbortError' e o
+ * do `execFile` é um AbortError com `code` próprio.
+ */
+function abortou(err) {
+  return err?.name === 'AbortError' || err?.code === 'ABORT_ERR';
 }
 
 // ------------------------------------------------------------------- versão
@@ -308,13 +326,19 @@ export async function* baixarChromium({ signal } = {}) {
   const zip = join(PASTA, `chromium-${plataforma}.zip`);
   const novo = join(PASTA, 'novo');
   const limpar = () => {
-    for (const caminho of [parcial, zip, novo]) rmSync(caminho, { recursive: true, force: true });
+    for (const caminho of [parcial, zip, novo]) {
+      try {
+        rmSync(caminho, { recursive: true, force: true });
+      } catch {
+        // Pasta só-leitura: o erro da faxina não pode roubar o lugar do erro
+        // que interrompeu o download.
+      }
+    }
   };
-  limpar();
-
-  yield { type: 'phase', text: `baixando o Chromium ${versao}${bytes ? ` (${mb(bytes)} MB)` : ''}` };
 
   try {
+    limpar();
+    yield { type: 'phase', text: `baixando o Chromium ${versao}${bytes ? ` (${mb(bytes)} MB)` : ''}` };
     yield* baixarZip(url, parcial, { signal, esperado: bytes });
     renameSync(parcial, zip);
 
@@ -351,8 +375,20 @@ export async function* baixarChromium({ signal } = {}) {
     writeFileSync(MARCA, JSON.stringify({ versao, plataforma, binario, quando: new Date().toISOString() }, null, 2));
     return { ok: true, binario, versao, ...(aviso ? { aviso } : {}) };
   } catch (err) {
-    limpar();
+    // O `read()` que já estava pendente rejeita com AbortError antes de
+    // qualquer checagem de sinal, e o api.mjs manda `err.message` cru pra tela:
+    // sem traduzir aqui, quem cancelava lia "This operation was aborted" no
+    // meio de um app todo em português.
+    if (abortou(err)) {
+      throw new Error(signal?.aborted ? 'download cancelado' : 'o Chrome for Testing demorou demais pra responder');
+    }
     throw err;
+  } finally {
+    // Também roda quando o chamador fecha o gerador com `break`/`return`, que é
+    // o que o api.mjs faz quando o cliente do SSE some: essa saída não passa
+    // pelo catch, e o .parcial de 185 MB ficava no disco até a tentativa
+    // seguinte. Depois de um download inteiro não sobra nada pra apagar.
+    limpar();
   }
 }
 
@@ -366,6 +402,26 @@ async function* baixarZip(url, destino, { signal, esperado } = {}) {
 
   const leitor = res.body.getReader();
   const arquivo = createWriteStream(destino);
+  // Um ouvinte fixo pro erro do arquivo. O `once('error')` de cada espera por
+  // `drain` só escutava dentro da própria janela; fora dela o EACCES de uma
+  // pasta só-leitura ia parar no `end(ok)` do finally, que recebia o erro como
+  // argumento e o jogava fora — a barra chegava a 100% sem um byte no disco e o
+  // que aparecia na tela era o `rename` de um arquivo que nunca existiu.
+  let erroDeEscrita = null;
+  arquivo.on('error', (err) => {
+    erroDeEscrita ||= err;
+  });
+
+  const fechar = () =>
+    new Promise((ok) => {
+      // Quem termina a espera é o 'close': `end()` não chama de volta num stream
+      // que já morreu, e a rotina inteira ficaria pendurada em vez de reportar o
+      // erro de verdade.
+      if (arquivo.closed) return ok();
+      arquivo.once('close', ok);
+      arquivo.end();
+    });
+
   let feito = 0;
   let ultimoPct = -1;
   let ultimoAviso = 0;
@@ -381,24 +437,48 @@ async function* baixarZip(url, destino, { signal, esperado } = {}) {
     clearTimeout(travou);
     travou = setTimeout(() => {
       travado = true;
-      leitor.cancel();
+      // Cancelar um stream que já morreu devolve promessa rejeitada, e rejeição
+      // sem dono derruba o processo inteiro no Node.
+      Promise.resolve()
+        .then(() => leitor.cancel())
+        .catch(() => {});
     }, 90_000);
   };
 
   try {
+    // Nada de checar `signal.aborted` aqui: quem manda no cancelamento é o
+    // `read()` pendente, que rejeita com AbortError bem antes de o laço voltar
+    // ao topo. A tradução da mensagem está na borda, em `baixarChromium`.
     for (;;) {
-      if (signal?.aborted) throw new Error('download cancelado');
       armar();
       const { done, value } = await leitor.read();
       if (done) break;
 
       feito += value.length;
-      if (!arquivo.write(value)) await new Promise((ok, erro) => {
-        arquivo.once('drain', ok);
-        arquivo.once('error', erro);
-      });
+      if (!arquivo.write(value)) {
+        await new Promise((ok) => {
+          // Sai da espera tanto no 'drain' quanto no erro, e tira OS DOIS
+          // ouvintes: sem remover, um download de 185 MB em pedaços de 64 kB
+          // deixava ~2.800 ouvintes de 'error' pendurados no mesmo stream e o
+          // Node avisava de vazamento de memória.
+          const acabou = () => {
+            arquivo.off('drain', acabou);
+            arquivo.off('error', acabou);
+            ok();
+          };
+          arquivo.once('drain', acabou);
+          arquivo.once('error', acabou);
+        });
+      }
+      // Seguir baixando 185 MB pra um arquivo que o disco recusou não ajuda
+      // ninguém; o erro guardado sobe logo depois de fechar o stream.
+      if (erroDeEscrita) break;
 
-      const pct = total ? Math.min(100, Math.round((feito / total) * 100)) : 0;
+      // Teto de 99 enquanto o laço roda. 100% quer dizer "está no disco", e isso
+      // só se sabe depois de fechar o arquivo: o erro de escrita chega em evento,
+      // sempre depois do último `write()`. Sem o teto, a barra completava e só
+      // então aparecia o EACCES, com a pessoa achando que tinha terminado.
+      const pct = total ? Math.min(99, Math.round((feito / total) * 100)) : 0;
       const agora = Date.now();
       // Um evento por chunk seriam milhares de mensagens pra atravessar o SSE;
       // por ponto percentual, ou a cada 400 ms quando o tamanho é desconhecido,
@@ -409,16 +489,25 @@ async function* baixarZip(url, destino, { signal, esperado } = {}) {
         yield { type: 'progresso', feito, total, pct };
       }
     }
-    if (ultimoPct !== 100) yield { type: 'progresso', feito, total, pct: total ? 100 : 0 };
+    // Fechar ANTES de anunciar 100%: o erro do disco chega em evento, sempre
+    // depois do último `write()`, e sem esperar o fd fechar a barra completava
+    // com zero byte gravado. `feito` conta o que veio da REDE, então a
+    // conferência lá embaixo passaria também — e o EACCES só reaparecia
+    // disfarçado de "rename falhou" ou de zip corrompido.
+    await fechar();
+    if (erroDeEscrita) throw new Error(`não deu pra gravar o Chromium no disco: ${erroDeEscrita.message}`);
+
+    // O 100% de fechamento só vale pra download inteiro: com o corpo cortado no
+    // meio a barra ia a 100% com `feito` menor que `total`, e só depois vinha o
+    // erro de download incompleto.
+    if (!total || feito === total) {
+      yield { type: 'progresso', feito, total, pct: total ? 100 : 0 };
+    }
   } finally {
     clearTimeout(travou);
-    // Fecha o arquivo aconteça o que acontecer, mas sem ficar esperando o
-    // retorno de um stream que já morreu: aí o `end` não chama de volta e a
-    // rotina inteira ficaria pendurada em vez de reportar o erro de verdade.
-    await new Promise((ok) => {
-      arquivo.once('error', ok);
-      arquivo.end(ok);
-    });
+    // Fecha o arquivo aconteça o que acontecer — inclusive quando o gerador é
+    // fechado por fora no meio de um `yield`.
+    await fechar();
   }
 
   if (travado) throw new Error('a conexão parou de responder no meio do download');
@@ -446,10 +535,15 @@ export function chromiumBaixado() {
   // cópia manual). Olhar o caminho conhecido evita mandar baixar 185 MB de novo.
   for (const partes of Object.values(DENTRO_DO_PACOTE)) candidatos.push(join(INSTALADO, ...partes));
 
-  for (const caminho of candidatos) {
+  // `resolve` antes de comparar: sem normalizar, um `..` no meio do caminho
+  // passava direto pelo `startsWith` — a marca dizia
+  // `<pasta>/atual/../../../../bin/sh` e isso virava "o Chromium baixado".
+  const raiz = resolve(INSTALADO);
+  for (const bruto of candidatos) {
+    const caminho = resolve(bruto);
     // A marca é um arquivo do disco do usuário: um caminho de fora da pasta do
     // app viraria "executável do Chromium" sem nunca ter sido baixado aqui.
-    if (!caminho.startsWith(INSTALADO + sep)) continue;
+    if (!caminho.startsWith(raiz + sep)) continue;
     if (executavel(caminho)) return caminho;
   }
   return null;

@@ -262,8 +262,15 @@ export async function handleApi(req, res, url) {
   }
 
   if (method === 'POST' && path === '/requisitos/ollama/ligar') {
-    const subiu = await ligarOllama({});
-    return json(res, { ok: subiu, ...(await estadoDoOllama({})) });
+    // `ligarOllama` levanta quando achou o programa e não conseguiu rodar — a
+    // mensagem diz onde ele está e o que deu errado, que é o que a pessoa
+    // precisa ler. Virar 500 esconderia justamente isso.
+    try {
+      const subiu = await ligarOllama({});
+      return json(res, { ok: subiu, ...(await estadoDoOllama({})) });
+    } catch (err) {
+      return json(res, { ok: false, error: err.message, manual: receitaManual() }, 200);
+    }
   }
 
   if (method === 'POST' && path === '/requisitos/ollama/instalar') {

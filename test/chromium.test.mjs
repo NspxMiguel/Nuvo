@@ -5,8 +5,8 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, lstatSync, readdirSync, readlinkSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { crc32 } from 'node:zlib';
 import { useTempHome, stubFetch, collect } from './helpers.mjs';
 
@@ -229,11 +229,17 @@ const binarioNoZip = ehMac
 const linkNoZip = ehMac ? `${naMao}/Contents/Frameworks/C.framework/Versions/Current` : null;
 
 /** Um pacote minúsculo com a mesma anatomia do de verdade. */
-function pacoteFalso() {
+function pacoteFalso({ enchimento = 0 } = {}) {
   const entradas = [
     { name: binarioNoZip, data: '#!/bin/sh\necho "Chromium 999.0.0.0"\n', mode: 0o100755 },
     { name: `${naMao}/LICENSE`, data: 'texto qualquer', mode: 0o100644 }
   ];
+  // Peso de verdade: o WriteStream tem 64 kB de folga, e só um pacote grande
+  // obriga o download a esperar por `drain` — é nessa espera que o defeito de
+  // ouvintes acumulados aparece.
+  if (enchimento) {
+    entradas.push({ name: `${naMao}/enchimento.bin`, data: Buffer.alloc(enchimento, 0x61), mode: 0o100644 });
+  }
   if (linkNoZip) {
     entradas.push({ name: `${naMao}/Contents/Frameworks/C.framework/Versions/A/oi`, data: 'x', mode: 0o100644 });
     entradas.push({ name: linkNoZip, data: 'A', mode: 0o120755 });
@@ -303,8 +309,22 @@ try {
   temFerramenta = false;
 }
 const podeBaixar = Boolean(plataforma) && temFerramenta;
+// Skip mudo escondia que download, extração e cancelamento não rodaram — seis
+// testes sumiam numa CI Linux enxuta sem ninguém notar. O motivo escrito sai no
+// relatório do `node --test`.
+const semDownload = podeBaixar
+  ? false
+  : plataforma
+    ? 'FALTA A FERRAMENTA DE DESCOMPACTAR DO SISTEMA (instale `unzip`): download, extração e cancelamento NÃO foram exercitados'
+    : `o Chrome for Testing não publica build pra ${process.platform}/${process.arch}: o caminho de download NÃO foi exercitado`;
+// Trancar a pasta só funciona onde a permissão vale: root passa por cima dela e
+// no Windows o chmod não é isso.
+const semTrancaDePasta =
+  process.platform === 'win32' || process.getuid?.() === 0
+    ? 'não dá pra deixar a pasta só-leitura nesta máquina (Windows ou root)'
+    : semDownload;
 
-test('baixa, conta o progresso e entrega um executável que abre', { skip: !podeBaixar }, async () => {
+test('baixa, conta o progresso e entrega um executável que abre', { skip: semDownload }, async () => {
   const zip = pacoteFalso();
   const stub = encenarDownload(zip);
   try {
@@ -359,7 +379,7 @@ test('baixa, conta o progresso e entrega um executável que abre', { skip: !pode
   }
 });
 
-test('sem content-length a barra continua andando, só sem porcentagem', { skip: !podeBaixar }, async () => {
+test('sem content-length a barra continua andando, só sem porcentagem', { skip: semDownload }, async () => {
   rmSync(PASTA, { recursive: true, force: true });
   const zip = pacoteFalso();
   const stub = encenarDownload(zip, { declararTamanho: false });
@@ -376,7 +396,7 @@ test('sem content-length a barra continua andando, só sem porcentagem', { skip:
   }
 });
 
-test('download cancelado no meio para e não deixa arquivo parcial', { skip: !podeBaixar }, async () => {
+test('download cancelado no meio para e não deixa arquivo parcial', { skip: semDownload }, async () => {
   rmSync(PASTA, { recursive: true, force: true });
   const zip = pacoteFalso();
   const stub = encenarDownload(zip, { pedacos: 40 });
@@ -399,7 +419,7 @@ test('download cancelado no meio para e não deixa arquivo parcial', { skip: !po
   }
 });
 
-test('cancelado antes de começar não chega a pedir nada pra rede', { skip: !podeBaixar }, async () => {
+test('cancelado antes de começar não chega a pedir nada pra rede', { skip: semDownload }, async () => {
   rmSync(PASTA, { recursive: true, force: true });
   const stub = encenarDownload(pacoteFalso());
   const ctrl = new AbortController();
@@ -412,7 +432,7 @@ test('cancelado antes de começar não chega a pedir nada pra rede', { skip: !po
   }
 });
 
-test('zip sem o executável dentro é erro, não sucesso silencioso', { skip: !podeBaixar }, async () => {
+test('zip sem o executável dentro é erro, não sucesso silencioso', { skip: semDownload }, async () => {
   rmSync(PASTA, { recursive: true, force: true });
   const zip = zipComAtributos([{ name: `${naMao}/LEIA-ME`, data: 'só isso', mode: 0o100644 }]);
   const stub = encenarDownload(zip);
@@ -425,23 +445,255 @@ test('zip sem o executável dentro é erro, não sucesso silencioso', { skip: !p
 });
 
 test('a ferramenta de descompactar é escolhida por sistema, e a falta dela é dita', () => {
-  assert.equal(ferramentaDeDescompactar('darwin').nome, 'ditto');
-  assert.deepEqual(ferramentaDeDescompactar('darwin').args('/a.zip', '/fora'), ['-x', '-k', '/a.zip', '/fora']);
+  // As sondas entram por parâmetro: a versão anterior chamava
+  // `ferramentaDeDescompactar('darwin')` com a sonda de disco de verdade e o
+  // `npm test` inteiro ficava vermelho em Linux e Windows, onde não há `ditto`.
+  const nada = { achar: () => null, existe: () => false };
+  const tudo = { achar: (nome) => `/usr/bin/${nome}`, existe: () => true };
+
+  const ditto = ferramentaDeDescompactar('darwin', tudo);
+  assert.equal(ditto.nome, 'ditto');
+  assert.deepEqual(ditto.args('/a.zip', '/fora'), ['-x', '-k', '/a.zip', '/fora']);
+  assert.throws(() => ferramentaDeDescompactar('darwin', nada), /ditto/);
+
+  const unzip = ferramentaDeDescompactar('linux', tudo);
+  assert.equal(unzip.nome, 'unzip');
+  assert.deepEqual(unzip.args('/a.zip', '/fora'), ['-q', '-o', '/a.zip', '-d', '/fora']);
+  assert.throws(() => ferramentaDeDescompactar('linux', nada), /unzip/);
+
   assert.throws(() => ferramentaDeDescompactar('sunos'), /sunos/);
 
   // PATH vazio é o que um serviço do sistema mal herdado entrega. No Unix o
   // extrator ainda tem que ser achado — é pra isso que existe a lista de
   // caminhos absolutos. No Windows não há lista dessas, e aí o que se cobra é
   // a mensagem: "falta o tar" em vez de "spawn ENOENT".
-  const antes = process.env.PATH;
-  process.env.PATH = '';
+  const semPath = { achar: () => null, existe: (caminho) => ['/usr/bin/ditto', '/usr/bin/unzip', '/bin/unzip'].includes(caminho) };
+  for (const so of ['darwin', 'linux']) {
+    const achada = ferramentaDeDescompactar(so, semPath);
+    assert.ok(achada.programa.startsWith('/'), `${so} tinha que cair no caminho absoluto: ${achada.programa}`);
+  }
+
+  // No Windows o tar do sistema é o primeiro; o PowerShell é o plano B, e sem
+  // nenhum dos dois a mensagem tem que dizer o que falta.
+  const soTar = ferramentaDeDescompactar('win32', { achar: (nome) => (nome === 'tar' ? 'C:\\Windows\\tar.exe' : null), existe: () => false });
+  assert.equal(soTar.nome, 'tar');
+  const soPosh = ferramentaDeDescompactar('win32', { achar: (nome) => (nome === 'powershell' ? 'C:\\posh.exe' : null), existe: () => false });
+  assert.equal(soPosh.nome, 'Expand-Archive');
+  assert.throws(() => ferramentaDeDescompactar('win32', nada), /tar|PowerShell/);
+});
+
+// -------------------------------------------------- defeitos que já morderam
+
+test('download longo não vaza ouvinte de erro no arquivo', { skip: semDownload }, async () => {
+  rmSync(PASTA, { recursive: true, force: true });
+  // 4 MB em pedaços de 128 kB: cada pedaço estoura os 64 kB do WriteStream e
+  // obriga uma espera por `drain`. São ~32 esperas — o triplo do limite de
+  // ouvintes do Node, que é onde o aviso de vazamento aparecia. O zip de alguns
+  // kB dos outros testes nunca chega a esperar.
+  const zip = pacoteFalso({ enchimento: 4 * 1024 * 1024 });
+  const stub = encenarDownload(zip, { pedacos: Math.ceil(zip.length / (128 * 1024)) });
+  const avisos = [];
+  const anotar = (aviso) => avisos.push(aviso);
+  process.on('warning', anotar);
   try {
-    for (const so of ['darwin', 'linux']) {
-      const achada = ferramentaDeDescompactar(so);
-      assert.ok(achada.programa.startsWith('/'), `${so} tinha que cair no caminho absoluto: ${achada.programa}`);
-    }
-    assert.throws(() => ferramentaDeDescompactar('win32'), /tar|PowerShell/);
+    const eventos = await collect(baixarChromium({}));
+    assert.ok(
+      eventos.filter((e) => e.type === 'progresso').length >= 10,
+      'o teste só prova algo se o download for longo o bastante pra esperar por drain'
+    );
+    // O aviso do Node sai num tick próprio.
+    await new Promise((ok) => setImmediate(ok));
+    const vazou = avisos.filter((a) => a.name === 'MaxListenersExceededWarning');
+    assert.deepEqual(vazou.map((a) => a.message), [], 'cada espera por drain tem que soltar o ouvinte de erro que registrou');
+    assert.ok(chromiumBaixado(), 'e o download tinha que terminar de pé');
   } finally {
-    process.env.PATH = antes;
+    process.off('warning', anotar);
+    stub.restore();
+  }
+});
+
+/** AbortError igual ao do fetch: nome certo, mensagem em inglês. */
+function erroDeAbort() {
+  const err = new Error('This operation was aborted');
+  err.name = 'AbortError';
+  return err;
+}
+
+/**
+ * Corpo que se comporta como o do fetch de verdade: o `read()` fica pendente e
+ * rejeita com AbortError quando o sinal aborta.
+ *
+ * `aoPendurar` é chamado com o `read()` já pendurado — é dali que o teste
+ * dispara o cancelamento, que é a única hora em que ele acontece na produção
+ * (o cliente do SSE some no meio de uma leitura). Leitor que responde na hora
+ * devolve o controle antes disso e faz o laço notar o sinal sozinho, exercitando
+ * um caminho que o download de verdade quase nunca toma.
+ */
+function respostaQueRejeitaNoAbort(buffer, pedacos, signal, aoPendurar = () => {}) {
+  const passo = Math.ceil(buffer.length / pedacos);
+  let i = 0;
+  let leituras = 0;
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (n) => (n.toLowerCase() === 'content-length' ? String(buffer.length) : null) },
+    body: {
+      getReader() {
+        return {
+          read() {
+            return new Promise((ok, erro) => {
+              if (signal?.aborted) return erro(erroDeAbort());
+              if (i >= buffer.length) return ok({ done: true, value: undefined });
+              const aoAbortar = () => {
+                clearTimeout(relogio);
+                erro(erroDeAbort());
+              };
+              const relogio = setTimeout(() => {
+                signal?.removeEventListener('abort', aoAbortar);
+                const fatia = buffer.subarray(i, Math.min(i + passo, buffer.length));
+                i += fatia.length;
+                ok({ done: false, value: new Uint8Array(fatia) });
+              }, 2);
+              signal?.addEventListener('abort', aoAbortar, { once: true });
+              aoPendurar(++leituras);
+            });
+          },
+          async cancel() {}
+        };
+      }
+    }
+  };
+}
+
+test('cancelar no meio fala português mesmo quando quem rejeita é o fetch', { skip: semDownload }, async () => {
+  rmSync(PASTA, { recursive: true, force: true });
+  const zip = pacoteFalso();
+  const ctrl = new AbortController();
+  const stub = stubFetch(async (url, options) => {
+    if (url === INDICE) {
+      return { ok: true, status: 200, headers: { get: () => null }, async json() { return indice; } };
+    }
+    if (options?.method === 'HEAD') {
+      return { ok: true, status: 200, headers: { get: (n) => (n.toLowerCase() === 'content-length' ? String(zip.length) : null) } };
+    }
+    // Cancela com a segunda leitura pendurada: um pedaço já andou (a barra
+    // apareceu na tela) e o usuário aperta o botão.
+    return respostaQueRejeitaNoAbort(zip, 40, options?.signal, (leitura) => {
+      if (leitura === 2) ctrl.abort();
+    });
+  });
+  try {
+    await assert.rejects(
+      async () => {
+        for await (const evento of baixarChromium({ signal: ctrl.signal })) void evento;
+      },
+      (err) => {
+        // O api.mjs manda `err.message` cru pra tela de um app todo em
+        // português: "This operation was aborted" não pode chegar lá.
+        assert.doesNotMatch(err.message, /abort/i, `mensagem em inglês chegando na tela: ${err.message}`);
+        assert.match(err.message, /cancelad/i);
+        return true;
+      }
+    );
+    assert.equal(chromiumBaixado(), null, 'download cancelado não vira Chromium instalado');
+    const sobrou = existsSync(PASTA) ? readdirSync(PASTA) : [];
+    assert.ok(!sobrou.some((n) => n.includes('.parcial') || n.endsWith('.zip')), `sobrou lixo: ${sobrou.join(', ')}`);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('disco que recusa escrita vira erro de disco, não zip quebrado', { skip: semTrancaDePasta }, async () => {
+  rmSync(PASTA, { recursive: true, force: true });
+  mkdirSync(PASTA, { recursive: true });
+  const zip = pacoteFalso();
+  const stub = encenarDownload(zip);
+  // Pendrive, volume só-leitura, --home em pasta protegida: o que o usuário vê
+  // é isto aqui.
+  chmodSync(PASTA, 0o500);
+  const eventos = [];
+  try {
+    await assert.rejects(
+      async () => {
+        for await (const evento of baixarChromium({})) eventos.push(evento);
+      },
+      (err) => {
+        assert.match(err.message, /gravar|EACCES|permission/i, `o erro tinha que ser o do disco: ${err.message}`);
+        assert.doesNotMatch(err.message, /rename|ditto|unzip|tar/i, `erro de disco disfarçado de outra coisa: ${err.message}`);
+        return true;
+      }
+    );
+    assert.ok(
+      !eventos.some((e) => e.type === 'progresso' && e.pct === 100),
+      'a barra não pode chegar a 100% com o disco recusando cada byte'
+    );
+  } finally {
+    chmodSync(PASTA, 0o700);
+    stub.restore();
+    rmSync(PASTA, { recursive: true, force: true });
+  }
+});
+
+test('corpo que acaba antes da hora não pinta 100% na barra', { skip: semDownload }, async () => {
+  rmSync(PASTA, { recursive: true, force: true });
+  const zip = pacoteFalso();
+  const stub = stubFetch(async (url, options) => {
+    if (url === INDICE) {
+      return { ok: true, status: 200, headers: { get: () => null }, async json() { return indice; } };
+    }
+    if (options?.method === 'HEAD') {
+      return { ok: true, status: 200, headers: { get: (n) => (n.toLowerCase() === 'content-length' ? String(zip.length) : null) } };
+    }
+    // Promete o zip inteiro e fecha na metade: é como o fetch entrega uma
+    // conexão que caiu.
+    const res = respostaBinaria(zip.subarray(0, Math.floor(zip.length / 2)), 2);
+    res.headers = { get: (n) => (n.toLowerCase() === 'content-length' ? String(zip.length) : null) };
+    return res;
+  });
+  const eventos = [];
+  try {
+    await assert.rejects(async () => {
+      for await (const evento of baixarChromium({})) eventos.push(evento);
+    }, /incompleto/);
+    assert.ok(
+      !eventos.some((e) => e.type === 'progresso' && e.pct === 100),
+      '100% com metade do zip é mentira na tela'
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
+test('gerador fechado por fora não deixa o .parcial no disco', { skip: semDownload }, async () => {
+  rmSync(PASTA, { recursive: true, force: true });
+  const zip = pacoteFalso({ enchimento: 512 * 1024 });
+  const stub = encenarDownload(zip, { pedacos: 40 });
+  try {
+    // É o que acontece quando o cliente do SSE some: o `for await` do api.mjs
+    // sai por `break` e o gerador é fechado sem erro nenhum — conclusão que o
+    // `catch` não vê.
+    for await (const evento of baixarChromium({})) {
+      if (evento.type === 'progresso') break;
+    }
+    const sobrou = existsSync(PASTA) ? readdirSync(PASTA) : [];
+    assert.ok(!sobrou.some((n) => n.includes('.parcial')), `sobrou lixo: ${sobrou.join(', ')}`);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('marca com `..` no caminho não vira Chromium instalado', {
+  skip: process.platform === 'win32' ? 'o /bin/sh desta prova é de Unix' : false
+}, () => {
+  rmSync(PASTA, { recursive: true, force: true });
+  mkdirSync(join(PASTA, 'atual'), { recursive: true });
+  // Sem normalizar, `startsWith(INSTALADO + sep)` aceita qualquer coisa que
+  // comece com a pasta do app — inclusive o /bin/sh alcançado por `..`.
+  const fuga = join(PASTA, 'atual') + sep + '..'.concat(sep).repeat(12) + 'bin/sh';
+  writeFileSync(join(PASTA, 'versao.json'), JSON.stringify({ binario: fuga }));
+  try {
+    assert.equal(chromiumBaixado(), null, `caminho de fora da pasta do app virou executável do Chromium: ${fuga}`);
+  } finally {
+    rmSync(PASTA, { recursive: true, force: true });
   }
 });
