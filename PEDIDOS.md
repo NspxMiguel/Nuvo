@@ -1012,3 +1012,31 @@ e a interface caía calada no português em qualquer máquina com Windows.
 Corrigido na 0.1.4, com a prova voltando a passar. Mac: o pacote `.tar.gz` extraído e
 rodado aqui. iPhone e Android: o PWA instala (manifest `standalone`, ícone
 maskable), guarda a casca e abre sem servidor.
+
+## 19/08/2026 — noite, olhando as duas telas
+
+> *"'ias ligadas' nao seria local? i18n ja foi???"*
+> *"o pode falar é pra ser nessa print, nao la em baixo..."*
+> *"e essas bordas ai q n tem no app original?"*
+> *"faz aquele efeito de scroll, que parece parado, q vai mudando as coisas na
+> tela mas parece q ta parado, vc vai scrolando e mudando. eu vou manda de outro
+> site, nao é pra vc fazer isso, é pra vc pegar de exemplo para o nosso site...
+> é um site de um curso q fiz"*
+> *"faz algo tipo isso q fica legal"*
+
+Quebrado em itens:
+
+- [ ] **i18n no site também.** O app fala três idiomas desde hoje de manhã; a
+  landing continua só em português, inclusive as telas desenhadas dentro dela
+  ("IAs ligadas"). O pedido de ontem era "i18n, site app e etc" — o site ficou
+  de fora;
+- [ ] **o "Pode falar" com os nomes vai pro alto da página**, na primeira tela,
+  não numa seção lá embaixo;
+- [ ] **tirar a moldura que a landing põe nas capturas** — borda e canto
+  arredondado que o app não tem;
+- [ ] **efeito de rolagem travada** na primeira tela: a página parece parada
+  enquanto o conteúdo troca ao rolar. A referência é o projeto do curso dele
+  (`~/Downloads/projeto-claude`, Spider-Man, GSAP + ScrollTrigger + SplitText):
+  herói pinnado, sequência de frames desenhada em canvas, troca de texto letra a
+  letra em ordem aleatória e uma máscara que abre do centro empurrando o
+  conteúdo pros lados. **É referência, não pra copiar.**
