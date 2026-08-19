@@ -47,7 +47,7 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
       localStorage.setItem('iaunifier.token', token);
       location.reload();
     }
-    throw new Error(t('sem token'));
+    throw new Error(t('sem senha de acesso'));
   }
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};

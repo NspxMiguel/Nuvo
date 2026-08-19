@@ -1359,14 +1359,14 @@ function renderTune() {
           .join('')}
       </select>
     </label>
-    <label class="full">${t('Prompt de sistema desta conversa (vence o da gem)')}
+    <label class="full">${t('Instrução desta conversa (vence a do perfil)')}
       <textarea id="t-system" rows="3" placeholder="${t(
         'deixe vazio pra usar o do perfil'
       )}">${escapeHtml(chat.system_prompt || '')}</textarea>
     </label>
     <label>${t('Temperatura')} <input id="t-temp" type="number" step="0.05" min="0" max="2" value="${chat.temperature ?? ''}" /></label>
     <label>${t('Quão variado é o vocabulário, de 0 a 1 (top_p)')} <input id="t-topp" type="number" step="0.05" min="0" max="1" value="${chat.top_p ?? ''}" /></label>
-    <label>${t('Limite de tokens')} <input id="t-max" type="number" min="1" value="${chat.max_tokens ?? ''}" /></label>
+    <label>${t('Tamanho máximo da resposta (em tokens)')} <input id="t-max" type="number" min="1" value="${chat.max_tokens ?? ''}" /></label>
     <label>${t('Modo')}
       <select id="t-mode">
         <option value="chat"${chat.mode === 'chat' ? ' selected' : ''}>${t('conversa')}</option>
