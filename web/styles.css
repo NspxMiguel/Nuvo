@@ -810,7 +810,12 @@ input.rename {
 /* ---------------------------------------------------------------- painéis */
 
 .panel { padding: 0 18px 32px; overflow-y: auto; }
-.panel-inner { max-width: 760px; margin: 0 auto; }
+/* `.view` e flex-column e o `margin: 0 auto` daqui cancela o `stretch` do
+   eixo cruzado: sem largura definida o item passa a ser medido pelo conteudo
+   e trava no min-content do filho mais largo, estourando a tela estreita.
+   `width: 100%` devolve a largura definida; as margens auto seguem
+   centralizando dentro do `max-width`. */
+.panel-inner { width: 100%; max-width: 760px; margin: 0 auto; }
 .panel h2 { margin: 6px 0 8px; font-size: 30px; font-weight: 650; letter-spacing: -0.03em; }
 .panel h2 .ico { display: none; }
 .panel p.hint { color: var(--muted); font-size: 16px; margin: 0 0 26px; max-width: 40ch; text-wrap: pretty; }
@@ -982,14 +987,28 @@ button.ghost { background: var(--panel); color: var(--text); }
   background: none;
   border: 0;
   color: var(--muted);
-  font-size: 15px;
-  padding: 8px 16px;
+  /* As tres opcoes tem que caber inteiras num telefone de 390px; a 15px/16px
+     a ultima ficava escondida atras da rolagem do proprio segmentado. */
+  font-size: 14px;
+  padding: 8px 11px;
   border-radius: var(--pill);
   min-height: 40px;
   white-space: nowrap;
   transition: background var(--d1) var(--ease), color var(--d1) var(--ease);
 }
 .segmentado button.sel { background: var(--panel-2); color: var(--text); font-weight: 600; }
+
+/* Telefone Android comum tem 360px de largura: a 14px/11px a terceira opcao
+   ficava fora do quadro. Abaixo de 420px o segmentado aperta pra caber
+   inteiro, que e o que um controle de tres estados precisa mostrar. */
+@media (max-width: 419px) {
+  .segmentado button { font-size: 13px; padding: 8px 8px; }
+}
+
+/* iPhone SE e afins, 320px. O alvo de toque continua nos 40px de altura. */
+@media (max-width: 359px) {
+  .segmentado button { font-size: 12px; padding: 8px 6px; }
+}
 .trilho { display: flex; gap: 5px; }
 .trilho i { width: 26px; height: 4px; border-radius: 99px; background: var(--panel-3); position: relative; overflow: hidden; transition: background var(--d2) var(--ease); }
 .trilho i.run::after {
@@ -1262,6 +1281,8 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
 .cfg-mob { display: block; }
 
 @media (min-width: 761px) {
+  /* Em tela larga sobra espaco: o segmentado volta ao tamanho confortavel. */
+  .segmentado button { font-size: 15px; padding: 8px 16px; }
   .cfg-mob { display: none; }
   .cfg {
     display: grid;
@@ -1473,7 +1494,11 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
   }
   .council-col { height: 400px; }
   .vazio h1 { font-size: 32px; }
-  .atalhos { padding: 4px 24px 8px; justify-content: flex-start; flex-wrap: nowrap; max-width: 768px; margin: 0 auto; }
+  /* No dedo a fileira rola com snap e todos os atalhos sao alcancaveis. No
+     mouse nao: a barra e escondida e roda horizontal quase nao existe, entao
+     com `nowrap` o quarto atalho ficava fora de alcance. Em tela larga sobra
+     altura — quebrar a linha mostra os quatro. */
+  .atalhos { padding: 4px 24px 8px; justify-content: center; flex-wrap: wrap; row-gap: 8px; max-width: 768px; margin: 0 auto; overflow-x: visible; }
   .atalho:hover { background: var(--panel-2); }
   .placar tr { grid-template-columns: 1.2fr 2fr auto; }
   .placar td:nth-child(3) { grid-column: auto; }

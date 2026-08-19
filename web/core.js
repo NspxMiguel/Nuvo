@@ -146,6 +146,29 @@ export function escapeHtml(text) {
   );
 }
 
+/** De onde veio um fato da memória, em português e já escapado pra HTML. */
+export function origemDoFato(m) {
+  // `source_ref` de fato aprendido é "<provedor> · <modelo> · chat <id>"; o que
+  // interessa na tela é o nome da conversa, não o id nem o modelo.
+  const id = /chat ([\w-]+)$/.exec(m.source_ref || '')?.[1];
+  const chat = id && state.chats.find((c) => c.id === id);
+  if (chat) return `de “${escapeHtml(chat.title)}”`;
+  if (m.source === 'manual') return 'você contou';
+  if (m.source === 'import') return 'veio de outra IA';
+  if (m.source_ref) return `de ${escapeHtml(m.source_ref)}`;
+  return 'aprendido numa conversa';
+}
+
+/** "vale pra tudo" ou "só no projeto X", este com a cor do projeto. */
+export function escopoDoFato(m) {
+  const proj = m.project_id ? state.projects.find((p) => p.id === m.project_id) : null;
+  return proj
+    ? `<span class="escopo proj" style="--tint: var(--${proj.color || 'indigo'})">só no projeto ${escapeHtml(
+        proj.name
+      )}</span>`
+    : '<span class="escopo">vale pra tudo</span>';
+}
+
 /** Preenche os ícones declarados no HTML como `<span data-icon="nome">`. */
 export function paintIcons(root = document) {
   for (const el of root.querySelectorAll('[data-icon]')) {
@@ -201,7 +224,13 @@ export function toast(message, kind = '') {
   setTimeout(() => el.remove(), 4200);
 }
 
-/** Seletor de ícone e cor, usado por gems e projetos. */
+// Nome de cor que aparece pro usuário. Na variável CSS o nome segue em inglês.
+const CORES_PT = {
+  indigo: 'azul', teal: 'verde-água', amber: 'âmbar', rose: 'rosa',
+  violet: 'violeta', sky: 'azul-claro', lime: 'verde-limão', slate: 'cinza'
+};
+
+/** Seletor de ícone e cor, usado por perfis e projetos. */
 export function iconPicker(container, { icon: current = 'sparkle', color = 'indigo' } = {}) {
   const names = [
     'sparkle', 'bot', 'code', 'brain', 'book', 'search', 'globe', 'folder',
@@ -211,28 +240,36 @@ export function iconPicker(container, { icon: current = 'sparkle', color = 'indi
     <div class="icon-picker">${names
       .map(
         (n) =>
-          `<button type="button" data-name="${n}" class="${n === current ? 'sel' : ''}">${icon(n, 17)}</button>`
+          `<button type="button" data-name="${n}" class="${n === current ? 'sel' : ''}"
+             aria-label="ícone ${n}" aria-pressed="${n === current}">${icon(n, 22)}</button>`
       )
       .join('')}</div>
     <div class="color-picker">${COLORS.map(
       (c) =>
         `<button type="button" class="swatch ${c === color ? 'sel' : ''}" data-color="${c}"
-           style="background: var(--${c})" title="${c}"></button>`
+           style="background: var(--${c})" title="${CORES_PT[c] || c}" aria-label="cor ${CORES_PT[c] || c}"
+           aria-pressed="${c === color}"></button>`
     ).join('')}</div>`;
 
   const chosen = { icon: current, color };
+  const marcar = (grupo, btn) => {
+    for (const b of container.querySelectorAll(grupo)) {
+      b.classList.remove('sel');
+      b.setAttribute('aria-pressed', 'false');
+    }
+    btn.classList.add('sel');
+    btn.setAttribute('aria-pressed', 'true');
+  };
   for (const btn of container.querySelectorAll('.icon-picker button')) {
     btn.onclick = () => {
       chosen.icon = btn.dataset.name;
-      container.querySelectorAll('.icon-picker button').forEach((b) => b.classList.remove('sel'));
-      btn.classList.add('sel');
+      marcar('.icon-picker button', btn);
     };
   }
   for (const btn of container.querySelectorAll('.swatch')) {
     btn.onclick = () => {
       chosen.color = btn.dataset.color;
-      container.querySelectorAll('.swatch').forEach((b) => b.classList.remove('sel'));
-      btn.classList.add('sel');
+      marcar('.swatch', btn);
     };
   }
   return chosen;
