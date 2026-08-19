@@ -372,7 +372,11 @@
             else if (relogio) clearTimeout(relogio);
           }
         },
-        { threshold: 0.45 }
+        // Faixa do meio da tela, e não fração da seção: numa tela baixa a
+        // seção pode ser maior que a janela, e aí "45% dela visível" é uma
+        // condição que nunca acontece — a animação não rodaria, e o convite
+        // pra baixar, que só aparece no fim dela, ficaria invisível.
+        { threshold: 0, rootMargin: '-25% 0px -25% 0px' }
       ).observe(document.getElementById('saudacao'));
     } else {
       rodar();
