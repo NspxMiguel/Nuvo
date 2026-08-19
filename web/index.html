@@ -62,11 +62,9 @@
       </aside>
 
       <main id="main">
+        <canvas id="glow" aria-hidden="true"></canvas>
         <header id="topbar">
           <button id="btn-open-side" class="icon" title="menu" aria-label="abrir menu"><span data-icon="menu"></span></button>
-          <select id="sel-model" title="modelo"></select>
-          <select id="sel-gem" title="gem"></select>
-          <select id="sel-project" title="projeto"></select>
           <span id="chat-title"></span>
           <span class="grow"></span>
           <button id="btn-web" class="icon toggle" aria-pressed="false" title="buscar na web nesta conversa" aria-label="buscar na web nesta conversa">
@@ -85,19 +83,25 @@
           <div id="messages"></div>
           <div id="attach-bar" class="attach-bar" hidden></div>
           <form id="composer">
-            <button id="btn-attach" class="icon" type="button" title="anexar arquivo" aria-label="anexar arquivo">
-              <span data-icon="paperclip"></span>
-            </button>
-            <button id="btn-mic" class="icon" type="button" title="ditar" aria-label="ditar">
-              <span data-icon="mic"></span>
-            </button>
-            <textarea id="input" rows="1" placeholder="Fale com a IA"></textarea>
-            <button id="btn-send" class="primary" type="submit" title="enviar" aria-label="enviar mensagem">
-              <span data-icon="send"></span>
-            </button>
-            <button id="btn-stop" class="icon danger" type="button" title="parar" aria-label="parar a resposta" hidden>
-              <span data-icon="stop"></span>
-            </button>
+            <textarea id="input" rows="1" placeholder="Fale com qualquer IA"></textarea>
+            <div class="composer-linha">
+              <button id="btn-attach" class="icon" type="button" title="anexar arquivo" aria-label="anexar arquivo">
+                <span data-icon="paperclip"></span>
+              </button>
+              <button id="btn-mic" class="icon" type="button" title="ditar" aria-label="ditar">
+                <span data-icon="mic"></span>
+              </button>
+              <span class="grow"></span>
+              <select id="sel-model" title="qual IA responde"></select>
+              <select id="sel-gem" title="perfil" hidden></select>
+              <select id="sel-project" title="projeto" hidden></select>
+              <button id="btn-send" class="primary" type="submit" title="enviar" aria-label="enviar mensagem">
+                <span data-icon="send"></span>
+              </button>
+              <button id="btn-stop" class="icon danger" type="button" title="parar" aria-label="parar a resposta" hidden>
+                <span data-icon="stop"></span>
+              </button>
+            </div>
           </form>
           <input id="file-input" type="file" multiple hidden />
         </section>
