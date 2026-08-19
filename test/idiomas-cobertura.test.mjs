@@ -39,7 +39,15 @@ function frasesDoCodigo() {
   return chaves;
 }
 
-/** As frases marcadas no HTML com `data-i18n`. */
+/**
+ * As frases marcadas no HTML: o texto de `data-i18n` e o valor de cada atributo
+ * listado em `data-i18n-attr`.
+ *
+ * Os atributos entram aqui porque foi por eles que a falta escapou: o
+ * `placeholder` do campo de escrever não estava marcado, e o app em inglês
+ * abria com "Fale com qualquer IA" no meio da tela — a primeira coisa que
+ * qualquer pessoa lê.
+ */
 function frasesDoHtml() {
   const html = readFileSync(new URL('index.html', web), 'utf8');
   const chaves = new Set();
@@ -47,7 +55,35 @@ function frasesDoHtml() {
     const limpo = texto.trim();
     if (limpo) chaves.add(limpo);
   }
+  for (const [tag, attrs] of html.matchAll(/<[^>]*data-i18n-attr="([^"]+)"[^>]*>/g)) {
+    for (const attr of attrs.split(',').map((a) => a.trim())) {
+      const m = tag.match(new RegExp(`\\s${attr}="([^"]*)"`));
+      if (m && m[1].trim()) chaves.add(m[1].trim());
+    }
+  }
   return chaves;
+}
+
+/**
+ * Atributo de texto que aparece pra quem usa e ficou sem `data-i18n-attr`.
+ *
+ * A cobertura sozinha não pega isto: um `placeholder` não marcado nunca entra
+ * na lista de chaves, então ele não "falta no dicionário" — ele simplesmente
+ * nunca é traduzido, em silêncio.
+ */
+function atributosSemMarcacao() {
+  const html = readFileSync(new URL('index.html', web), 'utf8');
+  const soltos = [];
+  for (const [tag] of html.matchAll(/<[^>]+>/g)) {
+    const marcados = new Set(
+      (tag.match(/data-i18n-attr="([^"]+)"/)?.[1] || '').split(',').map((a) => a.trim())
+    );
+    for (const attr of ['placeholder', 'title', 'aria-label', 'alt']) {
+      const valor = tag.match(new RegExp(`\\s${attr}="([^"]*)"`))?.[1];
+      if (valor && valor.trim() && !marcados.has(attr)) soltos.push(`${attr}="${valor}"`);
+    }
+  }
+  return soltos;
 }
 
 test('cada frase da interface está nos dois dicionários', () => {
@@ -65,6 +101,11 @@ test('cada frase da interface está nos dois dicionários', () => {
       `${faltando.length} sem tradução em ${lingua}:\n  ${faltando.join('\n  ')}`
     );
   }
+});
+
+test('nenhum atributo de texto do HTML fica sem marcação de tradução', () => {
+  const soltos = atributosSemMarcacao();
+  assert.deepEqual(soltos, [], `sem data-i18n-attr:\n  ${soltos.join('\n  ')}`);
 });
 
 test('os dois idiomas têm as mesmas chaves', () => {

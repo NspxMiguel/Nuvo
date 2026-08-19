@@ -103,7 +103,7 @@
           <div id="messages"></div>
           <div id="attach-bar" class="attach-bar" hidden></div>
           <form id="composer">
-            <textarea id="input" rows="1" placeholder="Fale com qualquer IA"></textarea>
+            <textarea id="input" rows="1" data-i18n-attr="placeholder" placeholder="Fale com qualquer IA"></textarea>
             <div class="composer-linha">
               <button id="btn-attach" class="icon" type="button" title="anexar" aria-label="anexar arquivo" data-i18n-attr="title,aria-label">
                 <span data-icon="plus" data-size="21"></span>
@@ -112,9 +112,9 @@
                 <span data-icon="mic" data-size="19"></span>
               </button>
               <span class="grow"></span>
-              <select id="sel-model" title="qual IA responde"></select>
-              <select id="sel-gem" title="perfil" hidden></select>
-              <select id="sel-project" title="projeto" hidden></select>
+              <select id="sel-model" data-i18n-attr="title" title="qual IA responde"></select>
+              <select id="sel-gem" data-i18n-attr="title" title="perfil" hidden></select>
+              <select id="sel-project" data-i18n-attr="title" title="projeto" hidden></select>
               <button id="btn-voice" class="voz" type="button" title="modo voz" aria-label="conversar por voz" data-i18n-attr="title,aria-label">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="M4 8v4M7 5.5v9M10 3v14M13 5.5v9M16 8v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
@@ -144,7 +144,7 @@
 
     <div id="palette" class="palette" hidden>
       <div class="palette-box">
-        <input id="palette-input" type="text" placeholder="O que você quer fazer?" />
+        <input id="palette-input" type="text" data-i18n-attr="placeholder" placeholder="O que você quer fazer?" />
         <div id="palette-list"></div>
       </div>
     </div>
@@ -160,7 +160,7 @@
         <div id="voice-quem" class="voice-quem"></div>
       </div>
       <div class="voice-pe">
-        <button id="voice-mudo" class="icon" type="button" title="silenciar" aria-pressed="false" aria-label="silenciar"><span data-icon="mic" data-size="21"></span></button>
+        <button id="voice-mudo" class="icon" type="button" data-i18n-attr="title,aria-label" title="silenciar" aria-pressed="false" aria-label="silenciar"><span data-icon="mic" data-size="21"></span></button>
         <button id="voice-fim" class="primary" type="button">Encerrar</button>
       </div>
     </div>
