@@ -160,7 +160,11 @@ export async function abrirNavegador({ janela = false, signal } = {}) {
   if (!binario) throw new Error('nenhum Chrome, Chromium, Edge ou Brave encontrado nesta máquina');
 
   const porta = await portaLivre();
-  const perfil = join(DATA_DIR, 'navegador');
+  // Perfil só do agente. O `navegador` puro é o da janela do app
+  // (server/desktop.mjs), e o Chrome recusa dois processos no mesmo
+  // `--user-data-dir`: com o ícone do app aberto, o agente morria depois de 20s
+  // esperando uma porta que nunca ia abrir.
+  const perfil = join(DATA_DIR, 'navegador-agente');
   const args = [
     `--remote-debugging-port=${porta}`,
     `--user-data-dir=${perfil}`,

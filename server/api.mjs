@@ -285,7 +285,7 @@ export async function handleApi(req, res, url) {
           enabled: !!provider.enabled,
           models: all('SELECT COUNT(*) AS n FROM models WHERE provider_id = ?', provider.id)[0].n
         };
-        if (!provider.enabled) return { ...base, status: 'off', message: 'desligado nas configurações' };
+        if (!provider.enabled) return { ...base, status: 'off', message: 'desligada por você' };
         if (provider.secret_name && !listSecretNames().includes(provider.secret_name)) {
           return { ...base, status: 'erro', message: `falta a chave "${provider.secret_name}"` };
         }
@@ -628,7 +628,7 @@ export async function handleApi(req, res, url) {
       try {
         const provedor = getProvider(parseRef(ref).providerId);
         if (!provedor.enabled) {
-          return json(res, { error: `o provedor "${provedor.name}" está desligado` }, 400);
+          return json(res, { error: `a IA "${provedor.name}" está desligada` }, 400);
         }
       } catch (err) {
         return json(res, { error: err.message }, 400);
@@ -882,7 +882,7 @@ export async function handleApi(req, res, url) {
       return json(res, {
         ...done,
         restart: true,
-        message: 'backup lido — reinicie o servidor para os dados entrarem no lugar'
+        message: 'cópia lida — reinicie o servidor pra os dados entrarem no lugar'
       });
     } catch (err) {
       return json(res, { error: err.message }, 400);

@@ -48,6 +48,11 @@ const KIND_ROT = {
   google: 'paga por uso'
 };
 
+/** Endereço de casa é motor local, mesmo falando a API da OpenAI. */
+const ehLocal = (p) =>
+  /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])/.test(p.base_url || '');
+const kindRot = (p) => (ehLocal(p) ? 'roda nesta máquina' : KIND_ROT[p.kind] || 'paga por uso');
+
 /** O cartão da máquina: quanto de memória tem, o que é o chip e o que cabe nela. */
 function cartaoMaquina(m) {
   if (!m) return '';
@@ -158,7 +163,7 @@ function ligarRecomendados(inner, maquina, switchView) {
             else if (ev.type === 'error') toast(ev.message, 'err');
           });
           fill.style.width = '100%';
-          toast(`${nome} baixada`, 'ok');
+          toast(`${nome} baixado`, 'ok');
           await refreshState();
           switchView('providers');
         } catch (err) {
@@ -223,10 +228,10 @@ views.providers = async function renderProviders(el, { switchView }) {
          <label class="field">Nome <input id="new-name" placeholder="Minha IA" /></label>
          <label class="field">Como ela é ligada
            <select id="new-kind">
-             <option value="openai">paga por uso · openai-compatível</option>
-             <option value="anthropic">paga por uso · anthropic</option>
-             <option value="google">paga por uso · google</option>
-             <option value="ollama">roda nesta máquina · ollama</option>
+             <option value="openai">compatível com a API da OpenAI (paga por uso ou local)</option>
+             <option value="anthropic">paga por uso · Anthropic</option>
+             <option value="google">paga por uso · Google</option>
+             <option value="ollama">roda nesta máquina · Ollama</option>
              <option value="cli">programa do terminal</option>
            </select>
          </label>
@@ -794,7 +799,7 @@ async function renderProjectFiles(host, project) {
             (f) => `<div class="linha">
                 <span class="ico">${icon('file', 18)}</span>
                 <span class="rot">${escapeHtml(f.name)}
-                  <small>${f.chunks} trecho(s) · ${Math.round(f.bytes / 1024)} KB${
+                  <small>${f.chunks} trecho(s) · ${Math.round(f.bytes / 1000)} kB${
                     f.note ? ` · ${escapeHtml(f.note)}` : ''
                   }</small>
                 </span>
@@ -851,7 +856,7 @@ views.memory = async function renderMemory(el, { switchView }) {
     'Uma memória só, lida por todas as IAs. O que você contou pra uma, as outras sabem.',
     `<div class="reg-topo">
        <div><span class="num">${memories.length}</span><span class="rot">coisas guardadas</span></div>
-       <div><span class="num">${settings.memory.maxInjected}</span><span class="rot">usadas por resposta</span></div>
+       <div><span class="num">${settings.memory.maxInjected}</span><span class="rot">no máximo por resposta</span></div>
        <div><span class="num">${hoje}</span><span class="rot">aprendidas hoje</span></div>
      </div>
      <div class="card">
@@ -868,7 +873,7 @@ views.memory = async function renderMemory(el, { switchView }) {
        <div id="import-status" class="meta"></div>
        <input type="file" id="m-file" accept=".json,.md,.txt" hidden />
      </div>
-     <h3 class="sec">Aprendidas recentemente</h3>
+     <h3 class="sec">O que está guardado</h3>
      <div id="mem-list"></div>`
   );
 
@@ -958,7 +963,7 @@ views.memory = async function renderMemory(el, { switchView }) {
     const file = ev.target.files[0];
     if (!file) return;
     const status = inner.querySelector('#import-status');
-    status.textContent = 'lendo e separando o que vale guardar… export grande demora.';
+    status.textContent = 'lendo e separando o que vale guardar… arquivo grande demora.';
     try {
       const text = await file.text();
       const out = await api(`/memories/import?filename=${encodeURIComponent(file.name)}`, {
@@ -1062,7 +1067,7 @@ const CFG_SECOES = {
       )
       .join('')}
     ${cfgLin('Procurar IA nesta máquina', 'Olha as portas conhecidas, o PATH e as chaves guardadas no sistema.',
-      '<button class="primary" type="button" data-ir="providers">Procurar agora</button>')}`,
+      '<button class="primary" type="button" data-ir="providers">Abrir IAs ligadas</button>')}`,
 
   acesso: (s) => `<h3>Acesso</h3>
     ${cfgLin('Pedir senha pra abrir', 'Sem isso, qualquer aparelho da sua rede abre este app.', cfgChave('s-token', s.requireToken))}
@@ -1114,7 +1119,7 @@ const CFG_SECOES = {
 
   atalhos: () => `<h3>Atalhos de teclado</h3>
     ${[
-      ['Lista de atalhos', '⌘K'],
+      ['Lista de comandos', '⌘K'],
       // A tabela precisa bater com o listener de web/app.js: ⌘N é conversa
       // nova e ⇧⌘N é a anônima. Trocados, quem seguisse esta tela abriria uma
       // conversa anônima achando que abriu uma normal.
@@ -1176,7 +1181,7 @@ function cfgMobile(s, pendente) {
       ${lin('folder', 'Projetos', val(state.projects.length), ' data-ir="projects"')}
     </div>
 
-    <div class="grupo-rot">Abrir de fora de casa</div>
+    <div class="grupo-rot">Acesso</div>
     <div class="grupo">
       ${trava('key', 'Pedir senha pra abrir', 's-token', s.requireToken)}
       ${lin('command', `Onde ele está escutando<small>${escapeHtml(s.host)}:${s.port}</small>`)}
@@ -1817,8 +1822,8 @@ views.council = function renderCouncil(el, { switchView }) {
               placar.insertAdjacentHTML(
                 'afterend',
                 `<div class="row" style="margin:18px 0">
-                   <button class="ghost" type="button" id="c-quem-votou">quem votou o quê</button>
-                   <button class="ghost" type="button" id="c-seguir">continuar com o vencedor</button>
+                   <button class="ghost" type="button" id="c-quem-votou">Quem votou o quê</button>
+                   <button class="ghost" type="button" id="c-seguir">Continuar com o vencedor</button>
                  </div>`
               );
               let aberto = false;
@@ -1957,9 +1962,9 @@ function marcarCitacoes(root) {
 views.research = function renderResearch(el, { switchView }) {
   const inner = panel(
     el,
-    'Pesquisa',
+    'Pesquisar na web',
     'globe',
-    'Ela vai à web, lê as páginas e escreve um relatório com as fontes.',
+    'A IA vai à web, lê as páginas e escreve um relatório com as fontes.',
     `<div class="card plain">
        <label class="field">O que você quer descobrir
          <textarea id="r-question" rows="2" placeholder="Ex.: vale trocar um disco com setores realocados agora?"></textarea>

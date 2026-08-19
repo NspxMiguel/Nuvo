@@ -31,7 +31,7 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
     body: raw ? body : body !== undefined ? JSON.stringify(body) : undefined
   });
   if (res.status === 401) {
-    const token = prompt('Token de acesso (aparece no terminal onde o servidor subiu):');
+    const token = prompt('Senha de acesso (aparece no terminal onde o servidor subiu):');
     if (token) {
       localStorage.setItem('iaunifier.token', token);
       location.reload();
@@ -156,7 +156,7 @@ export function origemDoFato(m) {
   if (m.source === 'manual') return 'você contou';
   if (m.source === 'import') return 'veio de outra IA';
   if (m.source_ref) return `de ${escapeHtml(m.source_ref)}`;
-  return 'aprendido numa conversa';
+  return 'aprendida numa conversa';
 }
 
 /** "vale pra tudo" ou "só no projeto X", este com a cor do projeto. */

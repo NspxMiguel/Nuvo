@@ -1,7 +1,7 @@
 {
   "name": "IAUnifier",
   "short_name": "IAUnifier",
-  "description": "Todas as suas IAs — locais, de API e de CLI — com uma memória só.",
+  "description": "Todas as suas IAs — as que rodam aqui, as pagas por uso e as do terminal — com uma memória só.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

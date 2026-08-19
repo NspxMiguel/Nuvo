@@ -47,8 +47,10 @@ async function load() {
   renderSidebar();
   renderTopbar();
   renderView();
+  const ligadas = state.providers.filter((p) => p.enabled).length;
+  const modelos = chatModels().length;
   $('#side-status').textContent =
-    `${state.providers.filter((p) => p.enabled).length} IAs ligadas · ${chatModels().length} modelos`;
+    `${ligadas} ${ligadas === 1 ? 'IA ligada' : 'IAs ligadas'} · ${modelos} ${modelos === 1 ? 'modelo' : 'modelos'}`;
   // O contador da Memória não vem no /state; é um pedido solto que não segura
   // a tela — se falhar, o número simplesmente não aparece.
   api('/memories')
@@ -111,7 +113,7 @@ function toggleAnon() {
   toast(
     ligado
       ? 'conversa anônima ligada — nada daqui é guardado'
-      : 'voltou ao normal — esta conversa entra no histórico'
+      : 'voltou ao normal — a próxima conversa entra no histórico'
   );
 }
 
@@ -315,7 +317,7 @@ function renderTopbar() {
     $('#sel-gem'),
     state.gems.map((g) => ({ value: g.id, label: g.name })),
     state.gemId,
-    'sem gem'
+    'sem perfil'
   );
   fillSelect(
     $('#sel-project'),
@@ -477,8 +479,8 @@ function renderFirstRun() {
   // descobrir nada, falta ligar ou atualizar o que já está lá.
   const desligados = state.providers.filter((p) => !p.enabled).length;
   const explicacao = state.providers.length
-    ? `Você já ligou ${state.providers.length} IA(s), mas nenhuma está pronta pra responder${
-        desligados ? ` — ${desligados} está(ão) desligada(s)` : ''
+    ? `Você já ligou ${state.providers.length} ${state.providers.length === 1 ? 'IA' : 'IAs'}, mas nenhuma está pronta pra responder${
+        desligados ? ` — ${desligados === 1 ? '1 está desligada' : `${desligados} estão desligadas`}` : ''
       }.`
     : 'O app roda na sua máquina. Vou procurar IA instalada nela — nada sai daqui.';
 
@@ -494,12 +496,12 @@ function renderFirstRun() {
       <ol class="steps">
         <li style="animation-delay:420ms">
           <strong>Procurar o que já existe na máquina</strong>
-          <span>Ollama, LM Studio, LocalAI, llama.cpp e as CLIs do Claude, Codex e Gemini — se estiverem instalados, entram sozinhos.</span>
+          <span>Ollama, LM Studio, LocalAI, llama.cpp e os programas de terminal do Claude, do Codex e do Gemini — se estiverem instalados, entram sozinhos.</span>
           <div id="fr-achados"></div>
           <button id="fr-discover" class="primary"><span data-icon="search"></span> Procurar agora</button>
         </li>
         <li style="animation-delay:520ms">
-          <strong>Ou usar uma IA de API</strong>
+          <strong>Ou usar uma IA paga por uso</strong>
           <span>OpenAI, Anthropic, Google, Groq, DeepSeek, OpenRouter. Você cola a chave uma vez e ela fica no servidor, nunca no navegador.</span>
           <button id="fr-providers"><span data-icon="plug"></span> Abrir IAs ligadas</button>
         </li>
@@ -514,7 +516,7 @@ function renderFirstRun() {
     const btn = ev.currentTarget;
     const original = btn.innerHTML;
     btn.disabled = true;
-    btn.textContent = 'procurando...';
+    btn.textContent = 'procurando…';
     try {
       const { found } = await api('/discover', { method: 'POST' });
       // O achado entra na tela com etiqueta, não em torrada que some. A folha
@@ -540,7 +542,7 @@ function renderFirstRun() {
             <button id="fr-comecar" class="primary"><span data-icon="check"></span> Começar agora</button></div>`
         : `<div class="achado">
             <div class="tag off"><div class="pt"></div>não</div>
-            <span>Não achei IA instalada nesta máquina <span class="muted">— se você abrir o Ollama ou o LM Studio, eu acho sozinho</span></span>
+            <span>Não achei IA instalada nesta máquina <span class="muted">— abra o Ollama ou o LM Studio e toque em Procurar agora de novo</span></span>
           </div>`;
       paintIcons(alvo);
       await load();
@@ -964,7 +966,7 @@ function renderAttachBar() {
         att.name
       )} da conversa">${icon('close', 15)}</button>`;
     chip.title =
-      att.note || `${att.chunks ?? 0} trecho(s) · ${Math.round(att.bytes / 1024)} KB`;
+      att.note || `${att.chunks ?? 0} trecho(s) · ${Math.round(att.bytes / 1000)} kB`;
     chip.querySelector('button').onclick = async () => {
       await api(`/attachments/${att.id}`, { method: 'DELETE' });
       state.attachments = state.attachments.filter((a) => a.id !== att.id);
@@ -1171,7 +1173,9 @@ function vozMudo() {
   voz.mudo = !voz.mudo;
   $('#voice').classList.toggle('mudo', voz.mudo);
   $('#voice-mudo').setAttribute('aria-pressed', String(voz.mudo));
-  $('#voice-mudo').title = voz.mudo ? 'voltar a ouvir' : 'silenciar';
+  const rotuloMudo = voz.mudo ? 'voltar a ouvir' : 'silenciar';
+  $('#voice-mudo').title = rotuloMudo;
+  $('#voice-mudo').setAttribute('aria-label', rotuloMudo);
   if (voz.mudo) {
     voz.rec?.abort();
     if ('speechSynthesis' in window) speechSynthesis.cancel();
@@ -1190,9 +1194,9 @@ function renderTune() {
   const chat = state.chat || {};
   tune.hidden = false;
   tune.innerHTML = `
-    <label>Gem
+    <label>Perfil
       <select id="t-gem">
-        <option value="">sem gem</option>
+        <option value="">sem perfil</option>
         ${state.gems
           .map(
             (g) =>
@@ -1213,22 +1217,22 @@ function renderTune() {
       </select>
     </label>
     <label class="full">Prompt de sistema desta conversa (vence o da gem)
-      <textarea id="t-system" rows="3" placeholder="deixe vazio pra usar o da gem">${escapeHtml(
+      <textarea id="t-system" rows="3" placeholder="deixe vazio pra usar o do perfil">${escapeHtml(
         chat.system_prompt || ''
       )}</textarea>
     </label>
     <label>Temperatura <input id="t-temp" type="number" step="0.05" min="0" max="2" value="${chat.temperature ?? ''}" /></label>
-    <label>top_p <input id="t-topp" type="number" step="0.05" min="0" max="1" value="${chat.top_p ?? ''}" /></label>
+    <label>Quão variado é o vocabulário, de 0 a 1 (top_p) <input id="t-topp" type="number" step="0.05" min="0" max="1" value="${chat.top_p ?? ''}" /></label>
     <label>Limite de tokens <input id="t-max" type="number" min="1" value="${chat.max_tokens ?? ''}" /></label>
     <label>Modo
       <select id="t-mode">
         <option value="chat"${chat.mode === 'chat' ? ' selected' : ''}>conversa</option>
-        <option value="coding"${chat.mode === 'coding' ? ' selected' : ''}>coding</option>
+        <option value="coding"${chat.mode === 'coding' ? ' selected' : ''}>programar</option>
       </select>
     </label>
     <div class="full row">
       <button id="t-save" class="primary">Aplicar</button>
-      <span class="meta">vazio = padrão do provedor</span>
+      <span class="meta">Deixe vazio pra usar o que a IA já traz de fábrica.</span>
     </div>`;
 
   tune.querySelector('#t-save').onclick = async () => {
@@ -1364,7 +1368,7 @@ function commands() {
         state.model = model.ref;
         localStorage.setItem('iaunifier.model', model.ref);
         renderTopbar();
-        toast(`modelo: ${model.label}`);
+        toast(`agora responde ${model.label}`);
       }
     });
   }

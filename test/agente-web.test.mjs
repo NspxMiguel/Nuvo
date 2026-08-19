@@ -97,6 +97,27 @@ test('o navegador lê a página e clica no que existe', { skip: !temChrome }, as
   }
 });
 
+test('o agente sobe mesmo com a janela do app aberta', { skip: !temChrome }, async () => {
+  // Os dois usavam `~/.iaunifier/navegador`, e o Chrome recusa dois processos no
+  // mesmo perfil: com o ícone do app aberto, o agente esperava 20s e desistia.
+  const { DATA_DIR } = await import('../server/config.mjs');
+  const { join } = await import('node:path');
+  const { spawn } = await import('node:child_process');
+  const janela = spawn(acharNavegador(), [
+    '--headless=new',
+    '--app=data:text/html,<title>app</title>',
+    `--user-data-dir=${join(DATA_DIR, 'navegador')}`
+  ], { stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 2500));
+  try {
+    const { sessao, encerrar } = await abrirNavegador();
+    assert.ok(sessao, 'o agente tinha que subir com a janela do app aberta');
+    encerrar();
+  } finally {
+    janela.kill();
+  }
+});
+
 test('clicar num número que não existe é erro, não silêncio', { skip: !temChrome }, async () => {
   const { base, fechar } = await servir({ '/': '<title>Vazio</title><body><p>vazio</p></body>' });
   const { sessao, encerrar } = await abrirNavegador();

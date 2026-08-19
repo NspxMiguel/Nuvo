@@ -233,7 +233,7 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
   try {
     const varrido = sweepOrphanUploads();
     if (!quiet && varrido.removed) {
-      console.log(`limpeza: ${varrido.removed} anexo(s) órfão(s), ${Math.round(varrido.bytes / 1024)} kB`);
+      console.log(`limpeza: ${varrido.removed} anexo(s) órfão(s), ${Math.round(varrido.bytes / 1000)} kB`);
     }
   } catch {
     /* limpeza é higiene, não requisito pra subir */

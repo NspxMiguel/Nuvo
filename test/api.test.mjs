@@ -767,7 +767,8 @@ test('refazer com provedor desligado avisa sem apagar nada', async () => {
 
   const res = await app.api(`/chats/${chat.id}/regenerate`, { method: 'POST', body: {} });
   assert.equal(res.status, 400);
-  assert.match(res.data.error, /desligado/);
+  // "a IA ... está desligada": a mensagem concorda com o nome que a tela usa.
+  assert.match(res.data.error, /está desligada/);
 
   const depois = (await app.api(`/chats/${chat.id}`)).data.messages;
   assert.equal(depois.length, 2, 'nada podia ter sido apagado');

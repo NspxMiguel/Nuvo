@@ -27,7 +27,7 @@ const RULES = [
   {
     match: (m) => /\b401\b|invalid[_ ]api[_ ]key|unauthorized/i.test(m),
     text: (_, provider) =>
-      `a chave de ${provider?.name || 'API'} foi recusada. Gere uma nova no painel do provedor e salve de novo em Provedores.`
+      `a chave de ${provider?.name || 'API'} foi recusada. Gere uma nova no painel de quem fornece a IA e salve de novo em "IAs ligadas", no botão Trocar chave.`
   },
   {
     match: (m) => /\b403\b|permission|not allowed/i.test(m),
@@ -35,7 +35,7 @@ const RULES = [
   },
   {
     match: (m) => /\b404\b|model[_ ]not[_ ]found|does not exist/i.test(m),
-    text: () => 'esse modelo não existe mais nesse provedor. Clique em atualizar na lista de provedores pra recarregar os modelos.'
+    text: () => 'esse modelo não existe mais nessa IA. Abra "IAs ligadas" e clique em Atualizar modelos no cartão dela.'
   },
   {
     match: (m) => /\b429\b|rate[_ ]limit|too many requests/i.test(m),
@@ -56,7 +56,7 @@ const RULES = [
   {
     match: (m) => /sem comando|ENOENT|spawn/i.test(m),
     text: (_, provider) =>
-      `o comando da CLI não rodou${provider?.name ? ` (${provider.name})` : ''}. Confira o caminho do executável nas configurações do provedor.`
+      `o programa do terminal não rodou${provider?.name ? ` (${provider.name})` : ''}. Confira o caminho do executável em "IAs ligadas", no campo Ajuste do programa do terminal.`
   }
 ];
 
