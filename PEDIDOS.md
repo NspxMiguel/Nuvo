@@ -1004,7 +1004,11 @@ provada entre duas IAs diferentes — contei uma coisa pro Claude Code, pergunte
 pro Codex numa conversa nova, e ele respondeu certo. As conversas e as memórias
 dessa prova foram apagadas depois.
 
-Windows: o executável publicado da 0.1.2 foi baixado e rodado num runner do
-GitHub; sobe e serve a interface inteira. Mac: o pacote `.tar.gz` extraído e
+Windows: o executável publicado foi baixado e rodado num runner do GitHub — e
+foi lá que apareceu o defeito que só existe naquele sistema. O `path.normalize`
+do Windows devolve barra invertida, então `/idiomas/en.json` virava a chave
+`idiomas\en.json`, que não existe dentro do executável; o arquivo respondia 404
+e a interface caía calada no português em qualquer máquina com Windows.
+Corrigido na 0.1.4, com a prova voltando a passar. Mac: o pacote `.tar.gz` extraído e
 rodado aqui. iPhone e Android: o PWA instala (manifest `standalone`, ícone
 maskable), guarda a casca e abre sem servidor.
