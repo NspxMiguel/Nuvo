@@ -8,7 +8,9 @@ import { icon } from './icons.js';
 import { ligarBrilho, roseta } from './glow.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { statsLine } from './format.js';
-import { iniciarIdioma, traduzirDocumento, aoTrocarIdioma, t } from './i18n.js';
+import {
+  iniciarIdioma, traduzirDocumento, aoTrocarIdioma, t, plural, formatarNumero
+} from './i18n.js';
 import { views } from './views.js';
 
 // A malha de pontinhos do rodapé nasce ao abrir o app, ao voltar pra uma
@@ -64,7 +66,7 @@ async function load() {
   const ligadas = state.providers.filter((p) => p.enabled).length;
   const modelos = chatModels().length;
   $('#side-status').textContent =
-    `${ligadas} ${ligadas === 1 ? 'IA ligada' : 'IAs ligadas'} · ${modelos} ${modelos === 1 ? 'modelo' : 'modelos'}`;
+    `${plural(ligadas, '1 IA ligada', '{n} IAs ligadas')} · ${plural(modelos, '1 modelo', '{n} modelos')}`;
   // O contador da Memória não vem no /state; é um pedido solto que não segura
   // a tela — se falhar, o número simplesmente não aparece.
   api('/memories')
@@ -82,8 +84,8 @@ function pintarWeb() {
   btn.classList.toggle('on', state.useWeb);
   btn.setAttribute('aria-pressed', String(Boolean(state.useWeb)));
   const rotulo = state.useWeb
-    ? 'modo agente de navegador ligado nesta conversa'
-    : 'modo agente de navegador desligado nesta conversa';
+    ? t('modo agente de navegador ligado nesta conversa')
+    : t('modo agente de navegador desligado nesta conversa');
   btn.title = rotulo;
   btn.setAttribute('aria-label', rotulo);
 }
@@ -96,8 +98,9 @@ function pintarAnon() {
     'afterbegin',
     `<div class="anon-faixa">
        <span class="ico">${icon('alert', 17)}</span>
-       <span><b>Conversa anônima.</b> Não entra no histórico, não aprende nada sobre você e não usa a memória.
-       Some quando você fechar ou trocar de conversa.</span>
+       <span><b>${t('Conversa anônima.')}</b> ${t(
+         'Não entra no histórico, não aprende nada sobre você e não usa a memória. Some quando você fechar ou trocar de conversa.'
+       )}</span>
      </div>`
   );
 }
@@ -121,13 +124,13 @@ function toggleAnon() {
   btn.classList.toggle('on', ligado);
   btn.setAttribute('aria-pressed', String(ligado));
   $('#input').placeholder = ligado
-    ? 'Conversa anônima — nada fica guardado'
-    : 'Fale com qualquer IA';
+    ? t('Conversa anônima — nada fica guardado')
+    : t('Fale com qualquer IA');
   pintarAnon();
   toast(
     ligado
-      ? 'conversa anônima ligada — nada daqui é guardado'
-      : 'voltou ao normal — a próxima conversa entra no histórico'
+      ? t('conversa anônima ligada — nada daqui é guardado')
+      : t('voltou ao normal — a próxima conversa entra no histórico')
   );
 }
 
@@ -143,8 +146,12 @@ function chatRow(chat) {
   item.innerHTML = `
     <span class="label">${escapeHtml(chat.title)}</span>
     <span class="row-actions">
-      <button class="icon" data-act="rename" title="renomear" aria-label="renomear conversa">${icon('edit', 17)}</button>
-      <button class="icon" data-act="del" title="apagar" aria-label="apagar conversa">${icon('trash', 17)}</button>
+      <button class="icon" data-act="rename" title="${t('renomear')}" aria-label="${t(
+        'renomear conversa'
+      )}">${icon('edit', 17)}</button>
+      <button class="icon" data-act="del" title="${t('apagar')}" aria-label="${t(
+        'apagar conversa'
+      )}">${icon('trash', 17)}</button>
     </span>`;
 
   item.onclick = () => openChat(chat.id);
@@ -154,7 +161,7 @@ function chatRow(chat) {
   };
   item.querySelector('[data-act=del]').onclick = async (ev) => {
     ev.stopPropagation();
-    if (!confirm(`Apagar "${chat.title}"?`)) return;
+    if (!confirm(t('Apagar "{titulo}"?', { titulo: chat.title }))) return;
     await api(`/chats/${chat.id}`, { method: 'DELETE' });
     if (state.chatId === chat.id) newChat();
     await load();
@@ -232,14 +239,14 @@ let showingArchived = false;
  */
 function grupoDaData(iso) {
   const dia = new Date(iso);
-  if (Number.isNaN(dia.getTime())) return 'Mais antigas';
+  if (Number.isNaN(dia.getTime())) return t('Mais antigas');
   const zero = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const dias = Math.round((zero(new Date()) - zero(dia)) / 86400000);
-  if (dias <= 0) return 'Hoje';
-  if (dias === 1) return 'Ontem';
-  if (dias < 7) return 'Últimos 7 dias';
-  if (dias < 30) return 'Últimos 30 dias';
-  return 'Mais antigas';
+  if (dias <= 0) return t('Hoje');
+  if (dias === 1) return t('Ontem');
+  if (dias < 7) return t('Últimos 7 dias');
+  if (dias < 30) return t('Últimos 30 dias');
+  return t('Mais antigas');
 }
 
 async function renderSidebar(filter = '') {
@@ -255,7 +262,7 @@ async function renderSidebar(filter = '') {
   const rest = chats.filter((c) => !c.pinned);
 
   if (pinned.length) {
-    list.insertAdjacentHTML('beforeend', '<div class="list-label">Fixadas</div>');
+    list.insertAdjacentHTML('beforeend', `<div class="list-label">${t('Fixadas')}</div>`);
     for (const chat of pinned) list.appendChild(chatRow(chat));
   }
   let grupo = '';
@@ -270,13 +277,15 @@ async function renderSidebar(filter = '') {
   if (!chats.length) {
     list.insertAdjacentHTML(
       'beforeend',
-      `<div class="list-label">${showingArchived ? 'nada arquivado' : 'nada por aqui'}</div>`
+      `<div class="list-label">${showingArchived ? t('nada arquivado') : t('nada por aqui')}</div>`
     );
   }
 
   const toggle = document.createElement('button');
   toggle.className = 'link-btn';
-  toggle.innerHTML = `${icon('archive', 13)} ${showingArchived ? 'voltar às conversas' : 'ver arquivadas'}`;
+  toggle.innerHTML = `${icon('archive', 13)} ${
+    showingArchived ? t('voltar às conversas') : t('ver arquivadas')
+  }`;
   toggle.onclick = () => {
     showingArchived = !showingArchived;
     renderSidebar();
@@ -292,7 +301,7 @@ async function deepSearch(query) {
   list.innerHTML = '';
 
   if (chats.length) {
-    list.insertAdjacentHTML('beforeend', '<div class="list-label">Nas mensagens</div>');
+    list.insertAdjacentHTML('beforeend', `<div class="list-label">${t('Nas mensagens')}</div>`);
     for (const hit of chats) {
       const item = document.createElement('div');
       item.className = 'chat-item';
@@ -304,7 +313,7 @@ async function deepSearch(query) {
     }
   }
   if (memories.length) {
-    list.insertAdjacentHTML('beforeend', '<div class="list-label">Na memória</div>');
+    list.insertAdjacentHTML('beforeend', `<div class="list-label">${t('Na memória')}</div>`);
     for (const m of memories) {
       const item = document.createElement('div');
       item.className = 'chat-item';
@@ -314,7 +323,7 @@ async function deepSearch(query) {
     }
   }
   if (!chats.length && !memories.length) {
-    list.insertAdjacentHTML('beforeend', '<div class="list-label">nada encontrado</div>');
+    list.insertAdjacentHTML('beforeend', `<div class="list-label">${t('nada encontrado')}</div>`);
   }
 }
 
@@ -325,24 +334,24 @@ function renderTopbar() {
     $('#sel-model'),
     chatModels().map((m) => ({ value: m.ref, label: m.label })),
     state.model,
-    chatModels().length ? null : 'nenhuma IA ligada'
+    chatModels().length ? null : t('nenhuma IA ligada')
   );
   fillSelect(
     $('#sel-gem'),
     state.gems.map((g) => ({ value: g.id, label: g.name })),
     state.gemId,
-    'sem perfil'
+    t('sem perfil')
   );
   fillSelect(
     $('#sel-project'),
     state.projects.map((p) => ({ value: p.id, label: p.name })),
     state.projectId,
-    'sem projeto'
+    t('sem projeto')
   );
   const chat = state.chats.find((c) => c.id === state.chatId);
   const title = $('#chat-title');
   title.textContent = chat ? chat.title : '';
-  title.title = chat ? 'clique duas vezes pra renomear' : '';
+  title.title = chat ? t('clique duas vezes pra renomear') : '';
   title.ondblclick = chat ? () => renameFromTopbar(chat) : null;
   // No celular a barra de cima é menu · nome · web · anônimo; o botão de nova
   // conversa só existe no computador, e lá quem o esconde com a lateral aberta
@@ -397,23 +406,23 @@ function wireActions(el, { id, role, text }) {
     return btn;
   };
 
-  add('copy', 'copiar', async () => {
+  add('copy', t('copiar'), async () => {
     await navigator.clipboard.writeText(text);
-    toast('copiado', 'ok');
+    toast(t('copiado'), 'ok');
   });
 
   if (role === 'assistant') {
-    add('refresh', 'refazer com o modelo atual', () => regenerate(id));
-    add('speaker', 'ler em voz alta', () => speak(text));
+    add('refresh', t('refazer com o modelo atual'), () => regenerate(id));
+    add('speaker', t('ler em voz alta'), () => speak(text));
   }
   if (role === 'user') {
-    add('edit', 'editar e reenviar', () => {
+    add('edit', t('editar e reenviar'), () => {
       $('#input').value = text;
       $('#input').focus();
       autosize($('#input'));
     });
   }
-  add('trash', 'apagar', async () => {
+  add('trash', t('apagar'), async () => {
     await api(`/messages/${id}`, { method: 'DELETE' });
     el.remove();
   });
@@ -433,11 +442,11 @@ function addNote(text, cls = '', iconName = 'brain') {
  * linha só; os fatos ficam a um toque, com a origem na coluna da direita.
  */
 function memFoot(items) {
-  const n = items.length;
+  const quantas = `<b>${plural(items.length, '1 coisa', '{n} coisas')}</b>`;
   return `<details class="mem-foot">
-    <summary>${icon('brain', 17)} <span>usei <b>${n} ${
-      n === 1 ? 'coisa' : 'coisas'
-    }</b> que já sei sobre você</span></summary>
+    <summary>${icon('brain', 17)} <span>${t('usei {quantas} que já sei sobre você', {
+      quantas
+    })}</span></summary>
     <div class="fatos">${items
       .map(
         (m) =>
@@ -449,7 +458,7 @@ function memFoot(items) {
     <div class="row"><button type="button" class="ghost" data-act="abrir">${icon(
       'brain',
       17
-    )} Abrir memória</button></div>
+    )} ${t('Abrir memória')}</button></div>
   </details>`;
 }
 
@@ -492,36 +501,50 @@ function renderFirstRun() {
   // IA cadastrada mas sem nada que responda é outro problema: aí não falta
   // descobrir nada, falta ligar ou atualizar o que já está lá.
   const desligados = state.providers.filter((p) => !p.enabled).length;
-  const explicacao = state.providers.length
-    ? `Você já ligou ${state.providers.length} ${state.providers.length === 1 ? 'IA' : 'IAs'}, mas nenhuma está pronta pra responder${
-        desligados ? ` — ${desligados === 1 ? '1 está desligada' : `${desligados} estão desligadas`}` : ''
-      }.`
-    : 'O app roda na sua máquina. Vou procurar IA instalada nela — nada sai daqui.';
+  const quantas = plural(state.providers.length, '1 IA', '{n} IAs');
+  const explicacao = !state.providers.length
+    ? t('O app roda na sua máquina. Vou procurar IA instalada nela — nada sai daqui.')
+    : desligados
+      ? t('Você já ligou {quantas}, mas nenhuma está pronta pra responder — {desligadas}.', {
+          quantas,
+          desligadas: plural(desligados, '1 está desligada', '{n} estão desligadas')
+        })
+      : t('Você já ligou {quantas}, mas nenhuma está pronta pra responder.', { quantas });
 
   $('#messages').innerHTML = `
     <div class="first-run">
       <div class="badge-row">${roseta(58, 'bloom')}</div>
       <h2>${
         state.providers.length
-          ? 'Nenhuma IA pronta pra responder'
-          : 'Nada ligado ainda.<br />Deixa eu ver o que tem aqui.'
+          ? t('Nenhuma IA pronta pra responder')
+          : `${t('Nada ligado ainda.')}<br />${t('Deixa eu ver o que tem aqui.')}`
       }</h2>
       <p>${escapeHtml(explicacao)}</p>
       <ol class="steps">
         <li style="animation-delay:420ms">
-          <strong>Procurar o que já existe na máquina</strong>
-          <span>Ollama, LM Studio, LocalAI, llama.cpp e os programas de terminal do Claude, do Codex e do Gemini — se estiverem instalados, entram sozinhos.</span>
+          <strong>${t('Procurar o que já existe na máquina')}</strong>
+          <span>${t(
+            'Ollama, LM Studio, LocalAI, llama.cpp e os programas de terminal do Claude, do Codex e do Gemini — se estiverem instalados, entram sozinhos.'
+          )}</span>
           <div id="fr-achados"></div>
-          <button id="fr-discover" class="primary"><span data-icon="search"></span> Procurar agora</button>
+          <button id="fr-discover" class="primary"><span data-icon="search"></span> ${t(
+            'Procurar agora'
+          )}</button>
         </li>
         <li style="animation-delay:520ms">
-          <strong>Ou usar uma IA paga por uso</strong>
-          <span>OpenAI, Anthropic, Google, Groq, DeepSeek, OpenRouter. Você cola a chave uma vez e ela fica no servidor, nunca no navegador.</span>
-          <button id="fr-providers"><span data-icon="plug"></span> Abrir IAs ligadas</button>
+          <strong>${t('Ou usar uma IA paga por uso')}</strong>
+          <span>OpenAI, Anthropic, Google, Groq, DeepSeek, OpenRouter. ${t(
+            'Você cola a chave uma vez e ela fica no servidor, nunca no navegador.'
+          )}</span>
+          <button id="fr-providers"><span data-icon="plug"></span> ${t(
+            'Abrir IAs ligadas'
+          )}</button>
         </li>
         <li style="animation-delay:620ms">
-          <strong>Depois é só conversar</strong>
-          <span>O que você contar pra uma IA, as outras lembram: a memória é uma só, compartilhada entre todas.</span>
+          <strong>${t('Depois é só conversar')}</strong>
+          <span>${t(
+            'O que você contar pra uma IA, as outras lembram: a memória é uma só, compartilhada entre todas.'
+          )}</span>
         </li>
       </ol>
     </div>`;
@@ -530,7 +553,7 @@ function renderFirstRun() {
     const btn = ev.currentTarget;
     const original = btn.innerHTML;
     btn.disabled = true;
-    btn.textContent = 'procurando…';
+    btn.textContent = t('procurando…');
     try {
       const { found } = await api('/discover', { method: 'POST' });
       // O achado entra na tela com etiqueta, não em torrada que some. A folha
@@ -543,20 +566,28 @@ function renderFirstRun() {
         ? found
             .map(
               (f, i) => `<div class="achado" style="animation-delay:${i * 90}ms">
-                <div class="tag on"><div class="pt"></div>achei</div>
+                <div class="tag on"><div class="pt"></div>${t('achei')}</div>
                 <span>${escapeHtml(f.name)} <span class="muted">— ${escapeHtml(
                   f.url || f.command || ''
                 )}</span></span>
               </div>`
             )
             .join('') +
-          `<div class="aviso ok"><div><b>${
-            found.length === 1 ? 'Uma IA pronta pra usar' : `${found.length} IAs prontas pra usar`
-          }, sem custo.</b> Elas rodam na sua máquina — nada sai daqui. Já dá pra conversar.</div>
-            <button id="fr-comecar" class="primary"><span data-icon="check"></span> Começar agora</button></div>`
+          `<div class="aviso ok"><div><b>${plural(
+            found.length,
+            'Uma IA pronta pra usar, sem custo.',
+            '{n} IAs prontas pra usar, sem custo.'
+          )}</b> ${t(
+            'Elas rodam na sua máquina — nada sai daqui. Já dá pra conversar.'
+          )}</div>
+            <button id="fr-comecar" class="primary"><span data-icon="check"></span> ${t(
+              'Começar agora'
+            )}</button></div>`
         : `<div class="achado">
-            <div class="tag off"><div class="pt"></div>não</div>
-            <span>Não achei IA instalada nesta máquina <span class="muted">— abra o Ollama ou o LM Studio e toque em Procurar agora de novo</span></span>
+            <div class="tag off"><div class="pt"></div>${t('não')}</div>
+            <span>${t('Não achei IA instalada nesta máquina')} <span class="muted">— ${t(
+              'abra o Ollama ou o LM Studio e toque em Procurar agora de novo'
+            )}</span></span>
           </div>`;
       paintIcons(alvo);
       await load();
@@ -572,30 +603,33 @@ function renderFirstRun() {
   $('#fr-providers').onclick = () => switchView('providers');
 }
 
-// A fileira de pílulas da tela vazia. Rótulos literais do handoff.
-const ATALHOS = [
-  ['users', 'Perguntar pra várias', 'council'],
-  ['globe', 'Pesquisar na web', 'research'],
-  ['file', 'Ler um arquivo', 'arquivo'],
-  ['code', 'Programar no terminal', 'code'],
-  ['brain', 'O que você sabe de mim', 'memory']
+// A fileira de pílulas da tela vazia. Rótulos literais do handoff. É função, e
+// não lista pronta: uma lista montada na carga do módulo congelaria os rótulos
+// no português, antes de o dicionário existir e sem voltar a mudar quando a
+// pessoa troca de idioma.
+const ATALHOS = () => [
+  ['users', t('Perguntar pra várias'), 'council'],
+  ['globe', t('Pesquisar na web'), 'research'],
+  ['file', t('Ler um arquivo'), 'arquivo'],
+  ['code', t('Programar no terminal'), 'code'],
+  ['brain', t('O que você sabe de mim'), 'memory']
 ];
 
 function renderEmptyState() {
   if (!chatModels().length) return renderFirstRun();
   const gem = state.gems.find((g) => g.id === state.gemId);
   // A saudação não inventa nome: o servidor ainda não guarda um.
-  const quem = [gem?.name, state.model ? modelLabel(state.model) : 'nenhuma IA escolhida']
+  const quem = [gem?.name, state.model ? modelLabel(state.model) : t('nenhuma IA escolhida')]
     .filter(Boolean)
     .join(' · ');
   // Atalho pra tela que ainda não existe é beco sem saída: só entra com a view.
-  const atalhos = ATALHOS.filter(([, , alvo]) => alvo !== 'code' || $('#view-code'));
+  const atalhos = ATALHOS().filter(([, , alvo]) => alvo !== 'code' || $('#view-code'));
 
   $('#messages').innerHTML = `
     <div class="vazio">
       <div class="topo">
         ${roseta(54, 'bloom')}
-        <h1>Pode falar.<span>${escapeHtml(quem)}</span></h1>
+        <h1>${t('Pode falar.')}<span>${escapeHtml(quem)}</span></h1>
       </div>
       <div class="atalhos">
         ${atalhos
@@ -632,7 +666,12 @@ function setStats(el, stats) {
   // Tempo até a primeira palavra continua útil em modelo local, mas não cabe
   // na linha de três números: fica no title.
   if (stats.ttft != null) {
-    alvo.title = `primeira palavra em ${(stats.ttft / 1000).toFixed(1).replace('.', ',')} s`;
+    alvo.title = t('primeira palavra em {tempo} s', {
+      tempo: formatarNumero(stats.ttft / 1000, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      })
+    });
   }
 }
 
@@ -643,7 +682,9 @@ function setStats(el, stats) {
 function prependReasoning(el, text) {
   const details = document.createElement('details');
   details.className = 'reasoning live';
-  details.innerHTML = `<summary>${roseta(18, 'pensa')} <span class="rot">pensando…</span></summary>
+  details.innerHTML = `<summary>${roseta(18, 'pensa')} <span class="rot">${t(
+    'pensando…'
+  )}</span></summary>
     <div class="think"></div>`;
   details.querySelector('.think').textContent = text;
   el.querySelector('.body').before(details);
@@ -655,9 +696,17 @@ function endReasoning(el, segundos) {
   const details = el.querySelector('.reasoning');
   if (!details) return;
   details.classList.remove('live');
-  const tempo = segundos == null ? '' : ` · ${segundos.toFixed(1).replace('.', ',')} s`;
+  const rotulo =
+    segundos == null
+      ? t('como pensou')
+      : t('como pensou · {tempo} s', {
+          tempo: formatarNumero(segundos, {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+          })
+        });
   details.querySelector('summary').innerHTML =
-    `<span class="ico">${icon('chevron', 16)}</span> <span class="rot">como pensou${tempo}</span>`;
+    `<span class="ico">${icon('chevron', 16)}</span> <span class="rot">${rotulo}</span>`;
 }
 
 async function openChat(id, focusId) {
@@ -778,24 +827,31 @@ async function consumeTurn(path, body, ganchos = {}) {
             break;
           case 'docs-used':
             addNote(
-              `usando ${ev.items
-                .map((i) => escapeHtml(i.source) + (i.whole ? '' : ` (trecho ${i.ord + 1})`))
-                .join(' · ')}`,
+              t('usando {lista}', {
+                lista: ev.items
+                  .map(
+                    (i) =>
+                      escapeHtml(i.source) +
+                      (i.whole ? '' : ` ${t('(trecho {n})', { n: i.ord + 1 })}`)
+                  )
+                  .join(' · ')
+              }),
               '',
               'paperclip'
             );
             break;
           case 'web-used':
             addNote(
-              'web: ' +
-                ev.hits
+              t('web: {lista}', {
+                lista: ev.hits
                   .map(
                     (h) =>
                       `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">[${h.n}] ${escapeHtml(
                         h.title.slice(0, 60)
                       )}</a>`
                   )
-                  .join(' · '),
+                  .join(' · ')
+              }),
               '',
               'globe'
             );
@@ -804,7 +860,11 @@ async function consumeTurn(path, body, ganchos = {}) {
             // Um bloco só, que cresce — oito passos viravam oito avisos soltos
             // empurrando a conversa pra cima.
             if (!trilhaEl) {
-              trilhaEl = addNote('<b>navegando</b><div class="trilha"></div>', 'agente', 'globe');
+              trilhaEl = addNote(
+                `<b>${t('navegando')}</b><div class="trilha"></div>`,
+                'agente',
+                'globe'
+              );
             }
             trilhaEl.querySelector('.trilha').insertAdjacentHTML(
               'beforeend',
@@ -819,8 +879,10 @@ async function consumeTurn(path, body, ganchos = {}) {
             // A conversa inteira está na tela, mas o modelo só recebeu o fim
             // dela. Sem este aviso, ele parece ter esquecido do nada.
             addNote(
-              `conversa longa: só as últimas ${ev.sent} mensagens foram enviadas ao modelo ` +
-                `(${ev.dropped} ficaram de fora). O que virou memória continua valendo.`,
+              t(
+                'conversa longa: só as últimas {enviadas} mensagens foram enviadas ao modelo ({fora} ficaram de fora). O que virou memória continua valendo.',
+                { enviadas: ev.sent, fora: ev.dropped }
+              ),
               '',
               'alert'
             );
@@ -876,8 +938,9 @@ async function consumeTurn(path, body, ganchos = {}) {
             const fatos = ev.items;
             const quais = fatos.map((i) => `<b>${escapeHtml(i.text)}</b>`).join(' · ');
             const nota = addNote(
-              `Guardei: ${quais}. Todas as IAs vão saber disso. ` +
-                `<a href="#" data-act="mudar">mudar</a> · <a href="#" data-act="esquecer">esquecer</a>`,
+              `${t('Guardei: {quais}. Todas as IAs vão saber disso.', { quais })} ` +
+                `<a href="#" data-act="mudar">${t('mudar')}</a> · ` +
+                `<a href="#" data-act="esquecer">${t('esquecer')}</a>`,
               'new',
               'brain'
             );
@@ -889,7 +952,7 @@ async function consumeTurn(path, body, ganchos = {}) {
               e.preventDefault();
               for (const f of fatos) await api(`/memories/${f.id}`, { method: 'DELETE' });
               nota.remove();
-              toast('esqueci', 'ok');
+              toast(t('esqueci'), 'ok');
             };
             break;
           }
@@ -920,7 +983,13 @@ async function consumeTurn(path, body, ganchos = {}) {
 async function send(text, ganchos) {
   if (!text.trim()) return null;
   if (!state.model) {
-    addNote('Nenhuma IA escolhida. Abra <b>IAs ligadas</b> e ligue uma.', 'err', 'alert');
+    addNote(
+      t('Nenhuma IA escolhida. Abra {onde} e ligue uma.', {
+        onde: `<b>${t('IAs ligadas')}</b>`
+      }),
+      'err',
+      'alert'
+    );
     return null;
   }
   const anonimo = $('#app').classList.contains('anon');
@@ -970,17 +1039,22 @@ function renderAttachBar() {
     // superfície, mas continua no title de quem quiser saber.
     const tipo = att.name.includes('.')
       ? att.name.split('.').pop().slice(0, 4).toLowerCase()
-      : 'arq';
+      : t('arq');
     const chip = document.createElement('span');
     chip.className = `chip${att.status === 'erro' ? ' err' : ''}`;
     chip.innerHTML = `
       <span class="tipo">${escapeHtml(tipo)}</span>
       <span class="nome">${escapeHtml(att.name)}</span>
-      <button type="button" title="tirar da conversa" aria-label="tirar ${escapeHtml(
-        att.name
-      )} da conversa">${icon('close', 15)}</button>`;
+      <button type="button" title="${t('tirar da conversa')}" aria-label="${t(
+        'tirar {nome} da conversa',
+        { nome: escapeHtml(att.name) }
+      )}">${icon('close', 15)}</button>`;
     chip.title =
-      att.note || `${att.chunks ?? 0} trecho(s) · ${Math.round(att.bytes / 1000)} kB`;
+      att.note ||
+      t('{trechos} trecho(s) · {kb} kB', {
+        trechos: att.chunks ?? 0,
+        kb: Math.round(att.bytes / 1000)
+      });
     chip.querySelector('button').onclick = async () => {
       await api(`/attachments/${att.id}`, { method: 'DELETE' });
       state.attachments = state.attachments.filter((a) => a.id !== att.id);
@@ -993,7 +1067,11 @@ function renderAttachBar() {
 async function uploadFiles(files) {
   const chatId = await ensureChat();
   for (const file of files) {
-    const pending = addNote(`indexando ${escapeHtml(file.name)}...`, '', 'paperclip');
+    const pending = addNote(
+      t('indexando {nome}...', { nome: escapeHtml(file.name) }),
+      '',
+      'paperclip'
+    );
     try {
       const att = await api(
         `/chats/${chatId}/attachments?name=${encodeURIComponent(file.name)}`,
@@ -1002,10 +1080,17 @@ async function uploadFiles(files) {
       state.attachments.push(att);
       pending.remove();
       if (att.status === 'erro') {
-        addNote(`${escapeHtml(file.name)}: ${escapeHtml(att.note || 'sem texto legível')}`, 'err', 'alert');
+        addNote(
+          `${escapeHtml(file.name)}: ${escapeHtml(att.note || t('sem texto legível'))}`,
+          'err',
+          'alert'
+        );
       } else {
         addNote(
-          `${escapeHtml(file.name)} — ${att.chunks} trecho(s), ${att.chars} caracteres`,
+          `${escapeHtml(file.name)} — ${t('{trechos} trecho(s), {chars} caracteres', {
+            trechos: att.chunks,
+            chars: att.chars
+          })}`,
           'new',
           'paperclip'
         );
@@ -1026,7 +1111,7 @@ function semMarcacao(text) {
 }
 
 function speak(text) {
-  if (!('speechSynthesis' in window)) return toast('este navegador não lê em voz alta', 'err');
+  if (!('speechSynthesis' in window)) return toast(t('este navegador não lê em voz alta'), 'err');
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(semMarcacao(text));
   utterance.lang = 'pt-BR';
@@ -1036,7 +1121,7 @@ function speak(text) {
 let recognition = null;
 function toggleDictation() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) return toast('este navegador não tem ditado', 'err');
+  if (!Recognition) return toast(t('este navegador não tem ditado'), 'err');
   if (recognition) {
     recognition.stop();
     return;
@@ -1056,7 +1141,7 @@ function toggleDictation() {
     input.value = (base ? base + ' ' : '') + text;
     autosize(input);
   };
-  recognition.onerror = (ev) => toast(`ditado: ${ev.error}`, 'err');
+  recognition.onerror = (ev) => toast(t('ditado: {erro}', { erro: ev.error }), 'err');
   recognition.onend = () => {
     recognition = null;
     $('#btn-mic').classList.remove('on', 'toggle');
@@ -1088,7 +1173,7 @@ function vozOuvir() {
     // Turno a turno: a pausa da pessoa é o que fecha a vez dela de falar.
     rec.continuous = false;
     let dito = '';
-    vozDiz('ouvindo…');
+    vozDiz(t('ouvindo…'));
     rec.onresult = (ev) => {
       let texto = '';
       for (let i = 0; i < ev.results.length; i++) texto += ev.results[i][0].transcript;
@@ -1099,7 +1184,7 @@ function vozOuvir() {
     rec.onerror = (ev) => {
       // 'no-speech' e 'aborted' são o silêncio e o fechar — não são defeito.
       if (ev.error !== 'no-speech' && ev.error !== 'aborted') {
-        vozDiz(`o ditado falhou: ${ev.error}`);
+        vozDiz(t('o ditado falhou: {erro}', { erro: ev.error }));
       }
     };
     rec.onend = () => {
@@ -1133,18 +1218,23 @@ async function vozCiclo() {
     if (!voz.aberto) return;
     if (!dito) continue;
 
-    vozDiz('pensando…');
+    vozDiz(t('pensando…'));
     let resposta = null;
     try {
       resposta = await send(dito, {
         memoria: (itens) => {
           if (!itens.length) return;
-          const n = itens.length;
-          vozDiz(`pensando…\nusando ${n} ${n === 1 ? 'coisa que sabe' : 'coisas que sabe'} de você`);
+          vozDiz(
+            `${t('pensando…')}\n${plural(
+              itens.length,
+              'usando 1 coisa que sabe de você',
+              'usando {n} coisas que sabe de você'
+            )}`
+          );
         }
       });
     } catch (err) {
-      vozDiz(err.message || 'não deu pra falar com o servidor');
+      vozDiz(err.message || t('não deu pra falar com o servidor'));
       await new Promise((r) => setTimeout(r, 1800));
       continue;
     }
@@ -1159,14 +1249,14 @@ async function vozCiclo() {
 
 function abrirVoz() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) return toast('este navegador não tem ditado', 'err');
+  if (!Recognition) return toast(t('este navegador não tem ditado'), 'err');
   if (voz.aberto) return;
   voz.aberto = true;
   voz.mudo = false;
   $('#voice').classList.remove('mudo', 'falando');
   $('#voice-mudo').setAttribute('aria-pressed', 'false');
   $('#voice-marca').innerHTML = roseta(78, 'grande');
-  $('#voice-quem').textContent = `${modelLabel(state.model)} · responde falando`;
+  $('#voice-quem').textContent = `${modelLabel(state.model)} · ${t('responde falando')}`;
   $('#voice').hidden = false;
   paintIcons($('#voice'));
   vozCiclo();
@@ -1187,13 +1277,13 @@ function vozMudo() {
   voz.mudo = !voz.mudo;
   $('#voice').classList.toggle('mudo', voz.mudo);
   $('#voice-mudo').setAttribute('aria-pressed', String(voz.mudo));
-  const rotuloMudo = voz.mudo ? 'voltar a ouvir' : 'silenciar';
+  const rotuloMudo = voz.mudo ? t('voltar a ouvir') : t('silenciar');
   $('#voice-mudo').title = rotuloMudo;
   $('#voice-mudo').setAttribute('aria-label', rotuloMudo);
   if (voz.mudo) {
     voz.rec?.abort();
     if ('speechSynthesis' in window) speechSynthesis.cancel();
-    vozDiz('microfone desligado');
+    vozDiz(t('microfone desligado'));
   }
 }
 
@@ -1208,9 +1298,9 @@ function renderTune() {
   const chat = state.chat || {};
   tune.hidden = false;
   tune.innerHTML = `
-    <label>Perfil
+    <label>${t('Perfil')}
       <select id="t-gem">
-        <option value="">sem perfil</option>
+        <option value="">${t('sem perfil')}</option>
         ${state.gems
           .map(
             (g) =>
@@ -1219,9 +1309,9 @@ function renderTune() {
           .join('')}
       </select>
     </label>
-    <label>Projeto
+    <label>${t('Projeto')}
       <select id="t-project">
-        <option value="">sem projeto</option>
+        <option value="">${t('sem projeto')}</option>
         ${state.projects
           .map(
             (p) =>
@@ -1230,27 +1320,27 @@ function renderTune() {
           .join('')}
       </select>
     </label>
-    <label class="full">Prompt de sistema desta conversa (vence o da gem)
-      <textarea id="t-system" rows="3" placeholder="deixe vazio pra usar o do perfil">${escapeHtml(
-        chat.system_prompt || ''
-      )}</textarea>
+    <label class="full">${t('Prompt de sistema desta conversa (vence o da gem)')}
+      <textarea id="t-system" rows="3" placeholder="${t(
+        'deixe vazio pra usar o do perfil'
+      )}">${escapeHtml(chat.system_prompt || '')}</textarea>
     </label>
-    <label>Temperatura <input id="t-temp" type="number" step="0.05" min="0" max="2" value="${chat.temperature ?? ''}" /></label>
-    <label>Quão variado é o vocabulário, de 0 a 1 (top_p) <input id="t-topp" type="number" step="0.05" min="0" max="1" value="${chat.top_p ?? ''}" /></label>
-    <label>Limite de tokens <input id="t-max" type="number" min="1" value="${chat.max_tokens ?? ''}" /></label>
-    <label>Modo
+    <label>${t('Temperatura')} <input id="t-temp" type="number" step="0.05" min="0" max="2" value="${chat.temperature ?? ''}" /></label>
+    <label>${t('Quão variado é o vocabulário, de 0 a 1 (top_p)')} <input id="t-topp" type="number" step="0.05" min="0" max="1" value="${chat.top_p ?? ''}" /></label>
+    <label>${t('Limite de tokens')} <input id="t-max" type="number" min="1" value="${chat.max_tokens ?? ''}" /></label>
+    <label>${t('Modo')}
       <select id="t-mode">
-        <option value="chat"${chat.mode === 'chat' ? ' selected' : ''}>conversa</option>
-        <option value="coding"${chat.mode === 'coding' ? ' selected' : ''}>programar</option>
+        <option value="chat"${chat.mode === 'chat' ? ' selected' : ''}>${t('conversa')}</option>
+        <option value="coding"${chat.mode === 'coding' ? ' selected' : ''}>${t('programar')}</option>
       </select>
     </label>
     <div class="full row">
-      <button id="t-save" class="primary">Aplicar</button>
-      <span class="meta">Deixe vazio pra usar o que a IA já traz de fábrica.</span>
+      <button id="t-save" class="primary">${t('Aplicar')}</button>
+      <span class="meta">${t('Deixe vazio pra usar o que a IA já traz de fábrica.')}</span>
     </div>`;
 
   tune.querySelector('#t-save').onclick = async () => {
-    if (!state.chatId) return toast('mande uma mensagem primeiro', 'err');
+    if (!state.chatId) return toast(t('mande uma mensagem primeiro'), 'err');
     const num = (sel) => {
       const value = tune.querySelector(sel).value;
       return value === '' ? null : Number(value);
@@ -1272,7 +1362,7 @@ function renderTune() {
     });
     renderTopbar();
     tune.hidden = true;
-    toast('ajustes aplicados', 'ok');
+    toast(t('ajustes aplicados'), 'ok');
   };
 }
 
@@ -1322,11 +1412,11 @@ function renderView() {
     // Reescrever a classe crua apagaria a animação de entrada antes de rodar.
     alvo.className = `view panel${alvo.classList.contains('entra') ? ' entra' : ''}`;
     alvo.innerHTML = `<div class="panel-inner">
-        <p class="hint">${escapeHtml(err.message || 'não deu pra falar com o servidor')}</p>
-        <button id="btn-tentar-de-novo">Tentar de novo</button>
+        <p class="hint">${escapeHtml(err.message || t('não deu pra falar com o servidor'))}</p>
+        <button id="btn-tentar-de-novo">${t('Tentar de novo')}</button>
       </div>`;
     alvo.querySelector('#btn-tentar-de-novo').onclick = () => renderView();
-    toast(err.message || 'servidor fora do ar', 'err');
+    toast(err.message || t('servidor fora do ar'), 'err');
   });
 }
 
@@ -1346,43 +1436,49 @@ function startChatInProject(project) {
 
 function commands() {
   const list = [
-    { icon: 'plus', label: 'Nova conversa', run: newChat, key: '⌘N' },
-    { icon: 'alert', label: 'Conversa anônima', run: toggleAnon, key: '⇧⌘N' },
-    { icon: 'spark', label: 'Ajustes desta conversa', run: renderTune, key: '⌘,' },
-    { icon: 'users', label: 'Perguntar pra várias', run: () => switchView('council') },
-    { icon: 'globe', label: 'Pesquisar na web', run: () => switchView('research') },
-    { icon: 'brain', label: 'Ver memória', run: () => switchView('memory') },
-    { icon: 'folder', label: 'Projetos', run: () => switchView('projects') },
-    { icon: 'sparkle', label: 'Perfis', run: () => switchView('gems') },
-    { icon: 'plug', label: 'IAs ligadas', run: () => switchView('providers') },
-    { icon: 'settings', label: 'Ajustes', run: () => switchView('settings') },
-    { icon: 'paperclip', label: 'Anexar arquivo', run: () => $('#file-input').click() },
+    { icon: 'plus', label: t('Nova conversa'), run: newChat, key: '⌘N' },
+    { icon: 'alert', label: t('Conversa anônima'), run: toggleAnon, key: '⇧⌘N' },
+    { icon: 'spark', label: t('Ajustes desta conversa'), run: renderTune, key: '⌘,' },
+    { icon: 'users', label: t('Perguntar pra várias'), run: () => switchView('council') },
+    { icon: 'globe', label: t('Pesquisar na web'), run: () => switchView('research') },
+    { icon: 'brain', label: t('Ver memória'), run: () => switchView('memory') },
+    { icon: 'folder', label: t('Projetos'), run: () => switchView('projects') },
+    { icon: 'sparkle', label: t('Perfis'), run: () => switchView('gems') },
+    { icon: 'plug', label: t('IAs ligadas'), run: () => switchView('providers') },
+    { icon: 'settings', label: t('Ajustes'), run: () => switchView('settings') },
+    { icon: 'paperclip', label: t('Anexar arquivo'), run: () => $('#file-input').click() },
     {
       icon: 'globe',
-      label: state.useWeb ? 'Desligar o agente de navegador' : 'Ligar o agente de navegador',
+      label: state.useWeb
+        ? t('Desligar o agente de navegador')
+        : t('Ligar o agente de navegador'),
       run: toggleWeb
     },
     {
       icon: 'sun',
-      label: 'Alternar tema claro/escuro',
+      label: t('Alternar tema claro/escuro'),
       run: () =>
         applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light')
     },
-    { icon: 'download', label: 'Exportar conversa em Markdown', run: () => exportChat('md') },
-    { icon: 'file', label: 'Exportar conversa em JSON', run: () => exportChat('json') }
+    { icon: 'download', label: t('Exportar conversa em Markdown'), run: () => exportChat('md') },
+    { icon: 'file', label: t('Exportar conversa em JSON'), run: () => exportChat('json') }
   ];
   for (const gem of state.gems) {
-    list.push({ icon: gem.icon, label: `Conversar com ${gem.name}`, run: () => startChatWithGem(gem) });
+    list.push({
+      icon: gem.icon,
+      label: t('Conversar com {nome}', { nome: gem.name }),
+      run: () => startChatWithGem(gem)
+    });
   }
   for (const model of chatModels()) {
     list.push({
       icon: 'cpu',
-      label: `Trocar para ${model.label}`,
+      label: t('Trocar para {modelo}', { modelo: model.label }),
       run: () => {
         state.model = model.ref;
         localStorage.setItem('iaunifier.model', model.ref);
         renderTopbar();
-        toast(`agora responde ${model.label}`);
+        toast(t('agora responde {modelo}', { modelo: model.label }));
       }
     });
   }
@@ -1443,13 +1539,13 @@ function toggleWeb() {
   }
   toast(
     state.useWeb
-      ? 'agente de navegador ligado: o modelo abre o navegador e navega sozinho'
-      : 'agente de navegador desligado'
+      ? t('agente de navegador ligado: o modelo abre o navegador e navega sozinho')
+      : t('agente de navegador desligado')
   );
 }
 
 async function exportChat(format) {
-  if (!state.chatId) return toast('nenhuma conversa aberta', 'err');
+  if (!state.chatId) return toast(t('nenhuma conversa aberta'), 'err');
   if (format === 'json') {
     const data = await api(`/chats/${state.chatId}/export?format=json`);
     download(`${data.chat.title}.json`, JSON.stringify(data, null, 2), 'application/json');
@@ -1716,4 +1812,6 @@ load()
   .then(() => {
     if (!state.messages.length) renderEmptyState();
   })
-  .catch((err) => addNote(`não carregou: ${escapeHtml(err.message)}`, 'err', 'alert'));
+  .catch((err) =>
+    addNote(t('não carregou: {erro}', { erro: escapeHtml(err.message) }), 'err', 'alert')
+  );

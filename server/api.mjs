@@ -4,6 +4,10 @@
 import { all, one, run, uid, now, parseJSON } from './db.mjs';
 import { loadConfig, patchConfig, setSecret, listSecretNames } from './config.mjs';
 import { escolherIdioma, IDIOMAS } from './idioma.mjs';
+import { estadoDoOllama, ligarOllama, instalarOllama, receitaManual } from './instalar.mjs';
+import { catalogoEmCache, medirModelo } from './catalogo-hf.mjs';
+import { plataformaDaMaquina, versaoDisponivel, baixarChromium, chromiumBaixado } from './chromium.mjs';
+import { acharNavegador } from './navegador.mjs';
 import {
   PRESETS,
   adapterFor,
@@ -228,6 +232,90 @@ export async function handleApi(req, res, url) {
       chats: listChats(),
       settings: settingsView(req)
     });
+  }
+
+  // --- o que falta pra tudo funcionar, e o botao que resolve ---------------
+  //
+  // A tela nao pergunta "voce tem Ollama?": ela pergunta ao servidor o que
+  // falta e recebe junto o rotulo do botao certo. Antes disso a interface so
+  // sabia dizer "ligue o Ollama primeiro", frase que nao ajuda quem nunca
+  // ouviu falar em Ollama.
+  if (method === 'GET' && path === '/requisitos') {
+    const [ollama] = await Promise.all([estadoDoOllama({})]);
+    const instalado = acharNavegador();
+    const proprio = chromiumBaixado();
+    return json(res, {
+      ollama: {
+        ...ollama,
+        // "no_ar" nao precisa de botao; "instalado_parado" precisa de um clique
+        // barato; "ausente" precisa de download.
+        acao: ollama.estado === 'no_ar' ? null : ollama.estado === 'instalado_parado' ? 'ligar' : 'instalar',
+        manual: ollama.estado === 'ausente' ? receitaManual() : null
+      },
+      navegador: {
+        instalado,
+        proprio,
+        plataforma: plataformaDaMaquina(),
+        acao: instalado || proprio ? null : plataformaDaMaquina() ? 'baixar' : 'sem_jeito'
+      }
+    });
+  }
+
+  if (method === 'POST' && path === '/requisitos/ollama/ligar') {
+    const subiu = await ligarOllama({});
+    return json(res, { ok: subiu, ...(await estadoDoOllama({})) });
+  }
+
+  if (method === 'POST' && path === '/requisitos/ollama/instalar') {
+    const { signal, send, end } = openStream(req, res);
+    try {
+      for await (const ev of instalarOllama({ signal })) send(ev);
+      send({ type: 'pronto', ...(await estadoDoOllama({})) });
+    } catch (err) {
+      send({ type: 'error', error: err.message, manual: receitaManual() });
+    }
+    return end();
+  }
+
+  if (method === 'POST' && path === '/requisitos/navegador/baixar') {
+    const { signal, send, end } = openStream(req, res);
+    try {
+      let binario = null;
+      for await (const ev of baixarChromium({ signal })) {
+        if (ev?.binario) binario = ev.binario;
+        send(ev);
+      }
+      binario = binario || chromiumBaixado();
+      // Guardar o caminho e o que faz o modo agente parar de procurar Chrome
+      // instalado e passar a usar este.
+      if (binario) patchConfig({ navegador: { fonte: 'proprio', binario } });
+      send({ type: 'pronto', binario });
+    } catch (err) {
+      send({ type: 'error', error: err.message });
+    }
+    return end();
+  }
+
+  if (method === 'GET' && path === '/requisitos/navegador/versao') {
+    try {
+      return json(res, await versaoDisponivel({}));
+    } catch (err) {
+      return json(res, { error: err.message }, 502);
+    }
+  }
+
+  // --- catalogo de modelos, puxado do Hugging Face -------------------------
+  if (method === 'GET' && path === '/catalogo') {
+    const { modelos, de, quando } = await catalogoEmCache({});
+    return json(res, { modelos, de, quando });
+  }
+
+  // O tamanho sai medido um a um, sob demanda: medir os cem de uma vez custa
+  // cem pedidos e encosta no teto anonimo do Hugging Face.
+  if (method === 'GET' && seg[0] === 'catalogo' && seg[1] === 'tamanho') {
+    const id = url.searchParams.get('id') || '';
+    if (!id) return json(res, { error: 'falta o id do modelo' }, 400);
+    return json(res, await medirModelo(id, {}));
   }
 
   // --- busca global --------------------------------------------------------
