@@ -740,3 +740,45 @@ Quatro coisas separadas aqui:
   comparação "por que este e não aquele" — e **avisa que os dados ainda não
   existem**, pra ele não inventar campo. Construir isso no back-end é tarefa
   minha, e fica na fila.
+
+## 18/08/2026 — o desenho voltou do Claude Design
+
+Chegou o `design_handoff_nuvo_ui.zip`. **É bom.** Tem a personalidade que faltava
+e é código de verdade, não maquete.
+
+O que conferi antes de qualquer coisa:
+
+- **é aplicável.** O `styles.css` dele cobre **64 das 65 classes** que o app
+  emite (a folha atual cobre 54, e as faltas são as mesmas — ganchos que só o JS
+  usa). A única perda é `.score`, da tabela de votação. 1516 linhas contra 772;
+- **respeitou a fiação.** Nenhum `id` removido, nenhum `data-view` trocado, e
+  ele lista as 10 mudanças de marcação que precisa. Apliquei duas: o
+  `<canvas id="glow">` como primeiro filho do `#main`, e o compositor
+  reorganizado (campo em cima, controles numa `.composer-linha` embaixo, com o
+  seletor de modelo migrado da barra de cima). Sem essa segunda, os botões do
+  compositor empilham — foi o único estrago visível do CSS sozinho;
+- **roda.** Protótipo sem um erro de console; app real com o CSS novo sobe,
+  serve, e os 289 testes continuam passando;
+- **entregou o que eu pedi no prompt**: as colunas do conselho com trilho de
+  progresso e estados, a curadoria estilo LM Studio ("cabe com folga", "escreve
+  código melhor que a Llama 8B e roda quase na mesma velocidade"), a linguagem
+  sem jargão ("IAs ligadas", "quão criativa", "palavras-token"), e a marca
+  própria — uma roseta de seis lóbulos com quatro modos de animação.
+
+**Está no branch `desenho-nuvo`, não na `main`**, porque tem decisões que são
+suas:
+
+1. **ele renomeou o app pra "Nuvo".** Isso não estava no prompt, é escolha dele.
+   O repositório, o domínio e o ícone são "IAUnifier". Manter ou trocar é você
+   que diz;
+2. **ele corta coisas**: `#btn-export` e `#btn-palette` saem da barra (a paleta
+   vira ⌘K), e renomeia Gems → Perfis, Provedores → IAs ligadas, Config →
+   Ajustes;
+3. **quatro telas novas que o back-end não tem**: Programar no terminal, Modo
+   voz, Conversa anônima e a curadoria de modelo por máquina. Essa última eu já
+   sabia que faltava — o servidor não lê RAM nem chip. As outras três são
+   funcionalidade nova, não desenho.
+
+Falta ainda, pra ficar completo: o `glow.js` está copiado mas **não é chamado**
+por ninguém (precisa entrar no `app.js` nos três momentos), e as oito mudanças
+de marcação restantes.
