@@ -3,6 +3,7 @@
 
 import { all, one, run, uid, now, parseJSON } from './db.mjs';
 import { loadConfig, patchConfig, setSecret, listSecretNames } from './config.mjs';
+import { escolherIdioma, IDIOMAS } from './idioma.mjs';
 import {
   PRESETS,
   adapterFor,
@@ -180,7 +181,7 @@ function providerView(p) {
   };
 }
 
-function settingsView() {
+function settingsView(req) {
   const cfg = loadConfig();
   return {
     port: cfg.port,
@@ -188,7 +189,16 @@ function settingsView() {
     requireToken: cfg.requireToken,
     memory: cfg.memory,
     secrets: listSecretNames(),
-    embeddingAvailable: embeddingAvailable()
+    embeddingAvailable: embeddingAvailable(),
+    idioma: cfg.idioma || null,
+    idiomas: IDIOMAS,
+    // O palpite sai do `Accept-Language` do próprio pedido: é o idioma que a
+    // pessoa configurou no navegador, e chega de graça em toda requisição. A
+    // tela usa isso só quando ela ainda não escolheu nada na mão.
+    idiomaSugerido: escolherIdioma({
+      escolhido: cfg.idioma,
+      aceito: req?.headers?.['accept-language']
+    })
   };
 }
 
@@ -216,7 +226,7 @@ export async function handleApi(req, res, url) {
       gems: all('SELECT * FROM gems ORDER BY created_at'),
       projects: all('SELECT * FROM projects ORDER BY created_at'),
       chats: listChats(),
-      settings: settingsView()
+      settings: settingsView(req)
     });
   }
 
@@ -831,13 +841,17 @@ export async function handleApi(req, res, url) {
   }
 
   // --- configuração --------------------------------------------------------
-  if (method === 'GET' && path === '/settings') return json(res, settingsView());
+  if (method === 'GET' && path === '/settings') return json(res, settingsView(req));
   if (method === 'PATCH' && path === '/settings') {
     const b = await readJSON(req);
     // Só repassa o que veio: `requireToken: undefined` desligaria o token.
     const patch = {};
     if (b.memory) patch.memory = b.memory;
     if (b.limits) patch.limits = b.limits;
+    if (b.navegador) patch.navegador = b.navegador;
+    // Idioma que o app não fala não vira config: guardar um valor que ninguém
+    // sabe carregar faria a tela cair no padrão sem dizer por quê.
+    if (b.idioma !== undefined) patch.idioma = IDIOMAS.includes(b.idioma) ? b.idioma : null;
 
     const antes = loadConfig().requireToken;
     if (b.requireToken !== undefined) patch.requireToken = !!b.requireToken;
@@ -849,9 +863,9 @@ export async function handleApi(req, res, url) {
     // navegava sem token tinha acesso a tudo de qualquer jeito, então não há o
     // que proteger dele neste instante.
     if (!antes && patch.requireToken) {
-      return json(res, { ...settingsView(), accessToken: loadConfig().accessToken });
+      return json(res, { ...settingsView(req), accessToken: loadConfig().accessToken });
     }
-    return json(res, settingsView());
+    return json(res, settingsView(req));
   }
   if (method === 'POST' && path === '/secrets') {
     const b = await readJSON(req);

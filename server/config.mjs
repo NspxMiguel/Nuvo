@@ -30,6 +30,9 @@ const DEFAULTS = {
     embeddingModel: null, // ex.: { provider: 'lmstudio', model: 'text-embedding-nomic-embed-text-v1.5' }
     extractorModel: null // ex.: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' }
   },
+  // Idioma escolhido na mão. `null` = ainda não escolheu, e aí vale o que o
+  // navegador pedir no `Accept-Language`.
+  idioma: null,
   navegador: {
     // O globo liga o agente de navegador. Desligado aqui, ele volta a ser a
     // busca de uma vez só — que é o que roda em máquina sem Chrome nenhum.

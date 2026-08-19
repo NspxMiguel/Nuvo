@@ -3,14 +3,18 @@
 // Guarda a casca (HTML, CSS, JS, ícones) e nunca toca em /api — resposta de
 // API com token e stream de conversa não podem sair de cache.
 
-const CACHE = 'iaunifier-v4';
+const CACHE = 'iaunifier-v5';
 // Módulo que o app importa e não está aqui só falta quando a rede cai — que é
 // exatamente quando o cache tinha que servir. O test/sw.test.mjs compara esta
 // lista com os arquivos de web/ pra não ficar pra trás de novo.
 const SHELL = [
   '/', '/index.html', '/styles.css',
-  '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js',
-  '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'
+  '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js', '/i18n.js',
+  '/manifest.webmanifest', '/icon-192.png', '/icon-512.png',
+  // Os dicionários entram na casca porque a tela sem rede tem que continuar no
+  // idioma que a pessoa escolheu — cair pro português seria a troca se desfazer
+  // justamente quando ela não pode refazer.
+  '/idiomas/en.json', '/idiomas/es.json'
 ];
 
 self.addEventListener('install', (event) => {

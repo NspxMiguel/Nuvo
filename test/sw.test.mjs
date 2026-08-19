@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 const web = fileURLToPath(new URL('../web/', import.meta.url));
 const sw = readFileSync(`${web}sw.js`, 'utf8');
@@ -26,7 +27,13 @@ test('todo módulo de web/ está na casca do service worker', () => {
 });
 
 test('a casca não promete arquivo que não existe', () => {
-  const existentes = new Set(readdirSync(web).map((f) => `/${f}`));
+  // `web/` tem subpasta desde os dicionários de idioma: uma leitura rasa não
+  // enxergaria `/idiomas/en.json` e acusaria arquivo inventado.
+  const andar = (dir, prefixo = '') =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? andar(join(dir, e.name), `${prefixo}/${e.name}`) : [`${prefixo}/${e.name}`]
+    );
+  const existentes = new Set(andar(web));
   // '/' é a própria raiz servida pelo index.html.
   const inventados = shell().filter((p) => p !== '/' && !existentes.has(p));
   assert.deepEqual(inventados, [], `na casca mas sem arquivo: ${inventados.join(', ')}`);

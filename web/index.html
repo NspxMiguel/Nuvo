@@ -23,26 +23,26 @@
       <aside id="sidebar">
         <header class="side-head">
           <span class="brand"><span id="brand-marca" class="brand-marca"></span><span class="brand-txt">IAUnifier</span></span>
-          <button id="btn-close-side" class="icon" title="recolher" aria-label="recolher a barra lateral">
+          <button id="btn-close-side" class="icon" title="recolher" aria-label="recolher a barra lateral" data-i18n-attr="title,aria-label">
             <span data-icon="close" data-size="22"></span>
           </button>
         </header>
 
         <div class="side-search">
           <span data-icon="search" data-size="19"></span>
-          <input id="side-search" type="search" placeholder="Buscar" />
+          <input id="side-search" type="search" placeholder="Buscar" data-i18n-attr="placeholder" />
         </div>
 
         <nav id="nav">
-          <button data-view="chat" class="nav-item active"><span data-icon="chat" data-size="20"></span> Conversas</button>
-          <button data-view="council" class="nav-item"><span data-icon="users" data-size="20"></span> Perguntar pra várias</button>
-          <button data-view="research" class="nav-item"><span data-icon="globe" data-size="20"></span> Pesquisar na web</button>
+          <button data-view="chat" class="nav-item active"><span data-icon="chat" data-size="20"></span> <span data-i18n>Conversas</span></button>
+          <button data-view="council" class="nav-item"><span data-icon="users" data-size="20"></span> <span data-i18n>Perguntar pra várias</span></button>
+          <button data-view="research" class="nav-item"><span data-icon="globe" data-size="20"></span> <span data-i18n>Pesquisar na web</span></button>
           <details id="nav-mais">
-            <summary class="nav-item"><span data-icon="layers" data-size="20"></span> Mais <span data-icon="chevron" data-size="17" class="seta"></span></summary>
-            <button data-view="memory" class="nav-item"><span data-icon="brain" data-size="20"></span> Memória <span id="n-memoria" class="badge-n"></span></button>
-            <button data-view="projects" class="nav-item"><span data-icon="folder" data-size="20"></span> Projetos</button>
-            <button data-view="gems" class="nav-item"><span data-icon="sparkle" data-size="20"></span> Perfis</button>
-            <button data-view="providers" class="nav-item"><span data-icon="plug" data-size="20"></span> IAs ligadas</button>
+            <summary class="nav-item"><span data-icon="layers" data-size="20"></span> <span data-i18n>Mais</span> <span data-icon="chevron" data-size="17" class="seta"></span></summary>
+            <button data-view="memory" class="nav-item"><span data-icon="brain" data-size="20"></span> <span data-i18n>Memória</span> <span id="n-memoria" class="badge-n"></span></button>
+            <button data-view="projects" class="nav-item"><span data-icon="folder" data-size="20"></span> <span data-i18n>Projetos</span></button>
+            <button data-view="gems" class="nav-item"><span data-icon="sparkle" data-size="20"></span> <span data-i18n>Perfis</span></button>
+            <button data-view="providers" class="nav-item"><span data-icon="plug" data-size="20"></span> <span data-i18n>IAs ligadas</span></button>
           </details>
         </nav>
 
@@ -50,18 +50,18 @@
 
         <footer class="side-foot">
           <button id="btn-new-chat" class="primary block">
-            <span data-icon="edit" data-size="19"></span> Nova conversa
+            <span data-icon="edit" data-size="19"></span> <span data-i18n>Nova conversa</span>
           </button>
-          <button data-view="settings" class="icon nav-item" title="ajustes" aria-label="ajustes">
+          <button data-view="settings" class="icon nav-item" title="ajustes" aria-label="ajustes" data-i18n-attr="title,aria-label">
             <span data-icon="settings" data-size="20"></span>
           </button>
           <!-- Fora da vista, dentro do DOM: o tema tem controle próprio em Ajustes
                e a paleta é ⌘K. Os dois ids continuam porque app.js liga onclick
                neles na carga, e o rodapé só comporta a pílula mais um ícone. -->
-          <button id="btn-theme" class="icon" title="tema" aria-label="trocar entre tema claro e escuro" hidden style="display: none">
+          <button id="btn-theme" class="icon" title="tema" aria-label="trocar entre tema claro e escuro" data-i18n-attr="title,aria-label" hidden style="display: none">
             <span data-icon="moon"></span>
           </button>
-          <button id="btn-palette" class="icon" title="paleta de comandos" aria-label="abrir a paleta de comandos" hidden style="display: none">
+          <button id="btn-palette" class="icon" title="paleta de comandos" aria-label="abrir a paleta de comandos" data-i18n-attr="title,aria-label" hidden style="display: none">
             <span data-icon="command"></span>
           </button>
           <span id="side-status" class="muted"></span>
@@ -71,14 +71,14 @@
       <main id="main">
         <canvas id="glow" aria-hidden="true"></canvas>
         <header id="topbar">
-          <button id="btn-open-side" class="icon" type="button" title="mostrar a barra lateral" aria-label="mostrar a barra lateral"><span data-icon="menu" data-size="20"></span></button>
-          <button id="btn-new-chat-top" class="icon" type="button" title="nova conversa" aria-label="nova conversa"><span data-icon="edit" data-size="19"></span></button>
+          <button id="btn-open-side" class="icon" type="button" title="mostrar a barra lateral" aria-label="mostrar a barra lateral" data-i18n-attr="title,aria-label"><span data-icon="menu" data-size="20"></span></button>
+          <button id="btn-new-chat-top" class="icon" type="button" title="nova conversa" aria-label="nova conversa" data-i18n-attr="title,aria-label"><span data-icon="edit" data-size="19"></span></button>
           <span id="chat-title"></span>
           <span class="grow"></span>
-          <button id="btn-web" class="icon toggle" type="button" aria-pressed="false" title="modo agente de navegador nesta conversa" aria-label="modo agente de navegador nesta conversa">
+          <button id="btn-web" class="icon toggle" type="button" aria-pressed="false" title="modo agente de navegador nesta conversa" aria-label="modo agente de navegador nesta conversa" data-i18n-attr="title,aria-label">
             <span data-icon="globe" data-size="19"></span>
           </button>
-          <button id="btn-anon" class="icon toggle" type="button" aria-pressed="false" title="conversa anônima" aria-label="conversa anônima, apagada ao sair">
+          <button id="btn-anon" class="icon toggle" type="button" aria-pressed="false" title="conversa anônima" aria-label="conversa anônima, apagada ao sair" data-i18n-attr="title,aria-label">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M3.4 12.6h17.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
               <path d="M6.6 12.4 8 7.8a2 2 0 0 1 2.5-1.3l1.5.5 1.5-.5a2 2 0 0 1 2.5 1.3l1.4 4.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -88,10 +88,10 @@
           </button>
           <!-- fora da barra no desenho novo, mas os ids seguem no DOM: quem chama
                agora é a lista de atalhos (⌘K) e o menu de exportar. -->
-          <button id="btn-tune" class="icon" type="button" hidden title="ajustes desta conversa" aria-label="ajustes desta conversa">
+          <button id="btn-tune" class="icon" type="button" hidden title="ajustes desta conversa" aria-label="ajustes desta conversa" data-i18n-attr="title,aria-label">
             <span data-icon="spark" data-size="19"></span>
           </button>
-          <button id="btn-export" class="icon" type="button" hidden title="exportar conversa" aria-label="exportar conversa">
+          <button id="btn-export" class="icon" type="button" hidden title="exportar conversa" aria-label="exportar conversa" data-i18n-attr="title,aria-label">
             <span data-icon="download" data-size="19"></span>
           </button>
         </header>
@@ -104,25 +104,25 @@
           <form id="composer">
             <textarea id="input" rows="1" placeholder="Fale com qualquer IA"></textarea>
             <div class="composer-linha">
-              <button id="btn-attach" class="icon" type="button" title="anexar" aria-label="anexar arquivo">
+              <button id="btn-attach" class="icon" type="button" title="anexar" aria-label="anexar arquivo" data-i18n-attr="title,aria-label">
                 <span data-icon="plus" data-size="21"></span>
               </button>
-              <button id="btn-mic" class="icon" type="button" title="ditar" aria-label="ditar">
+              <button id="btn-mic" class="icon" type="button" title="ditar" aria-label="ditar" data-i18n-attr="title,aria-label">
                 <span data-icon="mic" data-size="19"></span>
               </button>
               <span class="grow"></span>
               <select id="sel-model" title="qual IA responde"></select>
               <select id="sel-gem" title="perfil" hidden></select>
               <select id="sel-project" title="projeto" hidden></select>
-              <button id="btn-voice" class="voz" type="button" title="modo voz" aria-label="conversar por voz">
+              <button id="btn-voice" class="voz" type="button" title="modo voz" aria-label="conversar por voz" data-i18n-attr="title,aria-label">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="M4 8v4M7 5.5v9M10 3v14M13 5.5v9M16 8v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
                 </svg>
               </button>
-              <button id="btn-send" class="primary vazio" type="submit" title="enviar" aria-label="enviar mensagem">
+              <button id="btn-send" class="primary vazio" type="submit" title="enviar" aria-label="enviar mensagem" data-i18n-attr="title,aria-label">
                 <span data-icon="arrowUp" data-size="20"></span>
               </button>
-              <button id="btn-stop" class="icon" type="button" title="parar" aria-label="parar a resposta" hidden>
+              <button id="btn-stop" class="icon" type="button" title="parar" aria-label="parar a resposta" data-i18n-attr="title,aria-label" hidden>
                 <span data-icon="stop" data-size="18"></span>
               </button>
             </div>
@@ -150,7 +150,7 @@
     <!-- Modo voz: camada de vidro por cima de tudo. Fica no HTML e não no JS
          porque o CSS já a descreve inteira, inclusive as doze barras. -->
     <div id="voice" hidden>
-      <button id="voice-close" class="icon" type="button" title="fechar" aria-label="sair do modo voz"><span data-icon="close" data-size="22"></span></button>
+      <button id="voice-close" class="icon" type="button" title="fechar" aria-label="sair do modo voz" data-i18n-attr="title,aria-label"><span data-icon="close" data-size="22"></span></button>
       <div class="voice-meio">
         <div id="voice-marca"></div>
         <div class="voice-onda" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>

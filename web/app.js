@@ -8,6 +8,7 @@ import { icon } from './icons.js';
 import { ligarBrilho, roseta } from './glow.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { statsLine } from './format.js';
+import { iniciarIdioma, traduzirDocumento, aoTrocarIdioma, t } from './i18n.js';
 import { views } from './views.js';
 
 // A malha de pontinhos do rodapé nasce ao abrir o app, ao voltar pra uma
@@ -42,8 +43,21 @@ doSistema.addEventListener('change', (e) => {
 
 // -------------------------------------------------------------------- boot
 
+// Trocar idioma redesenha tudo que está na tela: o dicionário só vale pro
+// que for escrito a partir de agora, e o que já está escrito ficaria pra trás.
+aoTrocarIdioma(() => {
+  traduzirDocumento();
+  renderSidebar();
+  renderTopbar();
+  renderView();
+});
+
 async function load() {
   await refreshState();
+  // O idioma entra antes do primeiro desenho: trocar depois faria a tela
+  // aparecer em português e piscar pro idioma certo.
+  await iniciarIdioma(state.settings?.idiomaSugerido);
+  traduzirDocumento();
   renderSidebar();
   renderTopbar();
   renderView();
