@@ -1725,4 +1725,7 @@ button.icon { position: relative; }
   .segmentado button { min-height: 44px; }
   #composer select { min-height: 44px; }
   .cfg-lin .ctl select, .cfg-lin .ctl input[type='number'] { min-height: 44px; }
+  /* A trilha dos ajustes é `.cfg-item` (0-1-0) e ganhava do `button` (0-0-1)
+     da regra de toque lá de cima, ficando em 42px num iPad. */
+  .cfg-item { min-height: 44px; }
 }
