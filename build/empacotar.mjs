@@ -163,20 +163,30 @@ function sha256(arquivo) {
 function embalar(alvo, binario, versao) {
   mkdirSync(DIST, { recursive: true });
   const base = `iaunifier-${versao}-${alvo.id}`;
-  if (alvo.plataforma === 'win32') {
-    const zip = join(DIST, `${base}.zip`);
-    rmSync(zip, { force: true });
-    sh('ditto', ['-c', '-k', '--sequesterRsrc', binario, zip]);
-    return zip;
-  }
-  const tgz = join(DIST, `${base}.tar.gz`);
-  rmSync(tgz, { force: true });
-  // O arquivo dentro do pacote chama `iaunifier`, não `iaunifier-linux-x64`.
+
+  // O arquivo dentro do pacote chama `iaunifier`, não `iaunifier-linux-x64`:
+  // é o nome que as instruções mandam rodar.
   const tmp = join(SAIDA, 'embalar');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
-  copyFileSync(binario, join(tmp, 'iaunifier'));
-  chmodSync(join(tmp, 'iaunifier'), 0o755);
+  const nome = alvo.plataforma === 'win32' ? 'iaunifier.exe' : 'iaunifier';
+  const dentro = join(tmp, nome);
+  copyFileSync(binario, dentro);
+  chmodSync(dentro, 0o755);
+
+  if (alvo.plataforma === 'win32') {
+    const zip = join(DIST, `${base}.zip`);
+    rmSync(zip, { force: true });
+    // `--sequesterRsrc` é o que enfia uma pasta `__MACOSX` no zip: sujeira de
+    // Mac chegando na máquina de quem usa Windows. Aqui não há fork nem
+    // atributo estendido pra guardar — o binário veio do Node oficial.
+    sh('ditto', ['-c', '-k', '--norsrc', '--noextattr', tmp, zip]);
+    rmSync(tmp, { recursive: true, force: true });
+    return zip;
+  }
+
+  const tgz = join(DIST, `${base}.tar.gz`);
+  rmSync(tgz, { force: true });
   sh('tar', ['-czf', tgz, '-C', tmp, 'iaunifier']);
   rmSync(tmp, { recursive: true, force: true });
   return tgz;
