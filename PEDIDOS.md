@@ -817,3 +817,43 @@ Design deu, e a tela **Programar no terminal** (`#view-code`) — o `cli.mjs` j�
 aceita `workdir`, mas ligar isso significa deixar o app, que fica aberto na sua
 rede, escrever arquivos na pasta que apontarem. Isso é escolha sua, não minha.
 
+### Conferência adversarial: quatro defeitos que os meus testes não pegaram
+
+Dois agentes conferiram o app de forma independente e acharam o mesmo defeito
+grave, que a minha varredura tinha deixado passar porque eu clicava por
+JavaScript — o que pula o teste de acerto do navegador:
+
+1. **Ajustes inalcançável por toque no celular.** A pílula "Nova conversa" era
+   `position: absolute` dentro de um `.side-foot` que também é absoluto, então
+   ela ia parar em x=261 numa gaveta que acaba em 320 e cobria o botão de
+   ajustes por inteiro. Como a paleta é ⌘K e exige teclado, não sobrava nenhum
+   caminho pros Ajustes num telefone;
+2. **a conversa anônima prometia o que não cumpria.** A faixa dizia "não entra
+   no histórico, não aprende nada sobre você e não usa a memória", mas nada de
+   anônimo chegava ao servidor: a conversa era criada, as mensagens gravadas, a
+   memória lida e os fatos extraídos. Agora existe de verdade — rota própria,
+   sem gravar, sem ler memória, sem extrator, e o histórico só no navegador;
+3. **a tabela de atalhos documentava ⇧⌘N como "Nova conversa"**, quando ⇧⌘N é a
+   conversa anônima. Quem seguisse a tela abriria uma anônima sem saber;
+4. **os alternadores não mostravam estado ligado** (busca na web, anônimo,
+   microfone gravando) por especificidade de CSS.
+
+Os dois também apontaram o service worker desatualizado, que eu já tinha
+consertado antes de eles terminarem.
+
+### O site
+
+`https://www.nspx.dev/IAUnifier/` já abria (200). O que faltava era a foto no
+card da vitrine: o `PROJECT_SHOTS` do `nspx-hub` não tinha entrada pro
+IAUnifier. Entraram uma captura de desktop e uma de celular, as duas na tela
+"Perguntar pra várias".
+
+**Cuidado pra próxima vez:** o `www.nspx.dev` é servido pelo projeto Vercel
+chamado **`nspx`**, não pelo `nspx-hub`. Rodar `npm run deploy` num clone sem
+`.vercel` faz a CLI inferir o projeto pelo nome da pasta e publicar no
+`nspx-hub`, que não serve o domínio — o deploy fica READY e o site não muda.
+Linkar com `vercel link --project nspx --scope nspx` antes.
+
+Apaguei as 8 conversas de teste que eu criei nesta madrugada; o app ficou com
+zero conversa, zero memória e zero anexo, como estava.
+
