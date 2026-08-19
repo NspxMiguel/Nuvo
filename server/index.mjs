@@ -173,8 +173,26 @@ function lanAddressSet() {
   return lanCache;
 }
 
+/**
+ * De onde a URL aponta pra chave do arquivo da interface.
+ *
+ * A chave é sempre com barra pra frente, porque é assim que ela foi gravada
+ * dentro do executável. No Windows, `normalize` devolve `\\idiomas\\en.json` — e
+ * `getAsset` não achava nada, então os dicionários de inglês e espanhol
+ * respondiam 404 e a interface caía calada no português. Só arquivo em subpasta
+ * quebrava; por isso passou despercebido até o executável ser rodado num
+ * Windows de verdade.
+ *
+ * @param {string} pathname  o caminho da URL, como chegou
+ * @returns {string} caminho relativo dentro de `web/`, sempre com `/`
+ */
+export function caminhoDaInterface(pathname) {
+  if (pathname === '/' || !pathname) return 'index.html';
+  return normalize(pathname).split('\\').join('/').replace(/^[/.]+/, '');
+}
+
 async function serveStatic(res, pathname) {
-  const rel = pathname === '/' ? 'index.html' : normalize(pathname).replace(/^([/\\.])+/, '');
+  const rel = caminhoDaInterface(pathname);
   const body = await lerDaWeb(rel);
   if (!body) {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
