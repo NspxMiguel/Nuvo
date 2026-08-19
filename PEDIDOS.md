@@ -779,6 +779,41 @@ suas:
    sabia que faltava — o servidor não lê RAM nem chip. As outras três são
    funcionalidade nova, não desenho.
 
-Falta ainda, pra ficar completo: o `glow.js` está copiado mas **não é chamado**
-por ninguém (precisa entrar no `app.js` nos três momentos), e as oito mudanças
-de marcação restantes.
+Faltava, e foi feito na madrugada seguinte: chamar o `glow.js` de verdade e as
+oito mudanças de marcação restantes. Está tudo na seção abaixo.
+
+## 18/08/2026 (madrugada) — "continua trabalhando, vou dormir........ deixa o app completinho"
+
+Pedido dele, com estas palavras: *"continua trabalhando, vou dormir........ deixa
+o app completinho"*.
+
+Feito no branch `desenho-nuvo`:
+
+- **o desenho está aplicado nas oito telas.** As quatro mudanças de marcação
+  que faltavam entraram (`app.js`, `views.js`, `core.js`, `index.html`), e o
+  `glow.js` agora é chamado de verdade: na abertura, ao voltar pra uma conversa
+  e quando a resposta começa a chegar;
+- **o modo voz existe e funciona.** Ciclo completo: ouve, repete entre aspas o
+  que entendeu, mostra "pensando…" (com "usando N coisas que sabe de você"
+  quando a memória entra no prompt), fala a resposta em voz alta e volta a
+  ouvir. Botão de mudo, Encerrar, X e `Esc` fecham. Medido ponta a ponta com o
+  modelo de verdade respondendo;
+- **três defeitos de layout que só apareciam medindo o DOM renderizado**: o
+  `.panel-inner` travava em 382px num telefone de 390 porque `margin: 0 auto`
+  cancela o `stretch` do flex; o segmentado do conselho escondia a terceira
+  opção atrás da própria rolagem; e a fileira de atalhos do chat deixava o
+  quarto atalho inalcançável no mouse;
+- **dois defeitos de texto**: "1 palavras-token" e "0 por segundo" numa resposta
+  curta de CLI;
+- **a casca do service worker estava desatualizada** — nem `glow.js` nem
+  `format.js` estavam nela, então faltariam justamente sem rede.
+
+Medido: 327 testes, oito telas em 320/360/390/1024/1280/1440px sem rolagem
+horizontal, sem id duplicado no DOM vivo e sem erro de console; chat ponta a
+ponta pelo navegador respondendo certo.
+
+**Continua sendo decisão sua** (nada disso eu mexi): o nome "Nuvo" que o Claude
+Design deu, e a tela **Programar no terminal** (`#view-code`) — o `cli.mjs` já
+aceita `workdir`, mas ligar isso significa deixar o app, que fica aberto na sua
+rede, escrever arquivos na pasta que apontarem. Isso é escolha sua, não minha.
+

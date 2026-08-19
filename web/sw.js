@@ -3,9 +3,13 @@
 // Guarda a casca (HTML, CSS, JS, ícones) e nunca toca em /api — resposta de
 // API com token e stream de conversa não podem sair de cache.
 
-const CACHE = 'iaunifier-v2';
+const CACHE = 'iaunifier-v3';
+// Módulo que o app importa e não está aqui só falta quando a rede cai — que é
+// exatamente quando o cache tinha que servir. O test/sw.test.mjs compara esta
+// lista com os arquivos de web/ pra não ficar pra trás de novo.
 const SHELL = [
-  '/', '/index.html', '/styles.css', '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js',
+  '/', '/index.html', '/styles.css',
+  '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js',
   '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'
 ];
 

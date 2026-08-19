@@ -2,11 +2,18 @@
 
 import {
   $, $$, api, stream, state, refreshState, chatModels, modelLabel, fillSelect,
-  escapeHtml, badge, toast, paintIcons, modelOptions
+  escapeHtml, toast, paintIcons, modelOptions, origemDoFato
 } from './core.js';
 import { icon } from './icons.js';
+import { ligarBrilho, roseta } from './glow.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
+import { statsLine } from './format.js';
 import { views } from './views.js';
+
+// A malha de pontinhos do rodapé nasce ao abrir o app, ao voltar pra uma
+// conversa e quando a resposta começa a chegar. Uma declaração só: dois
+// `ligarBrilho` no mesmo canvas desenhariam um por cima do outro.
+const brilho = ligarBrilho($('#glow'));
 
 // -------------------------------------------------------------------- tema
 
@@ -40,7 +47,15 @@ async function load() {
   renderSidebar();
   renderTopbar();
   renderView();
-  $('#side-status').textContent = `${chatModels().length} modelo(s) · ${state.providers.length} provedor(es)`;
+  $('#side-status').textContent =
+    `${state.providers.filter((p) => p.enabled).length} IAs ligadas · ${chatModels().length} modelos`;
+  // O contador da Memória não vem no /state; é um pedido solto que não segura
+  // a tela — se falhar, o número simplesmente não aparece.
+  api('/memories')
+    .then((lista) => {
+      $('#n-memoria').textContent = lista.length ? String(lista.length) : '';
+    })
+    .catch(() => {});
 }
 
 // ---------------------------------------------------------------- sidebar
@@ -57,35 +72,57 @@ function pintarWeb() {
   btn.setAttribute('aria-label', rotulo);
 }
 
+/** A faixa de anônimo mora no topo de #messages e é redesenhada com a lista. */
+function pintarAnon() {
+  $('.anon-faixa')?.remove();
+  if (!$('#app').classList.contains('anon')) return;
+  $('#messages').insertAdjacentHTML(
+    'afterbegin',
+    `<div class="anon-faixa">
+       <span class="ico">${icon('alert', 17)}</span>
+       <span><b>Conversa anônima.</b> Não entra no histórico, não aprende nada sobre você e não usa a memória.
+       Some quando você fechar ou trocar de conversa.</span>
+     </div>`
+  );
+}
+
+/** O modo anônimo aparece de longe: destaque cinza e brilho quase apagado. */
+function toggleAnon() {
+  const ligado = $('#app').classList.toggle('anon');
+  const btn = $('#btn-anon');
+  btn.classList.toggle('on', ligado);
+  btn.setAttribute('aria-pressed', String(ligado));
+  $('#input').placeholder = ligado
+    ? 'Conversa anônima — nada fica guardado'
+    : 'Fale com qualquer IA';
+  pintarAnon();
+  toast(
+    ligado
+      ? 'conversa anônima ligada — nada daqui é guardado'
+      : 'voltou ao normal — esta conversa entra no histórico'
+  );
+}
+
+/**
+ * Texto puro: sem ícone e sem cartão. Cada botão de ação custa 44px fixos de
+ * hitbox, e no celular eles aparecem em toda linha — com quatro deles sobrava
+ * menos de 90px pro título. Ficam os dois que a linha não tem como oferecer
+ * de outro jeito; fixar e arquivar voltam quando tiverem outra casa.
+ */
 function chatRow(chat) {
   const item = document.createElement('div');
   item.className = `chat-item${chat.id === state.chatId ? ' active' : ''}`;
-  const project = state.projects.find((p) => p.id === chat.project_id);
   item.innerHTML = `
-    ${project ? badge(project.icon, project.color, 13) : `<span class="ico">${icon('chat', 15)}</span>`}
     <span class="label">${escapeHtml(chat.title)}</span>
     <span class="row-actions">
-      <button class="icon" data-act="rename" title="renomear" aria-label="renomear conversa">${icon('edit', 14)}</button>
-      <button class="icon" data-act="pin" title="${chat.pinned ? 'desfixar' : 'fixar'}" aria-label="${chat.pinned ? 'desfixar' : 'fixar'} conversa">${icon('pin', 14)}</button>
-      <button class="icon" data-act="archive" title="${chat.archived ? 'desarquivar' : 'arquivar'}" aria-label="${chat.archived ? 'desarquivar' : 'arquivar'} conversa">${icon('archive', 14)}</button>
-      <button class="icon" data-act="del" title="apagar" aria-label="apagar conversa">${icon('trash', 14)}</button>
+      <button class="icon" data-act="rename" title="renomear" aria-label="renomear conversa">${icon('edit', 17)}</button>
+      <button class="icon" data-act="del" title="apagar" aria-label="apagar conversa">${icon('trash', 17)}</button>
     </span>`;
 
   item.onclick = () => openChat(chat.id);
   item.querySelector('[data-act=rename]').onclick = (ev) => {
     ev.stopPropagation();
     startRename(item, chat);
-  };
-  item.querySelector('[data-act=pin]').onclick = async (ev) => {
-    ev.stopPropagation();
-    await api(`/chats/${chat.id}`, { method: 'PATCH', body: { pinned: !chat.pinned } });
-    await load();
-  };
-  item.querySelector('[data-act=archive]').onclick = async (ev) => {
-    ev.stopPropagation();
-    await api(`/chats/${chat.id}`, { method: 'PATCH', body: { archived: chat.archived ? 0 : 1 } });
-    if (!chat.archived && state.chatId === chat.id) newChat();
-    await load();
   };
   item.querySelector('[data-act=del]').onclick = async (ev) => {
     ev.stopPropagation();
@@ -161,6 +198,22 @@ function renameFromTopbar(chat) {
 /** Arquivadas ficam guardadas atrás de um botão; a lista normal não as mostra. */
 let showingArchived = false;
 
+/**
+ * Rótulo do grupo pela data da última mensagem. A lista já vem do servidor
+ * ordenada por updated_at desc, então basta quebrar quando o rótulo muda.
+ */
+function grupoDaData(iso) {
+  const dia = new Date(iso);
+  if (Number.isNaN(dia.getTime())) return 'Mais antigas';
+  const zero = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dias = Math.round((zero(new Date()) - zero(dia)) / 86400000);
+  if (dias <= 0) return 'Hoje';
+  if (dias === 1) return 'Ontem';
+  if (dias < 7) return 'Últimos 7 dias';
+  if (dias < 30) return 'Últimos 30 dias';
+  return 'Mais antigas';
+}
+
 async function renderSidebar(filter = '') {
   const list = $('#chat-list');
   list.innerHTML = '';
@@ -177,9 +230,14 @@ async function renderSidebar(filter = '') {
     list.insertAdjacentHTML('beforeend', '<div class="list-label">Fixadas</div>');
     for (const chat of pinned) list.appendChild(chatRow(chat));
   }
-  if (rest.length) {
-    if (pinned.length) list.insertAdjacentHTML('beforeend', '<div class="list-label">Conversas</div>');
-    for (const chat of rest) list.appendChild(chatRow(chat));
+  let grupo = '';
+  for (const chat of rest) {
+    const rotulo = grupoDaData(chat.updated_at);
+    if (rotulo !== grupo) {
+      grupo = rotulo;
+      list.insertAdjacentHTML('beforeend', `<div class="list-label">${rotulo}</div>`);
+    }
+    list.appendChild(chatRow(chat));
   }
   if (!chats.length) {
     list.insertAdjacentHTML(
@@ -210,10 +268,9 @@ async function deepSearch(query) {
     for (const hit of chats) {
       const item = document.createElement('div');
       item.className = 'chat-item';
-      item.innerHTML = `<span class="ico">${icon('chat', 15)}</span>
-        <span class="label" title="${escapeHtml(hit.excerpt)}">${escapeHtml(hit.title)} — ${escapeHtml(
-          hit.excerpt
-        )}</span>`;
+      item.innerHTML = `<span class="label" title="${escapeHtml(hit.excerpt)}">${escapeHtml(
+        hit.title
+      )} — ${escapeHtml(hit.excerpt)}</span>`;
       item.onclick = () => openChat(hit.chat_id, hit.id);
       list.appendChild(item);
     }
@@ -223,8 +280,7 @@ async function deepSearch(query) {
     for (const m of memories) {
       const item = document.createElement('div');
       item.className = 'chat-item';
-      item.innerHTML = `<span class="ico">${icon('brain', 15)}</span>
-        <span class="label">${escapeHtml(m.text)}</span>`;
+      item.innerHTML = `<span class="label">${escapeHtml(m.text)}</span>`;
       item.onclick = () => switchView('memory');
       list.appendChild(item);
     }
@@ -241,7 +297,7 @@ function renderTopbar() {
     $('#sel-model'),
     chatModels().map((m) => ({ value: m.ref, label: m.label })),
     state.model,
-    chatModels().length ? null : 'nenhum modelo — abra Provedores'
+    chatModels().length ? null : 'nenhuma IA ligada'
   );
   fillSelect(
     $('#sel-gem'),
@@ -260,6 +316,10 @@ function renderTopbar() {
   title.textContent = chat ? chat.title : '';
   title.title = chat ? 'clique duas vezes pra renomear' : '';
   title.ondblclick = chat ? () => renameFromTopbar(chat) : null;
+  // No celular a barra de cima é menu · nome · web · anônimo; o botão de nova
+  // conversa só existe no computador, e lá quem o esconde com a lateral aberta
+  // é o CSS (@media min-width:761px).
+  $('#btn-new-chat-top').hidden = noCelular();
   pintarWeb();
 }
 
@@ -269,14 +329,21 @@ function messageEl(role, text, meta = {}) {
   const el = document.createElement('div');
   el.className = `msg ${role}`;
   el.dataset.id = meta.id || '';
-  const who = role === 'user' ? 'você' : meta.label || 'ia';
-  el.innerHTML = `
-    <div class="who">${icon(role === 'user' ? 'chat' : 'bot', 13)} ${escapeHtml(who)}</div>
-    <div class="body"></div>
-    <div class="stats"></div>
-    <div class="actions"></div>`;
+  // Quem falou não é mais uma linha de texto: a fala do usuário é bolha à
+  // direita e a resposta é texto largo sem caixa. `.msg.user` é flex com
+  // `justify-content:flex-end`, então os botões só cabem numa segunda linha —
+  // na mesma linha eles roubam ~132px e a bolha para de encostar na borda.
+  el.innerHTML =
+    role === 'user'
+      ? `<div class="body"></div>
+         <div class="actions" style="flex-basis:100%;justify-content:flex-end"></div>`
+      : `<div class="body"></div>
+         <div class="stats oculta"></div>
+         <div class="actions"></div>`;
+  if (role === 'user') el.style.flexWrap = 'wrap';
 
   const body = el.querySelector('.body');
+  // `.msg.user .body` tem `white-space: pre-wrap`: a fala continua texto puro.
   if (role === 'user') body.textContent = text;
   else body.innerHTML = renderMarkdown(text);
 
@@ -296,7 +363,7 @@ function wireActions(el, { id, role, text }) {
     // O SVG entra com aria-hidden, então sem isto o botão é anônimo pra quem
     // usa leitor de tela — e no toque o title não aparece pra ninguém.
     btn.setAttribute('aria-label', title);
-    btn.innerHTML = icon(name, 14);
+    btn.innerHTML = icon(name, 18);
     btn.onclick = handler;
     actions.appendChild(btn);
     return btn;
@@ -327,10 +394,35 @@ function wireActions(el, { id, role, text }) {
 function addNote(text, cls = '', iconName = 'brain') {
   const el = document.createElement('div');
   el.className = `note ${cls}`;
-  el.innerHTML = `<span class="ico">${icon(iconName, 14)}</span><span>${text}</span>`;
+  el.innerHTML = `<span class="ico">${icon(iconName, 17)}</span><span>${text}</span>`;
   $('#messages').appendChild(el);
   scrollDown();
   return el;
+}
+
+/**
+ * Rodapé da resposta: o que a memória entregou ao modelo neste turno. Uma
+ * linha só; os fatos ficam a um toque, com a origem na coluna da direita.
+ */
+function memFoot(items) {
+  const n = items.length;
+  return `<details class="mem-foot">
+    <summary>${icon('brain', 17)} <span>usei <b>${n} ${
+      n === 1 ? 'coisa' : 'coisas'
+    }</b> que já sei sobre você</span></summary>
+    <div class="fatos">${items
+      .map(
+        (m) =>
+          `<div class="fato"><span>${escapeHtml(m.text)}</span><span class="de">${origemDoFato(
+            m
+          )}</span></div>`
+      )
+      .join('')}</div>
+    <div class="row"><button type="button" class="ghost" data-act="abrir">${icon(
+      'brain',
+      17
+    )} Abrir memória</button></div>
+  </details>`;
 }
 
 function scrollDown() {
@@ -348,46 +440,58 @@ function renderMessages(focusId) {
       id: m.id,
       label: meta.provider ? `${meta.provider}` : modelLabel(m.model)
     });
-    if (meta.reasoning) prependReasoning(el, meta.reasoning);
-    if (meta.stats) el.querySelector('.stats').textContent = statsLine(meta.stats);
+    if (meta.reasoning) {
+      prependReasoning(el, meta.reasoning);
+      // No histórico não existe quanto tempo o modelo pensou: só o rótulo.
+      endReasoning(el, null);
+    }
+    if (meta.stats) setStats(el, meta.stats);
     wireActions(el, { id: m.id, role: m.role, text: m.content });
     wireCodeCopy(el);
     if (focusId === m.id) setTimeout(() => el.scrollIntoView({ block: 'center' }), 50);
   }
+  // As duas funções escrevem #messages inteiro: sem isto o aviso de conversa
+  // anônima some na primeira resposta.
   if (!state.messages.length) renderEmptyState();
+  else pintarAnon();
 }
 
 /**
- * Primeira abertura: sem provedor não há modelo, e sem modelo nada nesta tela
- * funciona. Em vez do vazio de sempre, os três passos que tiram o app do zero.
+ * Primeira abertura: sem IA ligada nada nesta tela funciona. Em vez do vazio
+ * de sempre, os três passos que tiram o app do zero.
  */
 function renderFirstRun() {
-  // Provedor cadastrado mas sem modelo utilizável é outro problema: aí não
-  // falta descobrir nada, falta ligar ou atualizar o que já está lá.
+  // IA cadastrada mas sem nada que responda é outro problema: aí não falta
+  // descobrir nada, falta ligar ou atualizar o que já está lá.
   const desligados = state.providers.filter((p) => !p.enabled).length;
   const explicacao = state.providers.length
-    ? `Você tem ${state.providers.length} provedor(es) cadastrado(s), mas nenhum modelo disponível${
-        desligados ? ` — ${desligados} está(ão) desligado(s)` : ''
+    ? `Você já ligou ${state.providers.length} IA(s), mas nenhuma está pronta pra responder${
+        desligados ? ` — ${desligados} está(ão) desligada(s)` : ''
       }.`
-    : 'Falta ligar uma IA. São três passos, e o primeiro costuma resolver sozinho.';
+    : 'O app roda na sua máquina. Vou procurar IA instalada nela — nada sai daqui.';
 
   $('#messages').innerHTML = `
     <div class="first-run">
-      <div class="badge-row">${badge('sparkle', 'indigo', 26)}</div>
-      <h2>${state.providers.length ? 'Nenhum modelo disponível' : 'Bem-vindo ao IAUnifier'}</h2>
+      <div class="badge-row">${roseta(58, 'bloom')}</div>
+      <h2>${
+        state.providers.length
+          ? 'Nenhuma IA pronta pra responder'
+          : 'Nada ligado ainda.<br />Deixa eu ver o que tem aqui.'
+      }</h2>
       <p>${escapeHtml(explicacao)}</p>
       <ol class="steps">
-        <li>
+        <li style="animation-delay:420ms">
           <strong>Procurar o que já existe na máquina</strong>
           <span>Ollama, LM Studio, LocalAI, llama.cpp e as CLIs do Claude, Codex e Gemini — se estiverem instalados, entram sozinhos.</span>
+          <div id="fr-achados"></div>
           <button id="fr-discover" class="primary"><span data-icon="search"></span> Procurar agora</button>
         </li>
-        <li>
+        <li style="animation-delay:520ms">
           <strong>Ou usar uma IA de API</strong>
           <span>OpenAI, Anthropic, Google, Groq, DeepSeek, OpenRouter. Você cola a chave uma vez e ela fica no servidor, nunca no navegador.</span>
-          <button id="fr-providers"><span data-icon="plug"></span> Abrir Provedores</button>
+          <button id="fr-providers"><span data-icon="plug"></span> Abrir IAs ligadas</button>
         </li>
-        <li>
+        <li style="animation-delay:620ms">
           <strong>Depois é só conversar</strong>
           <span>O que você contar pra uma IA, as outras lembram: a memória é uma só, compartilhada entre todas.</span>
         </li>
@@ -401,13 +505,34 @@ function renderFirstRun() {
     btn.textContent = 'procurando...';
     try {
       const { found } = await api('/discover', { method: 'POST' });
-      toast(
-        found.length
-          ? `encontrado: ${found.map((f) => f.name).join(', ')}`
-          : 'nada novo encontrado nesta máquina — cadastre uma IA de API',
-        found.length ? 'ok' : ''
-      );
+      // O achado entra na tela com etiqueta, não em torrada que some. A folha
+      // só tem .tag.on/.off/.warn — 'ok' (que o protótipo escreve) sairia cinza.
+      // E a etiqueta não pode ser <span>: `.first-run .steps span` (0-2-1) pinta
+      // de cinza qualquer span do passo e venceria `.tag.on` (0-2-0). Medido no
+      // navegador: com <span> a etiqueta sai #71717a em vez do verde.
+      const alvo = $('#fr-achados');
+      alvo.innerHTML = found.length
+        ? found
+            .map(
+              (f, i) => `<div class="achado" style="animation-delay:${i * 90}ms">
+                <div class="tag on"><div class="pt"></div>achei</div>
+                <span>${escapeHtml(f.name)} <span class="muted">— ${escapeHtml(
+                  f.url || f.command || ''
+                )}</span></span>
+              </div>`
+            )
+            .join('') +
+          `<div class="aviso ok"><div><b>${
+            found.length === 1 ? 'Uma IA pronta pra usar' : `${found.length} IAs prontas pra usar`
+          }, sem custo.</b> Elas rodam na sua máquina — nada sai daqui. Já dá pra conversar.</div>
+            <button id="fr-comecar" class="primary"><span data-icon="check"></span> Começar agora</button></div>`
+        : `<div class="achado">
+            <div class="tag off"><div class="pt"></div>não</div>
+            <span>Não achei IA instalada nesta máquina <span class="muted">— se você abrir o Ollama ou o LM Studio, eu acho sozinho</span></span>
+          </div>`;
+      paintIcons(alvo);
       await load();
+      $('#fr-comecar')?.addEventListener('click', () => newChat());
     } catch (err) {
       toast(err.message, 'err');
     }
@@ -419,40 +544,92 @@ function renderFirstRun() {
   $('#fr-providers').onclick = () => switchView('providers');
 }
 
+// A fileira de pílulas da tela vazia. Rótulos literais do handoff.
+const ATALHOS = [
+  ['users', 'Perguntar pra várias', 'council'],
+  ['globe', 'Pesquisar na web', 'research'],
+  ['file', 'Ler um arquivo', 'arquivo'],
+  ['code', 'Programar no terminal', 'code'],
+  ['brain', 'O que você sabe de mim', 'memory']
+];
+
 function renderEmptyState() {
   if (!chatModels().length) return renderFirstRun();
   const gem = state.gems.find((g) => g.id === state.gemId);
+  // A saudação não inventa nome: o servidor ainda não guarda um.
+  const quem = [gem?.name, state.model ? modelLabel(state.model) : 'nenhuma IA escolhida']
+    .filter(Boolean)
+    .join(' · ');
+  // Atalho pra tela que ainda não existe é beco sem saída: só entra com a view.
+  const atalhos = ATALHOS.filter(([, , alvo]) => alvo !== 'code' || $('#view-code'));
+
   $('#messages').innerHTML = `
-    <div class="msg" style="text-align:center;color:var(--muted);margin-top:12vh">
-      <div style="display:flex;justify-content:center;margin-bottom:10px">
-        ${badge(gem?.icon || 'sparkle', gem?.color || 'indigo', 22)}
+    <div class="vazio">
+      <div class="topo">
+        ${roseta(54, 'bloom')}
+        <h1>Pode falar.<span>${escapeHtml(quem)}</span></h1>
       </div>
-      <div style="font-size:16px;color:var(--text)">${escapeHtml(gem?.name || 'IAUnifier')}</div>
-      <div style="font-size:13px;margin-top:4px">
-        ${state.model ? escapeHtml(modelLabel(state.model)) : 'nenhum modelo escolhido'}
-      </div>
-      <div style="font-size:12.5px;margin-top:14px">
-        Anexe arquivo, ligue a busca na web, ou chame o conselho pra perguntar a vários modelos de uma vez.
+      <div class="atalhos">
+        ${atalhos
+          .map(
+            ([ic, rot, alvo], i) =>
+              `<button class="atalho" type="button" data-atalho="${alvo}"
+                 style="animation-delay:${360 + i * 60}ms">
+                 <span class="ico">${icon(ic, 19)}</span> <span>${rot}</span>
+               </button>`
+          )
+          .join('')}
       </div>
     </div>`;
+
+  for (const btn of $$('#messages .atalho')) {
+    btn.onclick = () => {
+      const alvo = btn.dataset.atalho;
+      if (alvo === 'arquivo') $('#file-input').click();
+      else switchView(alvo);
+    };
+  }
+  pintarAnon();
+  brilho.pulsar();
 }
 
-function statsLine(stats) {
-  const parts = [];
-  if (stats.ttft != null) parts.push(`primeiro token em ${(stats.ttft / 1000).toFixed(2)}s`);
-  if (stats.tps) parts.push(`${stats.tps} tok/s`);
-  if (stats.tokens) parts.push(`${stats.tokens} tokens${stats.estimated ? ' (estimado)' : ''}`);
-  if (stats.ms) parts.push(`${(stats.ms / 1000).toFixed(1)}s no total`);
-  return parts.join(' · ');
+
+/** Escreve a linha e some com ela enquanto não há número nenhum. */
+function setStats(el, stats) {
+  const alvo = el.querySelector('.stats');
+  if (!alvo) return;
+  const texto = statsLine(stats);
+  alvo.textContent = texto;
+  alvo.classList.toggle('oculta', !texto);
+  // Tempo até a primeira palavra continua útil em modelo local, mas não cabe
+  // na linha de três números: fica no title.
+  if (stats.ttft != null) {
+    alvo.title = `primeira palavra em ${(stats.ttft / 1000).toFixed(1).replace('.', ',')} s`;
+  }
 }
 
+/**
+ * A linha discreta antes da resposta. Enquanto o modelo pensa, a roseta
+ * respira; quando termina, ela vira chevron e diz quanto durou.
+ */
 function prependReasoning(el, text) {
   const details = document.createElement('details');
-  details.className = 'reasoning';
-  details.innerHTML = `<summary>raciocínio do modelo</summary><div class="think"></div>`;
+  details.className = 'reasoning live';
+  details.innerHTML = `<summary>${roseta(18, 'pensa')} <span class="rot">pensando…</span></summary>
+    <div class="think"></div>`;
   details.querySelector('.think').textContent = text;
   el.querySelector('.body').before(details);
   return details.querySelector('.think');
+}
+
+/** Fecha a linha de raciocínio: troca a roseta pelo chevron e diz o tempo. */
+function endReasoning(el, segundos) {
+  const details = el.querySelector('.reasoning');
+  if (!details) return;
+  details.classList.remove('live');
+  const tempo = segundos == null ? '' : ` · ${segundos.toFixed(1).replace('.', ',')} s`;
+  details.querySelector('summary').innerHTML =
+    `<span class="ico">${icon('chevron', 16)}</span> <span class="rot">como pensou${tempo}</span>`;
 }
 
 async function openChat(id, focusId) {
@@ -470,6 +647,8 @@ async function openChat(id, focusId) {
   renderTopbar();
   renderMessages(focusId);
   renderAttachBar();
+  // Voltar pra uma conversa é um dos três momentos em que a malha nasce.
+  brilho.pulsar();
   closeSidebarOnMobile();
 }
 
@@ -505,17 +684,28 @@ async function ensureChat() {
 }
 
 /** Consome o stream de um turno e vai montando a resposta na tela. */
-async function consumeTurn(path, body) {
+/**
+ * Roda um turno inteiro. Devolve o que a IA respondeu para quem precisa do
+ * texto depois — o modo voz lê a resposta em voz alta. `ganchos.memoria`
+ * avisa assim que os fatos entram no prompt, ainda durante o "pensando".
+ */
+async function consumeTurn(path, body, ganchos = {}) {
   const controller = new AbortController();
   state.streaming = controller;
+  // Respondendo: mostra parar, esconde enviar. Desabilitado, o botão azul
+  // ficaria na tela ao lado do parar — dois botões redondos pro mesmo momento.
   $('#btn-stop').hidden = false;
-  $('#btn-send').disabled = true;
+  $('#btn-send').hidden = true;
 
   let el = null;
   let bodyEl = null;
   let thinkEl = null;
   let answer = '';
   let messageId = null;
+  // Os fatos que entraram no prompt viram o rodapé da resposta, não um aviso
+  // no meio da conversa: o handoff pede um aviso só por turno.
+  let fatosUsados = [];
+  let pensouEm = 0;
 
   try {
     await stream(
@@ -536,11 +726,10 @@ async function consumeTurn(path, body) {
             break;
           }
           case 'memory-used':
-            addNote(
-              `lembrou de ${ev.items.length}: ${ev.items.map((i) => escapeHtml(i.text)).join(' · ')}`,
-              '',
-              'brain'
-            );
+            // O aviso é um só, e vem depois da resposta: uma linha antes dela
+            // atrapalha a leitura e some do histórico quando a conversa reabre.
+            fatosUsados = ev.items;
+            ganchos.memoria?.(ev.items);
             break;
           case 'docs-used':
             addNote(
@@ -584,34 +773,66 @@ async function consumeTurn(path, body) {
             break;
           case 'reasoning':
             if (!el) el = messageEl('assistant', '', { label: modelLabel(state.model) });
-            if (!thinkEl) thinkEl = prependReasoning(el, '');
+            if (!thinkEl) {
+              thinkEl = prependReasoning(el, '');
+              pensouEm = Date.now();
+            }
             thinkEl.textContent += ev.text;
+            // `.think` tem teto de 190px e rola por dentro.
+            thinkEl.scrollTop = thinkEl.scrollHeight;
             break;
           case 'delta':
             if (!el) el = messageEl('assistant', '', { label: modelLabel(state.model) });
+            if (pensouEm) {
+              endReasoning(el, (Date.now() - pensouEm) / 1000);
+              pensouEm = 0;
+            }
+            if (!answer) brilho.pulsar();
             bodyEl = el.querySelector('.body');
             answer += ev.text;
             bodyEl.innerHTML = renderMarkdown(answer);
             scrollDown();
             break;
           case 'stats':
-            if (el) el.querySelector('.stats').textContent = statsLine(ev);
+            if (el) setStats(el, ev);
             break;
           case 'done':
             messageId = ev.message.id;
             if (el) {
               el.dataset.id = messageId;
+              // Só aqui: cada 'delta' reescreve o .body inteiro com o markdown.
+              // Em conversa anônima não há rodapé de memória: nada foi usado.
+              if (fatosUsados.length && !$('#app').classList.contains('anon')) {
+                el.querySelector('.body').insertAdjacentHTML('beforeend', memFoot(fatosUsados));
+                el.querySelector('.mem-foot [data-act=abrir]').onclick = () => switchView('memory');
+                scrollDown();
+              }
               wireActions(el, { id: messageId, role: 'assistant', text: ev.message.content });
               wireCodeCopy(el);
             }
             break;
-          case 'memory-new':
-            addNote(
-              `aprendeu: ${ev.items.map((i) => escapeHtml(i.text)).join(' · ')}`,
+          case 'memory-new': {
+            if ($('#app').classList.contains('anon')) break;
+            const fatos = ev.items;
+            const quais = fatos.map((i) => `<b>${escapeHtml(i.text)}</b>`).join(' · ');
+            const nota = addNote(
+              `Guardei: ${quais}. Todas as IAs vão saber disso. ` +
+                `<a href="#" data-act="mudar">mudar</a> · <a href="#" data-act="esquecer">esquecer</a>`,
               'new',
               'brain'
             );
+            nota.querySelector('[data-act=mudar]').onclick = (e) => {
+              e.preventDefault();
+              switchView('memory');
+            };
+            nota.querySelector('[data-act=esquecer]').onclick = async (e) => {
+              e.preventDefault();
+              for (const f of fatos) await api(`/memories/${f.id}`, { method: 'DELETE' });
+              nota.remove();
+              toast('esqueci', 'ok');
+            };
             break;
+          }
           case 'error':
             addNote(escapeHtml(ev.message), 'err', 'alert');
             break;
@@ -626,30 +847,30 @@ async function consumeTurn(path, body) {
   } finally {
     state.streaming = null;
     $('#btn-stop').hidden = true;
-    $('#btn-send').disabled = false;
+    $('#btn-send').hidden = false;
     // O título é gerado no servidor a partir da primeira frase.
     const fresh = await api('/chats');
     state.chats = fresh;
     renderSidebar();
     renderTopbar();
   }
+  return { answer, fatos: fatosUsados };
 }
 
-async function send(text) {
-  if (!text.trim()) return;
+async function send(text, ganchos) {
+  if (!text.trim()) return null;
   if (!state.model) {
-    addNote('nenhum modelo escolhido — abra Provedores e cadastre um', 'err', 'alert');
-    return;
+    addNote('Nenhuma IA escolhida. Abra <b>IAs ligadas</b> e ligue uma.', 'err', 'alert');
+    return null;
   }
   const chatId = await ensureChat();
-  if (state.messages.length === 0 && $('#messages').querySelector('.msg[style]')) {
-    $('#messages').innerHTML = '';
-  }
-  await consumeTurn(`/chats/${chatId}/stream`, {
-    content: text,
-    model: state.model,
-    web: state.useWeb
-  });
+  // A tela vazia sai de cena no primeiro envio; a faixa de anônimo fica.
+  $('#messages').querySelector('.vazio, .first-run')?.remove();
+  return consumeTurn(
+    `/chats/${chatId}/stream`,
+    { content: text, model: state.model, web: state.useWeb },
+    ganchos
+  );
 }
 
 async function regenerate(fromId) {
@@ -668,13 +889,21 @@ function renderAttachBar() {
   bar.innerHTML = '';
   bar.hidden = !state.attachments.length;
   for (const att of state.attachments) {
+    // A extensão faz o papel do ícone; a contagem de trechos é jargão e sai da
+    // superfície, mas continua no title de quem quiser saber.
+    const tipo = att.name.includes('.')
+      ? att.name.split('.').pop().slice(0, 4).toLowerCase()
+      : 'arq';
     const chip = document.createElement('span');
     chip.className = `chip${att.status === 'erro' ? ' err' : ''}`;
-    chip.innerHTML = `${icon('file', 13)}
+    chip.innerHTML = `
+      <span class="tipo">${escapeHtml(tipo)}</span>
       <span class="nome">${escapeHtml(att.name)}</span>
-      <span class="muted">${att.chunks ?? 0}t</span>
-      <button title="remover" aria-label="remover ${escapeHtml(att.name)}">${icon('close', 14)}</button>`;
-    chip.title = att.note || `${Math.round(att.bytes / 1024)} KB`;
+      <button type="button" title="tirar da conversa" aria-label="tirar ${escapeHtml(
+        att.name
+      )} da conversa">${icon('close', 15)}</button>`;
+    chip.title =
+      att.note || `${att.chunks ?? 0} trecho(s) · ${Math.round(att.bytes / 1024)} KB`;
     chip.querySelector('button').onclick = async () => {
       await api(`/attachments/${att.id}`, { method: 'DELETE' });
       state.attachments = state.attachments.filter((a) => a.id !== att.id);
@@ -714,13 +943,15 @@ async function uploadFiles(files) {
 
 // --------------------------------------------------------------------- voz
 
+/** Marcação de Markdown não deve ser lida em voz alta. */
+function semMarcacao(text) {
+  return text.replace(/```[\s\S]*?```/g, ' bloco de código. ').replace(/[*_#`>|]/g, '');
+}
+
 function speak(text) {
   if (!('speechSynthesis' in window)) return toast('este navegador não lê em voz alta', 'err');
   speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(
-    // Marcação de Markdown não deve ser lida em voz alta.
-    text.replace(/```[\s\S]*?```/g, ' bloco de código. ').replace(/[*_#`>|]/g, '')
-  );
+  const utterance = new SpeechSynthesisUtterance(semMarcacao(text));
   utterance.lang = 'pt-BR';
   speechSynthesis.speak(utterance);
 }
@@ -754,6 +985,137 @@ function toggleDictation() {
     $('#btn-mic').classList.remove('on', 'toggle');
   };
   recognition.start();
+}
+
+// ---------------------------------------------------------------- modo voz
+
+// Conversa falada: a camada #voice cobre a tela e o ciclo é sempre o mesmo —
+// ouvir, repetir o que entendeu, pensar, responder falando, e voltar a ouvir.
+// A conversa continua sendo a mesma que está atrás: o modo voz não é um chat
+// separado, é outra forma de digitar nela.
+const voz = { aberto: false, rec: null, mudo: false, encerrando: false };
+
+function vozDiz(texto, { falando = false } = {}) {
+  $('#voice-txt').textContent = texto;
+  $('#voice').classList.toggle('falando', falando);
+}
+
+/** Ouve uma fala. Resolve com o que foi dito, ou com '' se não veio nada. */
+function vozOuvir() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  return new Promise((resolve) => {
+    const rec = new Recognition();
+    voz.rec = rec;
+    rec.lang = 'pt-BR';
+    rec.interimResults = true;
+    // Turno a turno: a pausa da pessoa é o que fecha a vez dela de falar.
+    rec.continuous = false;
+    let dito = '';
+    vozDiz('ouvindo…');
+    rec.onresult = (ev) => {
+      let texto = '';
+      for (let i = 0; i < ev.results.length; i++) texto += ev.results[i][0].transcript;
+      dito = texto.trim();
+      // Enquanto não é final, aparece entre aspas: mostra que está entendendo.
+      if (dito) vozDiz(`“${dito}”`);
+    };
+    rec.onerror = (ev) => {
+      // 'no-speech' e 'aborted' são o silêncio e o fechar — não são defeito.
+      if (ev.error !== 'no-speech' && ev.error !== 'aborted') {
+        vozDiz(`o ditado falhou: ${ev.error}`);
+      }
+    };
+    rec.onend = () => {
+      voz.rec = null;
+      resolve(dito);
+    };
+    rec.start();
+  });
+}
+
+/** Lê a resposta em voz alta e só volta quando terminou (ou falhou). */
+function vozFalar(texto) {
+  if (!('speechSynthesis' in window) || !texto.trim()) return Promise.resolve();
+  return new Promise((resolve) => {
+    speechSynthesis.cancel();
+    const fala = new SpeechSynthesisUtterance(semMarcacao(texto));
+    fala.lang = 'pt-BR';
+    fala.onend = resolve;
+    fala.onerror = resolve;
+    speechSynthesis.speak(fala);
+  });
+}
+
+async function vozCiclo() {
+  while (voz.aberto) {
+    if (voz.mudo) {
+      await new Promise((r) => setTimeout(r, 200));
+      continue;
+    }
+    const dito = await vozOuvir();
+    if (!voz.aberto) return;
+    if (!dito) continue;
+
+    vozDiz('pensando…');
+    let resposta = null;
+    try {
+      resposta = await send(dito, {
+        memoria: (itens) => {
+          if (!itens.length) return;
+          const n = itens.length;
+          vozDiz(`pensando…\nusando ${n} ${n === 1 ? 'coisa que sabe' : 'coisas que sabe'} de você`);
+        }
+      });
+    } catch (err) {
+      vozDiz(err.message || 'não deu pra falar com o servidor');
+      await new Promise((r) => setTimeout(r, 1800));
+      continue;
+    }
+    if (!voz.aberto) return;
+    const texto = resposta?.answer?.trim();
+    if (!texto) continue;
+    vozDiz(texto, { falando: true });
+    await vozFalar(texto);
+    $('#voice').classList.remove('falando');
+  }
+}
+
+function abrirVoz() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) return toast('este navegador não tem ditado', 'err');
+  if (voz.aberto) return;
+  voz.aberto = true;
+  voz.mudo = false;
+  $('#voice').classList.remove('mudo', 'falando');
+  $('#voice-mudo').setAttribute('aria-pressed', 'false');
+  $('#voice-marca').innerHTML = roseta(78, 'grande');
+  $('#voice-quem').textContent = `${modelLabel(state.model)} · responde falando`;
+  $('#voice').hidden = false;
+  paintIcons($('#voice'));
+  vozCiclo();
+}
+
+function fecharVoz() {
+  if (!voz.aberto) return;
+  voz.aberto = false;
+  // `abort` não dispara resultado; `stop` entregaria mais uma fala depois de
+  // fechado, e aí o ciclo mandaria uma pergunta que ninguém pediu.
+  voz.rec?.abort();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  $('#voice').hidden = true;
+  $('#voice').classList.remove('falando', 'mudo');
+}
+
+function vozMudo() {
+  voz.mudo = !voz.mudo;
+  $('#voice').classList.toggle('mudo', voz.mudo);
+  $('#voice-mudo').setAttribute('aria-pressed', String(voz.mudo));
+  $('#voice-mudo').title = voz.mudo ? 'voltar a ouvir' : 'silenciar';
+  if (voz.mudo) {
+    voz.rec?.abort();
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    vozDiz('microfone desligado');
+  }
 }
 
 // -------------------------------------------------------- ajustes do chat
@@ -837,24 +1199,49 @@ function renderTune() {
 
 // ------------------------------------------------------------------- views
 
+/** As telas que moram dentro do <details id="nav-mais"> da gaveta. */
+const DENTRO_DE_MAIS = ['memory', 'projects', 'gems', 'providers'];
+
 function switchView(view) {
+  // O anônimo vale pra conversa em que foi ligado, e só pra ela.
+  if ($('#app').classList.contains('anon')) toggleAnon();
   state.view = view;
-  for (const el of $$('.view')) el.hidden = true;
-  $(`#view-${view}`).hidden = false;
+  for (const el of $$('.view')) {
+    el.hidden = true;
+    el.classList.remove('entra');
+  }
+  const alvo = $(`#view-${view}`);
+  alvo.hidden = false;
   for (const btn of $$('.nav-item')) btn.classList.toggle('active', btn.dataset.view === view);
-  renderView();
+  // O "Mais" abre sozinho quando a tela ativa está dentro dele.
+  if (DENTRO_DE_MAIS.includes(view)) $('#nav-mais').open = true;
+  // A malha do rodapé é da conversa: fora dela some, ao voltar renasce.
+  if (view === 'chat') brilho.pulsar();
+  else brilho.apagar();
+  // Tirar e repor força o navegador a rodar a animação de novo quando é a
+  // mesma tela; sem o reflow no meio, ele funde as duas mudanças em nada.
+  const entrar = () => {
+    void alvo.offsetWidth;
+    alvo.classList.add('entra');
+  };
+  const pintado = renderView();
+  entrar();
+  // Painel que busca dados reescreve a própria classe quando a resposta chega:
+  // repor a classe ali garante a animação também nesse caminho.
+  pintado?.then?.(entrar);
 }
 
 function renderView() {
   const ctx = { switchView, applyTheme, startChatWithGem, startChatInProject };
   const render = views[state.view];
-  if (!render) return;
+  if (!render) return Promise.resolve();
   // Painel busca dados do servidor. Celular que sai do alcance do wi-fi, ou
   // servidor de casa desligado, davam falha sem dono no console e tela em
   // branco: quem tocou não ficava sabendo de nada.
-  Promise.resolve(render($(`#view-${state.view}`), ctx)).catch((err) => {
+  return Promise.resolve(render($(`#view-${state.view}`), ctx)).catch((err) => {
     const alvo = $(`#view-${state.view}`);
-    alvo.className = 'view panel';
+    // Reescrever a classe crua apagaria a animação de entrada antes de rodar.
+    alvo.className = `view panel${alvo.classList.contains('entra') ? ' entra' : ''}`;
     alvo.innerHTML = `<div class="panel-inner">
         <p class="hint">${escapeHtml(err.message || 'não deu pra falar com o servidor')}</p>
         <button id="btn-tentar-de-novo">Tentar de novo</button>
@@ -880,14 +1267,16 @@ function startChatInProject(project) {
 
 function commands() {
   const list = [
-    { icon: 'plus', label: 'Nova conversa', run: newChat, key: 'Ctrl+Shift+N' },
-    { icon: 'users', label: 'Conselho de IAs', run: () => switchView('council') },
-    { icon: 'globe', label: 'Pesquisa profunda', run: () => switchView('research') },
-    { icon: 'brain', label: 'Memória compartilhada', run: () => switchView('memory') },
+    { icon: 'plus', label: 'Nova conversa', run: newChat, key: '⌘N' },
+    { icon: 'alert', label: 'Conversa anônima', run: toggleAnon, key: '⇧⌘N' },
+    { icon: 'spark', label: 'Ajustes desta conversa', run: renderTune, key: '⌘,' },
+    { icon: 'users', label: 'Perguntar pra várias', run: () => switchView('council') },
+    { icon: 'globe', label: 'Pesquisar na web', run: () => switchView('research') },
+    { icon: 'brain', label: 'Ver memória', run: () => switchView('memory') },
     { icon: 'folder', label: 'Projetos', run: () => switchView('projects') },
-    { icon: 'sparkle', label: 'Gems', run: () => switchView('gems') },
-    { icon: 'plug', label: 'Provedores', run: () => switchView('providers') },
-    { icon: 'settings', label: 'Configuração', run: () => switchView('settings') },
+    { icon: 'sparkle', label: 'Perfis', run: () => switchView('gems') },
+    { icon: 'plug', label: 'IAs ligadas', run: () => switchView('providers') },
+    { icon: 'settings', label: 'Ajustes', run: () => switchView('settings') },
     { icon: 'paperclip', label: 'Anexar arquivo', run: () => $('#file-input').click() },
     {
       icon: 'globe',
@@ -998,19 +1387,35 @@ function download(name, content, type) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+/** Enviar cinza com o campo vazio, destaque quando tem o que enviar. */
+function pintarEnviar() {
+  $('#btn-send').classList.toggle('vazio', !$('#input').value.trim());
+}
+
 function autosize(el) {
   const lista = $('#messages');
   const estavaNoFim = lista
     ? lista.scrollHeight - lista.scrollTop - lista.clientHeight < 8
     : false;
   el.style.height = 'auto';
-  el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  // O teto é o mesmo do CSS (#input { max-height: 190px }): passar dele cortava
+  // o texto sem deixar rolagem à vista.
+  el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
   if (estavaNoFim) scrollDown();
+  pintarEnviar();
 }
 
 const noCelular = () => window.innerWidth <= 760;
 
+/**
+ * No celular a gaveta desliza sobre a tela; no computador ela recolhe e o
+ * conteúdo ocupa a largura toda. Fechar era um botão morto no computador.
+ */
 function setSidebar(aberta) {
+  if (!noCelular()) {
+    $('#app').classList.toggle('recolhido', !aberta);
+    return;
+  }
   $('#sidebar').classList.toggle('open', aberta);
   $('#scrim').classList.toggle('on', aberta);
 }
@@ -1027,6 +1432,9 @@ $('#composer').addEventListener('submit', (ev) => {
   const text = input.value;
   input.value = '';
   input.style.height = 'auto';
+  // O submit limpa o campo sem passar por autosize: sem isto o botão fica azul
+  // com o campo já vazio.
+  pintarEnviar();
   // Devolver o foco mantém o teclado do celular aberto: sem isto ele desce a
   // cada mensagem e a conversa vira um sobe-e-desce.
   if (dedo.matches) input.focus();
@@ -1077,18 +1485,31 @@ $('#file-input').onchange = (ev) => {
 };
 $('#btn-mic').onclick = toggleDictation;
 $('#btn-stop').onclick = () => state.streaming?.abort();
-$('#btn-new-chat').onclick = () => {
+
+const novaConversa = () => {
   newChat();
   closeSidebarOnMobile();
 };
+$('#btn-new-chat').onclick = novaConversa;
+$('#btn-new-chat-top').onclick = novaConversa;
 $('#btn-web').onclick = toggleWeb;
+$('#btn-anon').onclick = toggleAnon;
+$('#btn-voice').onclick = abrirVoz;
+$('#voice-close').onclick = fecharVoz;
+$('#voice-fim').onclick = fecharVoz;
+$('#voice-mudo').onclick = vozMudo;
+addEventListener('resize', () => {
+  $('#btn-new-chat-top').hidden = noCelular();
+});
 $('#btn-tune').onclick = renderTune;
 $('#btn-export').onclick = () => exportChat('md');
 $('#btn-theme').onclick = () =>
   applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
 $('#btn-palette').onclick = openPalette;
 
-for (const btn of $$('.nav-item')) {
+// Só quem tem data-view: o <summary class="nav-item"> do "Mais" abre o
+// <details> sozinho, e switchView(undefined) procuraria #view-undefined.
+for (const btn of $$('.nav-item[data-view]')) {
   btn.onclick = () => {
     switchView(btn.dataset.view);
     closeSidebarOnMobile();
@@ -1160,9 +1581,17 @@ document.addEventListener('keydown', (ev) => {
     $('#palette').hidden ? openPalette() : closePalette();
     return;
   }
-  if (mod && ev.shiftKey && ev.key.toLowerCase() === 'n') {
+  // As teclas anunciadas na lista de atalhos precisam existir: ⇧⌘N é a
+  // conversa anônima, ⌘N a conversa nova e ⌘, os ajustes desta conversa.
+  if (mod && ev.key.toLowerCase() === 'n') {
     ev.preventDefault();
-    newChat();
+    if (ev.shiftKey) toggleAnon();
+    else newChat();
+    return;
+  }
+  if (mod && ev.key === ',') {
+    ev.preventDefault();
+    renderTune();
     return;
   }
   if (mod && ev.key === 'Enter' && document.activeElement === $('#input')) {
@@ -1188,12 +1617,18 @@ document.addEventListener('keydown', (ev) => {
     }
     return;
   }
+  // Esc fecha o modo voz antes de cortar a resposta: com a camada aberta é
+  // ela que a pessoa está vendo, e é dela que quer sair.
+  if (ev.key === 'Escape' && voz.aberto) return fecharVoz();
   if (ev.key === 'Escape' && state.streaming) state.streaming.abort();
 });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
+$('#brand-marca').innerHTML = roseta(26, 'fixa');
 paintIcons();
+// Primeiro dos três momentos do brilho: a chegada.
+brilho.pulsar();
 load()
   .then(() => {
     if (!state.messages.length) renderEmptyState();

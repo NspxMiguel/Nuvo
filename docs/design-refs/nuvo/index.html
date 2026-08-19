@@ -1,28 +1,24 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0e0e13" />
-    <title>IAUnifier</title>
-    <!-- iOS ignora o manifest pra tela cheia: precisa destas três. A quarta é
-         a padrão, que o Chrome pede em lugar da variante apple- (e avisa no
-         console em toda abertura enquanto ela não está aqui). -->
+    <meta name="theme-color" content="#000000" />
+    <title>Nuvo</title>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="IAUnifier" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="icon" href="/icon-192.png" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="stylesheet" href="/styles.css" />
+    <meta name="apple-mobile-web-app-title" content="Nuvo" />
+    <link rel="icon" href="icon-192.png" />
+    <link rel="apple-touch-icon" href="icon-512.png" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div id="app">
       <div id="scrim"></div>
       <aside id="sidebar">
         <header class="side-head">
-          <span class="brand"><span id="brand-marca" class="brand-marca"></span><span class="brand-txt">IAUnifier</span></span>
+          <span class="brand"><span id="brand-marca" class="brand-marca"></span><span class="brand-txt">Nuvo</span></span>
           <button id="btn-close-side" class="icon" title="recolher" aria-label="recolher o menu">
             <span data-icon="close" data-size="22"></span>
           </button>
@@ -37,9 +33,10 @@
           <button data-view="chat" class="nav-item active"><span data-icon="chat" data-size="20"></span> Conversas</button>
           <button data-view="council" class="nav-item"><span data-icon="users" data-size="20"></span> Perguntar pra várias</button>
           <button data-view="research" class="nav-item"><span data-icon="globe" data-size="20"></span> Pesquisar na web</button>
+          <button data-view="code" class="nav-item"><span data-icon="code" data-size="20"></span> Programar no terminal</button>
           <details id="nav-mais">
             <summary class="nav-item"><span data-icon="layers" data-size="20"></span> Mais <span data-icon="chevron" data-size="17" class="seta"></span></summary>
-            <button data-view="memory" class="nav-item"><span data-icon="brain" data-size="20"></span> Memória <span id="n-memoria" class="badge-n"></span></button>
+            <button data-view="memory" class="nav-item"><span data-icon="brain" data-size="20"></span> Memória <span class="badge-n">248</span></button>
             <button data-view="projects" class="nav-item"><span data-icon="folder" data-size="20"></span> Projetos</button>
             <button data-view="gems" class="nav-item"><span data-icon="sparkle" data-size="20"></span> Perfis</button>
             <button data-view="providers" class="nav-item"><span data-icon="plug" data-size="20"></span> IAs ligadas</button>
@@ -55,27 +52,18 @@
           <button data-view="settings" class="icon nav-item" title="ajustes" aria-label="ajustes">
             <span data-icon="settings" data-size="20"></span>
           </button>
-          <!-- Fora da vista, dentro do DOM: o tema tem controle próprio em Ajustes
-               e a paleta é ⌘K. Os dois ids continuam porque app.js liga onclick
-               neles na carga, e o rodapé só comporta a pílula mais um ícone. -->
-          <button id="btn-theme" class="icon" title="tema" aria-label="trocar entre tema claro e escuro" hidden style="display: none">
-            <span data-icon="moon"></span>
-          </button>
-          <button id="btn-palette" class="icon" title="paleta de comandos" aria-label="abrir a paleta de comandos" hidden style="display: none">
-            <span data-icon="command"></span>
-          </button>
-          <span id="side-status" class="muted"></span>
+          <span id="side-status" class="muted">3 IAs ligadas · 11 modelos</span>
         </footer>
       </aside>
 
       <main id="main">
         <canvas id="glow" aria-hidden="true"></canvas>
         <header id="topbar">
-          <button id="btn-open-side" class="icon" type="button" title="mostrar a barra lateral" aria-label="mostrar a barra lateral"><span data-icon="menu" data-size="20"></span></button>
+          <button id="btn-open-side" class="icon" title="mostrar a barra lateral" aria-label="mostrar a barra lateral"><span data-icon="menu" data-size="20"></span></button>
           <button id="btn-new-chat-top" class="icon" type="button" title="nova conversa" aria-label="nova conversa"><span data-icon="edit" data-size="19"></span></button>
           <span id="chat-title"></span>
           <span class="grow"></span>
-          <button id="btn-web" class="icon toggle" type="button" aria-pressed="false" title="buscar na web nesta conversa" aria-label="buscar na web nesta conversa">
+          <button id="btn-web" class="icon toggle" aria-pressed="false" title="buscar na web nesta conversa" aria-label="buscar na web nesta conversa">
             <span data-icon="globe" data-size="19"></span>
           </button>
           <button id="btn-anon" class="icon toggle" type="button" aria-pressed="false" title="conversa anônima" aria-label="conversa anônima, apagada ao sair">
@@ -85,14 +73,6 @@
               <circle cx="8.1" cy="16.1" r="2.6" stroke="currentColor" stroke-width="1.7"/>
               <circle cx="15.9" cy="16.1" r="2.6" stroke="currentColor" stroke-width="1.7"/>
             </svg>
-          </button>
-          <!-- fora da barra no desenho novo, mas os ids seguem no DOM: quem chama
-               agora é a lista de atalhos (⌘K) e o menu de exportar. -->
-          <button id="btn-tune" class="icon" type="button" hidden title="ajustes desta conversa" aria-label="ajustes desta conversa">
-            <span data-icon="spark" data-size="19"></span>
-          </button>
-          <button id="btn-export" class="icon" type="button" hidden title="exportar conversa" aria-label="exportar conversa">
-            <span data-icon="download" data-size="19"></span>
           </button>
         </header>
 
@@ -132,6 +112,7 @@
 
         <section id="view-council" class="view" hidden></section>
         <section id="view-research" class="view" hidden></section>
+        <section id="view-code" class="view" hidden></section>
         <section id="view-projects" class="view" hidden></section>
         <section id="view-gems" class="view" hidden></section>
         <section id="view-memory" class="view" hidden></section>
@@ -147,24 +128,22 @@
       </div>
     </div>
 
-    <!-- Modo voz: camada de vidro por cima de tudo. Fica no HTML e não no JS
-         porque o CSS já a descreve inteira, inclusive as doze barras. -->
-    <div id="voice" hidden>
-      <button id="voice-close" class="icon" type="button" title="fechar" aria-label="sair do modo voz"><span data-icon="close" data-size="22"></span></button>
+    <div id="voice" class="voice" hidden>
+      <button id="voice-close" class="icon" title="fechar" aria-label="sair do modo voz"><span data-icon="close" data-size="22"></span></button>
       <div class="voice-meio">
         <div id="voice-marca"></div>
         <div class="voice-onda" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <div id="voice-txt" class="voice-txt" role="status" aria-live="polite">ouvindo…</div>
-        <div id="voice-quem" class="voice-quem"></div>
+        <div id="voice-txt" class="voice-txt">ouvindo…</div>
+        <div id="voice-quem" class="voice-quem">Claude Sonnet 4 · responde falando</div>
       </div>
       <div class="voice-pe">
-        <button id="voice-mudo" class="icon" type="button" title="silenciar" aria-pressed="false" aria-label="silenciar"><span data-icon="mic" data-size="21"></span></button>
-        <button id="voice-fim" class="primary" type="button">Encerrar</button>
+        <button id="voice-mudo" class="icon" title="silenciar"><span data-icon="mic" data-size="21"></span></button>
+        <button id="voice-fim" class="primary">Encerrar</button>
       </div>
     </div>
 
     <div id="toasts" class="toasts"></div>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="demo.js"></script>
   </body>
 </html>
