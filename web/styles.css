@@ -537,6 +537,33 @@ input.rename {
 .note.err .ico { color: var(--danger); }
 .note a { color: var(--accent); }
 
+/* A trilha do agente de navegador. Cada passo entra numa linha e o bloco cresce
+   enquanto ele anda — a alternativa era um aviso solto por passo, oito no total,
+   empurrando a conversa pra fora da tela antes de a resposta chegar. */
+.note.agente { color: var(--text); }
+.note.agente b { font-weight: 600; }
+.trilha { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.trilha .passo {
+  font-size: 14.5px;
+  color: var(--text-2);
+  padding-left: 14px;
+  position: relative;
+  animation: sobe var(--d3) var(--ease) both;
+}
+.trilha .passo::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.trilha .passo.ruim { color: var(--muted); }
+.trilha .passo.ruim::before { background: var(--muted); }
+.trilha .porque { display: block; color: var(--muted); font-size: 13.5px; }
+
 .code { border-radius: var(--radius); overflow: hidden; margin: 0 0 14px; background: var(--panel); }
 .code-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; font-size: 14px; color: var(--muted); }
 .code-copy { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; min-height: 36px; }

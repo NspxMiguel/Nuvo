@@ -11,6 +11,13 @@ const chat = await import('../server/chat.mjs');
 const { run, all, one, uid, now } = await import('../server/db.mjs');
 const { addMemory, listMemories } = await import('../server/memory.mjs');
 const { addAttachment } = await import('../server/documents.mjs');
+const { patchConfig } = await import('../server/config.mjs');
+
+// O globo tem dois caminhos: agente de navegador onde há Chrome, busca de uma
+// vez só onde não há. Máquina de desenvolvimento tem Chrome e máquina de CI não,
+// então sem fixar isso o mesmo teste passa aqui e falha lá. Os testes abaixo são
+// do caminho sem navegador; o do agente fixa o contrário em `agente-web.test.mjs`.
+patchConfig({ navegador: { agente: false } });
 
 after(() => home.cleanup());
 

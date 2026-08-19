@@ -10,6 +10,8 @@ import { loadConfig } from './config.mjs';
 import { recall, renderForPrompt, learnFromExchange } from './memory.mjs';
 import { renderDocuments } from './documents.mjs';
 import { searchAndRead, renderWebBlock } from './web.mjs';
+import { navegarComAgente } from './agente-web.mjs';
+import { acharNavegador } from './navegador.mjs';
 import { explainProviderError } from './errors.mjs';
 
 const HISTORY_LIMIT = 40;
@@ -207,16 +209,50 @@ export async function* runTurn({
   const wantsWeb = useWeb === null ? Boolean(tools.web) : Boolean(useWeb);
   let webBlock = '';
   if (wantsWeb) {
-    yield { type: 'phase', text: 'buscando na web' };
-    try {
-      const { pages } = await searchAndRead(userContent, { results: 5, read: 3, signal });
-      webBlock = renderWebBlock(pages);
-      yield {
-        type: 'web-used',
-        hits: pages.map((p, i) => ({ n: i + 1, title: p.title, url: p.url, ok: Boolean(p.text) }))
-      };
-    } catch (err) {
-      yield { type: 'note', text: `busca na web falhou: ${err.message}` };
+    // Com Chrome na máquina o globo dirige um navegador de verdade: o modelo
+    // clica, lê e decide o próximo passo. Sem Chrome — servidor pelado, contêiner
+    // — cai na busca de uma vez só, que não depende de navegador nenhum. Quem
+    // liga o globo não precisa saber em qual dos dois caiu; a diferença aparece
+    // nos passos que a tela mostra.
+    const cfgNav = loadConfig().navegador || {};
+    const podeAgente = cfgNav.agente !== false && Boolean(acharNavegador());
+
+    if (podeAgente) {
+      try {
+        const passeio = navegarComAgente({
+          pergunta: userContent,
+          modelRef: ref,
+          passos: cfgNav.passos || undefined,
+          janela: Boolean(cfgNav.janela),
+          signal
+        });
+        let evento = await passeio.next();
+        while (!evento.done) {
+          yield evento.value;
+          evento = await passeio.next();
+        }
+        webBlock = evento.value.block;
+        if (evento.value.visitadas.length) {
+          yield {
+            type: 'web-used',
+            hits: evento.value.visitadas.map((v, i) => ({ n: i + 1, title: v.titulo || v.url, url: v.url, ok: true }))
+          };
+        }
+      } catch (err) {
+        yield { type: 'note', text: `o agente de navegador parou: ${err.message}` };
+      }
+    } else {
+      yield { type: 'phase', text: 'buscando na web' };
+      try {
+        const { pages } = await searchAndRead(userContent, { results: 5, read: 3, signal });
+        webBlock = renderWebBlock(pages);
+        yield {
+          type: 'web-used',
+          hits: pages.map((p, i) => ({ n: i + 1, title: p.title, url: p.url, ok: Boolean(p.text) }))
+        };
+      } catch (err) {
+        yield { type: 'note', text: `busca na web falhou: ${err.message}` };
+      }
     }
   }
 

@@ -66,8 +66,8 @@ function pintarWeb() {
   btn.classList.toggle('on', state.useWeb);
   btn.setAttribute('aria-pressed', String(Boolean(state.useWeb)));
   const rotulo = state.useWeb
-    ? 'busca na web ligada nesta conversa'
-    : 'busca na web desligada nesta conversa';
+    ? 'modo agente de navegador ligado nesta conversa'
+    : 'modo agente de navegador desligado nesta conversa';
   btn.title = rotulo;
   btn.setAttribute('aria-label', rotulo);
 }
@@ -728,6 +728,7 @@ async function consumeTurn(path, body, ganchos = {}) {
   let el = null;
   let bodyEl = null;
   let thinkEl = null;
+  let trilhaEl = null;
   let answer = '';
   let messageId = null;
   // Os fatos que entraram no prompt viram o rodapé da resposta, não um aviso
@@ -782,6 +783,21 @@ async function consumeTurn(path, body, ganchos = {}) {
               '',
               'globe'
             );
+            break;
+          case 'agent-step':
+            // Um bloco só, que cresce — oito passos viravam oito avisos soltos
+            // empurrando a conversa pra cima.
+            if (!trilhaEl) {
+              trilhaEl = addNote('<b>navegando</b><div class="trilha"></div>', 'agente', 'globe');
+            }
+            trilhaEl.querySelector('.trilha').insertAdjacentHTML(
+              'beforeend',
+              `<div class="passo${ev.erro ? ' ruim' : ''}">${escapeHtml(ev.descricao || ev.acao)}` +
+                `${ev.motivo ? `<span class="porque">${escapeHtml(ev.motivo)}</span>` : ''}</div>`
+            );
+            scrollDown();
+            break;
+          case 'agent-page':
             break;
           case 'history-cut':
             // A conversa inteira está na tela, mas o modelo só recebeu o fim
@@ -1325,7 +1341,7 @@ function commands() {
     { icon: 'paperclip', label: 'Anexar arquivo', run: () => $('#file-input').click() },
     {
       icon: 'globe',
-      label: state.useWeb ? 'Desligar busca na web' : 'Ligar busca na web',
+      label: state.useWeb ? 'Desligar o agente de navegador' : 'Ligar o agente de navegador',
       run: toggleWeb
     },
     {
@@ -1407,7 +1423,11 @@ function toggleWeb() {
   if (state.chatId) {
     api(`/chats/${state.chatId}`, { method: 'PATCH', body: { tools: { web: state.useWeb } } });
   }
-  toast(state.useWeb ? 'busca na web ligada nesta conversa' : 'busca na web desligada');
+  toast(
+    state.useWeb
+      ? 'agente de navegador ligado: o modelo abre o navegador e navega sozinho'
+      : 'agente de navegador desligado'
+  );
 }
 
 async function exportChat(format) {

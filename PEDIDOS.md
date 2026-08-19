@@ -870,10 +870,13 @@ Mensagem dele, com o print do botão do globo em anexo, mais o zip
 
 Quebrado em itens:
 
-- [ ] **o botão do globo é modo agente de navegador**, não busca na web. Tipo o
+- [x] **o botão do globo é modo agente de navegador**, não busca na web. Tipo o
   Claude in Chrome, o Codex in Chrome. Hoje ele só liga busca na web na
   conversa — é outra coisa;
-- [ ] **usar a landing que ele fez no Claude Design** (`landing.html` +
+  → `server/navegador.mjs` dirige o Chrome pelo CDP e `server/agente-web.mjs`
+  faz o laço passo a passo. Onde não há Chrome, o globo volta a ser a busca de
+  uma vez só;
+- [x] **usar a landing que ele fez no Claude Design** (`landing.html` +
   `LANDING.md` + as imagens de `lp/` dentro do zip), no lugar da atual;
 - [ ] **release rodando no Mac, no Linux e no Windows**;
 - [ ] **"landing page e tudo bonitinho"** — acabamento;

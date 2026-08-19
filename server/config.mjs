@@ -30,6 +30,17 @@ const DEFAULTS = {
     embeddingModel: null, // ex.: { provider: 'lmstudio', model: 'text-embedding-nomic-embed-text-v1.5' }
     extractorModel: null // ex.: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' }
   },
+  navegador: {
+    // O globo liga o agente de navegador. Desligado aqui, ele volta a ser a
+    // busca de uma vez só — que é o que roda em máquina sem Chrome nenhum.
+    agente: true,
+    // Quantas idas ao modelo o agente pode gastar num turno. Cada passo é uma
+    // chamada inteira: oito já resolve quase tudo e não custa uma conversa.
+    passos: 8,
+    // Com janela, dá pra ver o que ele faz — e é como se faz um login que o
+    // perfil vai guardar. Sem janela é o padrão porque a janela rouba o foco.
+    janela: false
+  },
   limits: {
     // Segundos até o primeiro pedaço da resposta. Modelo local grande demora
     // de verdade pra carregar na memória, daí o valor folgado.
@@ -90,6 +101,7 @@ export function loadConfig() {
     ...DEFAULTS,
     ...stored,
     memory: { ...DEFAULTS.memory, ...(stored.memory || {}) },
+    navegador: { ...DEFAULTS.navegador, ...(stored.navegador || {}) },
     limits: { ...DEFAULTS.limits, ...(stored.limits || {}) },
     secrets: { ...(stored.secrets || {}) }
   };
@@ -116,6 +128,7 @@ export function patchConfig(patch) {
   const cfg = loadConfig();
   const next = { ...cfg, ...patch };
   if (patch.memory) next.memory = { ...cfg.memory, ...patch.memory };
+  if (patch.navegador) next.navegador = { ...cfg.navegador, ...patch.navegador };
   if (patch.limits) next.limits = { ...cfg.limits, ...patch.limits };
   if (patch.secrets) next.secrets = { ...cfg.secrets, ...patch.secrets };
   return saveConfig(next);
