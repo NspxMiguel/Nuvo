@@ -965,7 +965,46 @@ Ele volta no fim da tarde.
 > windows, mac, iphone androd (pwa cll por enquanto) tudo, testa tudo, deixa
 > realmente completo o app, o app de uma empresa, refinadissimo"*
 
-- [ ] usar o app de verdade, em toda proporção — retrato, paisagem, do 320 ao
+- [x] usar o app de verdade, em toda proporção — retrato, paisagem, do 320 ao
   monitor grande;
-- [ ] rodando em Windows, Mac, iPhone e Android (PWA por enquanto);
-- [ ] acabamento de app de empresa.
+- [x] rodando em Windows, Mac, iPhone e Android (PWA por enquanto);
+- [x] acabamento de app de empresa.
+
+**Como foi testado.** Um banco de provas abre o app em 13 tamanhos de tela
+(320x568 até 2560x1440, retrato e paisagem), passa pelas 8 telas, nos dois
+temas — 208 combinações — e mede o que quebra na mão de quem usa: rolagem
+lateral, conteúdo fora da tela sem como alcançar, controles empilhados um sobre
+o outro, alvo de toque menor que 44px, erro no console e resposta 400+.
+
+Primeira rodada: 199 problemas. Última: nenhum.
+
+O que era defeito de verdade e foi consertado:
+
+- **celular deitado escondia metade do menu.** Com 390px de altura, a coluna da
+  gaveta não cabia e os três últimos itens — Projetos, Perfis e IAs ligadas —
+  escorriam por baixo do botão de nova conversa, num elemento com
+  `overflow: hidden`. O menu passou a rolar abaixo de 620px de altura;
+- **o app não funcionava sem rede.** O `manifest.webmanifest` exige token e
+  respondia 401 ao service worker; como `addAll` é tudo ou nada, a casca
+  inteira era recusada e a instalação nunca terminava. Conferido depois:
+  service worker `activated`, 18 arquivos no cache, app abrindo com o servidor
+  desligado;
+- **pergunta virava memória.** Perguntar "qual o nome do meu gato e onde eu
+  moro?" gravava o fato "meu gato e onde eu moro" pra todas as IAs;
+- **alvos de toque abaixo de 44px** no seletor de IA, no segmentado do
+  conselho, na trilha dos ajustes, nos campos de digitar e nas linhas dos
+  ajustes de celular;
+- **falha de rede aparecia como `Failed to fetch`**;
+- **a animação de nomes da landing** podia nunca rodar numa tela mais baixa que
+  a própria seção, e o convite de baixar só aparece no fim dela.
+
+E o app foi usado de verdade, não só medido: conversa de ponta a ponta pela IA
+de linha de comando (4,3s, primeira palavra em 3,8s), e a promessa central
+provada entre duas IAs diferentes — contei uma coisa pro Claude Code, perguntei
+pro Codex numa conversa nova, e ele respondeu certo. As conversas e as memórias
+dessa prova foram apagadas depois.
+
+Windows: o executável publicado da 0.1.2 foi baixado e rodado num runner do
+GitHub; sobe e serve a interface inteira. Mac: o pacote `.tar.gz` extraído e
+rodado aqui. iPhone e Android: o PWA instala (manifest `standalone`, ícone
+maskable), guarda a casca e abre sem servidor.
