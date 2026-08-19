@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IAUnifier — todas as suas IAs, uma memória só</title>
 <link rel="icon" href="lp/icon-512.png">
+<script src="idiomas.js"></script>
 <meta name="description" content="Programa que roda na sua máquina e junta os modelos locais, as IAs pagas por uso e os programas de terminal numa conversa só, com a mesma memória para todas.">
 <meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
@@ -28,6 +29,18 @@
   @media (max-width: 700px) {
     .nav-links { display: none !important; }
     .nav { padding: 0 16px !important; gap: 12px !important; }
+  }
+  /* O seletor de idioma sai da barra antes dos links: entre 701 e 745px o
+     "Descargar" terminava 13px fora da tela. O do rodape fica em toda largura,
+     e quem chega com o navegador em outra lingua ja abre a pagina traduzida. */
+  @media (max-width: 745px) {
+    header .idioma { display: none !important; }
+  }
+  /* Abaixo de 380px o botao ainda estourava por 5px em espanhol: "Descargar" e
+     mais comprido que "Baixar", e a barra foi medida so com o portugues. */
+  @media (max-width: 380px) {
+    .nav { padding: 0 12px !important; gap: 10px !important; }
+    .nav a[href="#baixar"] { padding: 0 14px !important; }
   }
   /* ------------------------------------------------------------- o palco
 
@@ -162,6 +175,22 @@
   .palco.parado { height: auto; }
   .palco.parado .palco-fixo { position: static; height: auto; padding: 130px 24px 40px; }
   .palco.parado .dica { display: none; }
+
+  /* O seletor de idioma: nativo de propósito. Um menu escrito à mão teria que
+     resolver teclado, toque e leitor de tela pra ganhar do que o navegador já
+     entrega pronto — e num site de uma página só, não ganha. */
+  .idioma {
+    appearance: none;
+    padding: 6px 26px 6px 11px;
+    border: 1px solid #1e1e22;
+    border-radius: 999px;
+    background: #101013 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%238e8e96' stroke-width='1.6'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center;
+    color: #9aa0aa;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .idioma:hover { border-color: #3a3a42; color: #fff; }
 </style>
 </head>
 <body>
@@ -179,12 +208,13 @@
     </a>
     <div style="flex:1"></div>
     <div class="nav-links" style="display:flex;align-items:center;gap:24px;font-size:14.5px;color:#8e8e96">
-      <a href="#memoria" style="color:inherit">Memória</a>
-      <a href="#maquina" style="color:inherit">IAs ligadas</a>
-      <a href="#agente" style="color:inherit">Agente</a>
-      <a href="#privacidade" style="color:inherit">Privacidade</a>
+      <a href="#memoria" style="color:inherit" data-i18n>Memória</a>
+      <a href="#maquina" style="color:inherit" data-i18n>IAs locais</a>
+      <a href="#agente" style="color:inherit" data-i18n>Agente</a>
+      <a href="#privacidade" style="color:inherit" data-i18n>Privacidade</a>
     </div>
-    <a href="#baixar" style="display:inline-flex;align-items:center;height:38px;padding:0 20px;border-radius:999px;background:#3d7dff;color:#fff;font-size:14.5px;font-weight:600" style-hover="background:#5a91ff;color:#fff">Baixar</a>
+    <select class="idioma" data-curto data-i18n-attr="aria-label" aria-label="Idioma"></select>
+    <a href="#baixar" style="display:inline-flex;align-items:center;height:38px;padding:0 20px;border-radius:999px;background:#3d7dff;color:#fff;font-size:14.5px;font-weight:600" style-hover="background:#5a91ff;color:#fff" data-i18n>Baixar</a>
   </nav>
 </header>
 
@@ -193,48 +223,48 @@
 
     <div class="ato" id="ato-oi">
       <svg class="marca" width="54" height="54" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient><radialGradient id="sgb" cx=".5" cy=".2" r=".8"><stop stop-color="#fff" stop-opacity=".4"></stop><stop offset="1" stop-color="#fff" stop-opacity="0"></stop></radialGradient></defs><g fill="url(#sg)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g><circle cx="12" cy="12" r="10.6" fill="url(#sgb)"></circle></svg>
-      <h2 class="oi">Pode falar,<span class="nome" id="nome"></span></h2>
-      <p class="oi-sub">É assim que o app abre. Sem tela de login, sem escolher plano — a conversa já está ali.</p>
+      <h2 class="oi"><span data-i18n>Pode falar,</span><span class="nome" id="nome"></span></h2>
+      <p class="oi-sub" data-i18n>É assim que o app abre. Sem tela de login, sem escolher plano — a conversa já está ali.</p>
     </div>
 
     <p class="ato frase" id="frase"></p>
 
     <div class="revela" id="revela" aria-hidden="true">
-      <img src="lp/tela-conversa.jpg" alt="IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar">
+      <img src="lp/tela-conversa.jpg" data-i18n-attr="alt" alt="IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar">
     </div>
 
     <div class="final" id="final">
-      <h1 class="lado lado-esq" id="lado-esq">Todas as suas IAs,<br>uma memória só</h1>
-      <p class="lado lado-dir" id="lado-dir">Os modelos que rodam no seu computador, as IAs pagas por uso e os programas de terminal, numa conversa só. O que você conta pra uma, todas sabem.</p>
+      <h1 class="lado lado-esq" id="lado-esq"><span data-i18n>Todas as suas IAs,</span><br><span data-i18n>uma memória só</span></h1>
+      <p class="lado lado-dir" id="lado-dir" data-i18n>Os modelos que rodam no seu computador, as IAs pagas por uso e os programas de terminal, numa conversa só. O que você conta pra uma, todas sabem.</p>
     </div>
 
     <div class="acoes" id="acoes">
-      <a href="#baixar" class="cheio">Baixar</a>
-      <a href="https://github.com/NspxMiguel/IAUnifier" class="vazio">Ver o código</a>
+      <a href="#baixar" class="cheio" data-i18n>Baixar</a>
+      <a href="https://github.com/NspxMiguel/IAUnifier" class="vazio" data-i18n>Ver o código</a>
     </div>
 
-    <div class="dica" id="dica">role</div>
+    <div class="dica" id="dica" data-i18n>role</div>
   </div>
 </section>
 
 <section id="memoria" style="margin-top:150px;padding:130px 28px 0;border-top:1px solid #17171a">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:56px;align-items:start">
     <div style="display:flex;flex-direction:column;gap:16px">
-      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance">Uma memória, não cinco conversas</h2>
-      <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">Cada IA que você usa hoje começa do zero. IAUnifier guarda o que importa uma vez — como você gosta de resposta, o que tem no seu projeto, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.</p>
+      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance" data-i18n>Uma memória, não cinco conversas</h2>
+      <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Cada IA que você usa hoje começa do zero. IAUnifier guarda o que importa uma vez — como você gosta de resposta, o que tem no seu projeto, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.</p>
     </div>
     <div style="display:flex;flex-direction:column">
       <div style="display:flex;flex-direction:column;gap:6px;padding:20px 0;border-top:1px solid #17171a">
-        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em">Você vê a origem</h3>
-        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96">Cada coisa guardada mostra de qual conversa veio.</p>
+        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em" data-i18n>Você vê a origem</h3>
+        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96" data-i18n>Cada coisa guardada mostra de qual conversa veio.</p>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;padding:20px 0;border-top:1px solid #17171a">
-        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em">Você manda</h3>
-        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96">Mudar, esquecer ou desligar a memória só nesta resposta.</p>
+        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em" data-i18n>Você manda</h3>
+        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96" data-i18n>Mudar, esquecer ou desligar a memória só nesta resposta.</p>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;padding:20px 0;border-top:1px solid #17171a;border-bottom:1px solid #17171a">
-        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em">Fica em casa</h3>
-        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96">A memória é um arquivo na sua máquina, não uma conta em servidor de ninguém.</p>
+        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em" data-i18n>Fica em casa</h3>
+        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96" data-i18n>A memória é um arquivo na sua máquina, não uma conta em servidor de ninguém.</p>
       </div>
     </div>
   </div>
@@ -243,21 +273,21 @@
 <section style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:14px">
-      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">Perguntar pra várias</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Pergunte pra cinco ao mesmo tempo</h2>
-      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">A mesma pergunta em várias IAs, todas lendo a mesma memória. Compare lado a lado, deixe que elas votem ou receba as respostas costuradas numa só. Quem responde em três segundos não fica esperando quem leva quarenta.</p>
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Perguntar pra várias</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Pergunte pra cinco ao mesmo tempo</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>A mesma pergunta em várias IAs, todas lendo a mesma memória. Compare lado a lado, deixe que elas votem ou receba as respostas costuradas numa só. Quem responde em três segundos não fica esperando quem leva quarenta.</p>
     </div>
-    <figure style="margin:0"><img src="lp/tela-varias.jpg" alt="Tela Perguntar pra várias: a pergunta, a barra de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%"></figure>
+    <figure style="margin:0"><img src="lp/tela-varias.jpg" data-i18n-attr="alt" alt="Tela Perguntar pra várias: a pergunta, a barra de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%"></figure>
   </div>
 </section>
 
 <section id="maquina" style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
-    <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" alt="Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%"></figure>
+    <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" data-i18n-attr="alt" alt="Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
-      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">IAs ligadas</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Só as IAs que cabem na sua máquina</h2>
-      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">IAUnifier olha a memória RAM e o processador da sua máquina e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase sobre para que ele é bom e por que escolhê-lo em vez do outro.</p>
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>IAs locais</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Só as IAs que cabem na sua máquina</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>IAUnifier olha a memória RAM e o processador da sua máquina e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase sobre para que ele é bom e por que escolhê-lo em vez do outro.</p>
     </div>
   </div>
 </section>
@@ -265,22 +295,22 @@
 <section style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:14px">
-      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">Programas de terminal</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Claude Code, Codex, Gemini e opencode dentro do app</h2>
-      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">Os mesmos programas que você já usa no terminal respondem dentro da conversa, sem chave de API e sem cobrança por uso — eles usam a assinatura que você já tem. Leem a mesma memória das outras e trabalham na pasta que o projeto apontar.</p>
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Programas de terminal</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Claude Code, Codex, Gemini e opencode dentro do app</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Os mesmos programas que você já usa no terminal respondem dentro da conversa, sem chave de API e sem cobrança por uso — eles usam a assinatura que você já tem. Leem a mesma memória das outras e trabalham na pasta que o projeto apontar.</p>
     </div>
-    <figure style="margin:0"><img src="lp/tela-cli.jpg" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%"></figure>
+    <figure style="margin:0"><img src="lp/tela-cli.jpg" data-i18n-attr="alt" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%"></figure>
   </div>
 </section>
 
 <section id="agente" style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
-    <figure style="margin:0;order:2"><img src="lp/tela-agente.jpg" alt="Uma conversa em modo agente: a trilha mostra a busca, a página aberta e o motivo de cada passo, e a resposta cita a fonte" style="width:100%"></figure>
+    <figure style="margin:0;order:2"><img src="lp/tela-agente.jpg" data-i18n-attr="alt" alt="Uma conversa em modo agente: a trilha mostra a busca, a página aberta e o motivo de cada passo, e a resposta cita a fonte" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
-      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">Modo agente</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Ela abre o navegador e vai atrás</h2>
-      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">Um clique no globo e a IA passa a dirigir um navegador de verdade: busca, entra no site, clica, lê e volta com a resposta e o endereço de onde tirou. Não é o resumo de um resultado de busca — é a página aberta, inclusive a que só existe depois que o JavaScript roda. Você acompanha cada passo e o porquê dele.</p>
-      <p style="margin:0;font-size:15.5px;line-height:1.6;color:#71717a">Funciona com qualquer IA da lista, inclusive as que rodam na sua máquina, desde que você tenha Chrome, Chromium, Edge ou Brave instalado. O navegador abre num perfil separado, longe da sua sessão do dia a dia, e não preenche campo de senha.</p>
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Modo agente</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Ela abre o navegador e vai atrás</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Um clique no globo e a IA passa a dirigir um navegador de verdade: busca, entra no site, clica, lê e volta com a resposta e o endereço de onde tirou. Não é o resumo de um resultado de busca — é a página aberta, inclusive a que só existe depois que o JavaScript roda. Você acompanha cada passo e o porquê dele.</p>
+      <p style="margin:0;font-size:15.5px;line-height:1.6;color:#71717a" data-i18n>Funciona com qualquer IA da lista, inclusive as que rodam na sua máquina, desde que você tenha Chrome, Chromium, Edge ou Brave instalado. O navegador abre num perfil separado, longe da sua sessão do dia a dia, e não preenche campo de senha.</p>
     </div>
   </div>
 </section>
@@ -288,15 +318,15 @@
 <section id="privacidade" style="margin-top:130px;padding:130px 28px 0;border-top:1px solid #17171a">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:start">
     <div style="display:flex;flex-direction:column;gap:16px">
-      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance">Roda na sua máquina</h2>
-      <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">IAUnifier é um programa que você instala e roda na sua máquina, não um serviço na nuvem. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam numa pasta sua — dá pra abrir, copiar e apagar na mão.</p>
+      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance" data-i18n>Roda na sua máquina</h2>
+      <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>IAUnifier é um programa que você instala e roda na sua máquina, não um serviço na nuvem. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam numa pasta sua — dá pra abrir, copiar e apagar na mão.</p>
     </div>
     <div style="display:flex;flex-direction:column;gap:12px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013">
       <div style="display:flex;align-items:center;gap:10px">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8e8e96" aria-hidden="true"><path d="M3.4 12.6h17.2" stroke-width="1.9" stroke-linecap="round"></path><path d="M6.6 12.4 8 7.8a2 2 0 0 1 2.5-1.3l1.5.5 1.5-.5a2 2 0 0 1 2.5 1.3l1.4 4.6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="8.1" cy="16.1" r="2.6" stroke-width="1.7"></circle><circle cx="15.9" cy="16.1" r="2.6" stroke-width="1.7"></circle></svg>
-        <h3 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-.02em">Conversa anônima</h3>
+        <h3 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-.02em" data-i18n>Conversa anônima</h3>
       </div>
-      <p style="margin:0;font-size:16.5px;line-height:1.6;color:#8e8e96;text-wrap:pretty">Um toque e a conversa não entra no histórico, não usa a memória e não aprende nada. Some quando você fechar.</p>
+      <p style="margin:0;font-size:16.5px;line-height:1.6;color:#8e8e96;text-wrap:pretty" data-i18n>Um toque e a conversa não entra no histórico, não usa a memória e não aprende nada. Some quando você fechar.</p>
     </div>
   </div>
 </section>
@@ -304,33 +334,33 @@
 <section id="baixar" style="margin-top:130px;padding:130px 28px 0;border-top:1px solid #17171a">
   <div style="max-width:1160px;margin:0 auto;display:flex;flex-direction:column;gap:32px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;max-width:620px">
-      <h2 style="margin:0;font-size:clamp(30px,3.4vw,44px);font-weight:550;line-height:1.06;letter-spacing:-.035em">Baixar o IAUnifier</h2>
-      <p style="margin:0;font-size:17.5px;line-height:1.6;color:#9aa0aa">Versão 0.1.4. Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.</p>
+      <h2 style="margin:0;font-size:clamp(30px,3.4vw,44px);font-weight:550;line-height:1.06;letter-spacing:-.035em" data-i18n>Baixar o IAUnifier</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.6;color:#9aa0aa"><span data-i18n>Versão</span> 0.1.4. <span data-i18n>Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.</span></p>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:14px;width:100%;max-width:900px">
       <a href="https://github.com/NspxMiguel/IAUnifier/releases/download/v0.1.4/iaunifier-0.1.4-windows-x64.zip" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
         <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">Windows</span>
-        <span style="font-size:14.5px;color:#8e8e96">.exe num .zip · 39 MB</span>
-        <span style="font-size:14px;color:#71717a">Windows 10 ou mais novo · x86-64</span>
+        <span style="font-size:14.5px;color:#8e8e96"><span data-i18n>.exe num .zip</span> · 39 MB</span>
+        <span style="font-size:14px;color:#71717a"><span data-i18n>Windows 10 ou mais novo</span> · x86-64</span>
       </a>
       <a href="https://github.com/NspxMiguel/IAUnifier/releases/download/v0.1.4/iaunifier-0.1.4-linux-x64.tar.gz" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
         <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">Linux</span>
         <span style="font-size:14.5px;color:#8e8e96">.tar.gz · 47 MB</span>
-        <span style="font-size:14px;color:#71717a">x86-64 · precisa da libatomic</span>
+        <span style="font-size:14px;color:#71717a">x86-64 · <span data-i18n>precisa da libatomic</span></span>
       </a>
       <a href="https://github.com/NspxMiguel/IAUnifier/releases/download/v0.1.4/iaunifier-0.1.4-macos-arm64.tar.gz" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
         <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">macOS</span>
         <span style="font-size:14.5px;color:#8e8e96">.tar.gz · 44 MB</span>
-        <span style="font-size:14px;color:#71717a">Apple Silicon · macOS 13 ou mais novo</span>
+        <span style="font-size:14px;color:#71717a">Apple Silicon · <span data-i18n>macOS 13 ou mais novo</span></span>
       </a>
     </div>
 
-    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px">Máquina mais antiga? <a href="https://github.com/NspxMiguel/IAUnifier/releases/download/v0.1.4/iaunifier-0.1.4-macos-x64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">Mac com Intel</a> · <a href="https://github.com/NspxMiguel/IAUnifier/releases/download/v0.1.4/iaunifier-0.1.4-linux-arm64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">Linux ARM64</a> · <a href="https://github.com/NspxMiguel/IAUnifier/releases/latest" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">todos os arquivos</a>.</p>
+    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px"><span data-i18n>Máquina mais antiga?</span> <a href="https://github.com/NspxMiguel/IAUnifier/releases/download/v0.1.4/iaunifier-0.1.4-macos-x64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px" data-i18n>Mac com Intel</a> · <a href="https://github.com/NspxMiguel/IAUnifier/releases/download/v0.1.4/iaunifier-0.1.4-linux-arm64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">Linux ARM64</a> · <a href="https://github.com/NspxMiguel/IAUnifier/releases/latest" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px" data-i18n>todos os arquivos</a>.</p>
 
-    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px">No Linux, instale a libatomic antes: <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#9aa0aa">sudo apt install libatomic1</code> no Debian e Ubuntu, <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#9aa0aa">dnf install libatomic</code> no Fedora. Sem ela o programa nem abre.</p>
+    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px"><span data-i18n>No Linux, instale a libatomic antes:</span> <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#9aa0aa">sudo apt install libatomic1</code> <span data-i18n>no Debian e Ubuntu,</span> <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#9aa0aa">dnf install libatomic</code> <span data-i18n>no Fedora. Sem ela o programa nem abre.</span></p>
 
-    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px">O app roda em qualquer máquina — quem pede memória RAM são os modelos locais, e a tela de IAs ligadas diz o que cabe na sua. Ou <a href="https://github.com/NspxMiguel/IAUnifier" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">compile a partir do código</a>.</p>
+    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px"><span data-i18n>O app roda em qualquer máquina — quem pede memória RAM são os modelos locais, e a tela de IAs ligadas diz o que cabe na sua. Ou</span> <a href="https://github.com/NspxMiguel/IAUnifier" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px" data-i18n>compile a partir do código</a>.</p>
   </div>
 </section>
 
@@ -340,17 +370,114 @@
       <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="rn2" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient></defs><g fill="url(#rn2)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g></svg>
       IAUnifier
     </span>
-    <span style="font-size:14px;color:#71717a">Versão 0.1.4 · código aberto</span>
+    <span style="font-size:14px;color:#71717a"><span data-i18n>Versão</span> 0.1.4 · <span data-i18n>código aberto</span></span>
     <div style="flex:1"></div>
     <div style="display:flex;flex-wrap:wrap;gap:20px;font-size:14px;color:#8e8e96">
-      <a href="https://github.com/NspxMiguel/IAUnifier" style="color:inherit">Código</a>
-      <a href="https://github.com/NspxMiguel/IAUnifier/releases" style="color:inherit">Versões</a>
-      <a href="#topo" style="color:inherit">Voltar ao topo</a>
+      <a href="https://github.com/NspxMiguel/IAUnifier" style="color:inherit" data-i18n>Código</a>
+      <a href="https://github.com/NspxMiguel/IAUnifier/releases" style="color:inherit" data-i18n>Versões</a>
+      <a href="#topo" style="color:inherit" data-i18n>Voltar ao topo</a>
+      <select class="idioma" data-i18n-attr="aria-label" aria-label="Idioma"></select>
     </div>
   </div>
 </footer>
 
 </div>
+
+<script>
+  // ------------------------------------------------------------------ idioma
+  //
+  // Roda aqui, no fim do corpo e antes do palco, por dois motivos: a esta
+  // altura a página inteira já foi lida (então dá pra traduzir tudo de uma vez,
+  // sem esperar evento e sem a página piscar em português), e o palco lê as
+  // frases já traduzidas em vez de montar as letras duas vezes.
+  const IDIOMA = (() => {
+    const NOMES_IDIOMA = { 'pt-BR': 'Português', en: 'English', es: 'Español' };
+    // Na barra de cima o nome inteiro não cabe: entre os links e o botão de
+    // baixar sobram uns 60px, e "Português" empurrava o "Baixar" pra fora da
+    // tela. Lá vai a sigla; no rodapé, onde sobra espaço, vai o nome escrito
+    // na própria língua.
+    const SIGLAS = { 'pt-BR': 'PT', en: 'EN', es: 'ES' };
+    const GUARDADO = 'iaunifier.site.idioma';
+    const dicionarios = window.IDIOMAS || {};
+
+    // A ordem: o `?lang=` do endereço (é o que um link compartilhado carrega),
+    // depois a escolha guardada, depois o que o navegador pede. Sem consulta de
+    // IP: o navegador já manda a resposta certa de graça, e quem usa VPN tem o
+    // IP num país e o idioma no dele.
+    const url = new URL(location.href);
+    const disponiveis = Object.keys(NOMES_IDIOMA);
+    const casa = (c) =>
+      c &&
+      (disponiveis.find((d) => d.toLowerCase() === String(c).toLowerCase()) ||
+        disponiveis.find(
+          (d) => d.split('-')[0].toLowerCase() === String(c).split('-')[0].toLowerCase()
+        ));
+
+    let escolha = null;
+    try {
+      escolha = localStorage.getItem(GUARDADO);
+    } catch {
+      /* navegador com armazenamento bloqueado: o site funciona sem lembrar */
+    }
+    const candidatos = [url.searchParams.get('lang'), escolha, ...(navigator.languages || [navigator.language])];
+    const atual = candidatos.map(casa).find(Boolean) || 'pt-BR';
+    const dic = dicionarios[atual] || {};
+    const t = (texto) => dic[texto] ?? texto;
+
+    document.documentElement.lang = atual;
+
+    for (const el of document.querySelectorAll('[data-i18n]')) {
+      const chave = el.dataset.i18n || el.textContent.trim();
+      el.dataset.i18n = chave;
+      el.textContent = t(chave);
+    }
+    for (const el of document.querySelectorAll('[data-i18n-attr]')) {
+      for (const attr of el.dataset.i18nAttr.split(',').map((a) => a.trim())) {
+        const valor = el.getAttribute(attr);
+        if (valor) el.setAttribute(attr, t(valor));
+      }
+    }
+
+    // O título e a descrição não estão na tela, mas são o que aparece na aba,
+    // no resultado de busca e no cartão de quem compartilha o endereço.
+    document.title = t(document.title);
+    for (const sel of ['meta[name="description"]', 'meta[property="og:description"]']) {
+      const m = document.querySelector(sel);
+      if (m) m.content = t(m.content);
+    }
+    const ogt = document.querySelector('meta[property="og:title"]');
+    if (ogt) ogt.content = t(ogt.content);
+
+    for (const sel of document.querySelectorAll('select.idioma')) {
+      sel.innerHTML = '';
+      for (const [codigo, nome] of Object.entries(NOMES_IDIOMA)) {
+        const o = document.createElement('option');
+        o.value = codigo;
+        o.textContent = sel.hasAttribute('data-curto') ? SIGLAS[codigo] : nome;
+        o.selected = codigo === atual;
+        sel.append(o);
+      }
+      sel.addEventListener('change', () => {
+        try {
+          localStorage.setItem(GUARDADO, sel.value);
+        } catch {
+          /* sem armazenamento, o `?lang=` do endereço já segura a escolha */
+        }
+        // Recarregar em vez de retraduzir: o palco desmonta cada frase em
+        // letras no carregamento, e remontar tudo em pé custa mais código do
+        // que vale. O endereço leva o idioma junto, então o link continua
+        // servindo pra quem receber.
+        const destino = new URL(location.href);
+        destino.searchParams.set('lang', sel.value);
+        destino.hash = '';
+        location.replace(destino);
+      });
+    }
+
+    return { atual, t };
+  })();
+</script>
+
 <script>
   (() => {
     // ------------------------------------------------------------- o palco
@@ -378,8 +505,11 @@
     const acoes = document.getElementById('acoes');
     const dica = document.getElementById('dica');
 
-    const NOMES = ['Miguel', 'João', 'Ana', 'Beatriz', 'Lucas', 'Sofia', 'Helena', 'SEU NOME'];
-    const FRASES = ['Você conta uma vez.', 'E todas elas lembram.'];
+    // Nome próprio também é idioma: quem abre em inglês vê nomes de gente que
+    // fala inglês, e o último da fila continua sendo o convite.
+    const NOMES = (window.IDIOMAS?.[IDIOMA.atual] || {})['@nomes'] ||
+      ['Miguel', 'João', 'Ana', 'Beatriz', 'Lucas', 'Sofia', 'Helena', 'SEU NOME'];
+    const FRASES = ['Você conta uma vez.', 'E todas elas lembram.'].map(IDIOMA.t);
 
     const trava = (v, a, b) => Math.min(b, Math.max(a, v));
     /** Fatia do roteiro: 0 antes de `de`, 1 depois de `ate`, proporcional no meio. */

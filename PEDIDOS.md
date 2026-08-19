@@ -1026,13 +1026,19 @@ maskable), guarda a casca e abre sem servidor.
 
 Quebrado em itens:
 
-- [ ] **i18n no site também.** O app fala três idiomas desde hoje de manhã; a
+- [x] **i18n no site também.** O app fala três idiomas desde hoje de manhã; a
   landing continua só em português, inclusive as telas desenhadas dentro dela
   ("IAs ligadas"). O pedido de ontem era "i18n, site app e etc" — o site ficou
   de fora;
-- [ ] **o "Pode falar" com os nomes vai pro alto da página**, na primeira tela,
+  Entregue: `docs/idiomas.js` com inglês e espanhol, 66 frases cada, chaveadas
+  pelo próprio português igual ao app. O seletor fica na barra de cima (sigla)
+  e no rodapé (nome por extenso); o `?lang=` do endereço deixa o link levar o
+  idioma. O nome "IAs ligadas" da barra virou "IAs locais", que é do que a
+  seção fala. Medido: 33 combinações de idioma × tela sem estouro nem erro de
+  console, e `test/site-idiomas.test.mjs` reprova frase marcada sem tradução.
+- [x] **o "Pode falar" com os nomes vai pro alto da página**, na primeira tela,
   não numa seção lá embaixo;
-- [ ] **tirar a moldura que a landing põe nas capturas** — borda e canto
+- [x] **tirar a moldura que a landing põe nas capturas** — borda e canto
   arredondado que o app não tem;
 - [ ] **efeito de rolagem travada** na primeira tela: a página parece parada
   enquanto o conteúdo troca ao rolar. A referência é o projeto do curso dele
@@ -1040,3 +1046,9 @@ Quebrado em itens:
   herói pinnado, sequência de frames desenhada em canvas, troca de texto letra a
   letra em ordem aleatória e uma máscara que abre do centro empurrando o
   conteúdo pros lados. **É referência, não pra copiar.**
+  Entregue sem biblioteca nenhuma: `#topo` mede 460vh, o conteúdo fica em
+  `sticky` e um progresso 0..1 tirado do `scrollY` dirige os três atos —
+  saudação com os nomes, frase trocando letra a letra fora de ordem, e a
+  máscara abrindo do centro sobre a captura enquanto empurra o título pra
+  esquerda e o texto pra direita. `prefers-reduced-motion` mostra a primeira
+  tela pronta, sem rolagem travada.
