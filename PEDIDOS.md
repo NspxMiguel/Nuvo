@@ -687,7 +687,7 @@ O prompt novo está em `PROMPT-CLAUDE-DESIGN.md`. A diferença pro primeiro é u
 só, e é a que faltava: **referência visual**. O primeiro descrevia o app e
 deixava a cara em aberto; este diz "é o ChatGPT e o Gemini do iPhone", anexa as
 cinco fotos que você mandou (recortadas do vídeo e das capturas, em
-`docs/design-refs/`) e descreve cada uma ponto por ponto — preto de verdade,
+`referencias-design/`) e descreve cada uma ponto por ponto — preto de verdade,
 lista sem borda, pílula, uma cor só, brilho atrás do campo de escrever. As
 restrições técnicas e o mapa de arquivos continuam.
 

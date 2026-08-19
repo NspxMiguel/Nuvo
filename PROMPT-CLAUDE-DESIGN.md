@@ -5,7 +5,7 @@ A segunda fixou a referência com foto. Esta terceira acrescenta o que ainda
 faltava dizer: **simplicidade em camadas, personalidade, animação, e a ideia do
 LM Studio de recomendar modelo pela máquina.**
 
-Copiar daqui pra baixo. Anexar as seis imagens de `docs/design-refs/` junto
+Copiar daqui pra baixo. Anexar as seis imagens de `referencias-design/` junto
 (ou apontar pro repositório, que é público):
 `chatgpt-inicio` · `chatgpt-lista` · `gemini-inicio` · `gemini-brilho` ·
 `gemini-gaveta` · `gemini-animacao`.
@@ -15,7 +15,7 @@ Copiar daqui pra baixo. Anexar as seis imagens de `docs/design-refs/` junto
 Preciso do desenho de interface de um app chamado **IAUnifier**, e eu sei
 exatamente a cara que quero: **o app do ChatGPT e o app do Gemini no iPhone.**
 Não "inspirado em" — é esse o alvo. As referências estão anexas e em
-https://github.com/NspxMiguel/IAUnifier/tree/main/docs/design-refs
+https://github.com/NspxMiguel/IAUnifier/tree/main/referencias-design
 
 ## O que é o app
 
