@@ -147,6 +147,22 @@
       </div>
     </div>
 
+    <!-- Modo voz: camada de vidro por cima de tudo. Fica no HTML e não no JS
+         porque o CSS já a descreve inteira, inclusive as doze barras. -->
+    <div id="voice" hidden>
+      <button id="voice-close" class="icon" type="button" title="fechar" aria-label="sair do modo voz"><span data-icon="close" data-size="22"></span></button>
+      <div class="voice-meio">
+        <div id="voice-marca"></div>
+        <div class="voice-onda" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div id="voice-txt" class="voice-txt" role="status" aria-live="polite">ouvindo…</div>
+        <div id="voice-quem" class="voice-quem"></div>
+      </div>
+      <div class="voice-pe">
+        <button id="voice-mudo" class="icon" type="button" title="silenciar" aria-pressed="false" aria-label="silenciar"><span data-icon="mic" data-size="21"></span></button>
+        <button id="voice-fim" class="primary" type="button">Encerrar</button>
+      </div>
+    </div>
+
     <div id="toasts" class="toasts"></div>
 
     <script type="module" src="/app.js"></script>

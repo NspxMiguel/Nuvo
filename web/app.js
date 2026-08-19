@@ -684,7 +684,12 @@ async function ensureChat() {
 }
 
 /** Consome o stream de um turno e vai montando a resposta na tela. */
-async function consumeTurn(path, body) {
+/**
+ * Roda um turno inteiro. Devolve o que a IA respondeu para quem precisa do
+ * texto depois — o modo voz lê a resposta em voz alta. `ganchos.memoria`
+ * avisa assim que os fatos entram no prompt, ainda durante o "pensando".
+ */
+async function consumeTurn(path, body, ganchos = {}) {
   const controller = new AbortController();
   state.streaming = controller;
   // Respondendo: mostra parar, esconde enviar. Desabilitado, o botão azul
@@ -724,6 +729,7 @@ async function consumeTurn(path, body) {
             // O aviso é um só, e vem depois da resposta: uma linha antes dela
             // atrapalha a leitura e some do histórico quando a conversa reabre.
             fatosUsados = ev.items;
+            ganchos.memoria?.(ev.items);
             break;
           case 'docs-used':
             addNote(
@@ -848,22 +854,23 @@ async function consumeTurn(path, body) {
     renderSidebar();
     renderTopbar();
   }
+  return { answer, fatos: fatosUsados };
 }
 
-async function send(text) {
-  if (!text.trim()) return;
+async function send(text, ganchos) {
+  if (!text.trim()) return null;
   if (!state.model) {
     addNote('Nenhuma IA escolhida. Abra <b>IAs ligadas</b> e ligue uma.', 'err', 'alert');
-    return;
+    return null;
   }
   const chatId = await ensureChat();
   // A tela vazia sai de cena no primeiro envio; a faixa de anônimo fica.
   $('#messages').querySelector('.vazio, .first-run')?.remove();
-  await consumeTurn(`/chats/${chatId}/stream`, {
-    content: text,
-    model: state.model,
-    web: state.useWeb
-  });
+  return consumeTurn(
+    `/chats/${chatId}/stream`,
+    { content: text, model: state.model, web: state.useWeb },
+    ganchos
+  );
 }
 
 async function regenerate(fromId) {
@@ -936,13 +943,15 @@ async function uploadFiles(files) {
 
 // --------------------------------------------------------------------- voz
 
+/** Marcação de Markdown não deve ser lida em voz alta. */
+function semMarcacao(text) {
+  return text.replace(/```[\s\S]*?```/g, ' bloco de código. ').replace(/[*_#`>|]/g, '');
+}
+
 function speak(text) {
   if (!('speechSynthesis' in window)) return toast('este navegador não lê em voz alta', 'err');
   speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(
-    // Marcação de Markdown não deve ser lida em voz alta.
-    text.replace(/```[\s\S]*?```/g, ' bloco de código. ').replace(/[*_#`>|]/g, '')
-  );
+  const utterance = new SpeechSynthesisUtterance(semMarcacao(text));
   utterance.lang = 'pt-BR';
   speechSynthesis.speak(utterance);
 }
@@ -976,6 +985,137 @@ function toggleDictation() {
     $('#btn-mic').classList.remove('on', 'toggle');
   };
   recognition.start();
+}
+
+// ---------------------------------------------------------------- modo voz
+
+// Conversa falada: a camada #voice cobre a tela e o ciclo é sempre o mesmo —
+// ouvir, repetir o que entendeu, pensar, responder falando, e voltar a ouvir.
+// A conversa continua sendo a mesma que está atrás: o modo voz não é um chat
+// separado, é outra forma de digitar nela.
+const voz = { aberto: false, rec: null, mudo: false, encerrando: false };
+
+function vozDiz(texto, { falando = false } = {}) {
+  $('#voice-txt').textContent = texto;
+  $('#voice').classList.toggle('falando', falando);
+}
+
+/** Ouve uma fala. Resolve com o que foi dito, ou com '' se não veio nada. */
+function vozOuvir() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  return new Promise((resolve) => {
+    const rec = new Recognition();
+    voz.rec = rec;
+    rec.lang = 'pt-BR';
+    rec.interimResults = true;
+    // Turno a turno: a pausa da pessoa é o que fecha a vez dela de falar.
+    rec.continuous = false;
+    let dito = '';
+    vozDiz('ouvindo…');
+    rec.onresult = (ev) => {
+      let texto = '';
+      for (let i = 0; i < ev.results.length; i++) texto += ev.results[i][0].transcript;
+      dito = texto.trim();
+      // Enquanto não é final, aparece entre aspas: mostra que está entendendo.
+      if (dito) vozDiz(`“${dito}”`);
+    };
+    rec.onerror = (ev) => {
+      // 'no-speech' e 'aborted' são o silêncio e o fechar — não são defeito.
+      if (ev.error !== 'no-speech' && ev.error !== 'aborted') {
+        vozDiz(`o ditado falhou: ${ev.error}`);
+      }
+    };
+    rec.onend = () => {
+      voz.rec = null;
+      resolve(dito);
+    };
+    rec.start();
+  });
+}
+
+/** Lê a resposta em voz alta e só volta quando terminou (ou falhou). */
+function vozFalar(texto) {
+  if (!('speechSynthesis' in window) || !texto.trim()) return Promise.resolve();
+  return new Promise((resolve) => {
+    speechSynthesis.cancel();
+    const fala = new SpeechSynthesisUtterance(semMarcacao(texto));
+    fala.lang = 'pt-BR';
+    fala.onend = resolve;
+    fala.onerror = resolve;
+    speechSynthesis.speak(fala);
+  });
+}
+
+async function vozCiclo() {
+  while (voz.aberto) {
+    if (voz.mudo) {
+      await new Promise((r) => setTimeout(r, 200));
+      continue;
+    }
+    const dito = await vozOuvir();
+    if (!voz.aberto) return;
+    if (!dito) continue;
+
+    vozDiz('pensando…');
+    let resposta = null;
+    try {
+      resposta = await send(dito, {
+        memoria: (itens) => {
+          if (!itens.length) return;
+          const n = itens.length;
+          vozDiz(`pensando…\nusando ${n} ${n === 1 ? 'coisa que sabe' : 'coisas que sabe'} de você`);
+        }
+      });
+    } catch (err) {
+      vozDiz(err.message || 'não deu pra falar com o servidor');
+      await new Promise((r) => setTimeout(r, 1800));
+      continue;
+    }
+    if (!voz.aberto) return;
+    const texto = resposta?.answer?.trim();
+    if (!texto) continue;
+    vozDiz(texto, { falando: true });
+    await vozFalar(texto);
+    $('#voice').classList.remove('falando');
+  }
+}
+
+function abrirVoz() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) return toast('este navegador não tem ditado', 'err');
+  if (voz.aberto) return;
+  voz.aberto = true;
+  voz.mudo = false;
+  $('#voice').classList.remove('mudo', 'falando');
+  $('#voice-mudo').setAttribute('aria-pressed', 'false');
+  $('#voice-marca').innerHTML = roseta(78, 'grande');
+  $('#voice-quem').textContent = `${modelLabel(state.model)} · responde falando`;
+  $('#voice').hidden = false;
+  paintIcons($('#voice'));
+  vozCiclo();
+}
+
+function fecharVoz() {
+  if (!voz.aberto) return;
+  voz.aberto = false;
+  // `abort` não dispara resultado; `stop` entregaria mais uma fala depois de
+  // fechado, e aí o ciclo mandaria uma pergunta que ninguém pediu.
+  voz.rec?.abort();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  $('#voice').hidden = true;
+  $('#voice').classList.remove('falando', 'mudo');
+}
+
+function vozMudo() {
+  voz.mudo = !voz.mudo;
+  $('#voice').classList.toggle('mudo', voz.mudo);
+  $('#voice-mudo').setAttribute('aria-pressed', String(voz.mudo));
+  $('#voice-mudo').title = voz.mudo ? 'voltar a ouvir' : 'silenciar';
+  if (voz.mudo) {
+    voz.rec?.abort();
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    vozDiz('microfone desligado');
+  }
 }
 
 // -------------------------------------------------------- ajustes do chat
@@ -1354,12 +1494,10 @@ $('#btn-new-chat').onclick = novaConversa;
 $('#btn-new-chat-top').onclick = novaConversa;
 $('#btn-web').onclick = toggleWeb;
 $('#btn-anon').onclick = toggleAnon;
-$('#btn-voice').onclick = () => {
-  // A camada #voice é outra frente; enquanto não existe, o botão dita.
-  const camada = $('#voice');
-  if (camada) camada.hidden = false;
-  else toggleDictation();
-};
+$('#btn-voice').onclick = abrirVoz;
+$('#voice-close').onclick = fecharVoz;
+$('#voice-fim').onclick = fecharVoz;
+$('#voice-mudo').onclick = vozMudo;
 addEventListener('resize', () => {
   $('#btn-new-chat-top').hidden = noCelular();
 });
@@ -1479,6 +1617,9 @@ document.addEventListener('keydown', (ev) => {
     }
     return;
   }
+  // Esc fecha o modo voz antes de cortar a resposta: com a camada aberta é
+  // ela que a pessoa está vendo, e é dela que quer sair.
+  if (ev.key === 'Escape' && voz.aberto) return fecharVoz();
   if (ev.key === 'Escape' && state.streaming) state.streaming.abort();
 });
 
