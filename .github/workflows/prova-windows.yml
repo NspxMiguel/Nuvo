@@ -52,7 +52,7 @@ jobs:
           # A interface e módulos dela: se os arquivos de `web/` não tivessem
           # entrado no executável, estes dariam 404 com a raiz ainda em 200.
           # O token vai no cabeçalho próprio do app — ele não usa cookie.
-          foreach ($rota in @("/", "/app.js", "/styles.css", "/format.js", "/manifest.webmanifest")) {
+          foreach ($rota in @("/", "/app.js", "/styles.css", "/format.js", "/i18n.js", "/requisitos.js", "/catalogo.js", "/idiomas/en.json", "/manifest.webmanifest")) {
             $r = Invoke-WebRequest -Uri "http://127.0.0.1:4747$rota" -Headers @{ "x-iaunifier-token" = $token } -UseBasicParsing
             Write-Host ("  {0,-24} {1}  {2} bytes" -f $rota, $r.StatusCode, $r.RawContentLength)
             if ($r.StatusCode -ne 200) { throw "$rota respondeu $($r.StatusCode)" }
