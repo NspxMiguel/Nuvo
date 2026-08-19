@@ -29,6 +29,99 @@
     .nav-links { display: none !important; }
     .nav { padding: 0 16px !important; gap: 12px !important; }
   }
+  /* A saudação do app, do jeito que ela aparece na tela vazia — só que aqui os
+     nomes passam e param no do visitante. É a única parte da página que se
+     comporta como o produto em vez de descrever ele. */
+  .saudacao {
+    padding: 130px 28px 0;
+  }
+  .saudacao-caixa {
+    max-width: 1160px;
+    margin: 0 auto;
+    border: 1px solid #1e1e22;
+    border-radius: 26px;
+    background: radial-gradient(120% 140% at 50% 0%, #101018 0%, #08080a 55%, #000 100%);
+    padding: clamp(52px, 9vw, 96px) 28px clamp(44px, 7vw, 72px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 26px;
+    text-align: center;
+    overflow: hidden;
+  }
+  .saudacao .marca { width: 54px; height: 54px; }
+
+  .saudacao h2 {
+    margin: 0;
+    font-size: clamp(30px, 5.2vw, 54px);
+    font-weight: 550;
+    line-height: 1.1;
+    letter-spacing: -.035em;
+    /* A frase é uma linha só: quebrar entre "falar," e o nome faria o nome
+       pular de linha a cada troca, e a caixa inteira tremer junto. */
+    white-space: nowrap;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: .28em;
+  }
+  /* Largura reservada pelo nome mais comprido da lista, medida no carregamento:
+     sem isso a frase inteira desliza pros lados a cada nome. */
+  .nome {
+    display: inline-block;
+    min-width: var(--nome-larg, 5ch);
+    text-align: left;
+    color: #3d7dff;
+  }
+  .nome span {
+    display: inline-block;
+    animation: entra .42s cubic-bezier(.2, .8, .2, 1) both;
+  }
+  .nome.voce span { color: #fff; }
+
+  @keyframes entra {
+    from { opacity: 0; transform: translateY(.42em); filter: blur(4px); }
+    to   { opacity: 1; transform: none; filter: none; }
+  }
+
+  .saudacao p {
+    margin: 0;
+    font-size: 17.5px;
+    line-height: 1.6;
+    color: #9aa0aa;
+    max-width: 460px;
+  }
+
+  /* O convite só existe depois que o nome vira o do visitante: aparecer antes
+     entregaria o final da animação. */
+  .convite {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .convite.aberto { opacity: 1; transform: none; }
+  .convite a {
+    display: inline-flex;
+    align-items: center;
+    height: 50px;
+    padding: 0 30px;
+    border-radius: 999px;
+    background: #3d7dff;
+    color: #fff;
+    font-size: 16.5px;
+    font-weight: 600;
+  }
+  .convite a:hover { background: #5a91ff; }
+
+  /* Quem pediu menos movimento vê o final direto, não um pisca-pisca lento. */
+  @media (prefers-reduced-motion: reduce) {
+    .nome span { animation: none; }
+    .convite { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -150,6 +243,20 @@
   </div>
 </section>
 
+<section class="saudacao" id="saudacao">
+  <div class="saudacao-caixa">
+    <svg class="marca" width="54" height="54" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient><radialGradient id="sgb" cx=".5" cy=".2" r=".8"><stop stop-color="#fff" stop-opacity=".4"></stop><stop offset="1" stop-color="#fff" stop-opacity="0"></stop></radialGradient></defs><g fill="url(#sg)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g><circle cx="12" cy="12" r="10.6" fill="url(#sgb)"></circle></svg>
+
+    <h2>Pode falar,<span class="nome" id="nome"><span>Miguel</span></span></h2>
+
+    <p>É assim que o app abre. Sem tela de login, sem escolher plano — a conversa já está ali.</p>
+
+    <div class="convite" id="convite">
+      <a href="#baixar">Baixe o app agora, e teste você mesmo</a>
+    </div>
+  </div>
+</section>
+
 <section id="baixar" style="margin-top:130px;padding:130px 28px 0;border-top:1px solid #17171a">
   <div style="max-width:1160px;margin:0 auto;display:flex;flex-direction:column;gap:32px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;max-width:620px">
@@ -200,5 +307,77 @@
 </footer>
 
 </div>
+<script>
+  (() => {
+    const NOMES = ['Miguel', 'João', 'Ana', 'Beatriz', 'Lucas', 'Sofia', 'Helena'];
+    const FIM = 'SEU NOME';
+    const nomeEl = document.getElementById('nome');
+    const convite = document.getElementById('convite');
+    if (!nomeEl) return;
+
+    // Mede o nome mais comprido de verdade, com a fonte já carregada, e reserva
+    // essa largura. Chutar em `ch` erra: a fonte não é monoespaçada.
+    const medir = () => {
+      const regua = document.createElement('span');
+      regua.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+      regua.style.font = getComputedStyle(nomeEl).font;
+      document.body.appendChild(regua);
+      let maior = 0;
+      for (const n of [...NOMES, FIM]) {
+        regua.textContent = n;
+        maior = Math.max(maior, regua.getBoundingClientRect().width);
+      }
+      regua.remove();
+      nomeEl.style.setProperty('--nome-larg', Math.ceil(maior) + 'px');
+    };
+    if (document.fonts?.ready) document.fonts.ready.then(medir);
+    else medir();
+
+    const parado = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (parado) {
+      nomeEl.innerHTML = '<span>' + FIM + '</span>';
+      nomeEl.classList.add('voce');
+      convite.classList.add('aberto');
+      return;
+    }
+
+    let relogio = null;
+    const rodar = () => {
+      let i = 0;
+      nomeEl.classList.remove('voce');
+      convite.classList.remove('aberto');
+      const passo = () => {
+        // O último quadro não é mais um nome: é o lugar do visitante. Daí ele
+        // ficar branco enquanto os outros passam em azul.
+        const ultimo = i >= NOMES.length;
+        nomeEl.classList.toggle('voce', ultimo);
+        nomeEl.innerHTML = '<span>' + (ultimo ? FIM : NOMES[i]) + '</span>';
+        i++;
+        if (ultimo) {
+          convite.classList.add('aberto');
+          return;
+        }
+        relogio = setTimeout(passo, 480);
+      };
+      passo();
+    };
+
+    // Roda quando a seção entra na tela, e roda de novo se o visitante voltar:
+    // animação que já terminou antes de ser vista não contou como vista.
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(
+        (entradas) => {
+          for (const e of entradas) {
+            if (e.isIntersecting) rodar();
+            else if (relogio) clearTimeout(relogio);
+          }
+        },
+        { threshold: 0.45 }
+      ).observe(document.getElementById('saudacao'));
+    } else {
+      rodar();
+    }
+  })();
+</script>
 </body>
 </html>
