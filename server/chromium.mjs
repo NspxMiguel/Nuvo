@@ -372,10 +372,17 @@ async function* baixarZip(url, destino, { signal, esperado } = {}) {
 
   // Vigia de travada: conexão que morre sem fechar deixa o `read()` esperando
   // pra sempre, e a tela ficaria em "baixando" até a pessoa desistir do app.
+  //
+  // `cancel()` faz o `read()` pendente devolver `done`, não erro — sem a marca
+  // abaixo, uma conexão morta viraria "download terminado" com meio zip.
+  let travado = false;
   let travou = null;
   const armar = () => {
     clearTimeout(travou);
-    travou = setTimeout(() => leitor.cancel(new Error('a conexão parou de responder')), 90_000);
+    travou = setTimeout(() => {
+      travado = true;
+      leitor.cancel();
+    }, 90_000);
   };
 
   try {
@@ -405,9 +412,16 @@ async function* baixarZip(url, destino, { signal, esperado } = {}) {
     if (ultimoPct !== 100) yield { type: 'progresso', feito, total, pct: total ? 100 : 0 };
   } finally {
     clearTimeout(travou);
-    await new Promise((ok) => arquivo.end(ok));
+    // Fecha o arquivo aconteça o que acontecer, mas sem ficar esperando o
+    // retorno de um stream que já morreu: aí o `end` não chama de volta e a
+    // rotina inteira ficaria pendurada em vez de reportar o erro de verdade.
+    await new Promise((ok) => {
+      arquivo.once('error', ok);
+      arquivo.end(ok);
+    });
   }
 
+  if (travado) throw new Error('a conexão parou de responder no meio do download');
   if (total && feito !== total) {
     throw new Error(`o download veio incompleto: ${mb(feito)} MB de ${mb(total)} MB`);
   }
