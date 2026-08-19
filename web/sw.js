@@ -10,6 +10,7 @@ const CACHE = 'iaunifier-v6';
 const SHELL = [
   '/', '/index.html', '/styles.css',
   '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js', '/i18n.js',
+  '/requisitos.js',
   // O manifest NÃO entra aqui. Ele carrega o token dentro do `start_url`, então
   // o servidor exige token pra devolvê-lo — e o service worker pede sem token.
   // Com ele na lista, o `addAll` inteiro era recusado por causa de um 401, a

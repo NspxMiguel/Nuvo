@@ -12,6 +12,7 @@ import {
   iniciarIdioma, traduzirDocumento, aoTrocarIdioma, t, plural, formatarNumero
 } from './i18n.js';
 import { views } from './views.js';
+import { lerRequisitos, faltaAlgo, cartaoRequisitos, ligarRequisitos } from './requisitos.js';
 
 // A malha de pontinhos do rodapé nasce ao abrir o app, ao voltar pra uma
 // conversa e quando a resposta começa a chegar. Uma declaração só: dois
@@ -81,6 +82,11 @@ async function load() {
   renderView();
   const ligadas = state.providers.filter((p) => p.enabled).length;
   const modelos = chatModels().length;
+  // Sem nenhum modelo pra responder, a tela que resolve isso é a de IAs ligadas
+  // — e ela mora dentro do "Mais", fechado. Deixar fechado esconde a única
+  // saída de quem está começando; abrir uma vez não atrapalha quem já tem IA,
+  // porque a partir daí a pessoa fecha e o estado é dela.
+  if (!modelos) $('#nav-mais').open = true;
   $('#side-status').textContent =
     `${plural(ligadas, '1 IA ligada', '{n} IAs ligadas')} · ${plural(modelos, '1 modelo', '{n} modelos')}`;
   // O contador da Memória não vem no /state; é um pedido solto que não segura
@@ -514,6 +520,19 @@ function renderMessages(focusId) {
  * de sempre, os três passos que tiram o app do zero.
  */
 function renderFirstRun() {
+  // A checagem do que falta chega depois da tela: esperar por ela deixaria a
+  // primeira abertura em branco por causa de um cartão que talvez nem apareça.
+  lerRequisitos().then((req) => {
+    const alvo = $('#messages')?.querySelector('#falta-aqui');
+    if (!alvo || !faltaAlgo(req)) return;
+    alvo.innerHTML = cartaoRequisitos(req);
+    ligarRequisitos(alvo, req, async () => {
+      await load();
+      await api('/discover', { method: 'POST' }).catch(() => {});
+      await load();
+    });
+  });
+
   // IA cadastrada mas sem nada que responda é outro problema: aí não falta
   // descobrir nada, falta ligar ou atualizar o que já está lá.
   const desligados = state.providers.filter((p) => !p.enabled).length;
@@ -536,6 +555,7 @@ function renderFirstRun() {
           : `${t('Nada ligado ainda.')}<br />${t('Deixa eu ver o que tem aqui.')}`
       }</h2>
       <p>${escapeHtml(explicacao)}</p>
+      <div id="falta-aqui"></div>
       <ol class="steps">
         <li style="animation-delay:420ms">
           <strong>${t('Procurar o que já existe na máquina')}</strong>

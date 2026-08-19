@@ -8,6 +8,7 @@ import { icon } from './icons.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { roseta } from './glow.js';
 import { t, plural, formatarNumero } from './i18n.js';
+import { lerRequisitos, cartaoRequisitos, ligarRequisitos } from './requisitos.js';
 
 /** Cada painel se redesenha inteiro; o estado real está no servidor. */
 export const views = {};
@@ -123,8 +124,16 @@ function ligarRecomendados(inner, maquina, switchView) {
   if (!lista || !maquina) return;
   const local =
     state.providers.find((p) => p.manageable && p.enabled) || state.providers.find((p) => p.manageable);
-  const semLocal = () =>
-    toast(t('nenhuma IA que roda aqui está ligada — ligue o Ollama primeiro'), 'err');
+  // Sem IA local, o clique não vira erro seco: ele aponta pro cartão que
+  // resolve, que está na mesma tela, logo acima.
+  const semLocal = () => {
+    const cartao = inner.querySelector('#cartao-falta');
+    if (!cartao) return toast(t('nenhuma IA que roda aqui está ligada'), 'err');
+    cartao.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    cartao.classList.add('chama');
+    setTimeout(() => cartao.classList.remove('chama'), 1400);
+    toast(t('primeiro o programa que roda IA aqui — o botão está logo acima'), 'err');
+  };
 
   for (const linha of lista.querySelectorAll('.modelo')) {
     const m = (maquina.modelos || []).find((x) => x.id === linha.dataset.modelo);
@@ -201,11 +210,12 @@ function ligarRecomendados(inner, maquina, switchView) {
 }
 
 views.providers = async function renderProviders(el, { switchView }) {
-  const [presets, maquina] = await Promise.all([
+  const [presets, maquina, requisitos] = await Promise.all([
     api('/presets'),
     // GET /machine ainda não existe no servidor: sem ele a tela continua de pé,
     // só sem o cartão da máquina e sem a lista de recomendados.
-    api('/machine').catch(() => null)
+    api('/machine').catch(() => null),
+    lerRequisitos()
   ]);
 
   const inner = panel(
@@ -213,7 +223,8 @@ views.providers = async function renderProviders(el, { switchView }) {
     t('IAs ligadas'),
     'plug',
     t('Três jeitos de ligar uma IA: a que roda aqui, a que é paga por uso e a que é um programa do terminal.'),
-    `${cartaoMaquina(maquina)}
+    `${cartaoRequisitos(requisitos)}
+     ${cartaoMaquina(maquina)}
      ${
        maquina && maquina.modelos && maquina.modelos.length
          ? `<h3 class="sec">${t('Roda aqui, de graça — recomendados pra esta máquina')}</h3>
@@ -260,6 +271,13 @@ views.providers = async function renderProviders(el, { switchView }) {
        </div>
      </div>`
   );
+
+  // Instalar ou ligar o que falta redesenha a tela inteira: o cartão da máquina,
+  // a lista de recomendados e os botões de baixar mudam todos de uma vez.
+  ligarRequisitos(inner, requisitos, async () => {
+    await refreshState();
+    switchView('providers');
+  });
 
   ligarRecomendados(inner, maquina, switchView);
 

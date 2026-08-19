@@ -1579,3 +1579,53 @@ button.icon { position: relative; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* O cartão do que falta: uma frase, um botão, e a barra que aparece quando o
+   botão vira trabalho. Ele abre a tela porque é o único caminho pra frente
+   quando não há IA nenhuma — daí a borda de destaque em vez do fio de sempre. */
+.card.falta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px 18px;
+  align-items: center;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  border: 1px solid var(--accent-soft, var(--line));
+  border-radius: 16px;
+  background: var(--panel-2);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.card.falta h3 { margin: 0 0 4px; font-size: 17.5px; }
+.card.falta p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 62ch; }
+.card.falta > button { justify-self: end; }
+.card.falta .falta-passo,
+.card.falta .falta-manual { grid-column: 1 / -1; }
+.card.falta .passo-txt { color: var(--muted); font-size: 14px; }
+.card.falta .comando {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--panel-3);
+  overflow-x: auto;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Uma piscada quando o clique cai num botão que ainda não tem como funcionar:
+   ela liga o clique ao cartão que resolve, que pode estar fora da vista. */
+.card.falta.chama { animation: chama 1.4s var(--ease); }
+@keyframes chama {
+  0%, 100% { box-shadow: inset 3px 0 0 var(--accent); }
+  30%, 70% { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 4px var(--accent-soft, rgba(61,125,255,.25)); }
+}
+
+@media (max-width: 620px) {
+  /* Botão embaixo e largo: no celular ele é o alvo principal da tela. */
+  .card.falta { grid-template-columns: 1fr; }
+  .card.falta > button { justify-self: stretch; width: 100%; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.falta.chama { animation: none; }
+}
