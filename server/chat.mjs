@@ -126,8 +126,39 @@ function buildSystemPrompt({ gem, chat, project, memoryBlock, docBlock, webBlock
  * @param {{chatId: string, userContent: string, modelRef?: string,
  *          useWeb?: boolean, resend?: boolean, signal?: AbortSignal}} input
  */
-export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, resend = false, signal }) {
-  const chat = getChat(chatId);
+/**
+ * Conversa anônima: nada de banco. A tela promete três coisas — não entra no
+ * histórico, não aprende nada e não usa a memória — e as três só são verdade se
+ * o turno inteiro correr fora do banco. Aqui não existe linha de conversa, o
+ * histórico vem do navegador (que é onde ele some ao fechar a aba) e o extrator
+ * de fatos não roda.
+ */
+function conversaDeMentira(modelRef) {
+  return {
+    id: null,
+    title: '',
+    model: modelRef,
+    gem_id: null,
+    project_id: null,
+    tools: '{}',
+    mode: null,
+    temperature: null,
+    top_p: null,
+    max_tokens: null
+  };
+}
+
+export async function* runTurn({
+  chatId,
+  userContent,
+  modelRef,
+  useWeb = null,
+  resend = false,
+  anon = false,
+  history: historicoDoCliente = [],
+  signal
+}) {
+  const chat = anon ? conversaDeMentira(modelRef) : getChat(chatId);
   if (!chat) throw new Error('conversa não encontrada');
 
   const gem = chat.gem_id ? one('SELECT * FROM gems WHERE id = ?', chat.gem_id) : null;
@@ -137,31 +168,34 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
 
   const ref = modelRef || chat.model || gem?.model;
   if (!ref) throw new Error('nenhum modelo escolhido');
-  if (ref !== chat.model) run('UPDATE chats SET model = ? WHERE id = ?', ref, chatId);
+  if (!anon && ref !== chat.model) run('UPDATE chats SET model = ? WHERE id = ?', ref, chatId);
 
   // No "regenerar" a mensagem do usuário já está gravada e não deve duplicar.
-  if (!resend) {
+  if (!resend && !anon) {
     const userMessage = addMessage(chatId, 'user', userContent, null);
     yield { type: 'user', message: userMessage };
   }
 
   // Título vem da primeira frase do usuário.
-  if (chat.title === 'Nova conversa') {
+  if (!anon && chat.title === 'Nova conversa') {
     const title = userContent.trim().split('\n')[0].slice(0, 60) || 'Nova conversa';
     run('UPDATE chats SET title = ? WHERE id = ?', title, chatId);
   }
 
   const memories =
-    gem?.memory_read === 0 ? [] : await recall(userContent, { projectId: chat.project_id });
+    anon || gem?.memory_read === 0
+      ? []
+      : await recall(userContent, { projectId: chat.project_id });
   if (memories.length) yield { type: 'memory-used', items: memories };
 
   // Documentos anexados na conversa ou no projeto.
   let docBlock = '';
   try {
-    const docs = await renderDocuments(userContent, {
-      chatId,
-      projectId: chat.project_id
-    });
+    // Sem conversa no banco não há anexo pra ler — e anexo é arquivo gravado,
+    // que é justamente o que a conversa anônima não deixa pra trás.
+    const docs = anon
+      ? { block: '', used: [] }
+      : await renderDocuments(userContent, { chatId, projectId: chat.project_id });
     docBlock = docs.block;
     if (docs.used.length) yield { type: 'docs-used', items: docs.used };
   } catch (err) {
@@ -196,7 +230,17 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
     mode: chat.mode
   });
 
-  const todas = listMessages(chatId).filter((m) => m.role !== 'system');
+  // No anônimo nada foi gravado, então a pergunta desta vez não está no
+  // histórico que veio do navegador — ela entra aqui. Sem isso o modelo recebe
+  // a conversa até o turno anterior e responde à pergunta errada.
+  const todas = anon
+    ? [
+        ...historicoDoCliente
+          .filter((m) => (m?.role === 'user' || m?.role === 'assistant') && m?.content)
+          .map((m) => ({ role: m.role, content: String(m.content) })),
+        { role: 'user', content: userContent }
+      ]
+    : listMessages(chatId).filter((m) => m.role !== 'system');
 
   // O corte por quantidade cai onde calhar, e pode deixar uma resposta na
   // frente sem a pergunta que a gerou. Acontece assim que a contagem de par
@@ -268,10 +312,12 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
     }
   } catch (err) {
     if (answer) {
-      const partial = addMessage(chatId, 'assistant', answer, ref, {
-        interrupted: true,
-        provider: provider.name
-      });
+      const partial = anon
+        ? { id: null, role: 'assistant', content: answer, model: ref, interrupted: true }
+        : addMessage(chatId, 'assistant', answer, ref, {
+            interrupted: true,
+            provider: provider.name
+          });
       yield { type: 'done', message: partial };
     }
     yield { type: 'error', message: explainProviderError(err, provider) };
@@ -306,15 +352,17 @@ export async function* runTurn({ chatId, userContent, modelRef, useWeb = null, r
     return;
   }
 
-  const assistantMessage = addMessage(chatId, 'assistant', answer, ref, {
-    usage,
-    stats,
-    reasoning: reasoning || undefined,
-    provider: provider.name
-  });
+  const assistantMessage = anon
+    ? { id: null, role: 'assistant', content: answer, model: ref, stats }
+    : addMessage(chatId, 'assistant', answer, ref, {
+        usage,
+        stats,
+        reasoning: reasoning || undefined,
+        provider: provider.name
+      });
   yield { type: 'done', message: assistantMessage };
 
-  if (gem?.memory_write !== 0) {
+  if (!anon && gem?.memory_write !== 0) {
     // Aprender é a última etapa do turno, e o turno segura a tranca da conversa
     // e o stream aberto enquanto não termina. Prazo aqui é o que garante que a
     // conversa volte a aceitar pergunta mesmo com o extrator pendurado.

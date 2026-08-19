@@ -1115,9 +1115,14 @@ const CFG_SECOES = {
   atalhos: () => `<h3>Atalhos de teclado</h3>
     ${[
       ['Lista de atalhos', '⌘K'],
-      ['Nova conversa', '⇧⌘N'],
+      // A tabela precisa bater com o listener de web/app.js: ⌘N é conversa
+      // nova e ⇧⌘N é a anônima. Trocados, quem seguisse esta tela abriria uma
+      // conversa anônima achando que abriu uma normal.
+      ['Nova conversa', '⌘N'],
+      ['Conversa anônima', '⇧⌘N'],
+      ['Ajustes desta conversa', '⌘,'],
       ['Enviar mesmo com quebra de linha', '⌘↵'],
-      ['Fechar a lista ou parar a resposta', 'Esc']
+      ['Sair do modo voz, fechar a lista ou parar a resposta', 'Esc']
     ]
       .map(([r, k]) => cfgLin(r, '', `<span class="val" style="font-family:var(--font-mono)">${k}</span>`))
       .join('')}`

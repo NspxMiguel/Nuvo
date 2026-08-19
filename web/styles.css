@@ -198,16 +198,19 @@ html, body {
 .brand em { font-style: normal; color: var(--accent); }
 
 /* o botão de nova conversa é a pílula flutuante do rodapé, não do topo */
+/* A pílula era `position: absolute; left: 14px` contando ficar presa ao
+   #sidebar, mas o bloco de contenção é o `.side-foot`, que também é absoluto e
+   mede só a largura do ícone. Ela ia parar em x=261 numa gaveta que acaba em
+   320, transbordava 85px e cobria por inteiro o botão de ajustes — que no
+   celular ficava inalcançável por toque, sem outro caminho (a paleta é ⌘K e
+   exige teclado). Aqui ela volta a ser irmã de flex do ícone, que é o que o
+   ramo de computador já fazia. */
 #btn-new-chat {
-  position: absolute;
-  left: 14px;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   width: auto;
   padding: 0 22px;
   height: 52px;
   border-radius: var(--pill);
   font-size: 16.5px;
-  z-index: 2;
 }
 
 .side-search {
@@ -285,9 +288,13 @@ html, body {
 .side-foot {
   display: flex;
   align-items: center;
+  /* Ocupa a largura da gaveta: a pílula encosta na esquerda e o ícone na
+     direita, sem um cobrir o outro. */
+  justify-content: space-between;
   gap: 6px;
   padding: 6px 8px 4px;
   position: absolute;
+  left: 10px;
   right: 10px;
   bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   z-index: 2;
@@ -891,6 +898,12 @@ button.block { width: 100%; }
 button.danger { color: var(--danger); background: none; }
 button.icon { background: none; padding: 10px; color: var(--muted); border-radius: 50%; min-width: var(--toque); }
 button.icon.toggle.on { background: var(--accent-soft); color: var(--accent); }
+/* `#topbar button.icon` e `#composer button.icon` têm id na frente e ganham da
+   regra acima por especificidade, então buscar na web, o anônimo e o ditado
+   ficavam com a mesma cara ligados e desligados — o microfone gravando não
+   dava retorno nenhum. Estas duas repetem a regra no mesmo peso delas. */
+#topbar button.icon.toggle.on,
+#composer button.icon.toggle.on { background: var(--accent-soft); color: var(--accent); }
 button.ghost { background: var(--panel); color: var(--text); }
 
 .tag { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; padding: 4px 0; color: var(--muted); background: none; }

@@ -87,8 +87,20 @@ function pintarAnon() {
 }
 
 /** O modo anônimo aparece de longe: destaque cinza e brilho quase apagado. */
+// O histórico da conversa anônima vive aqui e em lugar nenhum mais: nem no
+// banco, nem no localStorage. Fechar a aba apaga, que é o que a faixa promete.
+// A janela é a mesma que o servidor usaria, pra o corte não mudar de tamanho.
+const ANON_JANELA = 30;
+let anonHistorico = [];
+
 function toggleAnon() {
   const ligado = $('#app').classList.toggle('anon');
+  anonHistorico = [];
+  // Entrar e sair do anônimo começa uma tela limpa. Sem isso a resposta
+  // anônima cairia dentro da conversa aberta e, ao desligar, ficaria uma
+  // mensagem na tela que não existe em conversa nenhuma — a faixa diz que ela
+  // some ao trocar de conversa, e é aqui que ela some.
+  limparConversa();
   const btn = $('#btn-anon');
   btn.classList.toggle('on', ligado);
   btn.setAttribute('aria-pressed', String(ligado));
@@ -652,6 +664,22 @@ async function openChat(id, focusId) {
   closeSidebarOnMobile();
 }
 
+/**
+ * Zera a conversa da tela sem trocar de tela. Separado do `newChat` porque
+ * `switchView` desliga o modo anônimo de propósito — chamá-lo de dentro do
+ * `toggleAnon` desarmava o modo no mesmo gesto que o ligava.
+ */
+function limparConversa() {
+  state.chatId = null;
+  state.chat = null;
+  state.messages = [];
+  state.attachments = [];
+  renderSidebar();
+  renderTopbar();
+  renderEmptyState();
+  renderAttachBar();
+}
+
 function newChat() {
   state.chatId = null;
   state.chat = null;
@@ -863,9 +891,26 @@ async function send(text, ganchos) {
     addNote('Nenhuma IA escolhida. Abra <b>IAs ligadas</b> e ligue uma.', 'err', 'alert');
     return null;
   }
-  const chatId = await ensureChat();
+  const anonimo = $('#app').classList.contains('anon');
   // A tela vazia sai de cena no primeiro envio; a faixa de anônimo fica.
   $('#messages').querySelector('.vazio, .first-run')?.remove();
+
+  if (anonimo) {
+    // Nada de `ensureChat`: conversa anônima não tem linha no banco. O histórico
+    // mora só aqui, e vai junto porque o servidor não tem de onde lê-lo — é o
+    // mesmo motivo pelo qual ele some quando a aba fecha.
+    const historico = anonHistorico.slice(-ANON_JANELA);
+    anonHistorico.push({ role: 'user', content: text });
+    const turno = await consumeTurn(
+      '/chat-anonimo',
+      { content: text, model: state.model, web: state.useWeb, history: historico },
+      ganchos
+    );
+    if (turno?.answer) anonHistorico.push({ role: 'assistant', content: turno.answer });
+    return turno;
+  }
+
+  const chatId = await ensureChat();
   return consumeTurn(
     `/chats/${chatId}/stream`,
     { content: text, model: state.model, web: state.useWeb },

@@ -732,6 +732,27 @@ export async function handleApi(req, res, url) {
   }
 
   // --- conselho de IAs -----------------------------------------------------
+  // Conversa anônima: rota própria, sem id, porque não existe conversa. Nada
+  // aqui grava, lê memória ou aprende — a tela promete isso e é aqui que a
+  // promessa se cumpre. O histórico vem do navegador, que é onde ele some.
+  if (method === 'POST' && path === '/chat-anonimo') {
+    const b = await readJSON(req);
+    const stream = openStream(req, res);
+    await pump(
+      stream,
+      runTurn({
+        anon: true,
+        chatId: null,
+        userContent: b.content || '',
+        history: Array.isArray(b.history) ? b.history : [],
+        modelRef: b.model || null,
+        useWeb: b.web === undefined ? null : Boolean(b.web),
+        signal: stream.signal
+      })
+    );
+    return;
+  }
+
   if (method === 'POST' && path === '/council') {
     const b = await readJSON(req);
     const stream = openStream(req, res);
