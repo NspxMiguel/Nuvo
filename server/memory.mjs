@@ -316,12 +316,35 @@ const HEURISTICS = [
  */
 const NEGADO = /\b(?:n[ãa]o|nunca|jamais|nem|don'?t|doesn'?t|never)\s+(?:eu\s+)?$/i;
 
+/**
+ * A frase é uma pergunta?
+ *
+ * Pergunta casa com os mesmos padrões da afirmação — "qual o nome do meu gato?"
+ * casa em "meu gato ..." e virava o fato "meu gato e onde eu moro". Fato assim
+ * é permanente, compartilhado entre todas as IAs e falso: ninguém disse nada,
+ * só perguntou.
+ *
+ * A checagem é da frase inteira em volta do casamento, não do trecho: o padrão
+ * para antes do "?" justamente porque `ateOFimDaFrase` não deixa pontuação
+ * entrar.
+ */
+const INTERROGATIVA = /^\s*(?:qual|quais|quem|quando|onde|aonde|como|quanto|quantos|quantas|por\s?que|porque|o\s+que|what|where|who|when|how|why|which|do|does|did|can|could|is|are)\b/i;
+
+function ehPergunta(texto, inicio) {
+  const antes = texto.lastIndexOf('\n', inicio - 1) + 1;
+  const abre = Math.max(antes, ...['.', '!', '?'].map((c) => texto.lastIndexOf(c, inicio - 1) + 1));
+  const fecha = texto.slice(inicio).search(/[.!?\n]/);
+  const frase = texto.slice(abre, fecha < 0 ? texto.length : inicio + fecha + 1).trim();
+  return frase.endsWith('?') || INTERROGATIVA.test(frase);
+}
+
 /** Extração sem modelo: pega padrões óbvios de preferência e identidade. */
 export function extractHeuristic(text) {
   const out = [];
   for (const re of HEURISTICS) {
     for (const match of String(text || '').matchAll(re)) {
       if (NEGADO.test(match.input.slice(0, match.index))) continue;
+      if (ehPergunta(match.input, match.index)) continue;
       const fact = match[0].trim().replace(/\s+/g, ' ');
       if (fact.length >= 8 && !out.includes(fact)) out.push(fact);
     }

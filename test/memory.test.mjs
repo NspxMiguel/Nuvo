@@ -122,6 +122,23 @@ test('heurística ignora pergunta comum', () => {
   assert.deepEqual(extractHeuristic('me explica como funciona o FTS5'), []);
 });
 
+test('pergunta que casa com o padrão de fato não vira memória', () => {
+  // Rodando de verdade: perguntar "qual o nome do meu gato e onde eu moro?"
+  // para uma IA gravava o fato "meu gato e onde eu moro", que passava a valer
+  // pra todas as outras. Ninguém tinha dito nada — só perguntado.
+  assert.deepEqual(extractHeuristic('Qual o nome do meu gato e onde eu moro?'), []);
+  assert.deepEqual(extractHeuristic('Você sabe qual meu projeto favorito?'), []);
+  assert.deepEqual(extractHeuristic('onde eu moro fica longe do centro?'), []);
+  assert.deepEqual(extractHeuristic('where do i live'), []);
+  // A afirmação equivalente continua entrando.
+  assert.deepEqual(extractHeuristic('meu gato se chama Farofa'), ['meu gato se chama Farofa']);
+});
+
+test('pergunta antes não engole o fato que vem depois', () => {
+  const fatos = extractHeuristic('Qual a capital da França? eu moro em Curitiba');
+  assert.deepEqual(fatos, ['eu moro em Curitiba']);
+});
+
 test('heurística funciona em inglês também', () => {
   const fatos = extractHeuristic('my name is Miguel and i love working late at night');
   assert.ok(fatos.length > 0);
