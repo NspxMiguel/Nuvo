@@ -878,9 +878,17 @@ Quebrado em itens:
   uma vez só;
 - [x] **usar a landing que ele fez no Claude Design** (`landing.html` +
   `LANDING.md` + as imagens de `lp/` dentro do zip), no lugar da atual;
-- [ ] **release rodando no Mac, no Linux e no Windows**;
-- [ ] **"landing page e tudo bonitinho"** — acabamento;
-- [ ] **testado e funcionando quando ele chegar.**
+- [x] **release rodando no Mac, no Linux e no Windows**;
+  → v0.1.1 com os cinco pacotes. Mac conferido aqui, Linux num contêiner Debian
+  limpo, Windows num runner do GitHub rodando o .zip publicado
+  (`.github/workflows/prova-windows.yml`);
+- [x] **"landing page e tudo bonitinho"** — acabamento;
+  → a barra cabe em celular, a grade não corta mais em 320, e entrou a seção do
+  modo agente com captura da trilha;
+- [x] **testado e funcionando quando ele chegar.**
+  → 334 testes; as 8 telas em desktop e celular; modo anônimo sem gravar nada;
+  agente navegando pelo app e pelo binário; landing medida em 5 larguras no
+  `nspx.dev`.
 
 Ele volta no fim da tarde.
 
