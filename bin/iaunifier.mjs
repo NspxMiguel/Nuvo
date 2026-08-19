@@ -201,6 +201,7 @@ if (args.includes('--no-token')) patch.requireToken = false;
 if (args.includes('--com-token')) patch.requireToken = true;
 if (Object.keys(patch).length) patchConfig(patch);
 
+const { linhaDeComando } = await import('../server/empacotado.mjs');
 const { start } = await import('../server/index.mjs');
 start().catch((err) => {
   // Pilha de erro do Node não serve pra quem só quer abrir o app. Os dois
@@ -208,7 +209,9 @@ start().catch((err) => {
   const cfg = loadConfig();
   if (err.code === 'EADDRINUSE') {
     console.error(`a porta ${cfg.port} já está ocupada por outro programa.`);
-    console.error(`Suba em outra: node bin/iaunifier.mjs --port ${cfg.port + 1}`);
+    // Dentro do executável não existe `bin/iaunifier.mjs` pra rodar: a instrução
+    // tem que ser o comando que a pessoa acabou de dar.
+    console.error(`Suba em outra: ${linhaDeComando(import.meta.url)} --port ${cfg.port + 1}`);
     console.error('Se for outro IAUnifier já rodando, é ele que está no ar — abra o endereço.');
   } else if (err.code === 'EACCES') {
     console.error(`o sistema não deixou escutar na porta ${cfg.port}.`);

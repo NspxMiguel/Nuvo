@@ -17,6 +17,9 @@ import { complete } from './complete.mjs';
 
 export const PASSOS_PADRAO = 8;
 
+/** A página do buscador é caminho, não fonte. */
+const ehBuscador = (url) => /^https?:\/\/(duckduckgo|www\.google|bing)\./.test(String(url || ''));
+
 /** Endereço que o agente não abre, mesmo se o modelo pedir. */
 function enderecoProibido(url) {
   const u = String(url || '').trim().toLowerCase();
@@ -135,7 +138,9 @@ export async function* navegarComAgente({
       if (signal?.aborted) break;
 
       const pagina = await lerPagina(sessao);
-      if (!visitadas.some((v) => v.url === pagina.url)) {
+      // O buscador fica de fora da lista de fontes: o título dele é a própria
+      // pergunta, então aparecia no rodapé como se fosse a página que respondeu.
+      if (!ehBuscador(pagina.url) && !visitadas.some((v) => v.url === pagina.url)) {
         visitadas.push({ url: pagina.url, titulo: pagina.titulo });
         yield { type: 'agent-page', url: pagina.url, titulo: pagina.titulo };
       }
@@ -192,7 +197,7 @@ export async function* navegarComAgente({
   // A página do buscador é o caminho, não a fonte: dela sai menu, rodapé e
   // banner de cookie, que ocupam o mesmo lugar que a página onde a resposta
   // estava. Ela só entra no contexto quando o agente não chegou a lugar nenhum.
-  const uteis = anotacoes.filter((a) => !/^https?:\/\/(duckduckgo|www\.google|bing)\./.test(a.url));
+  const uteis = anotacoes.filter((a) => !ehBuscador(a.url));
   const fonte = uteis.length ? uteis : anotacoes;
 
   // Mesma URL lida em dois passos vira o mesmo texto duas vezes — e rolar a
