@@ -133,7 +133,11 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    transform: translate(-50%, -50%);
+    /* `--rev-desl` desloca a captura dentro da máscara. No computador é zero;
+       no celular a janela é uma fatia estreita, e sem o deslocamento ela cairia
+       em cima da barra lateral em vez da conversa — o meio da imagem não é o
+       meio do que interessa. */
+    transform: translate(calc(-50% + var(--rev-desl, 0px)), -50%);
     width: var(--rev-larg, 1100px);
     max-width: none;
     border: 0;
@@ -596,8 +600,9 @@
     // colado nela — é isso que dá a sensação de estar sendo empurrado.
     let folgaEsq = 0;
     let folgaDir = 0;
+    let mascLarg = 0;
+    let mascAlt = 0;
     let larguraImg = 0;
-    let alturaImg = 0;
 
     function medirPalco() {
       ladoEsq.style.transform = '';
@@ -613,8 +618,28 @@
       // se tira embaixo tem que sair também de cima pra ela não descer.
       const faixa = acoes.getBoundingClientRect().height +
         parseFloat(getComputedStyle(acoes).marginBottom) + 22;
-      larguraImg = Math.min(1180, caixa.width - 24, (caixa.height - faixa * 2) * 1.59);
-      alturaImg = larguraImg / 1.59;
+      const util = caixa.height - faixa * 2;
+
+      if (caixa.width < 760) {
+        // No celular a captura é de uma tela de computador: encolhida pra caber
+        // em 366px de largura ela vira um borrão, e sobra tela preta em cima e
+        // embaixo. Então a máscara ocupa o espaço todo e a imagem fica maior
+        // que ela — o que aparece é o meio da captura, que é onde estão a
+        // saudação e o campo de escrever, no tamanho em que dá pra ler.
+        mascLarg = caixa.width - 24;
+        mascAlt = util;
+        // A imagem tem que cobrir a janela nos dois sentidos: se ela for mais
+        // baixa que a máscara, sobra preto em cima e embaixo.
+        larguraImg = Math.min(1180, Math.max(mascLarg / 0.46, mascAlt * 1.62));
+        // A conversa fica à direita da barra lateral: o meio dela está a uns
+        // 60% da largura da captura, não a 50%.
+        revela.style.setProperty('--rev-desl', -larguraImg * 0.1 + 'px');
+      } else {
+        mascLarg = Math.min(1180, caixa.width - 24, util * 1.59);
+        mascAlt = mascLarg / 1.59;
+        larguraImg = mascLarg;
+        revela.style.setProperty('--rev-desl', '0px');
+      }
       revela.style.setProperty('--rev-larg', larguraImg + 'px');
       medirNome();
     }
@@ -649,10 +674,10 @@
 
       // ato 3 — a máscara abre do centro e revela o app
       const abre = suave(trecho(p, 0.62, 0.94));
-      revela.style.setProperty('--rev-w', larguraImg * abre + 'px');
-      revela.style.setProperty('--rev-h', alturaImg * abre + 'px');
+      revela.style.setProperty('--rev-w', mascLarg * abre + 'px');
+      revela.style.setProperty('--rev-h', mascAlt * abre + 'px');
 
-      const meia = (larguraImg * abre) / 2 + 28;
+      const meia = (mascLarg * abre) / 2 + 28;
       ladoEsq.style.transform = `translateX(${-Math.max(0, meia - folgaEsq)}px)`;
       ladoDir.style.transform = `translateX(${Math.max(0, meia - folgaDir)}px)`;
       // O texto empurrado some antes de sair pela borda: metade de uma frase
