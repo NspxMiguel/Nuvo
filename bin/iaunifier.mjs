@@ -17,6 +17,13 @@ function flag(name) {
 // uma segunda instância (teste, perfil separado) sem encostar na de verdade.
 if (flag('home')) process.env.IAUNIFIER_HOME = resolve(flag('home'));
 
+// O corpo inteiro vive dentro de um `main()` em vez de usar `await` de topo.
+// O empacotador de executável único (SEA) só aceita CommonJS, e CommonJS não
+// tem `await` de topo — sem isto não dá pra gerar o programa que roda sem Node
+// instalado. A indentação fica como estava de propósito: reindentar mexeria no
+// texto da ajuda, que é um template literal.
+async function main() {
+
 const { loadConfig, patchConfig, DATA_DIR } = await import('../server/config.mjs');
 
 function mostrarAjuda() {
@@ -214,3 +221,7 @@ start().catch((err) => {
   }
   process.exit(1);
 });
+
+}
+
+main();

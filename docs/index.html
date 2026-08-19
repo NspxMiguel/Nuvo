@@ -1,172 +1,171 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>IAUnifier — todas as suas IAs, uma memória só</title>
-    <meta
-      name="description"
-      content="Servidor local que junta IAs locais, de API e de CLI numa interface só, com memória compartilhada entre todas elas."
-    />
-    <meta name="theme-color" content="#101014" />
-    <link rel="icon" href="icon-512.png" />
-    <meta property="og:title" content="IAUnifier" />
-    <meta
-      property="og:description"
-      content="Servidor local que junta IAs locais, de API e de CLI numa interface só, com memória compartilhada entre todas elas."
-    />
-    <meta property="og:image" content="icon-512.png" />
-    <style>
-      :root {
-        --bg: #101014;
-        --panel: #17171d;
-        --line: #2a2a34;
-        --text: #e7e7ee;
-        --muted: #9a9aae;
-        --accent: #6b8afd;
-        --ok: #58c98a;
-        color-scheme: dark;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-        font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      }
-      .wrap { max-width: 820px; margin: 0 auto; padding: 56px 20px 80px; }
-      header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
-      header img { width: 64px; height: 64px; border-radius: 14px; }
-      h1 { font-size: 34px; margin: 0; letter-spacing: -0.01em; }
-      .tagline { color: var(--muted); font-size: 18px; margin: 0 0 32px; }
-      h2 { font-size: 20px; margin: 40px 0 10px; }
-      p { margin: 0 0 14px; }
-      a { color: var(--accent); }
-      ul { padding-left: 20px; margin: 0 0 14px; }
-      li { margin-bottom: 6px; }
-      pre {
-        background: #0c0c11;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 14px;
-        overflow-x: auto;
-        font-size: 14px;
-      }
-      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 20px 0; }
-      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
-      .card h3 { margin: 0 0 6px; font-size: 15px; }
-      .card p { margin: 0; color: var(--muted); font-size: 14px; }
-      .lead {
-        border-left: 3px solid var(--ok);
-        padding-left: 14px;
-        font-size: 17px;
-        margin: 0 0 24px;
-      }
-      .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 24px 0 8px; }
-      .btn {
-        display: inline-block;
-        padding: 10px 16px;
-        border-radius: 8px;
-        border: 1px solid var(--line);
-        text-decoration: none;
-        color: var(--text);
-        font-size: 15px;
-      }
-      .btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0b10; font-weight: 600; }
-      table { border-collapse: collapse; width: 100%; font-size: 14px; }
-      td, th { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
-      th { color: var(--muted); font-weight: 600; }
-      footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px solid var(--line); padding-top: 16px; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <header>
-        <img src="icon-512.png" alt="" />
-        <h1>IAUnifier</h1>
-      </header>
-      <p class="tagline">Todas as suas IAs — locais, de API e de linha de comando — com uma memória só.</p>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IAUnifier — todas as suas IAs, uma memória só</title>
+<link rel="icon" href="lp/icon-512.png">
+<style>
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body { margin: 0; background: #000; color: #fff; font-family: -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  a { color: #fff; text-decoration: none; }
+  a:hover { color: #9aa0aa; }
+  img { display: block; max-width: 100%; }
+  ::selection { background: #3d5cff; color: #fff; }
+</style>
+</head>
+<body>
+<div style="max-width:100%;overflow-x:hidden">
 
-      <p class="lead">
-        O que você contou pro Claude, o GPT lembra na próxima conversa. A memória
-        é um banco único, lido e escrito por qualquer modelo.
-      </p>
-
-      <div class="cards">
-        <div class="card">
-          <h3>IA local</h3>
-          <p>Ollama, LM Studio, llama.cpp, vLLM e qualquer endpoint compatível com OpenAI — encontrados sozinhos na sua máquina.</p>
-        </div>
-        <div class="card">
-          <h3>IA de API</h3>
-          <p>Anthropic, OpenAI, Gemini, Groq, DeepSeek, OpenRouter, xAI e Mistral. A chave fica no seu servidor.</p>
-        </div>
-        <div class="card">
-          <h3>IA de CLI</h3>
-          <p>Claude Code, Codex, OpenCode — ou qualquer binário que aceite um prompt.</p>
-        </div>
-        <div class="card">
-          <h3>Memória compartilhada</h3>
-          <p>Busca híbrida FTS5 + embeddings, escrita automática depois de cada resposta, fatos fixados e importação de outras IAs.</p>
-        </div>
-        <div class="card">
-          <h3>Conselho de IAs</h3>
-          <p>O mesmo prompt em vários modelos ao mesmo tempo: compare lado a lado, peça uma síntese, ou deixe que eles se avaliem em votação cega.</p>
-        </div>
-        <div class="card">
-          <h3>Documentos</h3>
-          <p>Anexe texto, código, PDF, DOCX, PPTX ou EPUB. O trecho relevante entra na resposta com o nome do arquivo citado.</p>
-        </div>
-        <div class="card">
-          <h3>Busca e pesquisa</h3>
-          <p>Busca na web dentro da conversa, e pesquisa profunda que lê várias páginas e escreve um relatório com as fontes numeradas. Sem chave de API.</p>
-        </div>
-        <div class="card">
-          <h3>Gems e projetos</h3>
-          <p>Personalidade, modelo preferido, temperatura, escopo de memória e diretório de trabalho para o modo coding.</p>
-        </div>
-        <div class="card">
-          <h3>PC e celular</h3>
-          <p>Roda no seu computador, abre no navegador e instala como app no celular pela rede local.</p>
-        </div>
-      </div>
-
-      <h2>Rodar</h2>
-      <p>Precisa de Node 22.5 ou mais novo. Não há dependência para instalar.</p>
-      <pre><code>git clone https://github.com/NspxMiguel/IAUnifier.git
-cd IAUnifier
-node bin/iaunifier.mjs</code></pre>
-      <p>
-        O servidor imprime o endereço local e o da rede, já com o token de
-        acesso. Abrir o endereço de rede no celular e usar "Adicionar à Tela de
-        Início" instala como app.
-      </p>
-
-      <h2>Opções</h2>
-      <table>
-        <tr><th>Opção</th><th>Efeito</th></tr>
-        <tr><td><code>--port 4747</code></td><td>troca a porta</td></tr>
-        <tr><td><code>--host 0.0.0.0</code></td><td>troca o endereço de escuta</td></tr>
-        <tr><td><code>--token</code></td><td>imprime o token e sai</td></tr>
-        <tr><td><code>--no-token</code></td><td>desliga o token (só em rede confiável)</td></tr>
-      </table>
-
-      <h2>Onde ficam os dados</h2>
-      <p>
-        Tudo em <code>~/.iaunifier</code>: o banco SQLite e a configuração, criada
-        com permissão 600. Chave de API fica gravada ali e nunca sai do servidor —
-        a interface só sabe se existe chave, nunca o valor.
-      </p>
-
-      <div class="row">
-        <a class="btn primary" href="https://github.com/NspxMiguel/IAUnifier">Código no GitHub</a>
-        <a class="btn" href="https://github.com/NspxMiguel/IAUnifier#readme">Documentação</a>
-      </div>
-
-      <footer>
-        IAUnifier roda no seu computador — esta página é só a apresentação. MIT.
-      </footer>
+<header style="position:sticky;top:0;z-index:20;background:#000;border-bottom:1px solid #17171a">
+  <nav style="max-width:1160px;margin:0 auto;padding:0 28px;height:60px;display:flex;align-items:center;gap:30px">
+    <a href="#topo" style="display:flex;align-items:center;gap:9px;font-size:19px;font-weight:600;letter-spacing:-.04em">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="rn1" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient><radialGradient id="rn1b" cx=".5" cy=".2" r=".8"><stop stop-color="#fff" stop-opacity=".4"></stop><stop offset="1" stop-color="#fff" stop-opacity="0"></stop></radialGradient></defs><g fill="url(#rn1)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g><circle cx="12" cy="12" r="10.6" fill="url(#rn1b)"></circle></svg>
+      IAUnifier
+    </a>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:24px;font-size:14.5px;color:#8e8e96">
+      <a href="#memoria" style="color:inherit">Memória</a>
+      <a href="#maquina" style="color:inherit">IAs</a>
+      <a href="#privacidade" style="color:inherit">Privacidade</a>
     </div>
-  </body>
+    <a href="#baixar" style="display:inline-flex;align-items:center;height:38px;padding:0 20px;border-radius:999px;background:#3d7dff;color:#fff;font-size:14.5px;font-weight:600" style-hover="background:#5a91ff;color:#fff">Baixar</a>
+  </nav>
+</header>
+
+<section id="topo" style="padding:150px 28px 0">
+  <div style="max-width:820px;margin:0 auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:24px">
+    <h1 style="margin:0;font-size:clamp(40px,6vw,72px);font-weight:550;line-height:1.04;letter-spacing:-.035em;text-wrap:balance">Todas as suas IAs,<br>uma memória só</h1>
+    <p style="margin:0;max-width:600px;font-size:19px;line-height:1.6;color:#9aa0aa;text-wrap:pretty">Os modelos que rodam no seu computador, as IAs pagas por uso e os programas de terminal, numa conversa só. O que você conta pra uma, todas sabem.</p>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding-top:8px">
+      <a href="#baixar" style="display:inline-flex;align-items:center;height:52px;padding:0 28px;border-radius:999px;background:#3d7dff;color:#fff;font-size:16.5px;font-weight:600;letter-spacing:-.01em" style-hover="background:#5a91ff;color:#fff">Baixar pra Windows</a>
+      <a href="https://github.com/NspxMiguel/IAUnifier" style="display:inline-flex;align-items:center;height:52px;padding:0 26px;border-radius:999px;background:#101013;border:1px solid #26262b;color:#fff;font-size:16.5px;font-weight:500;letter-spacing:-.01em" style-hover="border-color:#3d3d45;color:#fff">Ver o código</a>
+    </div>
+  </div>
+
+  <figure style="max-width:1080px;margin:104px auto 0;padding:0">
+    <img src="lp/tela-conversa.jpg" alt="IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e a pílula de escrever com a IA escolhida ao lado do enviar" style="width:100%;border-radius:22px;border:1px solid #1e1e22">
+  </figure>
+</section>
+
+<section id="memoria" style="margin-top:150px;padding:130px 28px 0;border-top:1px solid #17171a">
+  <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:56px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance">Uma memória, não cinco conversas</h2>
+      <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">Cada IA que você usa hoje começa do zero. IAUnifier guarda o que importa uma vez — como você gosta de resposta, o que tem no seu servidor, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.</p>
+    </div>
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;flex-direction:column;gap:6px;padding:20px 0;border-top:1px solid #17171a">
+        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em">Você vê a origem</h3>
+        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96">Cada coisa guardada mostra de qual conversa veio.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;padding:20px 0;border-top:1px solid #17171a">
+        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em">Você manda</h3>
+        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96">Mudar, esquecer, ou desligar a memória só nesta resposta.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;padding:20px 0;border-top:1px solid #17171a;border-bottom:1px solid #17171a">
+        <h3 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em">Fica em casa</h3>
+        <p style="margin:0;font-size:16.5px;line-height:1.55;color:#8e8e96">A memória é um arquivo na sua máquina, não uma conta em servidor de ninguém.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding:130px 28px 0">
+  <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:52px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">Perguntar pra várias</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Pergunte pra cinco ao mesmo tempo</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">A mesma pergunta em várias IAs, todas lendo a mesma memória. Compare lado a lado, deixe elas votarem, ou receba as respostas costuradas numa só. Quem responde em três segundos não fica esperando quem leva quarenta.</p>
+    </div>
+    <figure style="margin:0"><img src="lp/tela-varias.jpg" alt="Tela Perguntar pra várias: a pergunta, o trilho de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%;border-radius:16px;border:1px solid #1e1e22"></figure>
+  </div>
+</section>
+
+<section id="maquina" style="padding:130px 28px 0">
+  <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:52px;align-items:center">
+    <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" alt="Tela IAs ligadas: a memória e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%;border-radius:16px;border:1px solid #1e1e22"></figure>
+    <div style="display:flex;flex-direction:column;gap:14px;order:1">
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">IAs ligadas</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Só as IAs que cabem na sua máquina</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">IAUnifier olha sua memória e seu processador e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase de para que ele é bom e por que escolher ele e não o outro.</p>
+    </div>
+  </div>
+</section>
+
+<section style="padding:130px 28px 0">
+  <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:52px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">Programas de terminal</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Claude Code, Codex e opencode dentro do app</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">Os mesmos programas que você já usa no terminal respondem dentro da conversa, sem chave de API e sem cobrança por uso — eles usam a assinatura que você já tem. Leem a mesma memória das outras e trabalham na pasta que o projeto apontar.</p>
+    </div>
+    <figure style="margin:0"><img src="lp/tela-cli.jpg" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%;border-radius:16px;border:1px solid #1e1e22"></figure>
+  </div>
+</section>
+
+<section id="privacidade" style="margin-top:130px;padding:130px 28px 0;border-top:1px solid #17171a">
+  <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:52px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance">Roda na sua máquina</h2>
+      <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">IAUnifier é um programa que você instala, não um site. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam num diretório seu — dá pra abrir, copiar e apagar na mão.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#8e8e96" aria-hidden="true"><path d="M3.4 12.6h17.2" stroke-width="1.9" stroke-linecap="round"></path><path d="M6.6 12.4 8 7.8a2 2 0 0 1 2.5-1.3l1.5.5 1.5-.5a2 2 0 0 1 2.5 1.3l1.4 4.6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="8.1" cy="16.1" r="2.6" stroke-width="1.7"></circle><circle cx="15.9" cy="16.1" r="2.6" stroke-width="1.7"></circle></svg>
+        <h3 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-.02em">Conversa anônima</h3>
+      </div>
+      <p style="margin:0;font-size:16.5px;line-height:1.6;color:#8e8e96;text-wrap:pretty">Um toque e a conversa não entra no histórico, não usa a memória e não aprende nada. Some quando você fechar.</p>
+    </div>
+  </div>
+</section>
+
+<section id="baixar" style="margin-top:130px;padding:130px 28px 0;border-top:1px solid #17171a">
+  <div style="max-width:1160px;margin:0 auto;display:flex;flex-direction:column;gap:32px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;max-width:620px">
+      <h2 style="margin:0;font-size:clamp(30px,3.4vw,44px);font-weight:550;line-height:1.06;letter-spacing:-.035em">Baixar o IAUnifier</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.6;color:#9aa0aa">Versão 0.9.4. Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;width:100%;max-width:900px">
+      <a href="https://github.com/NspxMiguel/IAUnifier/releases" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
+        <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">Windows</span>
+        <span style="font-size:14.5px;color:#8e8e96">.exe · 38 MB</span>
+        <span style="font-size:14px;color:#71717a">Windows 10 ou mais novo</span>
+      </a>
+      <a href="https://github.com/NspxMiguel/IAUnifier/releases" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
+        <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">Linux</span>
+        <span style="font-size:14.5px;color:#8e8e96">.AppImage e .deb · 41 MB</span>
+        <span style="font-size:14px;color:#71717a">Debian, Ubuntu, Fedora</span>
+      </a>
+      <a href="https://github.com/NspxMiguel/IAUnifier/releases" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
+        <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">macOS</span>
+        <span style="font-size:14.5px;color:#8e8e96">.dmg · 40 MB</span>
+        <span style="font-size:14px;color:#71717a">macOS 13 ou mais novo</span>
+      </a>
+    </div>
+
+    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px">Precisa de 8 GB de memória; 16 GB ou mais pra rodar modelos locais grandes. Ou <a href="https://github.com/NspxMiguel/IAUnifier" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">compile do código</a>.</p>
+  </div>
+</section>
+
+<footer style="margin-top:130px;padding:34px 28px 52px;border-top:1px solid #17171a">
+  <div style="max-width:1160px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:18px">
+    <span style="display:flex;align-items:center;gap:9px;font-size:17px;font-weight:600;letter-spacing:-.04em">
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="rn2" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient></defs><g fill="url(#rn2)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g></svg>
+      IAUnifier
+    </span>
+    <span style="font-size:14px;color:#71717a">Versão 0.9.4 · código aberto</span>
+    <div style="flex:1"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:20px;font-size:14px;color:#8e8e96">
+      <a href="https://github.com/NspxMiguel/IAUnifier" style="color:inherit">Código</a>
+      <a href="https://github.com/NspxMiguel/IAUnifier/releases" style="color:inherit">Versões</a>
+      <a href="#topo" style="color:inherit">Voltar ao topo</a>
+    </div>
+  </div>
+</footer>
+
+</div>
+</body>
 </html>

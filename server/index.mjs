@@ -12,8 +12,37 @@ import { handleApi } from './api.mjs';
 import { discover, providerCount } from './discovery.mjs';
 import { autoBackup } from './backup.mjs';
 import { sweepOrphanUploads } from './documents.mjs';
+import { isSea, getAsset } from 'node:sea';
 
-const WEB_DIR = fileURLToPath(new URL('../web/', import.meta.url));
+// Empacotado nao ha pasta no disco, e `import.meta.url` some no CommonJS do
+// SEA: montar a URL aqui estouraria antes do servidor subir.
+const WEB_DIR = isSea() ? '' : fileURLToPath(new URL('../web/', import.meta.url));
+
+// Empacotado como executável único não existe pasta `web/` no disco: os
+// arquivos da interface viajam dentro do próprio binário. `getAsset` devolve o
+// conteúdo pela chave que o sea-config.json registrou — o caminho relativo.
+const EMPACOTADO = isSea();
+
+/** Lê um arquivo da interface, do binário ou do disco. Devolve null se não há. */
+async function lerDaWeb(rel) {
+  if (EMPACOTADO) {
+    try {
+      return Buffer.from(getAsset(rel));
+    } catch {
+      return null;
+    }
+  }
+  const file = join(WEB_DIR, rel);
+  // Fora do binário o caminho ainda pode escapar da pasta por `..`.
+  if (!file.startsWith(WEB_DIR)) return null;
+  try {
+    const info = await stat(file);
+    if (!info.isFile()) return null;
+    return await readFile(file);
+  } catch {
+    return null;
+  }
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -146,25 +175,18 @@ function lanAddressSet() {
 
 async function serveStatic(res, pathname) {
   const rel = pathname === '/' ? 'index.html' : normalize(pathname).replace(/^([/\\.])+/, '');
-  const file = join(WEB_DIR, rel);
-  if (!file.startsWith(WEB_DIR)) {
-    res.writeHead(403).end('proibido');
-    return;
-  }
-  try {
-    const info = await stat(file);
-    if (!info.isFile()) throw new Error('não é arquivo');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'content-type': MIME[extname(file)] || 'application/octet-stream',
-      'cache-control': 'no-cache',
-      'x-content-type-options': 'nosniff'
-    });
-    res.end(body);
-  } catch {
+  const body = await lerDaWeb(rel);
+  if (!body) {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('não encontrado');
+    return;
   }
+  res.writeHead(200, {
+    'content-type': MIME[extname(rel)] || 'application/octet-stream',
+    'cache-control': 'no-cache',
+    'x-content-type-options': 'nosniff'
+  });
+  res.end(body);
 }
 
 function lanAddresses(port) {
@@ -248,7 +270,7 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
     if (url.pathname === '/manifest.webmanifest') {
       if (barrado(req, res, url)) return;
       try {
-        const base = JSON.parse(await readFile(join(WEB_DIR, 'manifest.webmanifest'), 'utf8'));
+        const base = JSON.parse((await lerDaWeb('manifest.webmanifest'))?.toString('utf8') || '{}');
         const cfg = loadConfig();
         if (cfg.requireToken) {
           base.start_url = `/?token=${encodeURIComponent(cfg.accessToken)}`;

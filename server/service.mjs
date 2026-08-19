@@ -9,11 +9,16 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node
 import { homedir, platform } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { comandoDoServidor, EMPACOTADO } from './empacotado.mjs';
 import { DATA_DIR } from './config.mjs';
 
 const LABEL = 'dev.nspx.iaunifier';
-const ENTRY = fileURLToPath(new URL('../bin/iaunifier.mjs', import.meta.url));
-const NODE = process.execPath;
+// Empacotado, o servidor é o próprio executável e não existe arquivo de
+// entrada separado — o serviço do sistema tem que apontar pro binário, não pra
+// um `node caminho/arquivo.mjs` que não existe na máquina de quem baixou.
+const { programa: NODE, argumentos: ARGS } = comandoDoServidor(import.meta.url);
+const ENTRY = ARGS[0] || NODE;
+const COMANDO = [NODE, ...ARGS];
 
 const LAUNCH_AGENT = join(homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
 const SYSTEMD_UNIT = join(homedir(), '.config', 'systemd', 'user', 'iaunifier.service');
@@ -39,8 +44,7 @@ function macInstall() {
   <key>Label</key><string>${LABEL}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${escapeXml(NODE)}</string>
-    <string>${escapeXml(ENTRY)}</string>
+    ${COMANDO.map((p) => `<string>${escapeXml(p)}</string>`).join('\n    ')}
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -96,7 +100,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${NODE} ${ENTRY}
+ExecStart=${COMANDO.join(' ')}
 Environment=IAUNIFIER_HOME=${DATA_DIR}
 Restart=always
 RestartSec=5
@@ -160,7 +164,7 @@ function windowsInstall() {
     '/tn', TASK,
     '/sc', 'onlogon',
     '/rl', 'limited',
-    '/tr', `"${NODE}" "${ENTRY}"`
+    '/tr', COMANDO.map((p) => `"${p}"`).join(' ')
   ]);
   sh('schtasks', ['/run', '/tn', TASK]);
   return {

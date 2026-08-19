@@ -14,12 +14,31 @@ import { writeFileSync, copyFileSync, mkdirSync, rmSync, existsSync, chmodSync }
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { linhaDeComando, EMPACOTADO } from './empacotado.mjs';
+import { getAsset } from 'node:sea';
 import { loadConfig, DATA_DIR } from './config.mjs';
 
-const ENTRY = fileURLToPath(new URL('../bin/iaunifier.mjs', import.meta.url));
-const NODE = process.execPath;
+// Igual ao serviço: empacotado o atalho tem que chamar o próprio executável.
+const COMANDO_SERVIDOR = linhaDeComando(import.meta.url);
 // O mesmo ícone que o PWA usa no celular — um desenho só pros dois lugares.
-const ICON_PNG = fileURLToPath(new URL('../web/icon-512.png', import.meta.url));
+// Empacotado não existe pasta `web/`: o ícone é gravado a partir do binário na
+// pasta de dados, e o resto do código continua lendo um caminho de arquivo.
+const ICON_PNG = EMPACOTADO
+  ? iconeDoBinario()
+  : fileURLToPath(new URL('../web/icon-512.png', import.meta.url));
+
+function iconeDoBinario() {
+  const destino = join(DATA_DIR, 'icon-512.png');
+  try {
+    if (!existsSync(destino)) {
+      writeFileSync(destino, Buffer.from(getAsset('icon-512.png')));
+    }
+    return destino;
+  } catch {
+    // Sem ícone o atalho ainda funciona, só sai com a cara do navegador.
+    return destino;
+  }
+}
 
 /** Navegadores em modo aplicativo, na ordem de preferência. */
 const CHROMIUM = {
@@ -85,7 +104,7 @@ ping_iaunifier() {
 }
 
 if ! ping_iaunifier; then
-  IAUNIFIER_HOME="${DATA_DIR}" "${NODE}" "${ENTRY}" >>"${join(DATA_DIR, 'servidor.log')}" 2>&1 &
+  IAUNIFIER_HOME="${DATA_DIR}" ${COMANDO_SERVIDOR} >>"${join(DATA_DIR, 'servidor.log')}" 2>&1 &
   # Espera o servidor atender antes de abrir a janela, senão a primeira
   # abertura mostra "não foi possível conectar".
   i=0
@@ -265,7 +284,7 @@ rem Gerado pelo IAUnifier. Recriar: iaunifier instalar-app\r
 curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"iaunifier" >NUL\r
 if errorlevel 1 (\r
   set IAUNIFIER_HOME=${DATA_DIR}\r
-  start "" /b "${NODE}" "${ENTRY}"\r
+  start "" /b ${COMANDO_SERVIDOR}\r
   timeout /t 4 /nobreak >NUL\r
   curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"iaunifier" >NUL\r
   if errorlevel 1 (\r

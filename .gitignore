@@ -8,3 +8,8 @@ node_modules/
 *.db
 *.db-wal
 *.db-shm
+
+# Saída do empacotador: binários, blob e os Node oficiais baixados.
+build/out/
+build/dist/
+build/node-cache/
