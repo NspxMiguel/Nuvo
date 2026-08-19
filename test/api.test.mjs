@@ -10,7 +10,7 @@ const home = useTempHome();
 const { startServer } = await import('./helpers.mjs');
 const { run, now, uid } = await import('../server/db.mjs');
 const { UPLOAD_DIR } = await import('../server/config.mjs');
-const { readdirSync, existsSync } = await import('node:fs');
+const { readdirSync, existsSync, mkdirSync, writeFileSync } = await import('node:fs');
 const { join } = await import('node:path');
 
 let app;
@@ -883,4 +883,104 @@ test('o limite de tentativas vale em toda rota que confere token', async () => {
   const bom = await app.raw(`/manifest.webmanifest?token=${encodeURIComponent(app.token)}`);
   assert.equal(bom.status, 200);
   assert.match((await bom.json()).start_url, /token=/);
+});
+
+// ------------------------------------------- código do projeto (tela Programar)
+
+// A pasta de trabalho mora dentro do IAUNIFIER_HOME do teste, que o `after` do
+// topo já apaga — assim nada sobra em /tmp quando a suíte cai no meio.
+const PASTA_DE_CODIGO = join(home.dir, 'pasta-de-codigo');
+const CONTEUDO_DA_SOMA = 'export const soma = (a, b) => a + b;\n';
+
+let idDoProjetoComPasta = null;
+
+/** Cria (uma vez) a pasta com um arquivo dentro e o projeto que aponta pra ela. */
+async function projetoComPasta() {
+  if (idDoProjetoComPasta) return idDoProjetoComPasta;
+  mkdirSync(join(PASTA_DE_CODIGO, 'src'), { recursive: true });
+  writeFileSync(join(PASTA_DE_CODIGO, 'src', 'soma.mjs'), CONTEUDO_DA_SOMA);
+  const res = await app.api('/projects', {
+    method: 'POST',
+    body: { name: 'Projeto com pasta', workdir: PASTA_DE_CODIGO }
+  });
+  idDoProjetoComPasta = res.data.id;
+  return idDoProjetoComPasta;
+}
+
+test('a árvore lista o arquivo que está na pasta do projeto', async () => {
+  const id = await projetoComPasta();
+  const res = await app.api(`/codigo/arvore?projeto=${id}`);
+  assert.equal(res.status, 200, res.text);
+  assert.ok(res.data.raiz, 'a resposta tem que dizer qual pasta foi lida');
+  const achado = res.data.arquivos.find((a) => a.caminho === 'src/soma.mjs');
+  assert.ok(achado, `soma.mjs não apareceu na árvore: ${res.text.slice(0, 400)}`);
+  assert.equal(achado.bytes, Buffer.byteLength(CONTEUDO_DA_SOMA));
+});
+
+test('ler arquivo devolve o texto de dentro da pasta', async () => {
+  const id = await projetoComPasta();
+  const res = await app.api(`/codigo/arquivo?projeto=${id}&caminho=${encodeURIComponent('src/soma.mjs')}`);
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.data.texto, CONTEUDO_DA_SOMA);
+  assert.equal(res.data.caminho, 'src/soma.mjs');
+});
+
+test('as mudanças respondem mesmo em pasta que não é repositório', async () => {
+  const id = await projetoComPasta();
+  const res = await app.api(`/codigo/mudancas?projeto=${id}`);
+  assert.equal(res.status, 200, res.text);
+  assert.equal(typeof res.data.git, 'boolean', 'a tela precisa saber se há git pra decidir o que mostrar');
+  assert.ok(Array.isArray(res.data.arquivos));
+});
+
+test('caminho com ".." para no 400, não vira erro interno', async () => {
+  // A peça de arquivos recusa sozinha; o que se testa aqui é a rota não deixar
+  // essa recusa virar 500, que a tela mostraria como defeito do servidor.
+  const id = await projetoComPasta();
+  const fuga = encodeURIComponent('../../../../etc/passwd');
+  const res = await app.api(`/codigo/arquivo?projeto=${id}&caminho=${fuga}`);
+  assert.equal(res.status, 400, res.text);
+  assert.ok(res.data.error, 'o 400 tem que vir com uma frase explicando');
+  assert.ok(!/root:/.test(res.text), 'nada de fora da pasta pode vazar na resposta');
+});
+
+test('projeto sem pasta responde 400 dizendo o que fazer', async () => {
+  const projeto = await app.api('/projects', { method: 'POST', body: { name: 'Sem pasta nenhuma' } });
+  for (const rota of ['arvore', 'mudancas']) {
+    const res = await app.api(`/codigo/${rota}?projeto=${projeto.data.id}`);
+    assert.equal(res.status, 400, `${rota}: ${res.text}`);
+    assert.match(res.data.error, /não aponta pra uma pasta/);
+    // Frase, não código seco: tem que dizer onde a pessoa conserta.
+    assert.match(res.data.error, /Projetos/);
+  }
+});
+
+test('sem projeto, projeto apagado e pasta que sumiu dão 400 legível', async () => {
+  const semNada = await app.api('/codigo/arvore');
+  assert.equal(semNada.status, 400);
+  assert.match(semNada.data.error, /projeto/);
+
+  const inexistente = await app.api('/codigo/arvore?projeto=nao-existe-esse-id');
+  assert.equal(inexistente.status, 400);
+  assert.match(inexistente.data.error, /não existe mais/);
+
+  const sumida = await app.api('/projects', {
+    method: 'POST',
+    body: { name: 'Aponta pro vazio', workdir: join(home.dir, 'pasta-que-nunca-existiu') }
+  });
+  const res = await app.api(`/codigo/arvore?projeto=${sumida.data.id}`);
+  assert.equal(res.status, 400, res.text);
+  assert.match(res.data.error, /não existe mais no disco/);
+});
+
+test('/codigo com nome desconhecido continua sendo 404', async () => {
+  const res = await app.api('/codigo/inventado?projeto=qualquer');
+  assert.equal(res.status, 404, res.text);
+});
+
+test('pedir arquivo sem caminho responde 400 em vez de tentar ler a pasta', async () => {
+  const id = await projetoComPasta();
+  const res = await app.api(`/codigo/arquivo?projeto=${id}`);
+  assert.equal(res.status, 400, res.text);
+  assert.match(res.data.error, /caminho/);
 });

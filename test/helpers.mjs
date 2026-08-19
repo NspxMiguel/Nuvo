@@ -1,7 +1,7 @@
 // Apoio dos testes: cada arquivo roda num diretório de dados próprio, jogado
 // fora no fim. Nenhum teste toca o ~/.iaunifier de quem estiver rodando.
 
-import { mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -18,6 +18,35 @@ export function useTempHome() {
     cleanup() {
       try {
         rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* o sistema limpa o tmp depois */
+      }
+    }
+  };
+}
+
+/**
+ * Um CLI de mentira, gravado com o nome de um de verdade.
+ *
+ * O modo estruturado é escolhido pelo nome do binário, então testá-lo exige um
+ * arquivo chamado "claude" — e chamar o `claude` instalado gastaria a
+ * assinatura de quem roda o teste e devolveria texto diferente a cada vez.
+ *
+ * O caminho passa por `realpathSync` porque no macOS o /tmp é um link pro
+ * /private/tmp: o filho enxerga o caminho já resolvido em `process.cwd()`, e
+ * sem isso os dois não batem na hora de encurtar o caminho do arquivo.
+ */
+export function cliFalso(nome, corpo) {
+  const pasta = realpathSync(mkdtempSync(join(tmpdir(), 'iaunifier-cli-')));
+  const comando = join(pasta, nome);
+  writeFileSync(comando, `#!${process.execPath}\n${corpo}\n`);
+  chmodSync(comando, 0o755);
+  return {
+    comando,
+    pasta,
+    limpar() {
+      try {
+        rmSync(pasta, { recursive: true, force: true });
       } catch {
         /* o sistema limpa o tmp depois */
       }

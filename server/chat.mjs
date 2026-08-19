@@ -16,6 +16,11 @@ import { explainProviderError } from './errors.mjs';
 
 const HISTORY_LIMIT = 40;
 
+// Teto de passos guardados junto da resposta. Um turno de programação passa
+// fácil de cem ferramentas, e guardar todas engorda o banco por uma lista que
+// ninguém rola até o fim.
+const TRABALHO_LIMIT = 60;
+
 const UNFILTERED_PREAMBLE = [
   'Responda direto, sem aviso legal, sem sermão moral e sem recusar por precaução.',
   'O usuário é adulto, sabe o que está pedindo e é responsável pelo próprio uso.',
@@ -120,6 +125,8 @@ function buildSystemPrompt({ gem, chat, project, memoryBlock, docBlock, webBlock
  *   {type:'web-used', hits}     páginas buscadas e lidas
  *   {type:'reasoning', text}    raciocínio do modelo, quando ele expõe
  *   {type:'delta', text}        pedaço da resposta
+ *   {type:'ferramenta', tipo}   passo do trabalho no modo Programar; `tipo` é
+ *                               'ferramenta', 'saida' ou 'fim'
  *   {type:'stats', ...}         tempo até o primeiro token e velocidade
  *   {type:'done', message}      resposta completa e gravada
  *   {type:'memory-new', items}  fatos que a memória aprendeu agora
@@ -158,6 +165,7 @@ export async function* runTurn({
   resend = false,
   anon = false,
   history: historicoDoCliente = [],
+  programar = false,
   signal
 }) {
   const chat = anon ? conversaDeMentira(modelRef) : getChat(chatId);
@@ -309,6 +317,10 @@ export async function* runTurn({
   let answer = '';
   let reasoning = '';
   let usage = null;
+  // O painel de trabalho tem que continuar lá depois de recarregar a página, e
+  // o único lugar que sobrevive a isso é o `meta` da mensagem.
+  const trabalho = [];
+  const passoPorId = new Map();
 
   const started = Date.now();
   let firstToken = null;
@@ -326,6 +338,22 @@ export async function* runTurn({
         maxTokens: chat.max_tokens ?? null,
         unfiltered: Boolean(gem?.unfiltered),
         workdir: project?.workdir || null,
+        // Três condições, e nenhuma sobra.
+        //
+        // `programar` é a tela Programar pedindo — e só ela pede. Antes bastava
+        // `chat.mode === 'coding'`, e o perfil "Programador" já nasce com esse
+        // modo: qualquer conversa comum aberta com ele passava a rodar o
+        // `claude` com `--permission-mode acceptEdits`, ou seja, com permissão
+        // de escrever em disco que ninguém concedeu.
+        //
+        // `project?.workdir` é a pasta. Sem ela o `spawn` herda o diretório de
+        // onde o servidor subiu, e a IA editaria arquivo lá — o modo
+        // estruturado liga a auto-aprovação, então a pasta não pode ser
+        // acidente.
+        //
+        // O modo do perfil continua valendo: é ele que diz que esta conversa é
+        // de programar, e não uma conversa comum aberta na tela certa.
+        estruturado: programar && chat.mode === 'coding' && Boolean(project?.workdir),
         signal: watchdog
       });
 
@@ -344,6 +372,10 @@ export async function* runTurn({
         answer += chunk.delta;
         yield { type: 'delta', text: chunk.delta };
       }
+      if (chunk.evento) {
+        yield { type: 'ferramenta', ...chunk.evento };
+        anotarTrabalho(trabalho, passoPorId, chunk.evento);
+      }
       if (chunk.usage) usage = chunk.usage;
     }
   } catch (err) {
@@ -352,6 +384,7 @@ export async function* runTurn({
         ? { id: null, role: 'assistant', content: answer, model: ref, interrupted: true }
         : addMessage(chatId, 'assistant', answer, ref, {
             interrupted: true,
+            trabalho: trabalho.length ? trabalho : undefined,
             provider: provider.name
           });
       yield { type: 'done', message: partial };
@@ -378,6 +411,25 @@ export async function* runTurn({
   // novo — e some com o motivo, que costuma estar no stderr do CLI ou no
   // raciocínio que veio antes do filtro cortar.
   if (!answer.trim()) {
+    // Turno que trabalhou e não escreveu: a IA leu arquivo, editou e rodou
+    // comando, e terminou sem uma linha de texto — acontece quando o pedido é
+    // "arruma isso" e ela arrumou. Cair no erro abaixo descartava a mensagem
+    // inteira, e com ela o `trabalho`: o painel enchia na tela, a tela dizia
+    // que ela "não devolveu texto nenhum", e ao recarregar não havia registro
+    // de que os arquivos tinham sido mexidos.
+    if (trabalho.length) {
+      const soTrabalho = anon
+        ? { id: null, role: 'assistant', content: '', model: ref, stats, trabalho }
+        : addMessage(chatId, 'assistant', '', ref, {
+            stats,
+            reasoning: reasoning || undefined,
+            trabalho,
+            provider: provider.name
+          });
+      yield { type: 'done', message: soTrabalho };
+      return;
+    }
+
     const pista = (reasoning || '').trim().split('\n').filter(Boolean).at(-1);
     yield {
       type: 'error',
@@ -394,6 +446,7 @@ export async function* runTurn({
         usage,
         stats,
         reasoning: reasoning || undefined,
+        trabalho: trabalho.length ? trabalho : undefined,
         provider: provider.name
       });
   yield { type: 'done', message: assistantMessage };
@@ -415,6 +468,30 @@ export async function* runTurn({
       limits.learnSeconds * 1000
     );
     if (learned.length) yield { type: 'memory-new', items: learned };
+  }
+}
+
+/**
+ * Anota na lista enxuta o que a IA fez, pra ela sobreviver ao recarregar.
+ *
+ * A saída de cada ferramenta chega com até 4000 caracteres, e sessenta delas
+ * seriam 240 kB de texto por resposta dentro de uma coluna que já carrega
+ * `usage`, `stats` e o raciocínio. Do resultado sobra o que a lista mostra: se
+ * o passo deu certo. O texto inteiro continua chegando ao vivo pela tela.
+ */
+function anotarTrabalho(lista, porId, evento) {
+  if (evento.tipo === 'ferramenta') {
+    if (lista.length >= TRABALHO_LIMIT) return;
+    const passo = { acao: evento.acao, titulo: evento.titulo };
+    if (evento.arquivo) passo.arquivo = evento.arquivo;
+    if (evento.comando) passo.comando = evento.comando;
+    lista.push(passo);
+    if (evento.id) porId.set(evento.id, passo);
+    return;
+  }
+  if (evento.tipo === 'saida') {
+    const passo = porId.get(evento.id);
+    if (passo) passo.ok = evento.ok !== false;
   }
 }
 

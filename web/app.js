@@ -12,6 +12,7 @@ import {
   iniciarIdioma, traduzirDocumento, aoTrocarIdioma, t, plural, formatarNumero
 } from './i18n.js';
 import { views } from './views.js';
+import { renderCode } from './view-code.js';
 import {
   lerRequisitos, faltaAlgo, cartaoRequisitos, ligarRequisitos,
   faltaEscolherNavegador, perguntarNavegador
@@ -21,6 +22,10 @@ import {
 // conversa e quando a resposta começa a chegar. Uma declaração só: dois
 // `ligarBrilho` no mesmo canvas desenhariam um por cima do outro.
 const brilho = ligarBrilho($('#glow'));
+
+// A tela de programar mora num arquivo só dela: ela é a única que tem conversa
+// e painel na mesma tela, e junto das outras dobraria o views.js.
+views.code = renderCode;
 
 // -------------------------------------------------------------------- tema
 
@@ -661,8 +666,7 @@ function renderEmptyState() {
   const quem = [gem?.name, state.model ? modelLabel(state.model) : t('nenhuma IA escolhida')]
     .filter(Boolean)
     .join(' · ');
-  // Atalho pra tela que ainda não existe é beco sem saída: só entra com a view.
-  const atalhos = ATALHOS().filter(([, , alvo]) => alvo !== 'code' || $('#view-code'));
+  const atalhos = ATALHOS();
 
   $('#messages').innerHTML = `
     <div class="vazio">
@@ -1480,6 +1484,7 @@ function commands() {
     { icon: 'spark', label: t('Ajustes desta conversa'), run: renderTune, key: '⌘,' },
     { icon: 'users', label: t('Perguntar pra várias'), run: () => switchView('council') },
     { icon: 'globe', label: t('Pesquisar na web'), run: () => switchView('research') },
+    { icon: 'code', label: t('Programar'), run: () => switchView('code') },
     { icon: 'brain', label: t('Ver memória'), run: () => switchView('memory') },
     { icon: 'folder', label: t('Projetos'), run: () => switchView('projects') },
     { icon: 'sparkle', label: t('Perfis'), run: () => switchView('gems') },

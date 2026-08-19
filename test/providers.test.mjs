@@ -3,7 +3,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { useTempHome, stubFetch, fakeResponse, collect } from './helpers.mjs';
+import { useTempHome, stubFetch, fakeResponse, collect, cliFalso } from './helpers.mjs';
 
 const home = useTempHome();
 const openai = await import('../server/providers/openai.mjs');
@@ -328,6 +328,119 @@ test('cli: sem comando configurado reclama antes de tentar rodar', async () => {
     collect(cli.stream({ config: {} }, { model: 'default', messages: [] })),
     /sem comando/
   );
+});
+
+// ------------------------------------------------- cli em modo estruturado
+
+/**
+ * `claude` de mentira: só escreve o JSONL se tiver recebido os argumentos do
+ * modo estruturado. É assim que os testes provam que a troca de argumentos
+ * aconteceu sem precisar espiar o `spawn`.
+ *
+ * O texto sai em dois pedaços cortados no meio de uma linha, e a última linha
+ * vai sem quebra no fim — as duas coisas acontecem no cano de verdade e são
+ * justamente as que perdem evento quando o adaptador lê pedaço em vez de linha.
+ */
+const CLAUDE_DE_MENTIRA = `
+if (!process.argv.includes('--output-format')) {
+  process.stdout.write('rodei do jeito que estava configurado');
+} else {
+  const linhas = [
+    { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'li o arquivo.' } } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { file_path: process.cwd() + '/soma.mjs' } }] } },
+    { type: 'user', message: { content: [{ tool_use_id: 'toolu_1', type: 'tool_result', content: 'export const soma = (a, b) => a + b;' }] } },
+    { type: 'result', duration_ms: 2718, num_turns: 2, total_cost_usd: 0.15 }
+  ];
+  const texto = linhas.map((l) => JSON.stringify(l)).join('\\n');
+  const meio = Math.floor(texto.length / 2);
+  process.stdout.write(texto.slice(0, meio));
+  setTimeout(() => process.stdout.write(texto.slice(meio)), 30);
+}
+`;
+
+test('cli: modo estruturado troca os argumentos e traduz o JSONL em eventos', async () => {
+  const falso = cliFalso('claude', CLAUDE_DE_MENTIRA);
+  try {
+    const saida = await collect(
+      cli.stream(
+        { config: { command: falso.comando, args: ['-p'], stdin: true } },
+        {
+          model: 'default',
+          messages: [{ role: 'user', content: 'o que faz a soma?' }],
+          workdir: falso.pasta,
+          estruturado: true
+        }
+      )
+    );
+
+    const eventos = saida.filter((c) => c.evento).map((c) => c.evento);
+    assert.deepEqual(
+      eventos.map((e) => e.tipo),
+      ['ferramenta', 'saida', 'fim'],
+      'linha partida no meio não pode sumir com evento'
+    );
+    assert.equal(eventos[0].acao, 'ler');
+    assert.equal(eventos[0].titulo, 'leu soma.mjs');
+    assert.equal(eventos[0].arquivo, 'soma.mjs', 'o caminho sai relativo à pasta do projeto');
+    assert.equal(eventos[1].id, eventos[0].id, 'a saída tem que casar com a ferramenta');
+    assert.equal(eventos[1].ok, true);
+    assert.match(eventos[1].texto, /export const soma/);
+    assert.equal(eventos[2].custo, 0.15);
+
+    assert.equal(saida.filter((c) => c.delta).map((c) => c.delta).join(''), 'li o arquivo.');
+    assert.ok(!saida.some((c) => c.reasoning), 'o JSONL já traz o pensamento; o stderr não vira raciocínio');
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('cli: sem pedido de passo a passo o mesmo comando roda como sempre', async () => {
+  const falso = cliFalso('claude', CLAUDE_DE_MENTIRA);
+  try {
+    const saida = await collect(
+      cli.stream(
+        { config: { command: falso.comando, args: ['-p'], stdin: true } },
+        { model: 'default', messages: [{ role: 'user', content: 'oi' }] }
+      )
+    );
+    assert.equal(saida.filter((c) => c.delta).map((c) => c.delta).join(''), 'rodei do jeito que estava configurado');
+    assert.ok(!saida.some((c) => c.evento), 'conversa comum não pode ganhar passo a passo');
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('cli: argumentos editados a mão ganham do modo estruturado, e a pessoa é avisada', async () => {
+  const falso = cliFalso('claude', CLAUDE_DE_MENTIRA);
+  try {
+    const saida = await collect(
+      cli.stream(
+        { config: { command: falso.comando, args: ['-p', '--model', 'o-meu'], stdin: true } },
+        { model: 'default', messages: [{ role: 'user', content: 'oi' }], estruturado: true }
+      )
+    );
+    assert.ok(!saida.some((c) => c.evento), 'trocar os argumentos por baixo dos panos é que seria o erro');
+    assert.equal(saida.filter((c) => c.delta).map((c) => c.delta).join(''), 'rodei do jeito que estava configurado');
+    assert.match(
+      saida.map((c) => c.reasoning || '').join(''),
+      /passo a passo/,
+      'painel vazio sem explicação nenhuma é o pior dos dois mundos'
+    );
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('cli: comando fora da tabela ignora o pedido de passo a passo', async () => {
+  const saida = await collect(
+    cli.stream(
+      { config: { command: 'sh', args: ['-c', 'echo pronto'], stdin: true } },
+      { model: 'default', messages: [{ role: 'user', content: 'oi' }], estruturado: true }
+    )
+  );
+  assert.match(saida.map((c) => c.delta || '').join(''), /pronto/);
+  assert.ok(!saida.some((c) => c.evento));
+  assert.ok(!saida.some((c) => /passo a passo/.test(c.reasoning || '')), 'não há o que avisar: esse comando não fala JSONL');
 });
 
 // ------------------------------------------------------- prazo do provedor

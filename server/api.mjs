@@ -52,6 +52,10 @@ import { ftsQuery } from './vectors.mjs';
 import { search as webSearch, readPage } from './web.mjs';
 import { createBackup, restoreBackup, listBackups, backupName } from './backup.mjs';
 import { explainProviderError } from './errors.mjs';
+import { ARGS_ESTRUTURADO, nomeDoComando } from './eventos-cli.mjs';
+import { arvoreDoProjeto, lerArquivoDoProjeto, mudancasDoProjeto } from './projeto-arquivos.mjs';
+import { statSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // ------------------------------------------------------------------ helpers
 
@@ -178,6 +182,15 @@ function providerView(p) {
     enabled: !!p.enabled,
     auto: !!p.auto,
     manageable: p.kind === 'ollama', // dá pra baixar e apagar modelo por aqui
+    // Se este comando sabe contar o que está fazendo, passo a passo. A tela
+    // Programar mostra o painel de trabalho só pra quem sabe: o `gemini` é
+    // descoberto e cadastrado como CLI igual aos outros, mas não fala JSONL —
+    // sem esta informação ele aparecia no grupo "Mexem nos arquivos" e deixava
+    // o painel vazio pra sempre, sem uma palavra dizendo por quê.
+    passoAPasso:
+      p.kind === 'cli'
+        ? Boolean(ARGS_ESTRUTURADO[nomeDoComando(parseJSON(p.config)?.command)])
+        : false,
     models: all(
       'SELECT model_id, label, kind FROM models WHERE provider_id = ? ORDER BY model_id',
       p.id
@@ -217,6 +230,58 @@ function listChats({ includeArchived = false } = {}) {
     `${CHAT_COLUMNS} ${includeArchived ? '' : 'WHERE c.archived = 0'}
      ORDER BY c.pinned DESC, c.updated_at DESC LIMIT 300`
   );
+}
+
+// As três rotas de /codigo têm o mesmo começo: achar a pasta do projeto. Fora
+// desta lista, /codigo/qualquer-coisa continua caindo no 404 do fim do
+// despachante, e não num 400 falando de projeto.
+const ROTAS_DE_CODIGO = new Set(['arvore', 'arquivo', 'mudancas']);
+
+/**
+ * Acha a pasta de trabalho do projeto pedido em `?projeto=`.
+ *
+ * Devolve `{ raiz }` ou `{ erro }`, e nunca lança. Os quatro jeitos de dar
+ * errado — sem id, projeto apagado, campo vazio, pasta que sumiu do disco —
+ * são todos coisa que a pessoa conserta na tela de Projetos, então cada um
+ * vira uma frase dizendo o que fazer. O campo `workdir` é digitado à mão e
+ * gravado cru (o INSERT de /projects não confere nada), então "pasta que não
+ * existe" é caso comum, não exceção.
+ */
+function pastaDoProjeto(url) {
+  const id = url.searchParams.get('projeto') || '';
+  if (!id) return { erro: 'não sei de qual projeto: o pedido veio sem projeto nenhum' };
+
+  const projeto = one('SELECT * FROM projects WHERE id = ?', id);
+  if (!projeto) return { erro: 'esse projeto não existe mais — recarregue a página e escolha outro' };
+  if (!projeto.workdir) {
+    return {
+      erro:
+        `esse projeto ainda não aponta pra uma pasta — abra Projetos, edite "${projeto.name}" ` +
+        'e preencha a pasta de trabalho'
+    };
+  }
+
+  // `resolve` aqui, antes de virar raiz de contenção: o campo aceita caminho
+  // relativo, e aí a pasta mudaria junto com o diretório de trabalho do
+  // processo — a mesma armadilha documentada em chromium.mjs:536.
+  const raiz = resolve(projeto.workdir);
+  let info = null;
+  try {
+    info = statSync(raiz);
+  } catch {
+    // pasta apagada, disco externo desmontado, sem permissão de leitura
+  }
+  if (!info) {
+    return {
+      erro: `a pasta "${projeto.workdir}" não existe mais no disco — aponte o projeto pra outra pasta`
+    };
+  }
+  if (!info.isDirectory()) {
+    return {
+      erro: `"${projeto.workdir}" é um arquivo, não uma pasta — o projeto precisa apontar pra uma pasta`
+    };
+  }
+  return { raiz };
 }
 
 // ------------------------------------------------------------------- rotas
@@ -612,6 +677,28 @@ export async function handleApi(req, res, url) {
     }
   }
 
+  // --- código do projeto: o painel da tela Programar -----------------------
+  if (method === 'GET' && seg[0] === 'codigo' && ROTAS_DE_CODIGO.has(seg[1])) {
+    const pasta = pastaDoProjeto(url);
+    if (pasta.erro) return json(res, { error: pasta.erro }, 400);
+
+    try {
+      if (seg[1] === 'arvore') return json(res, await arvoreDoProjeto(pasta.raiz));
+      if (seg[1] === 'mudancas') return json(res, await mudancasDoProjeto(pasta.raiz));
+
+      const caminho = url.searchParams.get('caminho') || '';
+      if (!caminho) return json(res, { error: 'diga qual arquivo abrir: o pedido veio sem caminho' }, 400);
+      return json(res, await lerArquivoDoProjeto(pasta.raiz, caminho));
+    } catch (err) {
+      // Caminho que escapa da pasta, arquivo binário, arquivo apagado entre a
+      // árvore e o clique: é pedido errado, não defeito do servidor. Sem este
+      // catch a recusa da peça de arquivos subiria até o try do index.mjs, que
+      // responde 500 — e a tela diria "erro interno" pra quem só clicou no
+      // arquivo errado.
+      return json(res, { error: err.message }, 400);
+    }
+  }
+
   // --- conversas -----------------------------------------------------------
   if (method === 'GET' && path === '/chats') {
     return json(res, listChats({ includeArchived: url.searchParams.get('all') === '1' }));
@@ -710,6 +797,10 @@ export async function handleApi(req, res, url) {
             userContent: b.content || '',
             modelRef: b.model || null,
             useWeb: b.web === undefined ? null : Boolean(b.web),
+            // Quem pede é a tela Programar. O servidor não deduz pela
+            // configuração da conversa: o modo estruturado liga auto-aprovação
+            // de edição de arquivo, e isso tem que ser pedido explícito.
+            programar: Boolean(b.programar),
             signal: stream.signal
           })
         )

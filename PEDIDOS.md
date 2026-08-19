@@ -676,9 +676,19 @@ Quebrado em itens, com as palavras dele:
 - [x] **escolher o navegador ao ligar o modo agente**
   > *"pensei agr, dava pra ao clicar no modo agente, ele pergunta se qr usa o
   > teu chrome, ou baixa um cromium"*
-- [ ] **modo code, com painel de IDE ao lado mostrando a IA testando**
+- [x] **modo code, com painel de IDE ao lado mostrando a IA testando**
   > *"modo code e etc, podia ter isso al ide ali no lado aparece a ia testando,
   > e etc"*
+  Entregue: tela Programar com a conversa de um lado e o painel do outro, em
+  três abas — Arquivos (a árvore da pasta do projeto, com o arquivo aberto ao
+  lado), Trabalho (cada arquivo lido ou escrito e cada comando rodado, com a
+  saída e se deu certo) e Mudanças (o `git status` da pasta). O passo a passo
+  vem do JSONL das próprias IAs de linha de comando: `claude`, `codex` e
+  `opencode` falam dialetos diferentes e `server/eventos-cli.mjs` traduz os
+  três, com as amostras de execução real em `test/amostras/`.
+  O modo estruturado só liga quando esta tela pede E o projeto tem pasta: é ele
+  que roda o `claude` com auto-aprovação de edição, e o perfil "Programador"
+  sozinho não pode conceder isso a uma conversa comum.
 - [x] **i18n no app e no site, com idioma pelo IP, e trocar o nome** (menos o nome)
   > *"falta i18n, site app e etc. puxa localizacao + idioma via localizacao ip
   > sla, e trocar o nome pro novo nome"*

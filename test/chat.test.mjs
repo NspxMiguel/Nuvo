@@ -4,7 +4,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { useTempHome, stubFetch, fakeResponse, collect } from './helpers.mjs';
+import { useTempHome, stubFetch, fakeResponse, collect, cliFalso } from './helpers.mjs';
 
 const home = useTempHome();
 const chat = await import('../server/chat.mjs');
@@ -639,5 +639,170 @@ test('extrator pendurado não segura a conversa depois da resposta', async () =>
   } finally {
     stub.restore();
     patchConfig({ memory: memoriaAntes, limits: limitesAntes });
+  }
+});
+
+
+// ------------------------------------------------------- modo Programar
+
+/**
+ * `claude` de mentira: escreve o JSONL do modo estruturado quando recebe os
+ * argumentos dele, e texto puro quando não recebe. O formato de cada linha é
+ * assunto do teste do adaptador; aqui o que se mede é o caminho do evento até a
+ * tela e até a mensagem gravada.
+ */
+const CLAUDE_DE_MENTIRA = `
+if (!process.argv.includes('--output-format')) {
+  process.stdout.write('rodei em texto puro');
+} else {
+  const linhas = [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'npm test' } }] } },
+    { type: 'user', message: { content: [{ tool_use_id: 'toolu_1', type: 'tool_result', content: '429 testes verdes' }] } },
+    { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'os testes passam.' } } },
+    { type: 'result', duration_ms: 1200, num_turns: 1, total_cost_usd: 0.02 }
+  ];
+  process.stdout.write(linhas.map((l) => JSON.stringify(l)).join('\\n') + '\\n');
+}
+`;
+
+/** Cadastra o CLI de mentira como provedor e devolve o ref pra usar na conversa. */
+function provedorDeMentira(falso) {
+  const id = uid();
+  run(
+    `INSERT INTO providers (id, name, kind, base_url, secret_name, config, enabled, auto, created_at)
+     VALUES (?, 'Claude de mentira', 'cli', NULL, NULL, ?, 1, 0, ?)`,
+    id,
+    JSON.stringify({ command: falso.comando, args: ['-p'], stdin: true, models: ['default'] }),
+    now()
+  );
+  return `${id}:default`;
+}
+
+test('modo Programar manda o passo a passo pra tela e o deixa gravado na mensagem', async () => {
+  const falso = cliFalso('claude', CLAUDE_DE_MENTIRA);
+  const ref = provedorDeMentira(falso);
+  run(
+    'INSERT INTO projects (id, name, icon, color, instructions, workdir, created_at) VALUES (?,?,?,?,?,?,?)',
+    'proj-code', 'IDE', 'folder', 'slate', '', falso.pasta, now()
+  );
+  const c = chat.createChat({ title: 'x', model: ref, projectId: 'proj-code', mode: 'coding' });
+
+  try {
+    const eventos = await collect(
+      chat.runTurn({ chatId: c.id, userContent: 'roda os testes', programar: true })
+    );
+
+    const passos = eventos.filter((e) => e.type === 'ferramenta');
+    assert.deepEqual(passos.map((p) => p.tipo), ['ferramenta', 'saida', 'fim']);
+    assert.equal(passos[0].titulo, 'rodou npm test');
+    assert.equal(passos[1].id, passos[0].id);
+    assert.equal(passos[1].texto, '429 testes verdes');
+    assert.equal(passos[2].custo, 0.02);
+
+    const fim = eventos.find((e) => e.type === 'done');
+    assert.equal(fim.message.content, 'os testes passam.');
+    // Recarregar a página joga fora tudo que só existiu no stream: o painel de
+    // trabalho tem que se remontar a partir daqui.
+    assert.deepEqual(JSON.parse(fim.message.meta).trabalho, [
+      { acao: 'rodar', titulo: 'rodou npm test', comando: 'npm test', ok: true }
+    ]);
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('sem a tela Programar pedindo, a conversa de programar roda em texto puro', async () => {
+  // O perfil "Programador" já nasce com `mode: 'coding'`, e a tela de Conversas
+  // copia o modo do perfil. Se `mode` bastasse pra ligar o modo estruturado,
+  // qualquer conversa comum aberta com esse perfil passaria a rodar o `claude`
+  // com `--permission-mode acceptEdits` — permissão de escrever em disco que
+  // ninguém concedeu.
+  const falso = cliFalso('claude', CLAUDE_DE_MENTIRA);
+  const ref = provedorDeMentira(falso);
+  run(
+    'INSERT INTO projects (id, name, icon, color, instructions, workdir, created_at) VALUES (?,?,?,?,?,?,?)',
+    'proj-sem-pedido', 'IDE', 'folder', 'slate', '', falso.pasta, now()
+  );
+  const c = chat.createChat({ title: 'x', model: ref, projectId: 'proj-sem-pedido', mode: 'coding' });
+
+  try {
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'oi' }));
+    assert.ok(!eventos.some((e) => e.type === 'ferramenta'));
+    assert.equal(eventos.find((e) => e.type === 'done').message.content, 'rodei em texto puro');
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('sem pasta de trabalho o modo Programar não liga, mesmo pedido', async () => {
+  // Sem pasta o `spawn` herda o diretório de onde o servidor subiu, e o modo
+  // estruturado é o que liga a auto-aprovação de edição: a IA editaria arquivo
+  // numa pasta que ninguém escolheu.
+  const falso = cliFalso('claude', CLAUDE_DE_MENTIRA);
+  const ref = provedorDeMentira(falso);
+  const c = chat.createChat({ title: 'x', model: ref, mode: 'coding' });
+
+  try {
+    const eventos = await collect(
+      chat.runTurn({ chatId: c.id, userContent: 'edita', programar: true })
+    );
+    assert.ok(!eventos.some((e) => e.type === 'ferramenta'));
+    assert.equal(eventos.find((e) => e.type === 'done').message.content, 'rodei em texto puro');
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('turno que só trabalhou e não escreveu texto continua sendo um turno', async () => {
+  // A IA leu, editou e rodou, e terminou sem escrever uma linha — acontece
+  // quando o pedido é "arruma isso" e ela arrumou. Antes isso caía na frase "o
+  // modelo não devolveu texto nenhum" e a mensagem era descartada com o
+  // `trabalho` junto: o painel enchia na tela e sumia no recarregamento.
+  const mudo = `
+if (!process.argv.includes('--output-format')) { process.stdout.write('texto'); } else {
+  const linhas = [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }] } },
+    { type: 'user', message: { content: [{ tool_use_id: 't1', type: 'tool_result', content: 'ok' }] } },
+    { type: 'result', duration_ms: 10, num_turns: 1, total_cost_usd: 0.01 }
+  ];
+  process.stdout.write(linhas.map((l) => JSON.stringify(l)).join('\\n') + '\\n');
+}
+`;
+  const falso = cliFalso('claude', mudo);
+  const ref = provedorDeMentira(falso);
+  run(
+    'INSERT INTO projects (id, name, icon, color, instructions, workdir, created_at) VALUES (?,?,?,?,?,?,?)',
+    'proj-mudo', 'IDE', 'folder', 'slate', '', falso.pasta, now()
+  );
+  const c = chat.createChat({ title: 'x', model: ref, projectId: 'proj-mudo', mode: 'coding' });
+
+  try {
+    const eventos = await collect(
+      chat.runTurn({ chatId: c.id, userContent: 'arruma', programar: true })
+    );
+    assert.ok(!eventos.some((e) => e.type === 'error'), 'turno com trabalho não é erro');
+    const fim = eventos.find((e) => e.type === 'done');
+    assert.ok(fim, 'o turno tem que terminar em done');
+    assert.deepEqual(JSON.parse(fim.message.meta).trabalho, [
+      { acao: 'rodar', titulo: 'rodou npm test', comando: 'npm test', ok: true }
+    ]);
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('conversa comum roda o mesmo CLI em texto puro, sem passo a passo', async () => {
+  const falso = cliFalso('claude', CLAUDE_DE_MENTIRA);
+  const ref = provedorDeMentira(falso);
+  const c = chat.createChat({ title: 'x', model: ref, mode: 'chat' });
+
+  try {
+    const eventos = await collect(chat.runTurn({ chatId: c.id, userContent: 'oi' }));
+    assert.ok(!eventos.some((e) => e.type === 'ferramenta'));
+    const fim = eventos.find((e) => e.type === 'done');
+    assert.equal(fim.message.content, 'rodei em texto puro');
+    assert.equal(JSON.parse(fim.message.meta).trabalho, undefined);
+  } finally {
+    falso.limpar();
   }
 });

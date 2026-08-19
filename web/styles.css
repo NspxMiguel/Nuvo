@@ -1735,3 +1735,176 @@ button.icon { position: relative; }
   /* As linhas dos ajustes no celular estavam em 43px — um pixel abaixo do piso. */
   .linha { min-height: 44px; }
 }
+
+/* --------------------------------------------------------------- programar */
+
+/* A tela Programar é a única com duas colunas: a conversa de um lado e o painel
+   do que a IA fez do outro. Abaixo de 900px as duas não cabem lado a lado (a
+   768px a coluna do painel fica com ~27 caracteres e todo caminho de arquivo
+   quebra em três linhas), então o painel encolhe numa faixa com as três abas e
+   sobe por cima da conversa quando alguém toca nela. */
+
+.code-tela { overflow: hidden; }
+
+.code-topo { display: flex; gap: 10px; align-items: center; padding: 4px 18px 12px; flex: 0 0 auto; }
+.code-topo select { flex: 1 1 0; min-width: 0; font-size: 15px; padding: 10px 14px; }
+
+.code-corpo { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+.code-conversa { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cd-msgs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  scroll-behavior: smooth;
+}
+
+.cd-vazio { margin: auto; max-width: 420px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; color: var(--muted); }
+.cd-vazio .ico { color: var(--accent); }
+.cd-vazio b { color: var(--text); font-size: 19px; font-weight: 600; }
+.cd-vazio > span { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+.cd-vazio p { margin: 10px 0 0; font-size: 15.5px; text-wrap: pretty; }
+
+.cd-composer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex: 0 0 auto;
+  padding: 0 18px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.cd-composer textarea { flex: 1 1 auto; min-width: 0; resize: none; max-height: 150px; border-radius: var(--radius); padding: 12px 16px; }
+#cd-enviar, #cd-parar { flex: 0 0 auto; width: var(--toque); height: var(--toque); min-width: var(--toque); padding: 0; border-radius: 50%; }
+#cd-parar { background: var(--panel); color: var(--text); }
+
+/* Fechado, o painel é só a faixa das abas, e ela fica na fila embaixo da
+   conversa: tirá-la do fluxo obrigaria a repetir a altura dela como folga no
+   rodapé, e a conta erra sozinha — no dedo o segmentado vai a 44px e a faixa
+   passa de 66px pra 70px, escondendo os últimos 4px do campo de escrever.
+   Aberto, aí sim ele sai do fluxo e cobre a conversa inteira. */
+.code-painel {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+.code-painel .code-conteudo { display: none; }
+.code-painel.aberto { position: absolute; inset: 0; z-index: 3; }
+.code-painel.aberto .code-conteudo { display: block; }
+
+.code-faixa { display: flex; align-items: center; gap: 8px; padding: 9px 14px; flex: 0 0 auto; }
+.code-faixa .segmentado { flex: 1 1 auto; min-width: 0; align-self: auto; }
+.cd-conta { font-variant-numeric: tabular-nums; color: var(--accent); }
+/* Fechada, a seta aponta pra cima: o gesto é puxar o painel pra cima. */
+.cd-abrir { flex: 0 0 auto; transform: rotate(180deg); transition: transform var(--d2) var(--ease); }
+.code-painel.aberto .cd-abrir { transform: none; }
+
+.code-conteudo { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 18px; }
+
+.cd-raiz, .cd-caminho { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-raiz { margin: 0 0 10px; }
+.cd-meta { color: var(--muted); font-size: 14.5px; margin: 10px 0; text-wrap: pretty; }
+.cd-esperando { color: var(--muted); font-size: 15px; }
+.cd-cabeca { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.cd-cabeca button { padding: 8px 14px; font-size: 14.5px; flex: 0 0 auto; }
+
+.cd-arvore { display: flex; flex-direction: column; }
+.cd-pasta > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 14.5px;
+  color: var(--text-2);
+}
+.cd-pasta > summary::-webkit-details-marker { display: none; }
+.cd-pasta > summary .ico { color: var(--muted); flex: 0 0 auto; }
+.cd-dentro { margin-left: 14px; padding-left: 12px; border-left: 1px solid var(--line-soft); }
+
+.cd-arq {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 8px;
+  background: none;
+  border-radius: 10px;
+  font-size: 14.5px;
+  color: var(--text-2);
+  text-align: left;
+}
+.cd-arq .ico { color: var(--muted); flex: 0 0 auto; }
+.cd-nome { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-bytes, .cd-estado { flex: 0 0 auto; color: var(--muted); font-size: 12.5px; }
+.cd-mud.novo .cd-estado { color: var(--ok); }
+.cd-mud.mudou .cd-estado { color: var(--warn); }
+.cd-mud.apagado { color: var(--muted); }
+.cd-mud.apagado .cd-estado { color: var(--danger); }
+
+.cd-passos { display: flex; flex-direction: column; gap: 2px; }
+.cd-passo { display: flex; gap: 10px; align-items: flex-start; padding: 8px 6px; border-radius: 10px; animation: sobe var(--d2) var(--ease) both; }
+.cd-passo .ico { flex: 0 0 auto; margin-top: 2px; color: var(--accent); }
+.cd-passo.ruim .ico { color: var(--danger); }
+.cd-passo.fim .ico { color: var(--ok); }
+.cd-passo.correndo .ico { animation: cdPisca 1.1s var(--ease-io) infinite; }
+@keyframes cdPisca { 50% { opacity: 0.25; } }
+.cd-passo-txt { flex: 1 1 auto; min-width: 0; }
+.cd-passo b { display: block; font-size: 14.5px; font-weight: 550; color: var(--text); overflow-wrap: anywhere; }
+.cd-cmd { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+.cd-saida { margin-top: 6px; }
+.cd-saida > summary { display: inline-flex; align-items: center; min-height: 32px; cursor: pointer; list-style: none; font-size: 13.5px; color: var(--muted); }
+.cd-saida > summary::-webkit-details-marker { display: none; }
+.cd-passo.ruim .cd-saida > summary { color: var(--danger); }
+.cd-saida pre {
+  margin: 6px 0 0;
+  padding: 12px 14px;
+  background: var(--panel);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  /* A saída vem cortada em 4000 caracteres, o que ainda é uma tela e meia de
+     terminal: sem teto ela empurra os passos seguintes pra fora da vista. */
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .cd-arq:hover, .cd-pasta > summary:hover { background: var(--panel); }
+}
+
+@media (min-width: 901px) {
+  .code-corpo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); }
+  /* `.aberto` sobrevive à mudança de largura (girar o aparelho, arrastar a
+     janela): sem repetir a classe aqui, o painel voltava flutuando por cima da
+     conversa numa tela em que há espaço pras duas colunas. */
+  .code-painel, .code-painel.aberto {
+    position: static;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    background: none;
+  }
+  .code-painel .code-conteudo { display: block; }
+  .cd-abrir { display: none; }
+}
+
+/* Dedo, não ponteiro: `.cd-arq` (0-1-0) ganha do `button` (0-0-1) da regra
+   geral de toque lá de cima, e as linhas da árvore ficavam em 36px. */
+@media (pointer: coarse) {
+  .cd-arq, .cd-pasta > summary, .cd-saida > summary { min-height: var(--toque); }
+  #cd-enviar, #cd-parar, .cd-abrir { min-height: var(--toque); min-width: var(--toque); }
+}
