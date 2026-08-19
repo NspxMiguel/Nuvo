@@ -7,6 +7,7 @@ import {
 import { icon } from './icons.js';
 import { ligarBrilho, roseta } from './glow.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
+import { statsLine } from './format.js';
 import { views } from './views.js';
 
 // A malha de pontinhos do rodapé nasce ao abrir o app, ao voltar pra uma
@@ -592,18 +593,6 @@ function renderEmptyState() {
   brilho.pulsar();
 }
 
-/** Rodapé da resposta: três números, e a palavra "token" nunca sozinha. */
-function statsLine(stats) {
-  const partes = [];
-  if (stats.ms != null) partes.push(`${(stats.ms / 1000).toFixed(1).replace('.', ',')} s`);
-  if (stats.tokens) {
-    partes.push(
-      `${stats.tokens.toLocaleString('pt-BR')} palavras-token${stats.estimated ? ' (estimativa)' : ''}`
-    );
-  }
-  if (stats.tps) partes.push(`${Math.round(stats.tps)} por segundo`);
-  return partes.join(' · ');
-}
 
 /** Escreve a linha e some com ela enquanto não há número nenhum. */
 function setStats(el, stats) {
