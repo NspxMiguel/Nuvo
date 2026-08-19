@@ -29,103 +29,147 @@
     .nav-links { display: none !important; }
     .nav { padding: 0 16px !important; gap: 12px !important; }
   }
-  /* A saudação do app, do jeito que ela aparece na tela vazia — só que aqui os
-     nomes passam e param no do visitante. É a única parte da página que se
-     comporta como o produto em vez de descrever ele. */
-  .saudacao {
-    padding: 130px 28px 0;
+  /* ------------------------------------------------------------- o palco
+
+     A primeira tela não anda: ela trava no lugar e a página rola por baixo,
+     então quem rola sente que está mexendo no conteúdo em vez de descer nele.
+     São três atos na mesma barra de rolagem — a saudação com o nome, a frase
+     que troca letra a letra e a máscara que abre no centro e revela o app,
+     empurrando o texto pros lados.
+
+     Feito na mão: tudo sai de um número entre 0 e 1 lido da rolagem, que vira
+     opacidade, largura da máscara e empurrão. Uma biblioteca de rolagem
+     suave pesa mais que esta página inteira, e o efeito é o mesmo. */
+  .palco { position: relative; height: 460vh; }
+  .palco-fixo {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    padding: 0 24px;
   }
-  .saudacao-caixa {
-    max-width: 1160px;
-    margin: 0 auto;
-    border: 1px solid #1e1e22;
-    border-radius: 26px;
-    background: radial-gradient(120% 140% at 50% 0%, #101018 0%, #08080a 55%, #000 100%);
-    padding: clamp(52px, 9vw, 96px) 28px clamp(44px, 7vw, 72px);
+  /* Os atos moram na mesma célula da grade: eles se trocam no lugar, sem um
+     empurrar o outro pra baixo. */
+  .ato {
+    grid-area: 1 / 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 26px;
+    gap: 20px;
     text-align: center;
-    overflow: hidden;
+    max-width: 900px;
   }
-  .saudacao .marca { width: 54px; height: 54px; }
+  .palco .marca { width: 54px; height: 54px; }
 
-  .saudacao h2 {
+  .oi {
     margin: 0;
-    font-size: clamp(30px, 5.2vw, 54px);
+    font-size: clamp(32px, 5.4vw, 60px);
     font-weight: 550;
-    line-height: 1.1;
+    line-height: 1.08;
     letter-spacing: -.035em;
-    /* A frase é uma linha só: quebrar entre "falar," e o nome faria o nome
-       pular de linha a cada troca, e a caixa inteira tremer junto. */
+    /* Uma linha só: quebrar entre "falar," e o nome faria o nome pular de
+       linha a cada troca, e a tela inteira tremer junto. */
     white-space: nowrap;
     display: flex;
     align-items: baseline;
     justify-content: center;
     gap: .28em;
   }
-  /* Largura reservada pelo nome mais comprido da lista, medida no carregamento:
-     sem isso a frase inteira desliza pros lados a cada nome. */
-  .nome {
-    display: inline-block;
-    min-width: var(--nome-larg, 5ch);
-    text-align: left;
-    color: #3d7dff;
-  }
-  .nome span {
-    display: inline-block;
-    animation: entra .42s cubic-bezier(.2, .8, .2, 1) both;
-  }
-  .nome.voce span { color: #fff; }
+  /* Largura reservada pelo nome mais comprido, medida com a fonte já
+     carregada: sem isso a frase desliza pros lados a cada troca. */
+  .nome { display: inline-block; min-width: var(--nome-larg, 5ch); text-align: left; color: #3d7dff; }
+  .nome.voce { color: #fff; }
+  .oi-sub { margin: 0; max-width: 460px; font-size: 17.5px; line-height: 1.6; color: #9aa0aa; }
 
-  @keyframes entra {
-    from { opacity: 0; transform: translateY(.42em); filter: blur(4px); }
-    to   { opacity: 1; transform: none; filter: none; }
-  }
-
-  .saudacao p {
+  .frase {
     margin: 0;
-    font-size: 17.5px;
-    line-height: 1.6;
-    color: #9aa0aa;
-    max-width: 460px;
+    font-size: clamp(30px, 4.6vw, 52px);
+    font-weight: 550;
+    line-height: 1.12;
+    letter-spacing: -.035em;
+    max-width: 15ch;
+    text-wrap: balance;
   }
 
-  /* O convite só existe depois que o nome vira o do visitante: aparecer antes
-     entregaria o final da animação. */
-  .convite {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: opacity .5s ease, transform .5s ease;
-  }
-  .convite.aberto { opacity: 1; transform: none; }
-  .convite a {
-    display: inline-flex;
-    align-items: center;
-    height: 50px;
-    padding: 0 30px;
-    border-radius: 999px;
-    background: #3d7dff;
-    color: #fff;
-    font-size: 16.5px;
-    font-weight: 600;
-  }
-  .convite a:hover { background: #5a91ff; }
+  /* A letra é a unidade da animação: cada uma tem a sua vez, sorteada uma vez
+     só no carregamento. Em ordem, o texto pareceria uma máquina de escrever;
+     sorteado, parece o texto se dissolvendo. */
+  .letra { display: inline-block; white-space: pre; will-change: opacity, filter; }
 
-  /* Quem pediu menos movimento vê o final direto, não um pisca-pisca lento. */
+  /* A máscara: nasce com largura e altura zero no centro e cresce até o
+     tamanho da imagem. A imagem não muda de tamanho junto — ela já está lá,
+     parada, e a máscara só descobre mais dela. */
+  .revela {
+    grid-area: 1 / 1;
+    width: var(--rev-w, 0px);
+    height: var(--rev-h, 0px);
+    overflow: hidden;
+    border-radius: clamp(8px, 1.4vw, 18px);
+    background: #000;
+    position: relative;
+    box-shadow: 0 40px 120px #0009;
+  }
+  /* A imagem é maior que a máscara quase o tempo todo, e filho maior que a
+     caixa não é centralizado por `place-items` — ele transborda pra direita, e
+     a janela abria na barra lateral do app em vez de abrir no meio dele.
+     Ancorar no centro resolve pros dois lados. */
+  .revela img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: var(--rev-larg, 1100px);
+    max-width: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .final { grid-area: 1 / 1; display: flex; align-items: center; justify-content: center; gap: 44px; width: 100%; max-width: 1160px; }
+  .lado { margin: 0; will-change: transform; }
+  .lado-esq { font-size: clamp(28px, 3.6vw, 46px); font-weight: 550; line-height: 1.06; letter-spacing: -.035em; text-align: right; }
+  .lado-dir { max-width: 32ch; font-size: 17px; line-height: 1.6; color: #9aa0aa; text-align: left; }
+
+  /* A máscara é `position: relative` e por isso pinta acima de qualquer irmão
+     estático: sem um empilhamento próprio, os botões abrem atrás da captura e
+     só aparece a metade que sobra pra fora dela. */
+  .acoes { grid-area: 1 / 1; align-self: end; margin-bottom: clamp(18px, 4vh, 34px); position: relative; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .acoes a { display: inline-flex; align-items: center; height: 52px; padding: 0 28px; border-radius: 999px; font-size: 16.5px; font-weight: 600; letter-spacing: -.01em; }
+  .acoes .cheio { background: #3d7dff; color: #fff; }
+  .acoes .cheio:hover { background: #5a91ff; color: #fff; }
+  .acoes .vazio { background: #101013; border: 1px solid #26262b; color: #fff; font-weight: 500; }
+  .acoes .vazio:hover { border-color: #3d3d45; color: #fff; }
+
+  .dica { grid-area: 1 / 1; align-self: end; margin-bottom: clamp(20px, 5vh, 40px); font-size: 13.5px; letter-spacing: .1em; text-transform: uppercase; color: #52525b; }
+  .dica::after { content: ''; display: block; width: 1px; height: 26px; margin: 10px auto 0; background: linear-gradient(#52525b, transparent); }
+
+  @media (max-width: 760px) {
+    /* No celular a rolagem travada cansa mais rápido: o mesmo roteiro cabe em
+       menos tela, e o texto empurrado vira uma coluna só. */
+    .palco { height: 340vh; }
+    .final { flex-direction: column; gap: 18px; }
+    .lado-esq, .lado-dir { text-align: center; }
+  }
+
+  /* Quem pediu menos movimento não recebe rolagem travada nenhuma: a primeira
+     tela vira uma tela comum, com tudo já no lugar. */
   @media (prefers-reduced-motion: reduce) {
-    .nome span { animation: none; }
-    .convite { transition: none; }
+    .palco { height: auto; }
+    .palco-fixo { position: static; height: auto; padding: 130px 24px 40px; gap: 0; }
   }
+  .palco.parado { height: auto; }
+  .palco.parado .palco-fixo { position: static; height: auto; padding: 130px 24px 40px; }
+  .palco.parado .dica { display: none; }
 </style>
 </head>
 <body>
-<div style="max-width:100%;overflow-x:hidden">
+<!-- `clip` e nao `hidden`: `overflow: hidden` transforma a div num container
+     de rolagem, e `position: sticky` la dentro deixa de grudar na tela — foi
+     assim que o palco da primeira tela subiu junto com a pagina em vez de
+     ficar parado. `clip` corta igual e nao cria container de rolagem. -->
+<div style="max-width:100%;overflow-x:clip">
 
 <header style="position:sticky;top:0;z-index:20;background:#000;border-bottom:1px solid #17171a">
   <nav class="nav" style="max-width:1160px;margin:0 auto;padding:0 28px;height:60px;display:flex;align-items:center;gap:30px">
@@ -144,19 +188,33 @@
   </nav>
 </header>
 
-<section id="topo" style="padding:150px 28px 0">
-  <div style="max-width:820px;margin:0 auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:24px">
-    <h1 style="margin:0;font-size:clamp(40px,6vw,72px);font-weight:550;line-height:1.04;letter-spacing:-.035em;text-wrap:balance">Todas as suas IAs,<br>uma memória só</h1>
-    <p style="margin:0;max-width:600px;font-size:19px;line-height:1.6;color:#9aa0aa;text-wrap:pretty">Os modelos que rodam no seu computador, as IAs pagas por uso e os programas de terminal, numa conversa só. O que você conta pra uma, todas sabem.</p>
-    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding-top:8px">
-      <a href="#baixar" style="display:inline-flex;align-items:center;height:52px;padding:0 28px;border-radius:999px;background:#3d7dff;color:#fff;font-size:16.5px;font-weight:600;letter-spacing:-.01em" style-hover="background:#5a91ff;color:#fff">Baixar</a>
-      <a href="https://github.com/NspxMiguel/IAUnifier" style="display:inline-flex;align-items:center;height:52px;padding:0 26px;border-radius:999px;background:#101013;border:1px solid #26262b;color:#fff;font-size:16.5px;font-weight:500;letter-spacing:-.01em" style-hover="border-color:#3d3d45;color:#fff">Ver o código</a>
-    </div>
-  </div>
+<section class="palco" id="topo">
+  <div class="palco-fixo">
 
-  <figure style="max-width:1080px;margin:104px auto 0;padding:0">
-    <img src="lp/tela-conversa.jpg" alt="IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar" style="width:100%;border-radius:22px;border:1px solid #1e1e22">
-  </figure>
+    <div class="ato" id="ato-oi">
+      <svg class="marca" width="54" height="54" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient><radialGradient id="sgb" cx=".5" cy=".2" r=".8"><stop stop-color="#fff" stop-opacity=".4"></stop><stop offset="1" stop-color="#fff" stop-opacity="0"></stop></radialGradient></defs><g fill="url(#sg)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g><circle cx="12" cy="12" r="10.6" fill="url(#sgb)"></circle></svg>
+      <h2 class="oi">Pode falar,<span class="nome" id="nome"></span></h2>
+      <p class="oi-sub">É assim que o app abre. Sem tela de login, sem escolher plano — a conversa já está ali.</p>
+    </div>
+
+    <p class="ato frase" id="frase"></p>
+
+    <div class="revela" id="revela" aria-hidden="true">
+      <img src="lp/tela-conversa.jpg" alt="IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar">
+    </div>
+
+    <div class="final" id="final">
+      <h1 class="lado lado-esq" id="lado-esq">Todas as suas IAs,<br>uma memória só</h1>
+      <p class="lado lado-dir" id="lado-dir">Os modelos que rodam no seu computador, as IAs pagas por uso e os programas de terminal, numa conversa só. O que você conta pra uma, todas sabem.</p>
+    </div>
+
+    <div class="acoes" id="acoes">
+      <a href="#baixar" class="cheio">Baixar</a>
+      <a href="https://github.com/NspxMiguel/IAUnifier" class="vazio">Ver o código</a>
+    </div>
+
+    <div class="dica" id="dica">role</div>
+  </div>
 </section>
 
 <section id="memoria" style="margin-top:150px;padding:130px 28px 0;border-top:1px solid #17171a">
@@ -189,13 +247,13 @@
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Pergunte pra cinco ao mesmo tempo</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">A mesma pergunta em várias IAs, todas lendo a mesma memória. Compare lado a lado, deixe que elas votem ou receba as respostas costuradas numa só. Quem responde em três segundos não fica esperando quem leva quarenta.</p>
     </div>
-    <figure style="margin:0"><img src="lp/tela-varias.jpg" alt="Tela Perguntar pra várias: a pergunta, a barra de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%;border-radius:16px;border:1px solid #1e1e22"></figure>
+    <figure style="margin:0"><img src="lp/tela-varias.jpg" alt="Tela Perguntar pra várias: a pergunta, a barra de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%"></figure>
   </div>
 </section>
 
 <section id="maquina" style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
-    <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" alt="Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%;border-radius:16px;border:1px solid #1e1e22"></figure>
+    <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" alt="Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">IAs ligadas</span>
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Só as IAs que cabem na sua máquina</h2>
@@ -211,13 +269,13 @@
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Claude Code, Codex, Gemini e opencode dentro do app</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty">Os mesmos programas que você já usa no terminal respondem dentro da conversa, sem chave de API e sem cobrança por uso — eles usam a assinatura que você já tem. Leem a mesma memória das outras e trabalham na pasta que o projeto apontar.</p>
     </div>
-    <figure style="margin:0"><img src="lp/tela-cli.jpg" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%;border-radius:16px;border:1px solid #1e1e22"></figure>
+    <figure style="margin:0"><img src="lp/tela-cli.jpg" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%"></figure>
   </div>
 </section>
 
 <section id="agente" style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
-    <figure style="margin:0;order:2"><img src="lp/tela-agente.jpg" alt="Uma conversa em modo agente: a trilha mostra a busca, a página aberta e o motivo de cada passo, e a resposta cita a fonte" style="width:100%;border-radius:16px;border:1px solid #1e1e22"></figure>
+    <figure style="margin:0;order:2"><img src="lp/tela-agente.jpg" alt="Uma conversa em modo agente: a trilha mostra a busca, a página aberta e o motivo de cada passo, e a resposta cita a fonte" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a">Modo agente</span>
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance">Ela abre o navegador e vai atrás</h2>
@@ -239,20 +297,6 @@
         <h3 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-.02em">Conversa anônima</h3>
       </div>
       <p style="margin:0;font-size:16.5px;line-height:1.6;color:#8e8e96;text-wrap:pretty">Um toque e a conversa não entra no histórico, não usa a memória e não aprende nada. Some quando você fechar.</p>
-    </div>
-  </div>
-</section>
-
-<section class="saudacao" id="saudacao">
-  <div class="saudacao-caixa">
-    <svg class="marca" width="54" height="54" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient><radialGradient id="sgb" cx=".5" cy=".2" r=".8"><stop stop-color="#fff" stop-opacity=".4"></stop><stop offset="1" stop-color="#fff" stop-opacity="0"></stop></radialGradient></defs><g fill="url(#sg)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g><circle cx="12" cy="12" r="10.6" fill="url(#sgb)"></circle></svg>
-
-    <h2>Pode falar,<span class="nome" id="nome"><span>Miguel</span></span></h2>
-
-    <p>É assim que o app abre. Sem tela de login, sem escolher plano — a conversa já está ali.</p>
-
-    <div class="convite" id="convite">
-      <a href="#baixar">Baixe o app agora, e teste você mesmo</a>
     </div>
   </div>
 </section>
@@ -309,78 +353,226 @@
 </div>
 <script>
   (() => {
-    const NOMES = ['Miguel', 'João', 'Ana', 'Beatriz', 'Lucas', 'Sofia', 'Helena'];
-    const FIM = 'SEU NOME';
-    const nomeEl = document.getElementById('nome');
-    const convite = document.getElementById('convite');
-    if (!nomeEl) return;
+    // ------------------------------------------------------------- o palco
+    //
+    // Um número entre 0 e 1 — o quanto a primeira tela já foi rolada — vira
+    // tudo o que se mexe. Nada de temporizador: quem manda no tempo é o dedo
+    // de quem rola, então dá pra voltar e ver de novo, que é metade da graça.
+    //
+    // Os atos se sobrepõem de propósito: o texto que sai só termina de sumir
+    // depois que o próximo já começou a aparecer. Corte seco entre um e outro
+    // faz a tela piscar.
 
-    // Mede o nome mais comprido de verdade, com a fonte já carregada, e reserva
-    // essa largura. Chutar em `ch` erra: a fonte não é monoespaçada.
-    const medir = () => {
+    const palco = document.getElementById('topo');
+    const fixo = palco && palco.querySelector('.palco-fixo');
+    if (!palco || !fixo) return;
+
+    const atoOi = document.getElementById('ato-oi');
+    const nomeEl = document.getElementById('nome');
+    const fraseEl = document.getElementById('frase');
+    const revela = document.getElementById('revela');
+    const imgRevela = revela.querySelector('img');
+    const final = document.getElementById('final');
+    const ladoEsq = document.getElementById('lado-esq');
+    const ladoDir = document.getElementById('lado-dir');
+    const acoes = document.getElementById('acoes');
+    const dica = document.getElementById('dica');
+
+    const NOMES = ['Miguel', 'João', 'Ana', 'Beatriz', 'Lucas', 'Sofia', 'Helena', 'SEU NOME'];
+    const FRASES = ['Você conta uma vez.', 'E todas elas lembram.'];
+
+    const trava = (v, a, b) => Math.min(b, Math.max(a, v));
+    /** Fatia do roteiro: 0 antes de `de`, 1 depois de `ate`, proporcional no meio. */
+    const trecho = (p, de, ate) => trava((p - de) / (ate - de), 0, 1);
+    /** Começa e termina devagar: movimento linear denuncia que é código. */
+    const suave = (t) => t * t * (3 - 2 * t);
+
+    /**
+     * Quebra o texto em letras, cada uma com a sua vez sorteada.
+     *
+     * O sorteio acontece uma vez, na criação: refazer a cada quadro faria as
+     * letras piscarem em ordem diferente a cada pixel de rolagem.
+     */
+    function emLetras(alvo, texto) {
+      alvo.textContent = '';
+      const letras = [];
+      for (const ch of texto) {
+        const span = document.createElement('span');
+        span.className = 'letra';
+        span.textContent = ch;
+        span.dataset.vez = String(Math.random());
+        alvo.appendChild(span);
+        letras.push(span);
+      }
+      return letras;
+    }
+
+    /**
+     * Pinta um conjunto de letras num instante do roteiro.
+     *
+     * `espalha` é quanto do tempo é gasto sorteando quem vem primeiro: 0 faz
+     * todas aparecerem juntas, 1 faz a última só começar quando a primeira
+     * termina.
+     */
+    function pintarLetras(letras, prog, { espalha = 0.6, saindo = false } = {}) {
+      const passo = 1 - espalha;
+      for (const letra of letras) {
+        const vez = Number(letra.dataset.vez) * espalha;
+        const t = trava((prog - vez) / passo, 0, 1);
+        const v = saindo ? 1 - t : t;
+        letra.style.opacity = v;
+        letra.style.filter = v > 0.98 ? '' : `blur(${(1 - v) * 5}px)`;
+        letra.style.transform = v > 0.98 ? '' : `translateY(${(1 - v) * 0.32}em)`;
+      }
+    }
+
+    // Cada nome é montado uma vez e guardado: recriar spans a cada quadro
+    // custa layout e faz a linha tremer.
+    const nomes = NOMES.map((n) => {
+      const caixa = document.createElement('span');
+      caixa.style.display = 'none';
+      nomeEl.appendChild(caixa);
+      return { texto: n, caixa, letras: emLetras(caixa, n) };
+    });
+
+    const frases = FRASES.map((f) => {
+      const caixa = document.createElement('span');
+      caixa.style.display = 'none';
+      fraseEl.appendChild(caixa);
+      return { texto: f, caixa, letras: emLetras(caixa, f) };
+    });
+
+    /**
+     * A largura que o nome mais comprido ocupa, medida de verdade com a fonte
+     * carregada. Chutar em `ch` erra: a fonte não é monoespaçada, e a frase
+     * inteira deslizaria pros lados a cada troca de nome.
+     */
+    function medirNome() {
       const regua = document.createElement('span');
       regua.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
       regua.style.font = getComputedStyle(nomeEl).font;
       document.body.appendChild(regua);
       let maior = 0;
-      for (const n of [...NOMES, FIM]) {
+      for (const n of NOMES) {
         regua.textContent = n;
         maior = Math.max(maior, regua.getBoundingClientRect().width);
       }
       regua.remove();
       nomeEl.style.setProperty('--nome-larg', Math.ceil(maior) + 'px');
-    };
-    if (document.fonts?.ready) document.fonts.ready.then(medir);
-    else medir();
+    }
 
+    // O empurrão: a borda da máscara cresce do centro pros lados; enquanto ela
+    // não alcança o texto, nada se move. A partir do encontro, o texto anda
+    // colado nela — é isso que dá a sensação de estar sendo empurrado.
+    let folgaEsq = 0;
+    let folgaDir = 0;
+    let larguraImg = 0;
+    let alturaImg = 0;
+
+    function medirPalco() {
+      ladoEsq.style.transform = '';
+      ladoDir.style.transform = '';
+      const caixa = fixo.getBoundingClientRect();
+      const centro = caixa.left + caixa.width / 2;
+      folgaEsq = centro - ladoEsq.getBoundingClientRect().right;
+      folgaDir = ladoDir.getBoundingClientRect().left - centro;
+
+      // A imagem tem tamanho fixo e a máscara cresce até ele: assim a captura
+      // fica parada enquanto a janela se abre por cima dela. A altura desconta
+      // duas vezes a faixa dos botões — a máscara é centralizada, então o que
+      // se tira embaixo tem que sair também de cima pra ela não descer.
+      const faixa = acoes.getBoundingClientRect().height +
+        parseFloat(getComputedStyle(acoes).marginBottom) + 22;
+      larguraImg = Math.min(1180, caixa.width - 24, (caixa.height - faixa * 2) * 1.59);
+      alturaImg = larguraImg / 1.59;
+      revela.style.setProperty('--rev-larg', larguraImg + 'px');
+      medirNome();
+    }
+
+    function pintar() {
+      const alcance = palco.offsetHeight - fixo.offsetHeight;
+      const p = alcance > 0 ? trava((window.scrollY - palco.offsetTop) / alcance, 0, 1) : 0;
+
+      // ato 1 — a saudação, com os nomes passando
+      const saida = trecho(p, 0.30, 0.37);
+      atoOi.style.opacity = 1 - suave(saida);
+      atoOi.style.visibility = saida >= 1 ? 'hidden' : '';
+      const passoNome = 0.30 / nomes.length;
+      const qual = Math.min(nomes.length - 1, Math.floor(p / passoNome));
+      nomeEl.classList.toggle('voce', qual === nomes.length - 1);
+      for (let i = 0; i < nomes.length; i++) {
+        const n = nomes[i];
+        n.caixa.style.display = i === qual ? '' : 'none';
+        if (i === qual) pintarLetras(n.letras, trava((p - i * passoNome) / (passoNome * 0.75), 0, 1));
+      }
+
+      // ato 2 — a frase que troca, letra a letra e fora de ordem
+      const entra1 = trecho(p, 0.34, 0.44);
+      const sai1 = trecho(p, 0.46, 0.53);
+      const entra2 = trecho(p, 0.50, 0.58);
+      const sai2 = trecho(p, 0.60, 0.66);
+      frases[0].caixa.style.display = sai1 >= 1 ? 'none' : '';
+      frases[1].caixa.style.display = entra2 <= 0 ? 'none' : '';
+      if (sai1 < 1) pintarLetras(frases[0].letras, sai1 > 0 ? sai1 : entra1, { saindo: sai1 > 0 });
+      if (entra2 > 0) pintarLetras(frases[1].letras, sai2 > 0 ? sai2 : entra2, { saindo: sai2 > 0 });
+      fraseEl.style.visibility = entra1 <= 0 || (sai2 >= 1) ? 'hidden' : '';
+
+      // ato 3 — a máscara abre do centro e revela o app
+      const abre = suave(trecho(p, 0.62, 0.94));
+      revela.style.setProperty('--rev-w', larguraImg * abre + 'px');
+      revela.style.setProperty('--rev-h', alturaImg * abre + 'px');
+
+      const meia = (larguraImg * abre) / 2 + 28;
+      ladoEsq.style.transform = `translateX(${-Math.max(0, meia - folgaEsq)}px)`;
+      ladoDir.style.transform = `translateX(${Math.max(0, meia - folgaDir)}px)`;
+      // O texto empurrado some antes de sair pela borda: metade de uma frase
+      // pendurada no canto parece defeito, não movimento.
+      const entrada = suave(trecho(p, 0.60, 0.70));
+      const saida2 = suave(trecho(p, 0.80, 0.91));
+      final.style.opacity = entrada * (1 - saida2);
+      final.style.visibility = p < 0.60 || saida2 >= 1 ? 'hidden' : '';
+
+      acoes.style.opacity = suave(trecho(p, 0.86, 0.96));
+      acoes.style.visibility = p < 0.86 ? 'hidden' : '';
+      dica.style.opacity = 1 - suave(trecho(p, 0, 0.05));
+    }
+
+    // Quem pediu menos movimento vê a primeira tela pronta, sem rolagem
+    // travada: o efeito inteiro é movimento, e não há como suavizá-lo.
     const parado = matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (parado) {
-      nomeEl.innerHTML = '<span>' + FIM + '</span>';
+      palco.classList.add('parado');
+      atoOi.style.display = 'none';
+      fraseEl.style.display = 'none';
+      revela.style.setProperty('--rev-w', 'min(1100px, 92vw)');
+      revela.style.setProperty('--rev-h', 'auto');
+      revela.style.setProperty('--rev-larg', 'min(1100px, 92vw)');
       nomeEl.classList.add('voce');
-      convite.classList.add('aberto');
       return;
     }
 
-    let relogio = null;
-    const rodar = () => {
-      let i = 0;
-      nomeEl.classList.remove('voce');
-      convite.classList.remove('aberto');
-      const passo = () => {
-        // O último quadro não é mais um nome: é o lugar do visitante. Daí ele
-        // ficar branco enquanto os outros passam em azul.
-        const ultimo = i >= NOMES.length;
-        nomeEl.classList.toggle('voce', ultimo);
-        nomeEl.innerHTML = '<span>' + (ultimo ? FIM : NOMES[i]) + '</span>';
-        i++;
-        if (ultimo) {
-          convite.classList.add('aberto');
-          return;
-        }
-        relogio = setTimeout(passo, 480);
-      };
-      passo();
+    let pedido = false;
+    const aoRolar = () => {
+      if (pedido) return;
+      pedido = true;
+      requestAnimationFrame(() => {
+        pedido = false;
+        pintar();
+      });
     };
 
-    // Roda quando a seção entra na tela, e roda de novo se o visitante voltar:
-    // animação que já terminou antes de ser vista não contou como vista.
-    if ('IntersectionObserver' in window) {
-      new IntersectionObserver(
-        (entradas) => {
-          for (const e of entradas) {
-            if (e.isIntersecting) rodar();
-            else if (relogio) clearTimeout(relogio);
-          }
-        },
-        // Faixa do meio da tela, e não fração da seção: numa tela baixa a
-        // seção pode ser maior que a janela, e aí "45% dela visível" é uma
-        // condição que nunca acontece — a animação não rodaria, e o convite
-        // pra baixar, que só aparece no fim dela, ficaria invisível.
-        { threshold: 0, rootMargin: '-25% 0px -25% 0px' }
-      ).observe(document.getElementById('saudacao'));
-    } else {
-      rodar();
-    }
+    // A fonte muda a largura do nome e o tamanho do texto empurrado: medir
+    // antes dela carregar deixa a conta errada até a primeira rolagem.
+    const preparar = () => {
+      medirPalco();
+      pintar();
+    };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(preparar);
+    if (imgRevela && !imgRevela.complete) imgRevela.addEventListener('load', preparar, { once: true });
+    preparar();
+
+    addEventListener('scroll', aoRolar, { passive: true });
+    addEventListener('resize', preparar);
   })();
 </script>
 </body>
