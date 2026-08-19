@@ -19,7 +19,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform } from 'node:process';
 import { createServer } from 'node:net';
-import { DATA_DIR } from './config.mjs';
+import { DATA_DIR, loadConfig } from './config.mjs';
 
 const CAMINHOS = {
   darwin: [
@@ -43,12 +43,26 @@ const CAMINHOS = {
   ]
 };
 
-/** Onde está o Chrome, ou `null` se não houver nenhum instalado. */
+/**
+ * Onde está o navegador que o agente vai dirigir, ou `null` se não houver.
+ *
+ * A ordem é: o que a variável de ambiente manda (veto explícito de quem está
+ * rodando), depois o que a pessoa escolheu nos ajustes, e só então o primeiro
+ * navegador instalado. Sem consultar a escolha aqui, baixar um Chromium próprio
+ * não mudaria nada: o agente continuaria pegando o Chrome do sistema.
+ */
 export function acharNavegador() {
   if (process.env.IAUNIFIER_CHROME) {
     return existsSync(process.env.IAUNIFIER_CHROME) ? process.env.IAUNIFIER_CHROME : null;
   }
+  const escolha = loadConfig().navegador || {};
+  if (escolha.fonte === 'proprio' && escolha.binario && existsSync(escolha.binario)) {
+    return escolha.binario;
+  }
   for (const c of CAMINHOS[platform] || []) if (existsSync(c)) return c;
+  // Escolheu o próprio, o download sumiu do disco e não há nada instalado: o
+  // caminho guardado ainda é a melhor resposta pra quem for dar a mensagem de
+  // erro — mas não é um navegador, então vale `null`.
   return null;
 }
 

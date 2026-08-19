@@ -4,6 +4,8 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { useTempHome } from './helpers.mjs';
 
 const home = useTempHome();
@@ -151,5 +153,28 @@ test('o agente não digita em campo de senha', { skip: !temChrome }, async () =>
   } finally {
     encerrar();
     fechar();
+  }
+});
+
+test('a escolha de navegador dos ajustes ganha do que está instalado', async () => {
+  // Sem isso, baixar um Chromium próprio não mudaria nada: o agente continuaria
+  // pegando o Chrome do sistema e o download viraria 180 MB parados no disco.
+  const { patchConfig, loadConfig } = await import('../server/config.mjs');
+  const antes = loadConfig().navegador;
+  const falso = join(home.dir, 'chromium-de-mentira');
+  writeFileSync(falso, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  try {
+    patchConfig({ navegador: { fonte: 'proprio', binario: falso } });
+    assert.equal(acharNavegador(), falso);
+
+    // Caminho guardado que sumiu do disco não pode ser devolvido como se fosse
+    // navegador: cairia num spawn de arquivo inexistente lá na frente.
+    patchConfig({ navegador: { fonte: 'proprio', binario: join(home.dir, 'nao-existe') } });
+    assert.notEqual(acharNavegador(), join(home.dir, 'nao-existe'));
+
+    patchConfig({ navegador: { fonte: 'instalado', binario: falso } });
+    assert.notEqual(acharNavegador(), falso, 'com fonte "instalado" o binário baixado é ignorado');
+  } finally {
+    patchConfig({ navegador: antes });
   }
 });

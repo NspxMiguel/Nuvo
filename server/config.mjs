@@ -42,7 +42,18 @@ const DEFAULTS = {
     passos: 8,
     // Com janela, dá pra ver o que ele faz — e é como se faz um login que o
     // perfil vai guardar. Sem janela é o padrão porque a janela rouba o foco.
-    janela: false
+    janela: false,
+    // Qual navegador o agente dirige. `null` = ainda não perguntei; `instalado`
+    // = o Chrome, Chromium, Edge ou Brave que já existe na máquina; `proprio` =
+    // um Chrome for Testing que o app baixou, cujo caminho fica em `binario`.
+    //
+    // Nenhuma das duas opções entra na sessão pessoal de ninguém: o Chrome
+    // recusa depuração remota no perfil padrão desde a 136, e copiar o perfil
+    // não traz login junto — a chave que cifra cookie e senha é presa ao
+    // diretório de origem. Quem quiser ficar logado abre com `janela: true` uma
+    // vez e entra na mão; o perfil do agente guarda dali em diante.
+    fonte: null,
+    binario: null
   },
   limits: {
     // Segundos até o primeiro pedaço da resposta. Modelo local grande demora
