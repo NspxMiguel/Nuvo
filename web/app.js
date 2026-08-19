@@ -12,7 +12,10 @@ import {
   iniciarIdioma, traduzirDocumento, aoTrocarIdioma, t, plural, formatarNumero
 } from './i18n.js';
 import { views } from './views.js';
-import { lerRequisitos, faltaAlgo, cartaoRequisitos, ligarRequisitos } from './requisitos.js';
+import {
+  lerRequisitos, faltaAlgo, cartaoRequisitos, ligarRequisitos,
+  faltaEscolherNavegador, perguntarNavegador
+} from './requisitos.js';
 
 // A malha de pontinhos do rodapé nasce ao abrir o app, ao voltar pra uma
 // conversa e quando a resposta começa a chegar. Uma declaração só: dois
@@ -1578,6 +1581,16 @@ function toggleWeb() {
       ? t('agente de navegador ligado: o modelo abre o navegador e navega sozinho')
       : t('agente de navegador desligado')
   );
+
+  // Na primeira vez que alguém liga, a escolha do navegador ainda não existe.
+  // Perguntar aqui, e não nos ajustes, é perguntar onde a resposta importa: o
+  // próximo pedido já vai usar o que for escolhido.
+  if (state.useWeb && faltaEscolherNavegador(state.settings)) {
+    perguntarNavegador().then((fonte) => {
+      if (!fonte) return;
+      state.settings = { ...state.settings, navegador: { ...state.settings?.navegador, fonte } };
+    });
+  }
 }
 
 async function exportChat(format) {

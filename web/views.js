@@ -8,7 +8,10 @@ import { icon } from './icons.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { roseta } from './glow.js';
 import { t, plural, formatarNumero } from './i18n.js';
-import { lerRequisitos, cartaoRequisitos, ligarRequisitos } from './requisitos.js';
+import {
+  lerRequisitos, cartaoRequisitos, ligarRequisitos, perguntarNavegador
+} from './requisitos.js';
+import { lerCatalogo, secaoCatalogo, ligarCatalogo } from './catalogo.js';
 
 /** Cada painel se redesenha inteiro; o estado real está no servidor. */
 export const views = {};
@@ -210,12 +213,13 @@ function ligarRecomendados(inner, maquina, switchView) {
 }
 
 views.providers = async function renderProviders(el, { switchView }) {
-  const [presets, maquina, requisitos] = await Promise.all([
+  const [presets, maquina, requisitos, catalogo] = await Promise.all([
     api('/presets'),
     // GET /machine ainda não existe no servidor: sem ele a tela continua de pé,
     // só sem o cartão da máquina e sem a lista de recomendados.
     api('/machine').catch(() => null),
-    lerRequisitos()
+    lerRequisitos(),
+    lerCatalogo()
   ]);
 
   const inner = panel(
@@ -231,6 +235,7 @@ views.providers = async function renderProviders(el, { switchView }) {
             <div id="lista-modelos">${maquina.modelos.map(linhaModelo).join('')}</div>`
          : ''
      }
+     ${secaoCatalogo(catalogo)}
      <h3 class="sec">${t('Todas as IAs ligadas')}</h3>
      <div class="row" style="margin-bottom:12px">
        <button id="btn-discover" type="button"><span data-icon="search"></span> ${t('Procurar IA nesta máquina')}</button>
@@ -280,6 +285,8 @@ views.providers = async function renderProviders(el, { switchView }) {
   });
 
   ligarRecomendados(inner, maquina, switchView);
+
+  ligarCatalogo(inner, catalogo, () => switchView('providers'));
 
   const cards = inner.querySelector('#providers-cards');
   for (const p of state.providers) {
@@ -1060,6 +1067,7 @@ const CFG_TRILHA = [
   ['Personalizar', [
     ['perfis', 'sparkle', 'Perfis'],
     ['terminal', 'code', 'Programas do terminal'],
+    ['agente', 'globe', 'Modo agente'],
     ['atalhos', 'command', 'Atalhos de teclado']
   ]]
 ];
@@ -1153,6 +1161,34 @@ const CFG_SECOES = {
       `<button id="btn-restore" class="ghost" type="button"><span data-icon="upload"></span> ${t('Escolher arquivo')}</button><input id="restore-file" type="file" accept=".zip" hidden />`)}
     ${cfgLin(t('Cópias automáticas'), t('Uma por dia, quando o servidor sobe. Guarda as sete últimas.'),
       `<span class="val" id="backup-list">${t('carregando…')}</span>`, true)}`,
+
+  // O modo agente abre um navegador de verdade e clica sozinho. Quem escolhe
+  // qual navegador é a pessoa, na primeira vez que liga — aqui ela troca depois,
+  // sem precisar desligar e ligar de novo pra ver a pergunta.
+  agente: (s) => {
+    const nav = s.navegador || {};
+    const nome = nav.binario ? nav.binario.split(/[\\/]/).pop() : '';
+    return `<h3>${t('Modo agente')}</h3>
+    ${cfgLin(
+      t('Qual navegador ele dirige'),
+      t('Sempre numa janela separada: ele não usa suas abas nem seus logins.'),
+      `<select id="s-nav-fonte">
+         <option value="instalado"${nav.fonte === 'instalado' ? ' selected' : ''}>${t('O que já está nesta máquina')}</option>
+         <option value="proprio"${nav.fonte === 'proprio' ? ' selected' : ''}>${t('O que o app baixou')}${nome ? ` · ${escapeHtml(nome)}` : ''}</option>
+       </select>`
+    )}
+    ${cfgLin(
+      t('Mostrar a janela enquanto ele navega'),
+      t('Serve pra acompanhar o que ele faz, e pra entrar num site na mão uma vez — dali em diante ele continua logado.'),
+      cfgChave('s-nav-janela', nav.janela)
+    )}
+    ${cfgLin(
+      t('Quantos passos ele pode dar por pergunta'),
+      t('Cada passo é uma ida à IA. Oito resolve quase tudo sem virar uma conversa inteira.'),
+      `<input id="s-nav-passos" type="number" min="1" max="30" value="${Number(nav.passos) || 8}" style="max-width:120px;text-align:center" />`
+    )}
+    ${cfgLin(t('Guardar o que eu mudei aqui'), '', `<button id="btn-save-agente" class="primary" type="button">${t('Salvar')}</button>`)}`;
+  },
 
   perfis: () => `<h3>${t('Perfis')}</h3>
     ${state.gems
@@ -1248,6 +1284,18 @@ function cfgMobile(s, pendente) {
       )}
       ${lin('sparkle', t('Perfis'), val(state.gems.length), ' data-ir="gems"')}
       ${lin('folder', t('Projetos'), val(state.projects.length), ' data-ir="projects"')}
+      ${lin(
+        'globe',
+        `${t('Modo agente')}<small>${
+          s.navegador?.fonte === 'proprio'
+            ? t('usa o navegador que o app baixou')
+            : s.navegador?.fonte === 'instalado'
+              ? t('usa o navegador desta máquina')
+              : t('ainda não escolhido')
+        }</small>`,
+        '',
+        ' data-mob="agente"'
+      )}
     </div>
 
     <div class="grupo-rot">${t('Acesso')}</div>
@@ -1468,6 +1516,48 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
     };
   }
 
+  // --- modo agente ----------------------------------------------------------
+
+  const salvarAgente = q('#btn-save-agente');
+  if (salvarAgente) {
+    salvarAgente.onclick = async () => {
+      const fonte = q('#s-nav-fonte').value;
+      await api('/settings', {
+        method: 'PATCH',
+        body: {
+          navegador: {
+            fonte,
+            janela: q('#s-nav-janela').checked,
+            passos: Math.min(30, Math.max(1, Number(q('#s-nav-passos').value) || 8))
+          }
+        }
+      });
+      // Escolher "o que o app baixou" sem ele no disco deixaria o agente sem
+      // navegador nenhum: o download acontece aqui, com a barra na frente.
+      if (fonte === 'proprio' && !settings.navegador?.binario) {
+        const alvo = q('#s-nav-fonte').closest('.cfg-lin');
+        alvo.insertAdjacentHTML(
+          'afterend',
+          `<div class="cfg-lin larga" id="baixa-nav"><div class="rot">${t('Baixando o navegador do app')}<small class="passo-txt"></small></div>
+             <div class="ctl" style="flex:1"><div class="progress"><span style="width:0%"></span></div></div></div>`
+        );
+        const caixa = q('#baixa-nav');
+        try {
+          await stream('/requisitos/navegador/baixar', {}, (ev) => {
+            if (ev.type === 'phase') caixa.querySelector('.passo-txt').textContent = t(ev.text);
+            else if (ev.pct != null) caixa.querySelector('.progress span').style.width = `${ev.pct}%`;
+            else if (ev.type === 'error') toast(ev.error || t('não deu certo'), 'err');
+          });
+          toast(t('navegador pronto'), 'ok');
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      }
+      toast(t('ajustes salvos'), 'ok');
+      switchView('settings');
+    };
+  }
+
   // --- acesso ---------------------------------------------------------------
 
   // Desligar a senha é decisão de rede, não de gosto: pede confirmação e diz o
@@ -1579,6 +1669,13 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
     b.onclick = async () => {
       if (acao === 'tema') {
         return applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+      }
+      // A mesma pergunta da primeira vez: no celular ela é a tela inteira, e
+      // troca a escolha sem precisar da trilha de ajustes, que é do desktop.
+      if (acao === 'agente') {
+        const fonte = await perguntarNavegador();
+        if (fonte) switchView('settings');
+        return;
       }
       if (acao === 'backup') return baixarCopia();
       if (acao === 'restore') return escolherArquivoDeCopia();

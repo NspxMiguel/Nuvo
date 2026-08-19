@@ -20,7 +20,7 @@ import {
   parseRef
 } from './providers/index.mjs';
 import { discover } from './discovery.mjs';
-import { readMachine, recommendModels } from './machine.mjs';
+import { readMachine, recommendModels, classificarCabe } from './machine.mjs';
 import {
   runTurn,
   createChat,
@@ -196,6 +196,9 @@ function settingsView(req) {
     embeddingAvailable: embeddingAvailable(),
     idioma: cfg.idioma || null,
     idiomas: IDIOMAS,
+    // A tela precisa saber se a escolha de navegador já foi feita: é ela quem
+    // pergunta, na primeira vez que alguém liga o modo agente.
+    navegador: cfg.navegador,
     // O palpite sai do `Accept-Language` do próprio pedido: é o idioma que a
     // pessoa configurou no navegador, e chega de graça em toda requisição. A
     // tela usa isso só quando ela ainda não escolheu nada na mão.
@@ -322,7 +325,14 @@ export async function handleApi(req, res, url) {
   if (method === 'GET' && seg[0] === 'catalogo' && seg[1] === 'tamanho') {
     const id = url.searchParams.get('id') || '';
     if (!id) return json(res, { error: 'falta o id do modelo' }, 400);
-    return json(res, await medirModelo(id, {}));
+    const medida = await medirModelo(id, {});
+    // O "cabe" sai junto do tamanho porque a regra é uma só e mora no servidor:
+    // a tela que decidisse sozinha acabaria discordando da lista de
+    // recomendados na mesma página.
+    return json(res, {
+      ...medida,
+      cabe: medida.estado === 'ok' ? classificarCabe(medida.gb, readMachine()) : null
+    });
   }
 
   // --- busca global --------------------------------------------------------

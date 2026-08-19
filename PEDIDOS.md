@@ -673,31 +673,31 @@ Conferi que os quatro principais abrem sem login (200 no raw do GitHub).
 
 Quebrado em itens, com as palavras dele:
 
-- [ ] **escolher o navegador ao ligar o modo agente**
+- [x] **escolher o navegador ao ligar o modo agente**
   > *"pensei agr, dava pra ao clicar no modo agente, ele pergunta se qr usa o
   > teu chrome, ou baixa um cromium"*
 - [ ] **modo code, com painel de IDE ao lado mostrando a IA testando**
   > *"modo code e etc, podia ter isso al ide ali no lado aparece a ia testando,
   > e etc"*
-- [ ] **i18n no app e no site, com idioma pelo IP, e trocar o nome**
+- [x] **i18n no app e no site, com idioma pelo IP, e trocar o nome** (menos o nome)
   > *"falta i18n, site app e etc. puxa localizacao + idioma via localizacao ip
   > sla, e trocar o nome pro novo nome"*
 - [ ] **varredura de ortografia, maiúsculas e sentido, no app inteiro**
   > *"corrigir em todo o app, letras maisculas e minusculas erradas, faz uma
   > varredura de ortografia e sentido das palavras, nem tudo se traduz.. na
   > landing page ja vejo varios...."*
-- [ ] **o "Pode falar" vira uma sequência de nomes**
+- [x] **o "Pode falar" vira uma sequência de nomes**
   > *"e tbm ta escrito só PODE FALAR. coloca pode falar, miguel, joao e etc, ai
   > vai aparecendo varios nomes, e no final aparece "SEU NOME" Baixe o app
   > agora, e teste você mesmo."*
-- [ ] **acesso guiado: nada de "falta tal coisa", só um botão Instalar**
+- [x] **acesso guiado: nada de "falta tal coisa", só um botão Instalar**
   > *"o app tem q ser todo acesso guiado tlg? n tem um negocio falando: falta
   > tal coisa. se falta, aparece na tela so um botao: Instalar e pronto, GG.
   > total acessivel pro usuario leigo."*
-- [ ] **opções avançadas com IA de linha de comando pra bate-papo**
+- [x] **opções avançadas com IA de linha de comando pra bate-papo**
   > *"opcoes avançadas permite o uso de ias cli para batepapo, para por
   > exemplo, nao ter q colocar api key, e gastar mais com ias"*
-- [ ] **as 100 IAs mais conhecidas, baixando direto do Hugging Face**
+- [x] **as 100 IAs mais conhecidas, baixando direto do Hugging Face**
   > *"adiciona varias ias, pega as 100 mais famosas e adiciona todas como uma
   > opção. download das ias direto do huugieface, 100% atualizado sempre, sem eu
   > ter q atualiza manualmente. deixe o app autosustentavel"*
@@ -934,3 +934,38 @@ Quebrado em itens:
 
 Ele volta no fim da tarde.
 
+**O que já está entregue desses oito, e onde:**
+
+- navegador do modo agente → a pergunta aparece na primeira vez que o globo é
+  ligado (`web/requisitos.js`, `perguntarNavegador`), e a escolha muda depois em
+  Ajustes → Modo agente. As duas opções abrem janela separada: o Chrome recusa
+  depuração remota no perfil padrão desde a 136, e copiar o perfil não traz
+  login junto;
+- i18n → `server/idioma.mjs` decide pelo `Accept-Language` (não por IP: o IP
+  teria que sair da máquina pra um serviço de fora, e a primeira tela promete
+  que nada sai daqui), `web/i18n.js` traduz, e os dicionários de inglês e
+  espanhol têm as 531 chaves do app. **Falta o nome**: ele não escreveu qual é;
+  o único candidato é Nuvo, do desenho que ele mandou usar;
+- acesso guiado → `web/requisitos.js` + `GET /requisitos`. Sem Ollama, a tela
+  diz o que falta em uma frase e resolve num clique, com barra de progresso; o
+  comando manual só aparece se a instalação automática falhar;
+- IAs de linha de comando pro bate-papo → já eram provedores de conversa
+  (`claude`, `codex`, `opencode` entram sozinhos na descoberta); o que faltava
+  era achar isso, e agora a primeira tela diz que eles entram sem chave;
+- as 100 do Hugging Face → `server/catalogo-hf.mjs` puxa a lista e mede cada
+  modelo sob demanda; `web/catalogo.js` desenha, filtra e baixa por
+  `hf.co/<repositório>`. A lista se atualiza sozinha, com cache de 24 h.
+
+## 19/08/2026 — pedido de teste, indo pra escola de novo
+
+> *"quero q vc teste o app, utilize ele d vdd, em diversas proporcoes,
+> horizontal vertical, tudo, pra ver se o app ta 100% perfeito, pro app estar
+> pronto pra produção. agr vou para escola, continue trabalhando o resto da
+> tarde, até 6 da tarde q é quando volto. quero ver o app finicimo, rodando em
+> windows, mac, iphone androd (pwa cll por enquanto) tudo, testa tudo, deixa
+> realmente completo o app, o app de uma empresa, refinadissimo"*
+
+- [ ] usar o app de verdade, em toda proporção — retrato, paisagem, do 320 ao
+  monitor grande;
+- [ ] rodando em Windows, Mac, iPhone e Android (PWA por enquanto);
+- [ ] acabamento de app de empresa.

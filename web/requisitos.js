@@ -161,3 +161,130 @@ export function ligarRequisitos(raiz, req, aoResolver) {
     trabalhando(false);
   };
 }
+
+// --------------------------------------------------- qual navegador o agente usa
+
+/** Já foi perguntado alguma vez? `fonte` guarda a resposta pra sempre. */
+export const faltaEscolherNavegador = (settings) => settings?.navegador?.fonte == null;
+
+/**
+ * A pergunta que aparece na primeira vez que alguém liga o modo agente: usar o
+ * navegador que já existe na máquina, ou baixar um só pro app.
+ *
+ * As duas opções abrem uma janela separada da sessão pessoal. O Chrome recusa
+ * depuração remota no perfil padrão desde a versão 136, e copiar o perfil não
+ * traz login junto — a chave que cifra cookie e senha é presa à pasta de
+ * origem. Dizer isso na tela evita a decepção de escolher "o meu" esperando as
+ * abas e os logins de sempre.
+ *
+ * @returns {Promise<'instalado'|'proprio'|null>} `null` quando a pessoa desiste
+ */
+export async function perguntarNavegador() {
+  const req = await lerRequisitos();
+  const instalado = req?.navegador?.instalado || null;
+  const proprio = req?.navegador?.proprio || null;
+  const podeBaixar = Boolean(req?.navegador?.plataforma);
+
+  // Já existe um baixado: não há o que perguntar, e perguntar de novo seria
+  // oferecer um download que já está no disco.
+  if (!instalado && proprio) {
+    await api('/settings', { method: 'PATCH', body: { navegador: { fonte: 'proprio' } } }).catch(() => {});
+    return 'proprio';
+  }
+
+  return new Promise((resolve) => {
+    const fundo = document.createElement('div');
+    fundo.className = 'escolha';
+    fundo.innerHTML = `<div class="escolha-box" role="dialog" aria-modal="true" aria-label="${t(
+      'Qual navegador o modo agente vai usar'
+    )}">
+        <h2>${t('Qual navegador o agente vai dirigir?')}</h2>
+        <p class="hint">${t(
+          'Ele abre uma janela separada em qualquer um dos dois: não usa suas abas nem seus logins, e não mexe no navegador que você está usando agora.'
+        )}</p>
+        <div class="escolha-ops">
+          ${
+            instalado
+              ? `<button class="op" type="button" data-op="instalado">
+                   <b>${t('Usar o que já está aqui')}</b>
+                   <span>${escapeHtml(instalado.split(/[\\/]/).pop())} · ${t('nada pra baixar')}</span>
+                 </button>`
+              : ''
+          }
+          ${
+            podeBaixar
+              ? `<button class="op" type="button" data-op="proprio">
+                   <b>${proprio ? t('Usar o navegador do app') : t('Baixar um navegador só pro app')}</b>
+                   <span>${
+                     proprio
+                       ? t('já está baixado')
+                       : t('cerca de 180 MB, fica dentro do app e não altera nada do seu')
+                   }</span>
+                 </button>`
+              : ''
+          }
+        </div>
+        ${
+          !instalado && !podeBaixar
+            ? `<div class="aviso err"><div>${t(
+                'Esta máquina não tem navegador compatível e não existe download pronto pra ela. O modo agente vai continuar como busca simples.'
+              )}</div></div>`
+            : ''
+        }
+        <div class="escolha-passo" hidden>
+          <span class="passo-txt"></span>
+          <div class="progress"><span style="width:0%"></span></div>
+        </div>
+        <div class="row"><button class="ghost" type="button" data-op="">${t('Agora não')}</button></div>
+      </div>`;
+    document.body.appendChild(fundo);
+
+    const passo = fundo.querySelector('.escolha-passo');
+    const texto = fundo.querySelector('.passo-txt');
+    const barra = fundo.querySelector('.progress span');
+
+    const fechar = (valor) => {
+      fundo.remove();
+      document.removeEventListener('keydown', naTecla);
+      resolve(valor);
+    };
+    const naTecla = (ev) => {
+      if (ev.key === 'Escape') fechar(null);
+    };
+    document.addEventListener('keydown', naTecla);
+    fundo.onclick = (ev) => {
+      if (ev.target === fundo) fechar(null);
+    };
+
+    for (const botao of fundo.querySelectorAll('[data-op]')) {
+      botao.onclick = async () => {
+        const op = botao.dataset.op;
+        if (!op) return fechar(null);
+
+        if (op === 'proprio' && !proprio) {
+          for (const b of fundo.querySelectorAll('button')) b.disabled = true;
+          passo.hidden = false;
+          texto.textContent = t('baixando…');
+          try {
+            await stream('/requisitos/navegador/baixar', {}, (ev) => {
+              if (ev.type === 'phase') texto.textContent = t(ev.text);
+              else if (ev.pct != null) barra.style.width = `${ev.pct}%`;
+              else if (ev.type === 'error') toast(ev.error || t('não deu certo'), 'err');
+            });
+          } catch (err) {
+            toast(err.message, 'err');
+            for (const b of fundo.querySelectorAll('button')) b.disabled = false;
+            passo.hidden = true;
+            return;
+          }
+          // A rota já grava `fonte` e o caminho do que baixou.
+          toast(t('navegador pronto'), 'ok');
+          return fechar('proprio');
+        }
+
+        await api('/settings', { method: 'PATCH', body: { navegador: { fonte: op } } }).catch(() => {});
+        fechar(op);
+      };
+    }
+  });
+}
