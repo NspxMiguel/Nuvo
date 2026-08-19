@@ -2,6 +2,8 @@
 // página é servida pelo próprio servidor da casa e precisa funcionar sem
 // internet.
 
+import { t } from './i18n.js';
+
 export function escapeHtml(text) {
   return String(text).replace(
     /[&<>"']/g,
@@ -158,8 +160,10 @@ export function renderMarkdown(source) {
       i++;
       const code = body.join('\n');
       out.push(
-        `<div class="code"><div class="code-head"><span>${escapeHtml(lang || 'texto')}</span>` +
-          `<button class="code-copy" type="button" data-code="${encodeURIComponent(code)}">copiar</button></div>` +
+        `<div class="code"><div class="code-head"><span>${escapeHtml(lang || t('texto'))}</span>` +
+          `<button class="code-copy" type="button" data-code="${encodeURIComponent(code)}">${t(
+            'copiar'
+          )}</button></div>` +
           `<pre><code>${highlight(code)}</code></pre></div>`
       );
       continue;
@@ -260,12 +264,12 @@ export function wireCodeCopy(root) {
     btn.onclick = async () => {
       try {
         await navigator.clipboard.writeText(decodeURIComponent(btn.dataset.code));
-        btn.textContent = 'copiado';
+        btn.textContent = t('copiado');
       } catch {
-        btn.textContent = 'não deu';
+        btn.textContent = t('não deu');
       }
       setTimeout(() => {
-        btn.textContent = 'copiar';
+        btn.textContent = t('copiar');
       }, 1400);
     };
   }

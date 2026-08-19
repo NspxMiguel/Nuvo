@@ -46,3 +46,23 @@ test('a versão do cache muda quando a casca muda', () => {
   assert.ok(m, 'o nome do cache tem que ser versionado');
   assert.ok(Number(m[1]) >= 3, `a casca cresceu depois da v2, está em v${m[1]}`);
 });
+
+test('a casca não pede arquivo que o servidor tranca com token', () => {
+  // `/manifest.webmanifest` carrega o token no `start_url`, então o servidor
+  // exige token pra devolvê-lo — e o service worker pede sem token. Com ele na
+  // lista, o `addAll` inteiro era recusado por causa de um 401: a instalação
+  // falhava, e o app nunca chegava a funcionar sem rede. Calado.
+  assert.ok(
+    !shell().includes('/manifest.webmanifest'),
+    'o manifest exige token e não pode estar na casca'
+  );
+});
+
+test('um arquivo que falta não derruba a casca inteira', () => {
+  const fonte = readFileSync(new URL('../web/sw.js', import.meta.url), 'utf8');
+  assert.ok(
+    !/\.addAll\(/.test(fonte),
+    'addAll é tudo ou nada: um arquivo recusado deixava o app sem versão offline'
+  );
+  assert.match(fonte, /\.add\([^)]*\)[\s\S]{0,80}\.catch\(/, 'cada arquivo precisa do próprio catch');
+});

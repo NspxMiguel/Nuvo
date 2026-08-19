@@ -43,6 +43,22 @@ doSistema.addEventListener('change', (e) => {
   }
 });
 
+/**
+ * O que dizer quando o pedido falha.
+ *
+ * `fetch` recusado por falta de rede levanta `TypeError: Failed to fetch`, em
+ * inglês e sem contexto. Num app que roda no servidor de casa, esse erro quer
+ * dizer uma coisa só, e é uma coisa que a pessoa resolve: o servidor não está no
+ * ar, ou o celular saiu do alcance.
+ */
+function falhaLegivel(err) {
+  const cru = String(err?.message || err || '');
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(cru)) {
+    return t('o servidor não respondeu. Ele roda na sua máquina — confira se está ligado e na mesma rede.');
+  }
+  return cru || t('não deu pra falar com o servidor');
+}
+
 // -------------------------------------------------------------------- boot
 
 // Trocar idioma redesenha tudo que está na tela: o dicionário só vale pro
@@ -1412,11 +1428,11 @@ function renderView() {
     // Reescrever a classe crua apagaria a animação de entrada antes de rodar.
     alvo.className = `view panel${alvo.classList.contains('entra') ? ' entra' : ''}`;
     alvo.innerHTML = `<div class="panel-inner">
-        <p class="hint">${escapeHtml(err.message || t('não deu pra falar com o servidor'))}</p>
+        <p class="hint">${escapeHtml(falhaLegivel(err))}</p>
         <button id="btn-tentar-de-novo">${t('Tentar de novo')}</button>
       </div>`;
     alvo.querySelector('#btn-tentar-de-novo').onclick = () => renderView();
-    toast(err.message || t('servidor fora do ar'), 'err');
+    toast(falhaLegivel(err), 'err');
   });
 }
 
@@ -1812,6 +1828,4 @@ load()
   .then(() => {
     if (!state.messages.length) renderEmptyState();
   })
-  .catch((err) =>
-    addNote(t('não carregou: {erro}', { erro: escapeHtml(err.message) }), 'err', 'alert')
-  );
+  .catch((err) => addNote(escapeHtml(falhaLegivel(err)), 'err', 'alert'));

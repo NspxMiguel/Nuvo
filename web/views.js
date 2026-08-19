@@ -574,7 +574,7 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
            <select id="g-model"><option value="">${t('— a que estiver escolhida na conversa —')}</option>${modelOptions()}</select>
          </label>
          <label class="field">${t('Quão criativa (0 é nada, 2 é muito)')}
-           <input id="g-temp" type="number" step="0.1" min="0" max="2" placeholder="0,7" />
+           <input id="g-temp" type="number" step="0.1" min="0" max="2" placeholder="${formatarNumero(0.7, { minimumFractionDigits: 1 })}" />
          </label>
        </div>
        <label class="check"><input type="checkbox" id="g-unfiltered" /> ${t('sem filtro')}</label>
@@ -1191,7 +1191,10 @@ function cfgMobile(s, pendente) {
   // (o nome da IA) espreme o rótulo em quatro linhas e passa por cima dele.
   const val = (v) =>
     `<span class="val" style="flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v}</span>`;
-  const curto = (t, n = 26) => (String(t).length > n ? `${String(t).slice(0, n - 1)}…` : String(t));
+  // `txt`, não `t`: um parâmetro chamado `t` esconderia a função de tradução
+  // importada no topo, e a próxima frase escrita aqui dentro quebraria.
+  const curto = (txt, n = 26) =>
+    String(txt).length > n ? `${String(txt).slice(0, n - 1)}…` : String(txt);
   const trava = (ic, rot, id, on) => `<button class="linha" type="button" data-trava="${id}">
       <span class="ico" data-icon="${ic}" data-size="20"></span>
       <span class="rot">${rot}</span>
@@ -1774,7 +1777,10 @@ views.council = function renderCouncil(el, { switchView }) {
               col.style.animationDelay = `${k * 60}ms`;
               col.innerHTML = `<header>
                   <h4 title="${escapeHtml(m.label)}">${escapeHtml(m.label)}</h4>
-                  <span class="col-state">0,0 s</span>
+                  <span class="col-state">${formatarNumero(0, {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                  })} s</span>
                 </header>
                 <div class="body"></div>
                 <footer>
@@ -1957,16 +1963,17 @@ views.council = function renderCouncil(el, { switchView }) {
 
 // ---------------------------------------- peças do registro de pesquisa
 
-/** Número que sobe em vez de trocar de valor (handoff: 400–900 ms, 1-(1-t)³). */
+/** Número que sobe em vez de trocar de valor (handoff: 400–900 ms, 1-(1-x)³). */
 function subirNumero(el, ate, ms = 600) {
   if (!el) return;
   const de = Number(String(el.textContent).replace(/\D/g, '')) || 0;
   if (de === ate) return;
   const t0 = performance.now();
   const passo = (agora) => {
-    const t = Math.min(1, (agora - t0) / ms);
-    el.textContent = Math.round(de + (ate - de) * (1 - Math.pow(1 - t, 3)));
-    if (t < 1) requestAnimationFrame(passo);
+    // `avanco`, não `t`: `t` é a função de tradução importada no topo.
+    const avanco = Math.min(1, (agora - t0) / ms);
+    el.textContent = Math.round(de + (ate - de) * (1 - Math.pow(1 - avanco, 3)));
+    if (avanco < 1) requestAnimationFrame(passo);
   };
   requestAnimationFrame(passo);
 }
