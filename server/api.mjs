@@ -15,6 +15,7 @@ import {
   parseRef
 } from './providers/index.mjs';
 import { discover } from './discovery.mjs';
+import { readMachine, recommendModels } from './machine.mjs';
 import {
   runTurn,
   createChat,
@@ -252,6 +253,16 @@ export async function handleApi(req, res, url) {
 
   // --- provedores ----------------------------------------------------------
   if (method === 'GET' && path === '/presets') return json(res, PRESETS);
+
+  // --- a maquina do usuario, e o que cabe nela --------------------------
+  //
+  // A tela de IAs ligadas abre com "seu Mac tem 18 GB; cabe modelo ate uns
+  // 8 GB com folga". Sem isso a pessoa escolhe modelo por adivinhacao e
+  // descobre que nao cabe depois de baixar seis gigabytes.
+  if (method === 'GET' && path === '/machine') {
+    const maquina = readMachine();
+    return json(res, { ...maquina, modelos: recommendModels(maquina) });
+  }
 
   if (method === 'POST' && path === '/discover') {
     const found = await discover();
