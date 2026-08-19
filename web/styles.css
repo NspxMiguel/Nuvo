@@ -1728,4 +1728,10 @@ button.icon { position: relative; }
   /* A trilha dos ajustes é `.cfg-item` (0-1-0) e ganhava do `button` (0-0-1)
      da regra de toque lá de cima, ficando em 42px num iPad. */
   .cfg-item { min-height: 44px; }
+  /* Campo de digitar também é alvo de toque. Caixa de marcar fica de fora: ela
+     mora dentro de um <label> alto, e esticar o quadradinho só o deforma. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea { min-height: 44px; }
+  /* As linhas dos ajustes no celular estavam em 43px — um pixel abaixo do piso. */
+  .linha { min-height: 44px; }
 }
