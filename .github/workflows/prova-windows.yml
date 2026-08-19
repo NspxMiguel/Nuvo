@@ -1,0 +1,65 @@
+# Prova que o executável de Windows sobe e serve a interface.
+#
+# Existe porque o build sai de um Mac: dá pra conferir macOS na hora e Linux num
+# contêiner, mas Windows não roda em lugar nenhum daqui. Sem isto, "release
+# rodando nos três" seria palpite num deles.
+#
+# Não compila nada — baixa o .zip da release e roda o binário publicado, que é
+# o arquivo que a pessoa baixa.
+
+name: prova do executável de Windows
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: 'versão a conferir (ex.: 0.1.1)'
+        required: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: baixar o pacote publicado
+        shell: pwsh
+        run: |
+          $v = "${{ github.event.inputs.versao }}"
+          if (-not $v) { $v = "${{ github.event.release.tag_name }}".TrimStart('v') }
+          echo "VERSAO=$v" >> $env:GITHUB_ENV
+          $url = "https://github.com/${{ github.repository }}/releases/download/v$v/iaunifier-$v-windows-x64.zip"
+          Write-Host "baixando $url"
+          Invoke-WebRequest -Uri $url -OutFile pacote.zip
+          Expand-Archive pacote.zip -DestinationPath app
+          Get-ChildItem app | Format-Table Name, Length
+
+      - name: subir o servidor e conferir que ele serve a interface
+        shell: pwsh
+        run: |
+          $env:IAUNIFIER_HOME = "$PWD\casa"
+          $p = Start-Process -FilePath "app\iaunifier.exe" -ArgumentList "--port","4747" `
+               -RedirectStandardOutput saida.txt -RedirectStandardError erro.txt -PassThru -NoNewWindow
+          Start-Sleep -Seconds 12
+          Write-Host "--- saída do programa:"
+          Get-Content saida.txt, erro.txt -ErrorAction SilentlyContinue
+
+          if ($p.HasExited) { throw "o executável morreu com código $($p.ExitCode)" }
+
+          $token = (Select-String -Path saida.txt -Pattern 'token=([A-Za-z0-9_-]+)').Matches[0].Groups[1].Value
+          if (-not $token) { throw "não achei o token na saída" }
+
+          # A interface e um módulo dela: se os arquivos de `web/` não tivessem
+          # entrado no executável, o segundo daria 404 com o primeiro ainda em 200.
+          foreach ($rota in @("/", "/app.js", "/styles.css", "/manifest.webmanifest")) {
+            $r = Invoke-WebRequest -Uri "http://127.0.0.1:4747$rota" -Headers @{ Cookie = "token=$token" } -UseBasicParsing
+            Write-Host ("  {0,-24} {1}  {2} bytes" -f $rota, $r.StatusCode, $r.RawContentLength)
+            if ($r.StatusCode -ne 200) { throw "$rota respondeu $($r.StatusCode)" }
+          }
+
+          $r = Invoke-WebRequest -Uri "http://127.0.0.1:4747/api/state?token=$token" -UseBasicParsing
+          if ($r.Content -notmatch '"gems"') { throw "a API não respondeu o estado" }
+          Write-Host "  /api/state respondeu o estado do app"
+
+          Stop-Process -Id $p.Id -Force
+          Write-Host "`nok: o executável de Windows sobe e serve a interface inteira."
