@@ -1410,7 +1410,7 @@ function renderTune() {
 // ------------------------------------------------------------------- views
 
 /** As telas que moram dentro do <details id="nav-mais"> da gaveta. */
-const DENTRO_DE_MAIS = ['memory', 'projects', 'gems', 'providers'];
+const DENTRO_DE_MAIS = ['memory', 'projects', 'gems', 'providers', 'loja'];
 
 function switchView(view) {
   // O anônimo vale pra conversa em que foi ligado, e só pra ela.

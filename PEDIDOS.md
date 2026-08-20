@@ -1153,6 +1153,27 @@ Quebrado em itens:
   porque quem usa VPN aparece no país do servidor. Medido com o navegador em
   `en-US`: fuso de São Paulo dá `pt-BR`, de Nova York dá `en`, de Madri dá `es`;
   `Etc/UTC` devolve nada e cai no navegador. Vale no site e no app.
-- [ ] **loja de MCPs e skills, puxando do GitHub sozinha, com filtros**
+- [x] **loja de MCPs e skills, puxando do GitHub sozinha, com filtros**
   > *"adiciona loja de mcps, skills e etc. q automaticamente puxa do github. ai
   > filtros, normal ne, + starts, + novo, recomendado e etc"*
+
+  Tela nova (`Loja`, dentro de "Mais"), com a lista puxada da busca do próprio
+  GitHub por tópico — `mcp-server`, `model-context-protocol`, `claude-skill`,
+  `agent-skills`. Sem chave de API e sem cadastro: o teto de quem não se
+  identifica é de dez buscas por minuto, e por isso o cache vale seis horas e a
+  atualização inteira gasta quatro pedidos. Deu 374 itens na primeira carga,
+  180 MCPs e 194 skills.
+
+  Os três filtros que ele pediu, com um cuidado no meio: **recomendado** não
+  podia sair igual a **mais estrelas**, senão é o mesmo botão com dois nomes.
+  Duas versões da fórmula caíram nisso — a primeira punha `gemini-cli` e outros
+  projetos de cem mil estrelas no topo de "servidores MCP". A que ficou faz a
+  fama saturar (duas mil estrelas valem metade da nota possível; cem mil valem
+  pouco mais), pesa projeto vivo (cai pela metade a cada três meses parado) e
+  exige que o repositório *seja* a coisa — tópico canônico mais o nome ou a
+  descrição dizendo isso —, o que separa um servidor MCP de um app grande que
+  só ganhou um modo MCP. O topo virou `github-mcp-server`, o SDK oficial de
+  Python, `n8n-mcp`, `awslabs/mcp`.
+
+  Busca por nome, assunto ou tópico; abas por categoria com contador; cada item
+  abre no GitHub, que é onde estão as instruções de instalar.

@@ -1908,3 +1908,116 @@ button.icon { position: relative; }
   .cd-arq, .cd-pasta > summary, .cd-saida > summary { min-height: var(--toque); }
   #cd-enviar, #cd-parar, .cd-abrir { min-height: var(--toque); min-width: var(--toque); }
 }
+
+/* ------------------------------------------------------------------- loja */
+
+.loja-filtros { display: grid; gap: 12px; margin: 18px 0 14px; }
+
+/* As abas ficam numa fita que rola sozinha: em 320px, "Tudo · Servidores MCP ·
+   Skills" com os contadores não cabe, e quebrar linha empurra a busca pra fora
+   da primeira tela. */
+.loja-abas {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.loja-abas::-webkit-scrollbar { display: none; }
+.loja-aba {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  min-height: var(--toque);
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+.loja-aba small { font-variant-numeric: tabular-nums; opacity: 0.7; font-size: 12.5px; }
+.loja-aba:active { background: var(--panel-2); }
+/* `--accent`, e não `--tint`: `--tint` é a cor de um perfil ou projeto, posta
+   no próprio cartão em tempo de execução. Fora desse escopo ela não existe, e
+   a aba ativa saía com texto branco sobre fundo transparente — invisível no
+   tema claro. */
+.loja-aba.ativa { background: var(--accent); color: var(--on-accent); }
+.loja-aba.ativa small { opacity: 0.85; }
+
+.loja-linha2 { display: flex; gap: 8px; flex-wrap: wrap; }
+.loja-busca {
+  flex: 1 1 220px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+  min-height: var(--toque);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+}
+.loja-busca input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.loja-busca input::-webkit-search-cancel-button { filter: grayscale(1); }
+#loja-ordem { flex: 0 0 auto; min-height: var(--toque); }
+
+.loja-fonte { margin: 0 0 10px; font-size: 13.5px; }
+
+.loja-lista { display: grid; }
+.loja-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 10px 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.loja-item:first-child { border-top: 0; }
+.loja-txt { min-width: 0; }
+.loja-item h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.loja-item h3 small { font-weight: 400; color: var(--muted); font-size: 13.5px; margin-left: 7px; }
+.loja-item p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.loja-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.loja-estrela { display: inline-flex; align-items: center; gap: 5px; }
+.loja-estrela svg { color: var(--warn); }
+.loja-parado { color: var(--warn); }
+.loja-item a { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; min-height: var(--toque); }
+.loja-mais { margin-top: 14px; }
+#loja-conta { margin-top: 10px; font-size: 13px; }
+
+@media (max-width: 520px) {
+  /* O botão desce pra linha de baixo: ao lado do texto ele espremia a descrição
+     a duas palavras por linha. */
+  .loja-item { grid-template-columns: 1fr; }
+  .loja-item a { justify-self: start; }
+}

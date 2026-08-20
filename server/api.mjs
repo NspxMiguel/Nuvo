@@ -6,6 +6,7 @@ import { loadConfig, patchConfig, setSecret, listSecretNames } from './config.mj
 import { escolherIdioma, IDIOMAS } from './idioma.mjs';
 import { estadoDoOllama, ligarOllama, instalarOllama, receitaManual } from './instalar.mjs';
 import { catalogoEmCache, medirModelo } from './catalogo-hf.mjs';
+import { CATEGORIAS, lojaEmCache, nota } from './loja.mjs';
 import { plataformaDaMaquina, versaoDisponivel, baixarChromium, chromiumBaixado } from './chromium.mjs';
 import { acharNavegador } from './navegador.mjs';
 import {
@@ -383,6 +384,22 @@ export async function handleApi(req, res, url) {
     } catch (err) {
       return json(res, corpoDoErro(err), 502);
     }
+  }
+
+  // --- loja de MCPs e skills, puxada do GitHub ------------------------------
+  if (method === 'GET' && path === '/loja') {
+    const { itens, de, quando, erro } = await lojaEmCache({});
+    // A nota vai calculada daqui: a fórmula é uma decisão de produto, e ter uma
+    // cópia dela no navegador significaria duas fórmulas divergindo. Ordenar e
+    // filtrar continua sendo do cliente, que assim troca de filtro sem rede.
+    const agora = Date.now();
+    return json(res, {
+      itens: itens.map((i) => ({ ...i, nota: Math.round(nota(i, agora) * 1e4) / 1e4 })),
+      categorias: CATEGORIAS,
+      de,
+      quando,
+      erro
+    });
   }
 
   // --- catalogo de modelos, puxado do Hugging Face -------------------------

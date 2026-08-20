@@ -12,6 +12,7 @@ import {
   lerRequisitos, cartaoRequisitos, ligarRequisitos, perguntarNavegador
 } from './requisitos.js';
 import { lerCatalogo, secaoCatalogo, ligarCatalogo } from './catalogo.js';
+import { viewLoja } from './view-loja.js';
 
 /** Cada painel se redesenha inteiro; o estado real está no servidor. */
 export const views = {};
@@ -2381,3 +2382,7 @@ views.research = function renderResearch(el, { switchView }) {
   stopBtn.onclick = () => controller?.abort();
   paintIcons(el);
 };
+
+// ------------------------------------------------------------------- loja
+
+views.loja = viewLoja;
