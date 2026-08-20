@@ -195,6 +195,69 @@ if (command) {
 
 // ------------------------------------------------------------------ servidor
 
+/** O identificador do pacote de macOS. Igual ao do `Info.plist` do `Nuvo.app`. */
+const PACOTE_MAC = 'dev.nspx.nuvo.app';
+
+/**
+ * O programa está rodando como aplicativo de mesa, e não na linha de comando?
+ *
+ * Dentro do `Nuvo.app` o executável é este mesmo binário — não há script no
+ * meio —, então quem responde é ele.
+ *
+ * A resposta boa vem do `XPC_SERVICE_NAME`: quando é o LaunchServices que abre
+ * (duplo clique, Launchpad, dock, `open`), ele carimba ali o identificador do
+ * pacote que está sendo aberto. Medido nesta máquina:
+ *
+ *   aberto pelo Finder  -> XPC_SERVICE_NAME=application.dev.nspx.nuvo.app.N.N
+ *   chamado num shell   -> a variável existe, mas com o identificador de OUTRO
+ *                          app (um terminal dentro de um editor herda o do
+ *                          editor). Por isso a conta é "contém o meu id", e não
+ *                          "a variável existe".
+ *
+ * O segundo caminho é rede de segurança: executável dentro de um pacote, sem
+ * argumento nenhum e sem terminal do outro lado. Se um macOS futuro parar de
+ * carimbar a variável, o duplo clique continua abrindo a janela em vez de
+ * voltar a não fazer nada — que era o defeito de origem.
+ */
+function abertoComoApp() {
+  if (String(process.env.XPC_SERVICE_NAME || '').includes(PACOTE_MAC)) return true;
+  return process.execPath.includes('.app/Contents/MacOS/') && !process.stdout.isTTY;
+}
+
+const abrirJanelaNoFim =
+  args.includes('--abrir') ||
+  args.includes('--open') ||
+  // Duplo clique não passa argumento nenhum. `Nuvo.app/Contents/MacOS/Nuvo
+  // --port 4747` no terminal passa, e continua sendo linha de comando.
+  (!command && args.length === 0 && abertoComoApp());
+
+// Sem terminal, tudo que o servidor escreve cairia no vazio — inclusive o
+// motivo de ele não ter subido. O log é o único lugar onde uma abertura que
+// falhou deixa rastro.
+if (abrirJanelaNoFim && abertoComoApp()) {
+  const { appendFileSync, mkdirSync } = await import('node:fs');
+  const { homedir } = await import('node:os');
+  const { join: juntar } = await import('node:path');
+  const log = juntar(homedir(), 'Library', 'Logs', 'Nuvo.log');
+  try {
+    mkdirSync(juntar(homedir(), 'Library', 'Logs'), { recursive: true });
+    for (const saida of [process.stdout, process.stderr]) {
+      saida.write = (pedaco, ...resto) => {
+        try {
+          appendFileSync(log, pedaco);
+        } catch {
+          /* disco cheio ou pasta sem permissão: não vale derrubar o app por log */
+        }
+        const pronto = resto.find((r) => typeof r === 'function');
+        if (pronto) pronto();
+        return true;
+      };
+    }
+  } catch {
+    /* sem log, o app ainda abre */
+  }
+}
+
 const patch = {};
 if (flag('port')) patch.port = Number(flag('port'));
 if (flag('host')) patch.host = flag('host');
@@ -206,9 +269,8 @@ const { linhaDeComando } = await import('../server/empacotado.mjs');
 const { start } = await import('../server/index.mjs');
 start().then(async () => {
   // Duplo clique não passa por terminal nenhum: sem isto, o programa sobe, fica
-  // escutando e a pessoa não vê nada acontecer. `--abrir` é o que o pacote de
-  // aplicativo do macOS chama.
-  if (!args.includes('--abrir') && !args.includes('--open')) return;
+  // escutando e a pessoa não vê nada acontecer.
+  if (!abrirJanelaNoFim) return;
   const { abrirJanela } = await import('../server/desktop.mjs');
   const onde = abrirJanela();
   console.log(`janela aberta em ${onde.browser}`);
@@ -220,7 +282,7 @@ start().then(async () => {
   // Clicar no ícone com o serviço já rodando cai aqui. Se quem está na porta é
   // outro Nuvo, não há nada de errado acontecendo: a janela é o que a pessoa
   // pediu, e é ela que abre.
-  if (err.code === 'EADDRINUSE' && (args.includes('--abrir') || args.includes('--open'))) {
+  if (err.code === 'EADDRINUSE' && abrirJanelaNoFim) {
     const { ehNuvo, abrirJanela } = await import('../server/desktop.mjs');
     if (await ehNuvo(cfg.port)) {
       abrirJanela();

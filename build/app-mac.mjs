@@ -27,20 +27,21 @@ export function montarAppMac(binario, versao, destinoPai) {
   mkdirSync(macos, { recursive: true });
   mkdirSync(recursos, { recursive: true });
 
-  copyFileSync(binario, join(recursos, 'nuvo'));
-  chmodSync(join(recursos, 'nuvo'), 0o755);
-
-  // O executável do pacote é este script: sobe o servidor e manda abrir a
-  // janela. `exec` deixa o processo do servidor sendo o processo do app, então
-  // fechar o app no dock encerra o servidor — que é o que quem clicou espera.
+  // O executável do pacote é o próprio binário, e não um script que chama o
+  // binário.
+  //
+  // Com script, o macOS 26 mostrava "Support Ending for Intel-based Apps" na
+  // primeira abertura. O motivo não é o binário — ele é arm64 puro. É que o
+  // interpretador de um script conta como executável do pacote, e o `/bin/sh`
+  // desta máquina é `x86_64 arm64e`. Medido lado a lado, dois pacotes iguais em
+  // ~/Applications:
+  //
+  //   executável = binário arm64  -> kMDItemExecutableArchitectures = (arm64)
+  //   executável = script #!/bin/sh -> (x86_64, arm64)
+  //
+  // Sem interpretador no meio não há de onde tirar x86_64, e some o aviso.
   const lancador = join(macos, 'Nuvo');
-  writeFileSync(lancador, `#!/bin/sh
-# Gerado por build/empacotar.mjs. O binário de verdade está em Resources/nuvo.
-AQUI=$(cd "$(dirname "$0")/../Resources" && pwd)
-LOG="$HOME/Library/Logs/Nuvo.log"
-mkdir -p "$(dirname "$LOG")"
-exec "$AQUI/nuvo" --abrir >>"$LOG" 2>&1
-`);
+  copyFileSync(binario, lancador);
   chmodSync(lancador, 0o755);
 
   writeFileSync(join(conteudo, 'PkgInfo'), 'APPL????');

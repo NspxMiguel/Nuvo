@@ -190,8 +190,10 @@ function embalar(alvo, binario, versao) {
   rmSync(tgz, { force: true });
 
   // No macOS o que vai é o `.app`. Quem prefere terminal continua atendido: o
-  // binário de linha de comando é o `Nuvo.app/Contents/Resources/nuvo` de
-  // dentro dele — uma cópia só de 144 MB, não duas.
+  // executável do pacote É o binário de linha de comando
+  // (`Nuvo.app/Contents/MacOS/Nuvo`) — uma cópia só de 144 MB, não duas. Ele
+  // sabe distinguir os dois casos: com terminal é linha de comando, sem
+  // terminal é duplo clique, e aí abre a janela sozinho.
   if (alvo.plataforma === 'darwin') {
     montarAppMac(dentro, versao, tmp);
     rmSync(dentro, { force: true });
