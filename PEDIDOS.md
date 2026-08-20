@@ -1,4 +1,4 @@
-# PEDIDOS — IAUnifier
+# PEDIDOS — Nuvo
 
 Registro dos pedidos do Miguel, nas palavras dele. Item só sai daqui quando
 estiver entregue e conferido.
@@ -13,27 +13,62 @@ Ele respondeu a pergunta que estava aberta desde o pedido *"trocar o nome pro
 novo nome"*: **o nome é Nuvo**. E reclamou, com razão, de eu ter passado a tarde
 em outros repositórios em vez de continuar aqui.
 
-- [ ] **trocar o nome do app inteiro para Nuvo** — código, pasta de dados,
+- [x] **trocar o nome do app inteiro para Nuvo** — código, pasta de dados,
       identificadores de sistema, landing, README, repositório e endereço no
       domínio dele.
+
+      Feito em 20/08/2026. O que valia a pena olhar não era o nome trocado, era
+      o que acontece com quem já tinha o app instalado — e cada um desses pontos
+      migra em vez de quebrar:
+
+      - `~/.iaunifier` vira `~/.nuvo` num `renameSync` só, então ou muda tudo ou
+        não muda nada: banco, chaves, anexos e o perfil do navegador do agente
+        chegam juntos. `IAUNIFIER_HOME` continua valendo; `NUVO_HOME` ganha
+        quando os dois estão postos. A pasta de verdade dele (78 MB) foi movida
+        e conferida: `PRAGMA integrity_check` = ok, `config.json` com 0600;
+      - backup gravado pela versão IAUnifier ainda restaura — a assinatura antiga
+        continua aceita e o leitor de nome de arquivo lê os dois prefixos;
+      - as chaves do `localStorage` são **copiadas**, não movidas, então uma aba
+        com o pacote antigo em cache do service worker continua achando as dela;
+      - `x-iaunifier-token` continua abrindo a porta, ao lado de `x-nuvo-token`;
+      - os instaladores de serviço e de atalho apagam o registro antigo antes de
+        escrever o novo, senão a máquina fica com dois disputando a mesma porta;
+      - `/api/ping` responde `nomeAnterior: "iaunifier"` porque o atalho de mesa
+        que a versão antiga instalou procura essa palavra pra saber se o servidor
+        já está de pé.
+
+      O repositório virou `NspxMiguel/Nuvo` e `https://www.nspx.dev/Nuvo/`
+      responde 200. O cartão no site dele acompanhou (`nspx-hub`, chave
+      `PROJECT_SHOTS` e as quatro imagens renomeadas).
 
 ## 20/08/2026 — o que ele viu na landing e no app
 
 Mandou duas capturas da landing (em inglês, no `nspx.dev`) e a saída do terminal
 ao tentar abrir o app baixado.
 
-- [ ] **"agr o scroll fico rapido dms kkk"**
+- [x] **"agr o scroll fico rapido dms kkk"**
 
       Ontem ele pediu pra agilizar e eu cortei o palco de 460vh pra 250vh — de
       3680 px de rolagem pra 2000 px. Passou do ponto.
 
-- [ ] **"e o your name ficou estranho... tbm rapido dms"**
+      Ficou em 360vh: 2340 px de rolagem útil medidos a 1440×900, contra 1350 px
+      do 250vh e 3240 px do 460vh. No celular, 270vh — antes o celular tinha
+      ficado mais comprido que o desktop, que era o contrário do que a regra
+      dele dizia.
 
-      Os nomes que passam sozinhos terminam em "YOUR NAME" / "SEU NOME". Fica
+- [x] **"e o your name ficou estranho... tbm rapido dms"**
+
+      Os nomes que passam sozinhos terminavam em "YOUR NAME" / "SEU NOME". Fica
       parecendo que o app está chamando a pessoa de "SEU NOME", em vez de mostrar
-      onde o nome dela entraria. E a passagem também está rápida demais.
+      onde o nome dela entraria. E a passagem também estava rápida demais.
 
-- [ ] **"nada acontece uai ao executar o app"**
+      A etiqueta saiu das três listas. Quem fecha a sequência agora é um cursor
+      de texto piscando — o mesmo símbolo em qualquer idioma, e que diz "é a sua
+      vez" sem precisar escrever isso. O tempo passou de 300 ms por nome (dos
+      quais 225 ms eram a entrada das letras, ou seja: trocava antes de dar pra
+      ler) para 620 ms, com a entrada em pouco mais de um terço e o resto parado.
+
+- [x] **"nada acontece uai ao executar o app"**
 
       Ele baixou o `.tar.gz` de macOS, extraiu e tentou rodar. O terminal dele:
 
@@ -47,11 +82,73 @@ ao tentar abrir o app baixado.
       primeira barra do caminho (por isso o `Users/...` sem `/`), e antes disso
       abrir um executável solto baixado da internet no macOS não é um caminho que
       funcione — quarentena do Gatekeeper e nenhum `.app` para clicar duas vezes.
+      Na pasta de Downloads dele tinham três cópias (`iaunifier`, `iaunifier 2`,
+      `iaunifier 3`): é o retrato de clicar, não acontecer nada, e tentar de novo.
 
-- [ ] **"acho q muda a fonte, e coloca alguma animação tipo a animacao ao iniciar
+      Agora o pacote de macOS traz `Nuvo.app` de verdade — `Info.plist`, ícone,
+      assinatura ad-hoc, e um lançador que sobe o servidor e **abre a janela**
+      (`--abrir`), com log em `~/Library/Logs/Nuvo.log`. O `mdls` do próprio
+      sistema confirma `com.apple.application-bundle`.
+
+      Só isso não bastava: o Gatekeeper recusa app sem assinatura da Apple que
+      venha com a marca de quarentena (`spctl -a` = *rejected*), e tirar essa
+      marca exige uma conta paga de desenvolvedor. O que o `curl` baixa nunca
+      recebe a marca, então entrou também o instalador de uma linha:
+
+      ```
+      curl -fsSL https://www.nspx.dev/Nuvo/instalar.sh | sh
+      ```
+
+      Rodado de ponta a ponta nesta máquina: baixou a 0.2.0, conferiu o SHA-256,
+      instalou em `~/Applications/Nuvo.app`, abriu, e o `xattr` do que ficou
+      instalado não tem marca de quarentena nenhuma. Quem preferir baixar o
+      arquivo tem o comando `xattr -dr` na própria página.
+
+- [x] **"acho q muda a fonte, e coloca alguma animação tipo a animacao ao iniciar
       nova conversa"**
 
-- [ ] **"n tem opção de anexar coisa no code mode nao?"**
+      Entendi como sendo a landing — é dela que eram as capturas, e a animação
+      de nova conversa é a referência que ele deu, não o alvo.
+
+      Fonte: **Bricolage Grotesque** nos títulos e **Geist** no texto, as duas
+      OFL e servidas de `docs/fontes/` (nada de CDN: uma chamada ao
+      `fonts.googleapis.com` entrega o visitante dele a um terceiro). O aperto de
+      letra caiu de -.035em pra -.012em na saudação — aquele valor tinha sido
+      medido na fonte da Apple e fechava "Pode" em "falar" numa fonte estreita.
+
+      Animação: da segunda tela pra baixo estava tudo parado, e a página trocava
+      de temperatura no meio. As seções agora sobem e revelam quando entram na
+      tela, com a mesma física do app quando abre conversa nova. Quem pediu menos
+      movimento recebe a página pronta.
+
+      **O app continua na fonte do sistema de propósito** — ele roda sem
+      internet, e uma fonte baixada seria a única parte da interface a depender
+      de rede. Se ele quiser trocar a fonte do app também, é dizer.
+
+- [x] **"n tem opção de anexar coisa no code mode nao?"**
+
+      Não tinha. E o anexo do modo Programar não é o mesmo da conversa: na
+      conversa o texto é fatiado e entra no pedido; ali quem lê é uma IA de
+      terminal, que abre arquivo do disco — e Claude Code, Codex e opencode só
+      abrem arquivo abaixo da pasta em que estão trabalhando.
+
+      Então o arquivo é gravado dentro da pasta do projeto, em `.nuvo/anexos/`, e
+      o pedido leva o caminho dele. Nada é sobrescrito (um segundo
+      `relatorio.pdf` vira `relatorio-2.pdf`), o teto é 25 MB, e o nome que vem
+      do navegador é reduzido a nome de arquivo antes de encostar no disco —
+      `../../.ssh/id_rsa` cai como `.nuvo/anexos/id_rsa`, o que foi conferido
+      contra o servidor no ar. Clipe no campo, arrastar por cima também funciona,
+      e a árvore de arquivos abre uma exceção pra essa pasta (senão o anexo
+      ficaria invisível no instante seguinte a anexar).
+
+### O que ficou faltando desta leva
+
+- [ ] **as capturas do app dentro da landing ainda mostram o nome antigo.**
+      São seis telas (`tela-conversa`, `tela-varias`, `tela-maquina`,
+      `tela-programar`, `tela-agente`, `tela-cli`), cada uma em três idiomas, e
+      as mesmas imagens alimentam o cartão do projeto no `nspx.dev`. Refazer
+      exige rodar sessão de verdade no app pra cada tela — não dá pra recortar o
+      nome de uma imagem pronta.
 
 ---
 
