@@ -26,7 +26,15 @@
   /* A barra de cima nasceu so com medida de desktop: a 390px o grupo de links
      terminava em 395px e o botao Baixar ficava inteiro fora da tela (425..509).
      Abaixo de 700px os links secundarios saem e sobra logo + acao principal. */
-  @media (max-width: 700px) {
+  /* A barra de cima ficou com cinco links quando entrou a seção do modo
+     programar, e o botao "Descargar" (a palavra mais comprida das tres)
+     terminava 48px fora da tela a 760px. Entre 761 e 900 os espacos apertam;
+     abaixo de 760 os links secundarios saem e sobra logo + acao principal. */
+  @media (max-width: 900px) {
+    .nav { gap: 16px !important; }
+    .nav-links { gap: 16px !important; font-size: 13.5px !important; }
+  }
+  @media (max-width: 760px) {
     .nav-links { display: none !important; }
     .nav { padding: 0 16px !important; gap: 12px !important; }
   }
@@ -214,6 +222,7 @@
     <div class="nav-links" style="display:flex;align-items:center;gap:24px;font-size:14.5px;color:#8e8e96">
       <a href="#memoria" style="color:inherit" data-i18n>Memória</a>
       <a href="#maquina" style="color:inherit" data-i18n>IAs locais</a>
+      <a href="#programar" style="color:inherit" data-i18n>Programar</a>
       <a href="#agente" style="color:inherit" data-i18n>Agente</a>
       <a href="#privacidade" style="color:inherit" data-i18n>Privacidade</a>
     </div>
@@ -234,7 +243,7 @@
     <p class="ato frase" id="frase"></p>
 
     <div class="revela" id="revela" aria-hidden="true">
-      <img src="lp/tela-conversa.jpg" data-i18n-attr="alt" alt="IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar">
+      <img src="lp/tela-conversa.jpg" data-i18n-attr="alt,src" alt="IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar">
     </div>
 
     <div class="final" id="final">
@@ -281,13 +290,13 @@
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Pergunte pra cinco ao mesmo tempo</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>A mesma pergunta em várias IAs, todas lendo a mesma memória. Compare lado a lado, deixe que elas votem ou receba as respostas costuradas numa só. Quem responde em três segundos não fica esperando quem leva quarenta.</p>
     </div>
-    <figure style="margin:0"><img src="lp/tela-varias.jpg" data-i18n-attr="alt" alt="Tela Perguntar pra várias: a pergunta, a barra de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%"></figure>
+    <figure style="margin:0"><img src="lp/tela-varias.jpg" data-i18n-attr="alt,src" alt="Tela Perguntar pra várias: a pergunta, a barra de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%"></figure>
   </div>
 </section>
 
 <section id="maquina" style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
-    <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" data-i18n-attr="alt" alt="Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%"></figure>
+    <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" data-i18n-attr="alt,src" alt="Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>IAs locais</span>
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Só as IAs que cabem na sua máquina</h2>
@@ -303,13 +312,25 @@
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Claude Code, Codex, Gemini e opencode dentro do app</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Os mesmos programas que você já usa no terminal respondem dentro da conversa, sem chave de API e sem cobrança por uso — eles usam a assinatura que você já tem. Leem a mesma memória das outras e trabalham na pasta que o projeto apontar.</p>
     </div>
-    <figure style="margin:0"><img src="lp/tela-cli.jpg" data-i18n-attr="alt" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%"></figure>
+    <figure style="margin:0"><img src="lp/tela-cli.jpg" data-i18n-attr="alt,src" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%"></figure>
+  </div>
+</section>
+
+<section id="programar" style="padding:130px 28px 0">
+  <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
+    <figure style="margin:0;order:2"><img src="lp/tela-programar.jpg" data-i18n-attr="alt,src" alt="A tela Programar: a conversa de um lado e, do outro, o painel com cada arquivo que a IA leu e editou, o comando que rodou e quanto custou o turno" style="width:100%"></figure>
+    <div style="display:flex;flex-direction:column;gap:14px;order:1">
+      <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Modo programar</span>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Você vê a IA trabalhar, arquivo por arquivo</h2>
+      <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Aponte uma pasta e peça a mudança. Do lado da conversa abre um painel com a árvore do projeto, cada arquivo que ela leu ou escreveu, cada comando que rodou — com a saída inteira e se deu certo — e o que mudou desde o último commit.</p>
+      <p style="margin:0;font-size:15.5px;line-height:1.6;color:#71717a" data-i18n>O passo a passo vem do próprio Claude Code, Codex ou opencode, não de um palpite: o app lê o relato que eles publicam enquanto trabalham. A IA só ganha permissão de escrever depois que você escolhe a pasta, e só dentro dela.</p>
+    </div>
   </div>
 </section>
 
 <section id="agente" style="padding:130px 28px 0">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
-    <figure style="margin:0;order:2"><img src="lp/tela-agente.jpg" data-i18n-attr="alt" alt="Uma conversa em modo agente: a trilha mostra a busca, a página aberta e o motivo de cada passo, e a resposta cita a fonte" style="width:100%"></figure>
+    <figure style="margin:0;order:2"><img src="lp/tela-agente.jpg" data-i18n-attr="alt,src" alt="Uma conversa em modo agente: a trilha mostra a busca, a página aberta e o motivo de cada passo, e a resposta cita a fonte" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Modo agente</span>
       <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Ela abre o navegador e vai atrás</h2>

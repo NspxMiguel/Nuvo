@@ -14,6 +14,25 @@ window.IDIOMAS = {
   en: {
     '@nomes': ['Alex', 'Maya', 'Chris', 'Priya', 'Jordan', 'Amara', 'Noah', 'YOUR NAME'],
 
+    // A captura é a do app na língua de quem está lendo: a landing em inglês
+    // com a tela do app em português mostra um produto que não existe.
+    'lp/tela-conversa.jpg': 'lp/tela-conversa-en.jpg',
+    'lp/tela-varias.jpg': 'lp/tela-varias-en.jpg',
+    'lp/tela-maquina.jpg': 'lp/tela-maquina-en.jpg',
+    'lp/tela-cli.jpg': 'lp/tela-cli-en.jpg',
+    'lp/tela-programar.jpg': 'lp/tela-programar-en.jpg',
+    'lp/tela-agente.jpg': 'lp/tela-agente-en.jpg',
+
+    'Modo programar': 'Coding mode',
+    Programar: 'Code',
+    'Você vê a IA trabalhar, arquivo por arquivo': 'Watch the AI work, file by file',
+    'Aponte uma pasta e peça a mudança. Do lado da conversa abre um painel com a árvore do projeto, cada arquivo que ela leu ou escreveu, cada comando que rodou — com a saída inteira e se deu certo — e o que mudou desde o último commit.':
+      'Point at a folder and ask for the change. Next to the conversation a panel opens with the project tree, every file it read or wrote, every command it ran — with the full output and whether it worked — and what has changed since the last commit.',
+    'O passo a passo vem do próprio Claude Code, Codex ou opencode, não de um palpite: o app lê o relato que eles publicam enquanto trabalham. A IA só ganha permissão de escrever depois que você escolhe a pasta, e só dentro dela.':
+      'The step-by-step comes from Claude Code, Codex or opencode themselves, not from a guess: the app reads the account they publish while they work. The AI only gets permission to write after you pick the folder, and only inside it.',
+    'A tela Programar: a conversa de um lado e, do outro, o painel com cada arquivo que a IA leu e editou, o comando que rodou e quanto custou o turno':
+      'The Code screen: the conversation on one side and, on the other, the panel with every file the AI read and edited, the command it ran and what the turn cost',
+
     'IAUnifier — todas as suas IAs, uma memória só': 'IAUnifier — all your AIs, one memory',
     'Programa que roda na sua máquina e junta os modelos locais, as IAs pagas por uso e os programas de terminal numa conversa só, com a mesma memória para todas.':
       'A program that runs on your own machine and puts local models, pay-as-you-go AIs and terminal programs in a single conversation, with the same memory for all of them.',
@@ -116,6 +135,24 @@ window.IDIOMAS = {
 
   es: {
     '@nomes': ['Miguel', 'Lucía', 'Mateo', 'Sofía', 'Diego', 'Valentina', 'Camila', 'TU NOMBRE'],
+
+    // A captura é a do app na língua de quem está lendo.
+    'lp/tela-conversa.jpg': 'lp/tela-conversa-es.jpg',
+    'lp/tela-varias.jpg': 'lp/tela-varias-es.jpg',
+    'lp/tela-maquina.jpg': 'lp/tela-maquina-es.jpg',
+    'lp/tela-cli.jpg': 'lp/tela-cli-es.jpg',
+    'lp/tela-programar.jpg': 'lp/tela-programar-es.jpg',
+    'lp/tela-agente.jpg': 'lp/tela-agente-es.jpg',
+
+    'Modo programar': 'Modo programar',
+    Programar: 'Programar',
+    'Você vê a IA trabalhar, arquivo por arquivo': 'Ves a la IA trabajar, archivo por archivo',
+    'Aponte uma pasta e peça a mudança. Do lado da conversa abre um painel com a árvore do projeto, cada arquivo que ela leu ou escreveu, cada comando que rodou — com a saída inteira e se deu certo — e o que mudou desde o último commit.':
+      'Señala una carpeta y pide el cambio. Al lado de la conversación se abre un panel con el árbol del proyecto, cada archivo que leyó o escribió, cada comando que ejecutó —con la salida entera y si funcionó— y qué cambió desde el último commit.',
+    'O passo a passo vem do próprio Claude Code, Codex ou opencode, não de um palpite: o app lê o relato que eles publicam enquanto trabalham. A IA só ganha permissão de escrever depois que você escolhe a pasta, e só dentro dela.':
+      'El paso a paso viene del propio Claude Code, Codex u opencode, no de una suposición: la app lee el relato que ellos publican mientras trabajan. La IA solo obtiene permiso de escritura después de que eliges la carpeta, y solo dentro de ella.',
+    'A tela Programar: a conversa de um lado e, do outro, o painel com cada arquivo que a IA leu e editou, o comando que rodou e quanto custou o turno':
+      'La pantalla Programar: la conversación de un lado y, del otro, el panel con cada archivo que la IA leyó y editó, el comando que ejecutó y cuánto costó el turno',
 
     'IAUnifier — todas as suas IAs, uma memória só': 'IAUnifier — todas tus IAs, una sola memoria',
     'Programa que roda na sua máquina e junta os modelos locais, as IAs pagas por uso e os programas de terminal numa conversa só, com a mesma memória para todas.':

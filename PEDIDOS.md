@@ -1046,6 +1046,10 @@ Quebrado em itens:
   idioma. O nome "IAs ligadas" da barra virou "IAs locais", que é do que a
   seção fala. Medido: 33 combinações de idioma × tela sem estouro nem erro de
   console, e `test/site-idiomas.test.mjs` reprova frase marcada sem tradução.
+  As capturas do app também são por idioma: o `src` de cada imagem é traduzido
+  como qualquer outra frase, e as 18 imagens vieram do app rodando de verdade
+  nos três idiomas — inclusive o rodapé de memória, o painel de programar e a
+  trilha do modo agente.
 - [x] **o "Pode falar" com os nomes vai pro alto da página**, na primeira tela,
   não numa seção lá embaixo;
 - [x] **tirar a moldura que a landing põe nas capturas** — borda e canto

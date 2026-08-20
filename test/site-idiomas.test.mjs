@@ -9,7 +9,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createContext, runInContext } from 'node:vm';
 
 const raiz = new URL('../docs/', import.meta.url);
@@ -99,5 +99,30 @@ test('a lista de nomes da saudação existe em todo idioma e termina no convite'
     // O último é o convite ("SEU NOME"), escrito em maiúscula pra fechar a
     // sequência apontando pra quem está lendo.
     assert.equal(nomes.at(-1), nomes.at(-1).toUpperCase(), `convite em minúscula em ${lingua}`);
+  }
+});
+
+test('cada idioma aponta pras capturas do app naquela língua', () => {
+  // Landing em inglês com a tela do app em português mostra um produto que não
+  // existe — foi o que estava no ar até agora. O `src` é traduzido igual ao
+  // texto, e o arquivo apontado tem que existir de verdade.
+  const idiomas = carregarIdiomas();
+  const capturas = [...marcacao.matchAll(/src="(lp\/tela-[^"]+)"/g)].map((m) => m[1]);
+  assert.ok(capturas.length >= 5, `poucas capturas no HTML: ${capturas.length}`);
+
+  for (const [lingua, dic] of Object.entries(idiomas)) {
+    for (const original of capturas) {
+      const traduzida = dic[original];
+      assert.ok(traduzida, `${original} sem versão em ${lingua}`);
+      assert.notEqual(traduzida, original, `${original} aponta pra si mesma em ${lingua}`);
+      assert.ok(
+        existsSync(new URL(traduzida, raiz)),
+        `${traduzida} está no dicionário de ${lingua} mas não existe em docs/`
+      );
+    }
+    // E a captura em português, que é a do HTML, também tem que existir.
+    for (const original of capturas) {
+      assert.ok(existsSync(new URL(original, raiz)), `${original} não existe em docs/`);
+    }
   }
 });
