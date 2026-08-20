@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IAUnifier — todas as suas IAs, uma memória só</title>
 <link rel="icon" href="lp/icon-512.png">
-<script src="idiomas.js"></script>
+<script src="lugar.js"></script>
+  <script src="idiomas.js"></script>
 <meta name="description" content="Programa que roda na sua máquina e junta os modelos locais, as IAs pagas por uso e os programas de terminal numa conversa só, com a mesma memória para todas.">
 <meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
@@ -61,7 +62,11 @@
      Feito na mão: tudo sai de um número entre 0 e 1 lido da rolagem, que vira
      opacidade, largura da máscara e empurrão. Uma biblioteca de rolagem
      suave pesa mais que esta página inteira, e o efeito é o mesmo. */
-  .palco { position: relative; height: 460vh; }
+  /* O repique de rolagem no topo desmancha a ilusão: o palco está preso com
+     `sticky`, e o elástico do navegador arrasta a página inteira por baixo dele
+     como se estivesse quebrado. `none` tira o repique nas duas pontas. */
+  html, body { overscroll-behavior-y: none; }
+  .palco { position: relative; height: 250vh; }
   .palco-fixo {
     position: sticky;
     top: 0;
@@ -426,9 +431,12 @@
     const dicionarios = window.IDIOMAS || {};
 
     // A ordem: o `?lang=` do endereço (é o que um link compartilhado carrega),
-    // depois a escolha guardada, depois o que o navegador pede. Sem consulta de
-    // IP: o navegador já manda a resposta certa de graça, e quem usa VPN tem o
-    // IP num país e o idioma no dele.
+    // depois a escolha guardada, depois o lugar, e só então o idioma do
+    // navegador. O lugar vem primeiro porque `navigator.languages` responde
+    // outra pergunta — o idioma do sistema —, e isso abriu esta página em
+    // inglês num navegador aberto do Brasil. O lugar sai do fuso horário, não
+    // de consulta de IP: é local, instantâneo e não manda o endereço de ninguém
+    // pra fora (`lugar.js`).
     const url = new URL(location.href);
     const disponiveis = Object.keys(NOMES_IDIOMA);
     const casa = (c) =>
@@ -444,7 +452,13 @@
     } catch {
       /* navegador com armazenamento bloqueado: o site funciona sem lembrar */
     }
-    const candidatos = [url.searchParams.get('lang'), escolha, ...(navigator.languages || [navigator.language])];
+    const doLugar = window.LUGAR?.idiomaDoLugar?.() || null;
+    const candidatos = [
+      url.searchParams.get('lang'),
+      escolha,
+      doLugar,
+      ...(navigator.languages || [navigator.language])
+    ];
     const atual = candidatos.map(casa).find(Boolean) || 'pt-BR';
     const dic = dicionarios[atual] || {};
     const t = (texto) => dic[texto] ?? texto;
@@ -669,24 +683,18 @@
       const alcance = palco.offsetHeight - fixo.offsetHeight;
       const p = alcance > 0 ? trava((window.scrollY - palco.offsetTop) / alcance, 0, 1) : 0;
 
-      // ato 1 — a saudação, com os nomes passando
-      const saida = trecho(p, 0.30, 0.37);
+      // ato 1 — a saudação. Quem some é a saudação inteira; os nomes em si
+      // passam no tempo, em `rodarNomes`, e não na rolagem: era preciso rolar
+      // pra ver o efeito, e quem chega na página não rola antes de ver algo.
+      const saida = trecho(p, 0.02, 0.14);
       atoOi.style.opacity = 1 - suave(saida);
       atoOi.style.visibility = saida >= 1 ? 'hidden' : '';
-      const passoNome = 0.30 / nomes.length;
-      const qual = Math.min(nomes.length - 1, Math.floor(p / passoNome));
-      nomeEl.classList.toggle('voce', qual === nomes.length - 1);
-      for (let i = 0; i < nomes.length; i++) {
-        const n = nomes[i];
-        n.caixa.style.display = i === qual ? '' : 'none';
-        if (i === qual) pintarLetras(n.letras, trava((p - i * passoNome) / (passoNome * 0.75), 0, 1));
-      }
 
       // ato 2 — a frase que troca, letra a letra e fora de ordem
-      const entra1 = trecho(p, 0.34, 0.44);
-      const sai1 = trecho(p, 0.46, 0.53);
-      const entra2 = trecho(p, 0.50, 0.58);
-      const sai2 = trecho(p, 0.60, 0.66);
+      const entra1 = trecho(p, 0.10, 0.24);
+      const sai1 = trecho(p, 0.28, 0.36);
+      const entra2 = trecho(p, 0.33, 0.46);
+      const sai2 = trecho(p, 0.50, 0.58);
       frases[0].caixa.style.display = sai1 >= 1 ? 'none' : '';
       frases[1].caixa.style.display = entra2 <= 0 ? 'none' : '';
       if (sai1 < 1) pintarLetras(frases[0].letras, sai1 > 0 ? sai1 : entra1, { saindo: sai1 > 0 });
@@ -694,7 +702,7 @@
       fraseEl.style.visibility = entra1 <= 0 || (sai2 >= 1) ? 'hidden' : '';
 
       // ato 3 — a máscara abre do centro e revela o app
-      const abre = suave(trecho(p, 0.62, 0.94));
+      const abre = suave(trecho(p, 0.54, 0.92));
       revela.style.setProperty('--rev-w', mascLarg * abre + 'px');
       revela.style.setProperty('--rev-h', mascAlt * abre + 'px');
 
@@ -703,13 +711,13 @@
       ladoDir.style.transform = `translateX(${Math.max(0, meia - folgaDir)}px)`;
       // O texto empurrado some antes de sair pela borda: metade de uma frase
       // pendurada no canto parece defeito, não movimento.
-      const entrada = suave(trecho(p, 0.60, 0.70));
-      const saida2 = suave(trecho(p, 0.80, 0.91));
+      const entrada = suave(trecho(p, 0.52, 0.64));
+      const saida2 = suave(trecho(p, 0.78, 0.89));
       final.style.opacity = entrada * (1 - saida2);
-      final.style.visibility = p < 0.60 || saida2 >= 1 ? 'hidden' : '';
+      final.style.visibility = p < 0.52 || saida2 >= 1 ? 'hidden' : '';
 
-      acoes.style.opacity = suave(trecho(p, 0.86, 0.96));
-      acoes.style.visibility = p < 0.86 ? 'hidden' : '';
+      acoes.style.opacity = suave(trecho(p, 0.84, 0.95));
+      acoes.style.visibility = p < 0.84 ? 'hidden' : '';
       dica.style.opacity = 1 - suave(trecho(p, 0, 0.05));
     }
 
@@ -727,8 +735,46 @@
       return;
     }
 
+    // Os nomes passam sozinhos, assim que a página abre.
+    //
+    // Antes eles eram um trecho da rolagem, o que exigia rolar pra ver o efeito
+    // — e quem chega numa página não rola antes de ver algum motivo. Agora o
+    // tempo é que os move, e a rolagem só cuida do que vem depois. De quebra
+    // isso devolveu um terço do palco: a página ficou bem mais curta, que era a
+    // outra reclamação.
+    const DURACAO_NOMES = 2400;
+    let avancoNomes = 0;
+
+    function pintarNomes() {
+      const passo = 1 / nomes.length;
+      const qual = Math.min(nomes.length - 1, Math.floor(avancoNomes / passo));
+      nomeEl.classList.toggle('voce', qual === nomes.length - 1);
+      for (let i = 0; i < nomes.length; i++) {
+        nomes[i].caixa.style.display = i === qual ? '' : 'none';
+        if (i === qual) {
+          pintarLetras(nomes[i].letras, trava((avancoNomes - i * passo) / (passo * 0.75), 0, 1));
+        }
+      }
+    }
+
+    let inicioNomes = null;
+    function rodarNomes(agora) {
+      if (inicioNomes === null) inicioNomes = agora;
+      avancoNomes = trava((agora - inicioNomes) / DURACAO_NOMES, 0, 1);
+      pintarNomes();
+      if (avancoNomes < 1) requestAnimationFrame(rodarNomes);
+    }
+    requestAnimationFrame(rodarNomes);
+
     let pedido = false;
     const aoRolar = () => {
+      // Rolou antes da lista terminar: o último nome é a piada inteira ("SEU
+      // NOME"), e vê-la sumir no meio da lista é pior que vê-la de uma vez.
+      if (avancoNomes < 1 && window.scrollY > 0) {
+        avancoNomes = 1;
+        inicioNomes = -Infinity;
+        pintarNomes();
+      }
       if (pedido) return;
       pedido = true;
       requestAnimationFrame(() => {
@@ -741,6 +787,7 @@
     // antes dela carregar deixa a conta errada até a primeira rolagem.
     const preparar = () => {
       medirPalco();
+      pintarNomes();
       pintar();
     };
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(preparar);

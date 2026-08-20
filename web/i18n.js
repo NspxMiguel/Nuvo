@@ -13,6 +13,7 @@
 // É o preço certo: quem edita a frase quer mesmo revisar a tradução dela.
 
 import { api } from './core.js';
+import { idiomaDoLugar } from './lugar.js';
 
 const GUARDADO = 'iaunifier.idioma';
 
@@ -125,7 +126,11 @@ export async function iniciarIdioma(sugestao) {
     .map((l) => String(l))
     .find((l) => l);
 
-  const candidatos = [escolhido, sugestao, doNavegador, 'pt-BR'].filter(Boolean);
+  // O lugar vem antes do idioma do sistema de propósito: quem programa roda o
+  // computador em inglês e mora em outro país, e a pergunta que importa é onde
+  // a pessoa está. Quem discordar troca no seletor, e a escolha à mão — que é a
+  // primeira da lista — vence tudo daí em diante.
+  const candidatos = [escolhido, idiomaDoLugar(), sugestao, doNavegador, 'pt-BR'].filter(Boolean);
   const disponiveis = Object.keys(NOMES);
   let alvo = 'pt-BR';
   for (const c of candidatos) {

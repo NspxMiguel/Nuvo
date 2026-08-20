@@ -1109,19 +1109,50 @@ Quebrado em itens:
 
 *(mandou com uma captura da landing em inglês, aberta do Brasil)*
 
-- [ ] **o "Pode falar" com os nomes tem que aparecer sem rolar**
+- [x] **o "Pode falar" com os nomes tem que aparecer sem rolar**
   > *"o pode falar + nome variando, faz aparecer msm sem scrolar"*
-- [ ] **travar a rolagem pra cima quando já está no topo**
+
+  Os nomes eram um trecho da rolagem: era preciso rolar pra ver o efeito, e
+  quem chega numa página não rola antes de ver algum motivo. Agora quem os move
+  é o tempo — os oito passam em 2,4 s assim que a página abre e param em "SEU
+  NOME". Rolar antes de terminar salta direto pro último, porque ele é a piada
+  inteira. A rolagem ficou só com os outros dois atos.
+- [x] **travar a rolagem pra cima quando já está no topo**
   > *"bloqueia o scroll pra cima da pagina, ao estar no topo da pagina, pra n
   > ficar bugado"*
-- [ ] **a rolagem travada está lenta demais**
+
+  `overscroll-behavior-y: none` em `html, body`. O palco está preso com
+  `sticky`, e o elástico do navegador arrastava a página inteira por baixo dele,
+  o que parecia defeito.
+- [x] **a rolagem travada está lenta demais**
   > *"scroll ta muito lento, da uma agilizada"*
-- [ ] **release e commit em inglês, e a regra vai pro CLAUDE.md**
+
+  O palco caiu de 460vh pra 250vh — de 3680 px de rolagem pra 2000 px na tela
+  de 800 px. Quase um terço dele era só a lista de nomes, que agora corre no
+  tempo; o resto veio de reencaixar os três atos no que sobrou.
+- [x] **release e commit em inglês, e a regra vai pro CLAUDE.md**
   > *"releases e comiits coloca em ingles ne.... mais facil. inclusive salva
   > isso no claude md."*
-- [ ] **o site não pega o idioma pela localização** — abriu em inglês no Brasil
+
+  Regra na seção Commits do `~/.claude/CLAUDE.md`, valendo pra mensagem de
+  commit, título e corpo de PR e texto de release. Continuam em português o
+  `PEDIDOS.md` (é o registro das falas dele), os comentários dentro do código e
+  o texto que o usuário lê na tela.
+- [x] **o site não pega o idioma pela localização** — abriu em inglês no Brasil
   > *"E o site tbm nao está puxando idioma por localizacao, ele puxo em ingles
   > sendo q to no brasil"* e *"pelo jeito i18n nao foi bem revisado...."*
+
+  O defeito era de premissa: `navigator.languages` responde o idioma do
+  *sistema*, não o lugar. Ele roda o macOS em inglês, então a página abria em
+  inglês mesmo aberta do Brasil.
+
+  O lugar agora sai do fuso horário (`web/lugar.js`, espelhado em
+  `docs/lugar.js` por `build/gerar-lugar.mjs`), e entra na ordem antes do idioma
+  do navegador. Não é consulta de IP: o fuso é local, instantâneo, funciona sem
+  internet e não manda o endereço de ninguém pra fora — e responde melhor,
+  porque quem usa VPN aparece no país do servidor. Medido com o navegador em
+  `en-US`: fuso de São Paulo dá `pt-BR`, de Nova York dá `en`, de Madri dá `es`;
+  `Etc/UTC` devolve nada e cai no navegador. Vale no site e no app.
 - [ ] **loja de MCPs e skills, puxando do GitHub sozinha, com filtros**
   > *"adiciona loja de mcps, skills e etc. q automaticamente puxa do github. ai
   > filtros, normal ne, + starts, + novo, recomendado e etc"*

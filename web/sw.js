@@ -9,7 +9,7 @@ const CACHE = 'iaunifier-v7';
 // lista com os arquivos de web/ pra não ficar pra trás de novo.
 const SHELL = [
   '/', '/index.html', '/styles.css',
-  '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js', '/i18n.js',
+  '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js', '/i18n.js', '/lugar.js',
   '/view-code.js',
   '/requisitos.js', '/catalogo.js',
   // O manifest NÃO entra aqui. Ele carrega o token dentro do `start_url`, então
