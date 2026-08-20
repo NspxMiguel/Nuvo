@@ -17,6 +17,7 @@ import {
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { montarAppMac } from './app-mac.mjs';
 
 const RAIZ = fileURLToPath(new URL('..', import.meta.url));
 const SAIDA = join(RAIZ, 'build', 'out');
@@ -187,7 +188,18 @@ function embalar(alvo, binario, versao) {
 
   const tgz = join(DIST, `${base}.tar.gz`);
   rmSync(tgz, { force: true });
-  sh('tar', ['-czf', tgz, '-C', tmp, 'nuvo']);
+
+  // No macOS o que vai é o `.app`. Quem prefere terminal continua atendido: o
+  // binário de linha de comando é o `Nuvo.app/Contents/Resources/nuvo` de
+  // dentro dele — uma cópia só de 144 MB, não duas.
+  if (alvo.plataforma === 'darwin') {
+    montarAppMac(dentro, versao, tmp);
+    rmSync(dentro, { force: true });
+    sh('tar', ['-czf', tgz, '-C', tmp, 'Nuvo.app']);
+  } else {
+    sh('tar', ['-czf', tgz, '-C', tmp, 'nuvo']);
+  }
+
   rmSync(tmp, { recursive: true, force: true });
   return tgz;
 }

@@ -33,6 +33,7 @@ function mostrarAjuda() {
   nuvo --port 4747           troca a porta
   nuvo --host 0.0.0.0        troca o endereço de escuta
   nuvo --token               mostra o token de acesso
+  nuvo --abrir               sobe o servidor e abre a janela do app
   nuvo --home ~/.outra       usa outra pasta de dados (instância separada)
   nuvo --no-token            desliga o token (só em rede confiável)
   nuvo --com-token           religa o token, e gera um novo se preciso
@@ -203,10 +204,30 @@ if (Object.keys(patch).length) patchConfig(patch);
 
 const { linhaDeComando } = await import('../server/empacotado.mjs');
 const { start } = await import('../server/index.mjs');
-start().catch((err) => {
+start().then(async () => {
+  // Duplo clique não passa por terminal nenhum: sem isto, o programa sobe, fica
+  // escutando e a pessoa não vê nada acontecer. `--abrir` é o que o pacote de
+  // aplicativo do macOS chama.
+  if (!args.includes('--abrir') && !args.includes('--open')) return;
+  const { abrirJanela } = await import('../server/desktop.mjs');
+  const onde = abrirJanela();
+  console.log(`janela aberta em ${onde.browser}`);
+}).catch(async (err) => {
   // Pilha de erro do Node não serve pra quem só quer abrir o app. Os dois
   // casos que acontecem de verdade em casa ganham a instrução junto.
   const cfg = loadConfig();
+
+  // Clicar no ícone com o serviço já rodando cai aqui. Se quem está na porta é
+  // outro Nuvo, não há nada de errado acontecendo: a janela é o que a pessoa
+  // pediu, e é ela que abre.
+  if (err.code === 'EADDRINUSE' && (args.includes('--abrir') || args.includes('--open'))) {
+    const { ehNuvo, abrirJanela } = await import('../server/desktop.mjs');
+    if (await ehNuvo(cfg.port)) {
+      abrirJanela();
+      process.exit(0);
+    }
+  }
+
   if (err.code === 'EADDRINUSE') {
     console.error(`a porta ${cfg.port} já está ocupada por outro programa.`);
     // Dentro do executável não existe `bin/nuvo.mjs` pra rodar: a instrução

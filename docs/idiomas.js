@@ -12,7 +12,7 @@
 // na saudação da primeira tela. Nome próprio também é idioma.
 window.IDIOMAS = {
   en: {
-    '@nomes': ['Alex', 'Maya', 'Chris', 'Priya', 'Jordan', 'Amara', 'Noah', 'YOUR NAME'],
+    '@nomes': ['Alex', 'Maya', 'Chris', 'Priya', 'Jordan', 'Amara', 'Noah'],
 
     // A captura é a do app na língua de quem está lendo: a landing em inglês
     // com a tela do app em português mostra um produto que não existe.
@@ -116,6 +116,17 @@ window.IDIOMAS = {
     'Windows 10 ou mais novo': 'Windows 10 or newer',
     'precisa da libatomic': 'needs libatomic',
     'macOS 13 ou mais novo': 'macOS 13 or newer',
+    'Mac e Linux, numa linha só': 'Mac and Linux, in a single line',
+    'Baixa a última versão, confere a soma e abre o app. No Mac é o caminho que não esbarra no aviso do Gatekeeper — arquivo baixado pelo navegador vem marcado como suspeito, e o baixado por aqui não.':
+      'Downloads the latest version, checks the checksum and opens the app. On a Mac this is the route that does not hit the Gatekeeper warning — a file downloaded by the browser is flagged as suspicious, one downloaded this way is not.',
+    'ou baixe o arquivo': 'or download the file',
+    'copiar': 'copy',
+    'copiado': 'copied',
+    'num': 'in a',
+    'Baixou o .tar.gz no Mac? O macOS marca todo arquivo vindo do navegador e recusa abrir o app sem assinatura da Apple — que custa uma conta de desenvolvedor por ano. Tire a marca uma vez:':
+      'Downloaded the .tar.gz on a Mac? macOS flags every file that comes from a browser and refuses to open an app without an Apple signature — which costs a developer account per year. Remove the flag once:',
+    'e o duplo clique passa a funcionar. Quem instalou pela linha de cima não precisa disso.':
+      'and double-click starts working. Anyone who installed with the line above does not need this.',
     'Máquina mais antiga?': 'Older machine?',
     'Mac com Intel': 'Intel Mac',
     'todos os arquivos': 'all the files',
@@ -134,7 +145,7 @@ window.IDIOMAS = {
   },
 
   es: {
-    '@nomes': ['Miguel', 'Lucía', 'Mateo', 'Sofía', 'Diego', 'Valentina', 'Camila', 'TU NOMBRE'],
+    '@nomes': ['Miguel', 'Lucía', 'Mateo', 'Sofía', 'Diego', 'Valentina', 'Camila'],
 
     // A captura é a do app na língua de quem está lendo.
     'lp/tela-conversa.jpg': 'lp/tela-conversa-es.jpg',
@@ -237,6 +248,17 @@ window.IDIOMAS = {
     'Windows 10 ou mais novo': 'Windows 10 o más nuevo',
     'precisa da libatomic': 'necesita libatomic',
     'macOS 13 ou mais novo': 'macOS 13 o más nuevo',
+    'Mac e Linux, numa linha só': 'Mac y Linux, en una sola línea',
+    'Baixa a última versão, confere a soma e abre o app. No Mac é o caminho que não esbarra no aviso do Gatekeeper — arquivo baixado pelo navegador vem marcado como suspeito, e o baixado por aqui não.':
+      'Descarga la última versión, comprueba la suma y abre la app. En el Mac es el camino que no choca con el aviso de Gatekeeper: un archivo descargado por el navegador viene marcado como sospechoso, y el que se descarga así no.',
+    'ou baixe o arquivo': 'o descarga el archivo',
+    'copiar': 'copiar',
+    'copiado': 'copiado',
+    'num': 'en un',
+    'Baixou o .tar.gz no Mac? O macOS marca todo arquivo vindo do navegador e recusa abrir o app sem assinatura da Apple — que custa uma conta de desenvolvedor por ano. Tire a marca uma vez:':
+      '¿Descargaste el .tar.gz en el Mac? macOS marca todo archivo que viene del navegador y se niega a abrir una app sin firma de Apple, que cuesta una cuenta de desarrollador al año. Quita la marca una vez:',
+    'e o duplo clique passa a funcionar. Quem instalou pela linha de cima não precisa disso.':
+      'y el doble clic empieza a funcionar. Quien instaló con la línea de arriba no lo necesita.',
     'Máquina mais antiga?': '¿Máquina más antigua?',
     'Mac com Intel': 'Mac con Intel',
     'todos os arquivos': 'todos los archivos',

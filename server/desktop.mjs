@@ -9,7 +9,7 @@
 // Em troca: zero dependência, zero build, e a mesma interface no PC e no
 // celular, que continua sendo o PWA.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { writeFileSync, copyFileSync, mkdirSync, rmSync, existsSync, chmodSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
@@ -79,6 +79,63 @@ export function appUrl() {
 }
 
 /**
+ * Quem está atendendo nesta porta é um Nuvo?
+ *
+ * A pergunta não é "a porta está ocupada": o endereço que a janela abre leva o
+ * token de acesso dentro, então mandá-lo pra um programa qualquer que tenha
+ * tomado a porta entregaria a chave da casa.
+ */
+export async function ehNuvo(porta) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${porta}/api/ping`, {
+      signal: AbortSignal.timeout(1500)
+    });
+    if (!res.ok) return false;
+    const corpo = await res.json();
+    return corpo?.app === 'nuvo' || corpo?.app === 'iaunifier';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Abre a janela do app agora, sem instalar atalho nenhum.
+ *
+ * É o que o pacote `Nuvo.app` chama depois de subir o servidor. Em modo
+ * aplicativo quando existe um Chromium na máquina — janela sem abas, com o
+ * ícone do Nuvo —, e no navegador padrão quando não existe.
+ */
+export function abrirJanela() {
+  const url = appUrl();
+  const browser = findBrowser();
+  const so = platform();
+
+  if (browser) {
+    const filho = spawn(
+      browser.path,
+      [`--app=${url}`, `--user-data-dir=${join(DATA_DIR, 'navegador')}`],
+      { detached: true, stdio: 'ignore' }
+    );
+    filho.unref();
+    return { url, browser: browser.name };
+  }
+
+  // `open`/`xdg-open`/`start` devolvem na hora: quem segura a janela é o
+  // navegador, não este processo.
+  const [cmd, argumentos] =
+    so === 'darwin' ? ['open', [url]]
+    : so === 'win32' ? ['cmd', ['/c', 'start', '', url]]
+    : ['xdg-open', [url]];
+  try {
+    const filho = spawn(cmd, argumentos, { detached: true, stdio: 'ignore' });
+    filho.unref();
+  } catch {
+    // Sem navegador e sem abridor: o endereço já foi impresso pelo servidor.
+  }
+  return { url, browser: 'navegador padrão' };
+}
+
+/**
  * O script que o ícone dispara: garante o servidor de pé e abre a janela.
  *
  * O servidor é subido em segundo plano quando a porta não responde — quem já
@@ -105,7 +162,7 @@ ping_nuvo() {
 }
 
 if ! ping_nuvo; then
-  IAUNIFIER_HOME="${DATA_DIR}" ${COMANDO_SERVIDOR} >>"${join(DATA_DIR, 'servidor.log')}" 2>&1 &
+  NUVO_HOME="${DATA_DIR}" ${COMANDO_SERVIDOR} >>"${join(DATA_DIR, 'servidor.log')}" 2>&1 &
   # Espera o servidor atender antes de abrir a janela, senão a primeira
   # abertura mostra "não foi possível conectar".
   i=0
@@ -297,7 +354,7 @@ function winInstall() {
 rem Gerado pelo Nuvo. Recriar: nuvo instalar-app\r
 curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"nuvo" >NUL\r
 if errorlevel 1 (\r
-  set IAUNIFIER_HOME=${DATA_DIR}\r
+  set NUVO_HOME=${DATA_DIR}\r
   start "" /b ${COMANDO_SERVIDOR}\r
   timeout /t 4 /nobreak >NUL\r
   curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"nuvo" >NUL\r

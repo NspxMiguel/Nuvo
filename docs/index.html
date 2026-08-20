@@ -66,7 +66,7 @@
      `sticky`, e o elástico do navegador arrasta a página inteira por baixo dele
      como se estivesse quebrado. `none` tira o repique nas duas pontas. */
   html, body { overscroll-behavior-y: none; }
-  .palco { position: relative; height: 250vh; }
+  .palco { position: relative; height: 360vh; }
   .palco-fixo {
     position: sticky;
     top: 0;
@@ -108,6 +108,14 @@
      carregada: sem isso a frase desliza pros lados a cada troca. */
   .nome { display: inline-block; min-width: var(--nome-larg, 5ch); text-align: left; color: #3d7dff; }
   .nome.voce { color: #fff; }
+  /* O cursor de texto que espera alguém digitar: mesma altura da letra, mesma
+     cor do nome. Pisca como o de qualquer campo de escrever. */
+  .cursor {
+    display: inline-block; width: .07em; height: .82em; vertical-align: -.06em;
+    background: currentColor; animation: piscar 1.1s steps(2, start) infinite;
+  }
+  @keyframes piscar { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
   .oi-sub { margin: 0; max-width: 460px; font-size: 17.5px; line-height: 1.6; color: #9aa0aa; }
 
   .frase {
@@ -172,13 +180,34 @@
   .acoes .vazio { background: #101013; border: 1px solid #26262b; color: #fff; font-weight: 500; }
   .acoes .vazio:hover { border-color: #3d3d45; color: #fff; }
 
+  /* -------------------------------------------------- o comando de instalar */
+  .instalar { display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; max-width: 720px; }
+  .instalar-titulo { margin: 0; font-size: 13.5px; letter-spacing: .1em; text-transform: uppercase; color: #52525b; }
+  .instalar-linha {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 16px 16px 16px 20px; border: 1px solid #23232a; border-radius: 16px; background: #0d0d10;
+  }
+  .instalar-linha code {
+    flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; color: #cfd2d8;
+  }
+  .instalar-linha button {
+    flex: none; padding: 7px 14px; border: 1px solid #2b2b33; border-radius: 999px;
+    background: transparent; color: #9aa0aa; font: inherit; font-size: 13px; cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .instalar-linha button:hover { color: #fff; border-color: #45454f; }
+  .instalar-linha button.feito { color: #3d7dff; border-color: #3d7dff; }
+  .instalar-nota { margin: 0; font-size: 14px; line-height: 1.6; color: #71717a; text-align: center; }
+  .ou { margin: 0; font-size: 13.5px; letter-spacing: .1em; text-transform: uppercase; color: #3f3f46; }
+
   .dica { grid-area: 1 / 1; align-self: end; margin-bottom: clamp(20px, 5vh, 40px); font-size: 13.5px; letter-spacing: .1em; text-transform: uppercase; color: #52525b; }
   .dica::after { content: ''; display: block; width: 1px; height: 26px; margin: 10px auto 0; background: linear-gradient(#52525b, transparent); }
 
   @media (max-width: 760px) {
     /* No celular a rolagem travada cansa mais rápido: o mesmo roteiro cabe em
        menos tela, e o texto empurrado vira uma coluna só. */
-    .palco { height: 340vh; }
+    .palco { height: 270vh; }
     .final { flex-direction: column; gap: 18px; }
     .lado-esq, .lado-dir { text-align: center; }
   }
@@ -365,28 +394,41 @@
   <div style="max-width:1160px;margin:0 auto;display:flex;flex-direction:column;gap:32px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;max-width:620px">
       <h2 style="margin:0;font-size:clamp(30px,3.4vw,44px);font-weight:550;line-height:1.06;letter-spacing:-.035em" data-i18n>Baixar o Nuvo</h2>
-      <p style="margin:0;font-size:17.5px;line-height:1.6;color:#9aa0aa"><span data-i18n>Versão</span> 0.1.6. <span data-i18n>Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.</span></p>
+      <p style="margin:0;font-size:17.5px;line-height:1.6;color:#9aa0aa"><span data-i18n>Versão</span> 0.2.0. <span data-i18n>Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.</span></p>
     </div>
 
+    <div class="instalar">
+      <p class="instalar-titulo"><span data-i18n>Mac e Linux, numa linha só</span></p>
+      <div class="instalar-linha">
+        <code id="cmd-instalar">curl -fsSL https://www.nspx.dev/Nuvo/instalar.sh | sh</code>
+        <button type="button" id="copiar-cmd" data-i18n-attr="data-copiado" data-copiado="copiado"><span data-i18n>copiar</span></button>
+      </div>
+      <p class="instalar-nota" data-i18n>Baixa a última versão, confere a soma e abre o app. No Mac é o caminho que não esbarra no aviso do Gatekeeper — arquivo baixado pelo navegador vem marcado como suspeito, e o baixado por aqui não.</p>
+    </div>
+
+    <p class="ou" data-i18n>ou baixe o arquivo</p>
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:14px;width:100%;max-width:900px">
-      <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.1.6/iaunifier-0.1.6-windows-x64.zip" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
+      <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.2.0/nuvo-0.2.0-windows-x64.zip" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
         <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">Windows</span>
         <span style="font-size:14.5px;color:#8e8e96"><span data-i18n>.exe num .zip</span> · 39 MB</span>
         <span style="font-size:14px;color:#71717a"><span data-i18n>Windows 10 ou mais novo</span> · x86-64</span>
       </a>
-      <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.1.6/iaunifier-0.1.6-linux-x64.tar.gz" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
+      <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.2.0/nuvo-0.2.0-linux-x64.tar.gz" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
         <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">Linux</span>
         <span style="font-size:14.5px;color:#8e8e96">.tar.gz · 47 MB</span>
         <span style="font-size:14px;color:#71717a">x86-64 · <span data-i18n>precisa da libatomic</span></span>
       </a>
-      <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.1.6/iaunifier-0.1.6-macos-arm64.tar.gz" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
+      <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.2.0/nuvo-0.2.0-macos-arm64.tar.gz" style="display:flex;flex-direction:column;gap:7px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013" style-hover="border-color:#3a3a42;color:#fff">
         <span style="font-size:19px;font-weight:600;letter-spacing:-.02em">macOS</span>
-        <span style="font-size:14.5px;color:#8e8e96">.tar.gz · 44 MB</span>
+        <span style="font-size:14.5px;color:#8e8e96">Nuvo.app <span data-i18n>num</span> .tar.gz · 44 MB</span>
         <span style="font-size:14px;color:#71717a">Apple Silicon · <span data-i18n>macOS 13 ou mais novo</span></span>
       </a>
     </div>
 
-    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px"><span data-i18n>Máquina mais antiga?</span> <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.1.6/iaunifier-0.1.6-macos-x64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px" data-i18n>Mac com Intel</a> · <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.1.6/iaunifier-0.1.6-linux-arm64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">Linux ARM64</a> · <a href="https://github.com/NspxMiguel/Nuvo/releases/latest" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px" data-i18n>todos os arquivos</a>.</p>
+    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px"><span data-i18n>Máquina mais antiga?</span> <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.2.0/nuvo-0.2.0-macos-x64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px" data-i18n>Mac com Intel</a> · <a href="https://github.com/NspxMiguel/Nuvo/releases/download/v0.2.0/nuvo-0.2.0-linux-arm64.tar.gz" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px">Linux ARM64</a> · <a href="https://github.com/NspxMiguel/Nuvo/releases/latest" style="color:#9aa0aa;text-decoration:underline;text-underline-offset:3px" data-i18n>todos os arquivos</a>.</p>
+
+    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px"><span data-i18n>Baixou o .tar.gz no Mac? O macOS marca todo arquivo vindo do navegador e recusa abrir o app sem assinatura da Apple — que custa uma conta de desenvolvedor por ano. Tire a marca uma vez:</span> <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#9aa0aa">xattr -dr com.apple.quarantine ~/Downloads/Nuvo.app</code> <span data-i18n>e o duplo clique passa a funcionar. Quem instalou pela linha de cima não precisa disso.</span></p>
 
     <p style="margin:0;font-size:14.5px;line-height:1.6;color:#71717a;text-align:center;max-width:600px"><span data-i18n>No Linux, instale a libatomic antes:</span> <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#9aa0aa">sudo apt install libatomic1</code> <span data-i18n>no Debian e Ubuntu,</span> <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#9aa0aa">dnf install libatomic</code> <span data-i18n>no Fedora. Sem ela o programa nem abre.</span></p>
 
@@ -545,9 +587,12 @@
     const dica = document.getElementById('dica');
 
     // Nome próprio também é idioma: quem abre em inglês vê nomes de gente que
-    // fala inglês, e o último da fila continua sendo o convite.
+    // fala inglês. Depois do último vem o cursor, que é o convite — a lista
+    // acabava numa etiqueta em caixa alta ("SEU NOME"), e ali, no lugar onde
+    // todo mundo antes tinha um nome de gente, aquilo lia como campo de
+    // formulário que não foi preenchido, não como convite.
     const NOMES = (window.IDIOMAS?.[IDIOMA.atual] || {})['@nomes'] ||
-      ['Miguel', 'João', 'Ana', 'Beatriz', 'Lucas', 'Sofia', 'Helena', 'SEU NOME'];
+      ['Miguel', 'João', 'Ana', 'Beatriz', 'Lucas', 'Sofia', 'Helena'];
     const FRASES = ['Você conta uma vez.', 'E todas elas lembram.'].map(IDIOMA.t);
 
     const trava = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -603,6 +648,13 @@
       nomeEl.appendChild(caixa);
       return { texto: n, caixa, letras: emLetras(caixa, n) };
     });
+
+    // O convite. Fica escondido até a lista acabar.
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    cursor.setAttribute('aria-hidden', 'true');
+    cursor.style.display = 'none';
+    nomeEl.appendChild(cursor);
 
     const frases = FRASES.map((f) => {
       const caixa = document.createElement('span');
@@ -742,19 +794,28 @@
     // tempo é que os move, e a rolagem só cuida do que vem depois. De quebra
     // isso devolveu um terço do palco: a página ficou bem mais curta, que era a
     // outra reclamação.
-    const DURACAO_NOMES = 2400;
+    // Sete nomes em 2,4 s davam 300 ms cada, e 75% disso era a entrada das
+    // letras: a troca acontecia antes de dar tempo de ler o nome anterior, e o
+    // efeito virava tremida. Agora cada nome tem a sua vez: entra em pouco mais
+    // de um terço do tempo e fica parado o resto, que é quando ele é lido.
+    const POR_NOME = 620;
+    const DURACAO_NOMES = POR_NOME * nomes.length;
     let avancoNomes = 0;
 
     function pintarNomes() {
       const passo = 1 / nomes.length;
       const qual = Math.min(nomes.length - 1, Math.floor(avancoNomes / passo));
-      nomeEl.classList.toggle('voce', qual === nomes.length - 1);
+      const acabou = avancoNomes >= 1;
       for (let i = 0; i < nomes.length; i++) {
-        nomes[i].caixa.style.display = i === qual ? '' : 'none';
-        if (i === qual) {
-          pintarLetras(nomes[i].letras, trava((avancoNomes - i * passo) / (passo * 0.75), 0, 1));
+        nomes[i].caixa.style.display = i === qual && !acabou ? '' : 'none';
+        if (i === qual && !acabou) {
+          pintarLetras(nomes[i].letras, trava((avancoNomes - i * passo) / (passo * 0.38), 0, 1));
         }
       }
+      // O fim da lista é o convite: some o nome de outra pessoa e fica o cursor
+      // piscando, esperando. Quem está lendo é o próximo da fila.
+      nomeEl.classList.toggle('voce', acabou);
+      cursor.style.display = acabou ? '' : 'none';
     }
 
     let inicioNomes = null;
@@ -768,8 +829,9 @@
 
     let pedido = false;
     const aoRolar = () => {
-      // Rolou antes da lista terminar: o último nome é a piada inteira ("SEU
-      // NOME"), e vê-la sumir no meio da lista é pior que vê-la de uma vez.
+      // Rolou antes da lista terminar: quem já decidiu descer não fica preso
+      // esperando nome passar. A lista pula direto pro cursor, que é onde ela
+      // ia parar de qualquer jeito.
       if (avancoNomes < 1 && window.scrollY > 0) {
         avancoNomes = 1;
         inicioNomes = -Infinity;
@@ -798,5 +860,33 @@
     addEventListener('resize', preparar);
   })();
 </script>
+<script>
+  // Copiar o comando de instalação. Sem clipboard (http, navegador antigo) o
+  // texto fica selecionado, que é o que a pessoa faria na mão.
+  (() => {
+    const botao = document.getElementById('copiar-cmd');
+    const cmd = document.getElementById('cmd-instalar');
+    if (!botao || !cmd) return;
+    botao.addEventListener('click', async () => {
+      const texto = cmd.textContent.trim();
+      try {
+        await navigator.clipboard.writeText(texto);
+      } catch {
+        const faixa = document.createRange();
+        faixa.selectNodeContents(cmd);
+        const sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(faixa);
+        return;
+      }
+      const rotulo = botao.firstElementChild;
+      const antes = rotulo.textContent;
+      rotulo.textContent = botao.dataset.copiado;
+      botao.classList.add('feito');
+      setTimeout(() => { rotulo.textContent = antes; botao.classList.remove('feito'); }, 1600);
+    });
+  })();
+</script>
+
 </body>
 </html>
