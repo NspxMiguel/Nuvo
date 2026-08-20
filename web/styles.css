@@ -1769,6 +1769,13 @@ button.icon { position: relative; }
 .cd-vazio > span { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
 .cd-vazio p { margin: 10px 0 0; font-size: 15.5px; text-wrap: pretty; }
 
+/* A fila de anexos fica em cima do campo, com a mesma margem dele. */
+.cd-anexos { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 4px 8px; }
+.cd-anexos .chip { max-width: 100%; }
+.cd-anexos .chip .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cd-anexar { flex: 0 0 auto; width: var(--toque); height: var(--toque); min-width: var(--toque); padding: 0; border-radius: 50%; }
+.cd-composer textarea.recebendo { outline: 2px dashed var(--accent); outline-offset: -2px; }
+
 .cd-composer {
   display: flex;
   gap: 10px;

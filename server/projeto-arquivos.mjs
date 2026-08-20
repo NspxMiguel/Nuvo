@@ -6,8 +6,10 @@
 // as três funções tratam o disco como algo que some no meio do caminho.
 
 import { execFile } from 'node:child_process';
-import { closeSync, openSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs';
-import { extname, relative, resolve, sep } from 'node:path';
+import {
+  closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, statSync, writeFileSync
+} from 'node:fs';
+import { basename, extname, relative, resolve, sep } from 'node:path';
 import { decodeText } from './extract.mjs';
 import { erroTraduzivel } from './erro-traduzivel.mjs';
 
@@ -15,6 +17,16 @@ import { erroTraduzivel } from './erro-traduzivel.mjs';
 // Node comum entrega mais de 30 mil arquivos de `node_modules` e o limite da
 // árvore estoura antes do primeiro arquivo que a pessoa escreveu aparecer.
 const PASTAS_PULADAS = new Set(['.git', 'node_modules', 'dist', 'build', 'out', '.venv', '__pycache__']);
+
+// Onde o arquivo anexado na tela Programar vai parar.
+//
+// Tem que ser dentro da pasta do projeto: quem lê o anexo é a IA de terminal, e
+// Claude Code, Codex e opencode só abrem arquivo abaixo da pasta em que estão
+// trabalhando. Um caminho em /tmp seria recusado por elas.
+//
+// Numa pasta escondida e com o nome do app pra ficar claro de quem é, e pra não
+// disputar nome com pasta de verdade do projeto.
+export const PASTA_DE_ANEXOS = '.nuvo/anexos';
 
 // Acima disso não é código: é dump de banco, vídeo, modelo de IA. Entra na
 // árvore só pra nunca poder ser aberto, então fica de fora dela.
@@ -94,7 +106,13 @@ export function arvoreDoProjeto(raiz, { limite = 2000 } = {}) {
       if (entrada.isDirectory()) {
         // Qualquer pasta com ponto na frente fica de fora: `.git`, `.venv`,
         // `.next`, `.cache` — é histórico e cache, não é o projeto.
-        if (entrada.name.startsWith('.') || PASTAS_PULADAS.has(entrada.name)) continue;
+        //
+        // A exceção é a pasta do próprio app, e por um motivo prático: é lá que
+        // cai o arquivo anexado na tela. Escondê-la deixaria o anexo invisível
+        // logo depois de a pessoa anexar, e ela pediria pra IA ler um arquivo
+        // que a tela dizia não existir.
+        const daCasa = pasta === base && entrada.name === PASTA_DE_ANEXOS.split('/')[0];
+        if (!daCasa && (entrada.name.startsWith('.') || PASTAS_PULADAS.has(entrada.name))) continue;
         subpastas.push(caminho);
         continue;
       }
@@ -224,6 +242,63 @@ export function lerArquivoDoProjeto(raiz, relativo, { limiteBytes = 400_000 } = 
   const truncado = bytes > pedaco.length;
   const { text } = decodeText(truncado ? semCaractereQuebrado(pedaco) : pedaco);
   return { caminho, texto: text, bytes, truncado, binario: false };
+}
+
+/** Teto por arquivo. Acima disso não é anexo de conversa, é cópia de dados. */
+const MAIOR_ANEXO = 25 * 1024 * 1024;
+
+/**
+ * Nome de arquivo seguro a partir do que o navegador mandou.
+ *
+ * O que chega é texto de fora: pode vir com caminho inteiro
+ * (`../../.ssh/id_rsa`), com barra invertida do Windows, com caractere de
+ * controle, ou vazio. O que sai daqui é um nome só, sem separador nenhum.
+ */
+function nomeSeguro(bruto) {
+  const semCaminho = basename(String(bruto || '').split('\\').pop() || '');
+  const limpo = semCaminho
+    .replace(/[\u0000-\u001f]/g, '')
+    .replace(/[/\\:*?"<>|]/g, '-')
+    .replace(/^\.+/, '')
+    .trim()
+    .slice(0, 120);
+  return limpo || 'anexo';
+}
+
+/**
+ * Grava um anexo na pasta do projeto e devolve o caminho relativo dele.
+ *
+ * Não sobrescreve: se já existe arquivo com o nome, o novo ganha um número.
+ * Anexar duas vezes o mesmo `relatorio.pdf` tem que dar dois arquivos — o
+ * segundo apagar o primeiro seria perder o que a pessoa acabou de mandar.
+ *
+ * @returns {{caminho: string, bytes: number, pasta: string}}
+ */
+export function gravarAnexoNoProjeto(raiz, nome, conteudo) {
+  const base = pastaValida(raiz);
+  const dados = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(conteudo || '');
+  if (!dados.length) throw erroTraduzivel('esse arquivo chegou vazio');
+  if (dados.length > MAIOR_ANEXO) {
+    throw erroTraduzivel('esse arquivo tem {mb} MB, e o limite por anexo é 25 MB', {
+      mb: Math.round(dados.length / 1e6)
+    });
+  }
+
+  const pasta = resolve(base, ...PASTA_DE_ANEXOS.split('/'));
+  mkdirSync(pasta, { recursive: true });
+
+  const seguro = nomeSeguro(nome);
+  const ext = extname(seguro);
+  const tronco = ext ? seguro.slice(0, -ext.length) : seguro;
+  let alvo = resolve(pasta, seguro);
+  for (let i = 2; existsSync(alvo) && i < 1000; i++) alvo = resolve(pasta, `${tronco}-${i}${ext}`);
+
+  // A mesma guarda da leitura, do outro lado: `nomeSeguro` já tirou separador,
+  // e esta linha é o que garante que nenhuma volta futura escreva fora.
+  if (!alvo.startsWith(base + sep)) throw new Error('esse arquivo está fora da pasta do projeto');
+
+  writeFileSync(alvo, dados);
+  return { caminho: chaveRelativa(base, alvo), bytes: dados.length, pasta: PASTA_DE_ANEXOS };
 }
 
 /** Roda o git sem shell, com prazo, e devolve a saída. */

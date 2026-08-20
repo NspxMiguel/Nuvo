@@ -19,7 +19,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { arvoreDoProjeto, lerArquivoDoProjeto, mudancasDoProjeto } from '../server/projeto-arquivos.mjs';
+import {
+  arvoreDoProjeto, gravarAnexoNoProjeto, lerArquivoDoProjeto, mudancasDoProjeto, PASTA_DE_ANEXOS
+} from '../server/projeto-arquivos.mjs';
 
 // A raiz do projeto fica DENTRO de outra pasta de propósito: `fora.txt` e
 // `projeto-vizinho` são os alvos dos testes de fuga.
@@ -90,6 +92,35 @@ test('pasta gerada, pasta de ambiente e pasta com ponto ficam de fora', () => {
       `${gerada} não devia estar na árvore`
     );
   }
+});
+
+test('a pasta de anexos aparece na árvore, mesmo começando com ponto', () => {
+  // Pasta com ponto na frente fica de fora por regra — menos esta. Anexar um
+  // arquivo e ele não aparecer em lugar nenhum faria a pessoa pedir pra IA ler
+  // um arquivo que a própria tela dizia não existir.
+  const raiz = join(TOPO, 'com-anexo');
+  escrever(raiz, 'soma.mjs', 'export const soma = (a, b) => a + b;\n');
+  escrever(raiz, join('.git', 'config'), '[core]\n');
+  escrever(raiz, join('.cache', 'lixo.bin'), 'x');
+  const anexo = gravarAnexoNoProjeto(raiz, 'contrato.txt', Buffer.from('o anexo'));
+
+  const caminhos = arvoreDoProjeto(raiz).arquivos.map((a) => a.caminho);
+  assert.ok(caminhos.includes(anexo.caminho), `${anexo.caminho} não apareceu: ${caminhos.join(', ')}`);
+  // E as outras pastas com ponto continuam fora.
+  assert.ok(!caminhos.some((c) => c.startsWith('.git/') || c.startsWith('.cache/')), caminhos.join(', '));
+});
+
+test('pasta com o nome do app fora da raiz continua escondida', () => {
+  // A exceção vale só pra pasta do app na raiz do projeto. Um `.nuvo` que
+  // alguém tenha lá no meio da árvore não é a nossa e volta a ser escondida,
+  // como qualquer outra pasta com ponto.
+  const raiz = join(TOPO, 'nuvo-no-meio');
+  const nome = PASTA_DE_ANEXOS.split('/')[0];
+  escrever(raiz, 'soma.mjs', 'x');
+  escrever(raiz, join('sub', nome, 'coisa.txt'), 'não é a nossa');
+
+  const caminhos = arvoreDoProjeto(raiz).arquivos.map((a) => a.caminho);
+  assert.deepEqual(caminhos, ['soma.mjs']);
 });
 
 test('arquivo acima de 2 MB não entra na árvore', () => {

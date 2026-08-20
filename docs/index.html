@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nuvo — todas as suas IAs, uma memória só</title>
 <link rel="icon" href="lp/icon-512.png">
+<!-- A primeira coisa que a pessoa lê é a saudação, e ela é Bricolage. Sem esta
+     linha o navegador só descobre a fonte depois de baixar e ler o CSS, e a
+     frase troca de letra na cara de quem está lendo. -->
+<link rel="preload" href="fontes/bricolage-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fontes/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script src="lugar.js"></script>
   <script src="idiomas.js"></script>
 <meta name="description" content="Programa que roda na sua máquina e junta os modelos locais, as IAs pagas por uso e os programas de terminal numa conversa só, com a mesma memória para todas.">
@@ -16,8 +21,59 @@
 <meta property="og:url" content="https://www.nspx.dev/Nuvo/">
 <meta name="twitter:card" content="summary_large_image">
 <style>
+  /* Duas famílias, servidas daqui — nunca de CDN. Detalhe de licença e origem
+     em `fontes/LEIAME.md`. O app em `web/` continua na fonte do sistema: ele
+     roda sem internet, e uma fonte baixada seria a única parte da interface a
+     depender de rede. */
+  @font-face {
+    font-family: 'Bricolage Grotesque';
+    src: url(fontes/bricolage-latin.woff2) format('woff2');
+    font-weight: 200 800;
+    font-stretch: 75% 100%;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Bricolage Grotesque';
+    src: url(fontes/bricolage-latin-ext.woff2) format('woff2');
+    font-weight: 200 800;
+    font-stretch: 75% 100%;
+    font-display: swap;
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'Geist';
+    src: url(fontes/geist-latin.woff2) format('woff2');
+    font-weight: 100 900;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Geist';
+    src: url(fontes/geist-latin-ext.woff2) format('woff2');
+    font-weight: 100 900;
+    font-display: swap;
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+
+  :root {
+    /* Geist no texto que se lê linha a linha, Bricolage no que se lê de longe.
+       A pilha de sistema fica atrás das duas: se a fonte não chegar, a página
+       continua com a mesma métrica de antes, não com Times. */
+    --texto: 'Geist', -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, system-ui, sans-serif;
+    --titulo: 'Bricolage Grotesque', 'Geist', -apple-system, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  }
+
   html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-  body { margin: 0; background: #000; color: #fff; font-family: -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: #000; color: #fff; font-family: var(--texto); -webkit-font-smoothing: antialiased; }
+
+  /* Bricolage tem eixo de largura: nos títulos ela fecha um pouco, que é o que
+     dá a linha compacta sem espremer letra à força com `letter-spacing`. */
+  h1, h2, h3, .oi, .lado-esq, .instalar-titulo, .ou {
+    font-family: var(--titulo);
+    font-stretch: 92%;
+    font-optical-sizing: auto;
+  }
   * { box-sizing: border-box; }
   a { color: #fff; text-decoration: none; }
   a:hover { color: #9aa0aa; }
@@ -95,7 +151,9 @@
     font-size: clamp(32px, 5.4vw, 60px);
     font-weight: 550;
     line-height: 1.08;
-    letter-spacing: -.035em;
+    /* Menos aperto que o resto dos títulos: a Bricolage já vem estreita, e o
+       -.035em que servia pra SF Pro encostava "Pode" em "falar". */
+    letter-spacing: -.012em;
     /* Uma linha só: quebrar entre "falar," e o nome faria o nome pular de
        linha a cada troca, e a tela inteira tremer junto. */
     white-space: nowrap;
@@ -201,6 +259,24 @@
   .instalar-nota { margin: 0; font-size: 14px; line-height: 1.6; color: #71717a; text-align: center; }
   .ou { margin: 0; font-size: 13.5px; letter-spacing: .1em; text-transform: uppercase; color: #3f3f46; }
 
+  /* ------------------------------------------- o resto da página entrando
+     A primeira tela tem movimento; da segunda pra baixo tudo já estava no
+     lugar, e a página trocava de temperatura no meio. Esta é a mesma física
+     do app quando uma conversa nova abre: sobe uns pixels e revela, com o
+     texto vindo antes da imagem. */
+  .revelar { opacity: 0; transform: translateY(18px); }
+  .revelar.dentro {
+    opacity: 1;
+    transform: none;
+    transition: opacity 620ms cubic-bezier(.22, .61, .36, 1) var(--atraso, 0ms),
+                transform 620ms cubic-bezier(.22, .61, .36, 1) var(--atraso, 0ms);
+  }
+  /* Quem pediu menos movimento recebe a página pronta, não a página parada
+     num estado invisível esperando um observador que não vai animar nada. */
+  @media (prefers-reduced-motion: reduce) {
+    .revelar { opacity: 1; transform: none; transition: none; }
+  }
+
   .dica { grid-area: 1 / 1; align-self: end; margin-bottom: clamp(20px, 5vh, 40px); font-size: 13.5px; letter-spacing: .1em; text-transform: uppercase; color: #52525b; }
   .dica::after { content: ''; display: block; width: 1px; height: 26px; margin: 10px auto 0; background: linear-gradient(#52525b, transparent); }
 
@@ -297,7 +373,7 @@
 <section id="memoria" style="margin-top:150px;padding:130px 28px 0;border-top:1px solid #17171a">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:56px;align-items:start">
     <div style="display:flex;flex-direction:column;gap:16px">
-      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance" data-i18n>Uma memória, não cinco conversas</h2>
+      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.016em;text-wrap:balance" data-i18n>Uma memória, não cinco conversas</h2>
       <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Cada IA que você usa hoje começa do zero. Nuvo guarda o que importa uma vez — como você gosta de resposta, o que tem no seu projeto, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.</p>
     </div>
     <div style="display:flex;flex-direction:column">
@@ -321,7 +397,7 @@
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:14px">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Perguntar pra várias</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Pergunte pra cinco ao mesmo tempo</h2>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.015em;text-wrap:balance" data-i18n>Pergunte pra cinco ao mesmo tempo</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>A mesma pergunta em várias IAs, todas lendo a mesma memória. Compare lado a lado, deixe que elas votem ou receba as respostas costuradas numa só. Quem responde em três segundos não fica esperando quem leva quarenta.</p>
     </div>
     <figure style="margin:0"><img src="lp/tela-varias.jpg" data-i18n-attr="alt,src" alt="Tela Perguntar pra várias: a pergunta, a barra de progresso e três IAs respondendo lado a lado, cada uma com o tempo que levou" style="width:100%"></figure>
@@ -333,7 +409,7 @@
     <figure style="margin:0;order:2"><img src="lp/tela-maquina.jpg" data-i18n-attr="alt,src" alt="Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>IAs locais</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Só as IAs que cabem na sua máquina</h2>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.015em;text-wrap:balance" data-i18n>Só as IAs que cabem na sua máquina</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Nuvo olha a memória RAM e o processador da sua máquina e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase sobre para que ele é bom e por que escolhê-lo em vez do outro.</p>
     </div>
   </div>
@@ -343,7 +419,7 @@
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:14px">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Programas de terminal</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Claude Code, Codex, Gemini e opencode dentro do app</h2>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.015em;text-wrap:balance" data-i18n>Claude Code, Codex, Gemini e opencode dentro do app</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Os mesmos programas que você já usa no terminal respondem dentro da conversa, sem chave de API e sem cobrança por uso — eles usam a assinatura que você já tem. Leem a mesma memória das outras e trabalham na pasta que o projeto apontar.</p>
     </div>
     <figure style="margin:0"><img src="lp/tela-cli.jpg" data-i18n-attr="alt,src" alt="Uma conversa com o Codex respondendo sobre algo que foi contado ao Claude Code, com o rodapé mostrando os dois fatos que ele usou da memória" style="width:100%"></figure>
@@ -355,7 +431,7 @@
     <figure style="margin:0;order:2"><img src="lp/tela-programar.jpg" data-i18n-attr="alt,src" alt="A tela Programar: a conversa de um lado e, do outro, o painel com cada arquivo que a IA leu e editou, o comando que rodou e quanto custou o turno" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Modo programar</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Você vê a IA trabalhar, arquivo por arquivo</h2>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.015em;text-wrap:balance" data-i18n>Você vê a IA trabalhar, arquivo por arquivo</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Aponte uma pasta e peça a mudança. Do lado da conversa abre um painel com a árvore do projeto, cada arquivo que ela leu ou escreveu, cada comando que rodou — com a saída inteira e se deu certo — e o que mudou desde o último commit.</p>
       <p style="margin:0;font-size:15.5px;line-height:1.6;color:#71717a" data-i18n>O passo a passo vem do próprio Claude Code, Codex ou opencode, não de um palpite: o app lê o relato que eles publicam enquanto trabalham. A IA só ganha permissão de escrever depois que você escolhe a pasta, e só dentro dela.</p>
     </div>
@@ -367,7 +443,7 @@
     <figure style="margin:0;order:2"><img src="lp/tela-agente.jpg" data-i18n-attr="alt,src" alt="Uma conversa em modo agente: a trilha mostra a busca, a página aberta e o motivo de cada passo, e a resposta cita a fonte" style="width:100%"></figure>
     <div style="display:flex;flex-direction:column;gap:14px;order:1">
       <span style="font-size:13.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#71717a" data-i18n>Modo agente</span>
-      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.03em;text-wrap:balance" data-i18n>Ela abre o navegador e vai atrás</h2>
+      <h2 style="margin:0;font-size:clamp(26px,2.8vw,36px);font-weight:550;line-height:1.12;letter-spacing:-.015em;text-wrap:balance" data-i18n>Ela abre o navegador e vai atrás</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Um clique no globo e a IA passa a dirigir um navegador de verdade: busca, entra no site, clica, lê e volta com a resposta e o endereço de onde tirou. Não é o resumo de um resultado de busca — é a página aberta, inclusive a que só existe depois que o JavaScript roda. Você acompanha cada passo e o porquê dele.</p>
       <p style="margin:0;font-size:15.5px;line-height:1.6;color:#71717a" data-i18n>Funciona com qualquer IA da lista, inclusive as que rodam na sua máquina, desde que você tenha Chrome, Chromium, Edge ou Brave instalado. O navegador abre num perfil separado, longe da sua sessão do dia a dia, e não preenche campo de senha.</p>
     </div>
@@ -377,7 +453,7 @@
 <section id="privacidade" style="margin-top:130px;padding:130px 28px 0;border-top:1px solid #17171a">
   <div style="max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:52px;align-items:start">
     <div style="display:flex;flex-direction:column;gap:16px">
-      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.032em;text-wrap:balance" data-i18n>Roda na sua máquina</h2>
+      <h2 style="margin:0;font-size:clamp(28px,3.2vw,40px);font-weight:550;line-height:1.1;letter-spacing:-.016em;text-wrap:balance" data-i18n>Roda na sua máquina</h2>
       <p style="margin:0;font-size:18px;line-height:1.65;color:#9aa0aa;text-wrap:pretty" data-i18n>Nuvo é um programa que você instala e roda na sua máquina, não um serviço na nuvem. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam numa pasta sua — dá pra abrir, copiar e apagar na mão.</p>
     </div>
     <div style="display:flex;flex-direction:column;gap:12px;padding:24px;border:1px solid #1e1e22;border-radius:22px;background:#101013">
@@ -393,7 +469,7 @@
 <section id="baixar" style="margin-top:130px;padding:130px 28px 0;border-top:1px solid #17171a">
   <div style="max-width:1160px;margin:0 auto;display:flex;flex-direction:column;gap:32px;align-items:center">
     <div style="display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;max-width:620px">
-      <h2 style="margin:0;font-size:clamp(30px,3.4vw,44px);font-weight:550;line-height:1.06;letter-spacing:-.035em" data-i18n>Baixar o Nuvo</h2>
+      <h2 style="margin:0;font-size:clamp(30px,3.4vw,44px);font-weight:550;line-height:1.06;letter-spacing:-.018em" data-i18n>Baixar o Nuvo</h2>
       <p style="margin:0;font-size:17.5px;line-height:1.6;color:#9aa0aa"><span data-i18n>Versão</span> 0.2.0. <span data-i18n>Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.</span></p>
     </div>
 
@@ -442,7 +518,7 @@
       <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="rn2" x1="2" y1="0" x2="22" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#7aa8ff"></stop><stop offset="1" stop-color="#3d5cff"></stop></linearGradient></defs><g fill="url(#rn2)"><circle cx="12" cy="7.4" r="5.2"></circle><circle cx="15.98" cy="9.7" r="5.2"></circle><circle cx="15.98" cy="14.3" r="5.2"></circle><circle cx="12" cy="16.6" r="5.2"></circle><circle cx="8.02" cy="14.3" r="5.2"></circle><circle cx="8.02" cy="9.7" r="5.2"></circle><circle cx="12" cy="12" r="6.8"></circle></g></svg>
       Nuvo
     </span>
-    <span style="font-size:14px;color:#71717a"><span data-i18n>Versão</span> 0.1.6 · <span data-i18n>código aberto</span></span>
+    <span style="font-size:14px;color:#71717a"><span data-i18n>Versão</span> 0.2.0 · <span data-i18n>código aberto</span></span>
     <div style="flex:1"></div>
     <div style="display:flex;flex-wrap:wrap;gap:20px;font-size:14px;color:#8e8e96">
       <a href="https://github.com/NspxMiguel/Nuvo" style="color:inherit" data-i18n>Código</a>
@@ -887,6 +963,53 @@
     });
   })();
 </script>
+<script>
+  // Revela as seções conforme elas chegam na tela.
+  //
+  // `IntersectionObserver` e não evento de rolagem: o observador roda fora da
+  // thread de layout e não pede posição de elemento a cada quadro, que é o que
+  // faz rolagem em página longa engasgar no celular.
+  (() => {
+    const alvos = document.querySelectorAll('#memoria ~ section, #memoria');
+    if (!alvos.length) return;
+
+    const parado = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const blocos = [];
+    for (const secao of alvos) {
+      // Cada filho direto do miolo entra por conta: a seção inteira de uma vez
+      // faz um bloco de 600px aparecer instantaneamente, o que não lê como
+      // movimento, lê como falha de carregamento.
+      const miolo = secao.firstElementChild;
+      const partes = miolo && miolo.children.length > 1 ? [...miolo.children] : [secao];
+      partes.forEach((parte, i) => {
+        parte.classList.add('revelar');
+        // O texto antes da imagem, sempre — é a ordem em que se lê.
+        parte.style.setProperty('--atraso', `${i * 90}ms`);
+        blocos.push(parte);
+      });
+    }
+
+    if (parado || !('IntersectionObserver' in window)) {
+      for (const b of blocos) b.classList.add('dentro');
+      return;
+    }
+
+    const olho = new IntersectionObserver(
+      (entradas) => {
+        for (const e of entradas) {
+          if (!e.isIntersecting) continue;
+          e.target.classList.add('dentro');
+          // Uma vez só: reanimar quem volta pra tela faz a página piscar quando
+          // a pessoa rola pra cima pra reler alguma coisa.
+          olho.unobserve(e.target);
+        }
+      },
+      { rootMargin: '0px 0px -12% 0px', threshold: 0.08 }
+    );
+    for (const b of blocos) olho.observe(b);
+  })();
+</script>
+
 
 </body>
 </html>

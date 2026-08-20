@@ -50,7 +50,8 @@ const estado = {
   trabalho: [],
   arquivoAberto: null,
   painelAberto: false,
-  transmitindo: null
+  transmitindo: null,
+  anexos: []
 };
 
 /**
@@ -301,7 +302,11 @@ export async function renderCode(el, { switchView }) {
     <div class="code-corpo">
       <div class="code-conversa">
         <div id="cd-msgs" class="cd-msgs"></div>
+        <div id="cd-anexos" class="cd-anexos" hidden></div>
         <form id="cd-composer" class="cd-composer">
+          <input id="cd-arquivo" type="file" multiple hidden />
+          <button id="cd-anexar" class="icon" type="button" title="${t('Anexar arquivo')}"
+            aria-label="${t('Anexar arquivo')}">${icon('paperclip', 19)}</button>
           <textarea id="cd-input" rows="1" placeholder="${t(
             'Peça uma mudança no código'
           )}"></textarea>
@@ -336,6 +341,9 @@ export async function renderCode(el, { switchView }) {
   const campo = el.querySelector('#cd-input');
   const btnEnviar = el.querySelector('#cd-enviar');
   const btnParar = el.querySelector('#cd-parar');
+  const barraAnexos = el.querySelector('#cd-anexos');
+  const campoArquivo = el.querySelector('#cd-arquivo');
+  const btnAnexar = el.querySelector('#cd-anexar');
 
   const projeto = () => `projeto=${encodeURIComponent(estado.projetoId)}`;
   const descer = () => {
@@ -687,6 +695,60 @@ export async function renderCode(el, { switchView }) {
     if (estado.aba === 'trabalho') desenharTrabalho();
   }
 
+  // ------------------------------------------------------------------ anexos
+  //
+  // Aqui o anexo não vira contexto do pedido, como na conversa: quem lê é a IA
+  // de terminal, e ela lê arquivo do disco. Então o arquivo é gravado dentro da
+  // pasta do projeto e o que vai no pedido é o caminho dele.
+
+  function desenharAnexos() {
+    barraAnexos.innerHTML = '';
+    barraAnexos.hidden = !estado.anexos.length;
+    for (const anexo of estado.anexos) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.title = anexo.caminho;
+      chip.innerHTML = `
+        <span class="nome">${escapeHtml(anexo.caminho.split('/').pop())}</span>
+        <button type="button" title="${escapeHtml(t('tirar do pedido'))}"
+          aria-label="${escapeHtml(t('tirar {nome} do pedido', { nome: anexo.caminho.split('/').pop() }))}"
+          >${icon('close', 15)}</button>`;
+      // Só tira da lista: o arquivo fica na pasta do projeto de propósito, que é
+      // onde a pessoa mandou pôr. Apagar arquivo de projeto de alguém a partir
+      // de um clique de "tirar da lista" seria uma surpresa ruim.
+      chip.querySelector('button').onclick = () => {
+        estado.anexos = estado.anexos.filter((a) => a !== anexo);
+        desenharAnexos();
+      };
+      barraAnexos.appendChild(chip);
+    }
+  }
+
+  async function anexar(arquivos) {
+    for (const arquivo of arquivos) {
+      try {
+        const anexo = await api(
+          `/codigo/anexo?${projeto()}&name=${encodeURIComponent(arquivo.name)}`,
+          { method: 'POST', body: await arquivo.arrayBuffer(), raw: true }
+        );
+        estado.anexos.push(anexo);
+      } catch (err) {
+        toast(`${arquivo.name}: ${err.message}`, 'err');
+      }
+    }
+    desenharAnexos();
+    // O arquivo acabou de aparecer na pasta: a árvore aberta ao lado está
+    // desatualizada no instante seguinte ao anexo.
+    if (estado.aba === 'arquivos' && !estado.arquivoAberto) desenharArquivos();
+  }
+
+  /** O texto que vai pra IA, com os caminhos dos anexos por cima. */
+  function comAnexos(texto) {
+    if (!estado.anexos.length) return texto;
+    const lista = estado.anexos.map((a) => `- ${a.caminho}`).join('\n');
+    return `${t('Arquivos que anexei nesta pasta:')}\n${lista}\n\n${texto}`;
+  }
+
   async function enviar(texto) {
     const controller = new AbortController();
     estado.transmitindo = controller;
@@ -782,7 +844,32 @@ export async function renderCode(el, { switchView }) {
     if (estado.transmitindo) return;
     campo.value = '';
     campo.style.height = 'auto';
-    enviar(texto);
+    const pedido = comAnexos(texto);
+    estado.anexos = [];
+    desenharAnexos();
+    enviar(pedido);
+  };
+
+  btnAnexar.onclick = () => campoArquivo.click();
+  campoArquivo.onchange = async () => {
+    const escolhidos = [...campoArquivo.files];
+    // Zerado antes de subir: sem isto, escolher o mesmo arquivo duas vezes
+    // seguidas não dispara `change` na segunda.
+    campoArquivo.value = '';
+    if (escolhidos.length) await anexar(escolhidos);
+  };
+
+  // Arrastar pra cima do campo é o gesto que as pessoas tentam primeiro.
+  campo.ondragover = (ev) => {
+    ev.preventDefault();
+    campo.classList.add('recebendo');
+  };
+  campo.ondragleave = () => campo.classList.remove('recebendo');
+  campo.ondrop = async (ev) => {
+    ev.preventDefault();
+    campo.classList.remove('recebendo');
+    const arquivos = [...(ev.dataTransfer?.files || [])];
+    if (arquivos.length) await anexar(arquivos);
   };
   campo.onkeydown = (ev) => {
     if (ev.key === 'Enter' && !ev.shiftKey) {

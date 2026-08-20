@@ -54,7 +54,9 @@ import { search as webSearch, readPage } from './web.mjs';
 import { createBackup, restoreBackup, listBackups, backupName } from './backup.mjs';
 import { explainProviderError } from './errors.mjs';
 import { ARGS_ESTRUTURADO, nomeDoComando } from './eventos-cli.mjs';
-import { arvoreDoProjeto, lerArquivoDoProjeto, mudancasDoProjeto } from './projeto-arquivos.mjs';
+import {
+  arvoreDoProjeto, gravarAnexoNoProjeto, lerArquivoDoProjeto, mudancasDoProjeto
+} from './projeto-arquivos.mjs';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { corpoDoErro, erroTraduzivel } from './erro-traduzivel.mjs';
@@ -733,6 +735,24 @@ export async function handleApi(req, res, url) {
       // catch a recusa da peça de arquivos subiria até o try do index.mjs, que
       // responde 500 — e a tela diria "erro interno" pra quem só clicou no
       // arquivo errado.
+      return json(res, corpoDoErro(err), 400);
+    }
+  }
+
+  // Anexo da tela Programar: o arquivo é gravado na pasta do projeto e o que
+  // volta é o caminho relativo. A IA de terminal não recebe conteúdo pelo
+  // pedido — ela abre o arquivo por conta, e por isso ele precisa estar num
+  // lugar que ela alcance.
+  if (method === 'POST' && seg[0] === 'codigo' && seg[1] === 'anexo') {
+    const pasta = pastaDoProjeto(url);
+    if (pasta.erro) return json(res, corpoDoErro(pasta.erro), 400);
+    try {
+      const conteudo = await readBuffer(req);
+      const nome = url.searchParams.get('name') || 'arquivo';
+      return json(res, gravarAnexoNoProjeto(pasta.raiz, nome, conteudo));
+    } catch (err) {
+      // Arquivo grande demais, vazio, ou pasta sem permissão de escrita: é
+      // pedido que não dá pra atender, não defeito do servidor.
       return json(res, corpoDoErro(err), 400);
     }
   }

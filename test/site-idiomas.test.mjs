@@ -92,14 +92,47 @@ test('os idiomas têm exatamente as mesmas chaves', () => {
   assert.deepEqual(Object.keys(a).sort(), Object.keys(b).sort());
 });
 
-test('a lista de nomes da saudação existe em todo idioma e termina no convite', () => {
+test('a lista de nomes da saudação é só de nome de gente, em todo idioma', () => {
+  const listas = [];
   for (const [lingua, dic] of Object.entries(carregarIdiomas())) {
     const nomes = dic['@nomes'];
-    assert.ok(Array.isArray(nomes) && nomes.length === 8, `@nomes torto em ${lingua}`);
-    // O último é o convite ("SEU NOME"), escrito em maiúscula pra fechar a
-    // sequência apontando pra quem está lendo.
-    assert.equal(nomes.at(-1), nomes.at(-1).toUpperCase(), `convite em minúscula em ${lingua}`);
+    assert.ok(Array.isArray(nomes) && nomes.length >= 5, `@nomes torto em ${lingua}`);
+    listas.push([lingua, nomes]);
+
+    // O convite deixou de ser um item da lista. Ele era uma etiqueta em caixa
+    // alta ("SEU NOME") no lugar onde todos os outros beats tinham um nome de
+    // pessoa, e lia como campo de formulário não preenchido. Hoje quem fecha a
+    // sequência é o cursor piscando, que não precisa de tradução.
+    for (const nome of nomes) {
+      assert.notEqual(
+        nome,
+        nome.toUpperCase(),
+        `"${nome}" está em caixa alta em ${lingua}: a lista é de nome de gente`
+      );
+      assert.ok(!/\s/.test(nome), `"${nome}" tem espaço em ${lingua}: é pra ser um primeiro nome`);
+    }
   }
+
+  // Cada idioma com a sua gente: repetir a lista inteira significaria que a
+  // tradução não foi feita.
+  const [, primeira] = listas[0];
+  for (const [lingua, nomes] of listas.slice(1)) {
+    assert.notDeepEqual(nomes, primeira, `${lingua} repete a lista de nomes de outro idioma`);
+  }
+});
+
+test('o cursor fecha a sequência de nomes', () => {
+  // Contra `html` e não contra `marcacao`: o cursor é feito no script e pintado
+  // no style, e `marcacao` é justamente o HTML sem esses dois.
+  //
+  // Sem ele a saudação termina em "Pode falar," e uma caixa vazia.
+  assert.match(html, /className = 'cursor'/, 'o cursor não é mais criado');
+  assert.match(html, /\.cursor \{/, 'o cursor não tem estilo: ficaria invisível');
+  assert.match(
+    html,
+    /prefers-reduced-motion: reduce\) \{ \.cursor \{ animation: none/,
+    'quem pediu menos movimento não pode receber um cursor piscando'
+  );
 });
 
 test('cada idioma aponta pras capturas do app naquela língua', () => {
