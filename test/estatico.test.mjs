@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { caminhoDaInterface } from '../server/index.mjs';
+import { caminhoDaInterface, enderecoDoPedido } from '../server/index.mjs';
 
 test('a raiz é a página', () => {
   assert.equal(caminhoDaInterface('/'), 'index.html');
@@ -25,4 +25,21 @@ test('barra e ponto no começo não viram caminho pra fora', () => {
   assert.equal(caminhoDaInterface('//app.js'), 'app.js');
   assert.equal(caminhoDaInterface('/./sw.js'), 'sw.js');
   assert.ok(!caminhoDaInterface('/../../etc/passwd').startsWith('.'));
+});
+
+test('endereço que o `URL` recusa vira `null` em vez de derrubar o servidor', () => {
+  // O construtor de `URL` levantava de dentro do `createServer`, onde ninguém
+  // pega: o processo fechava e todas as conversas abertas caíam junto.
+  // Aconteceu aqui, num teste que montou o caminho errado — e qualquer
+  // visitante consegue o mesmo digitando duas barras.
+  assert.equal(enderecoDoPedido('//', '127.0.0.1:4747'), null);
+  assert.equal(enderecoDoPedido('//?token=x', '127.0.0.1:4747'), null);
+  assert.equal(enderecoDoPedido('//x', '127.0.0.1:4747')?.host, 'x');
+
+  // O que é endereço continua sendo endereço.
+  assert.equal(enderecoDoPedido('/', 'localhost').pathname, '/');
+  assert.equal(enderecoDoPedido('/api/settings?a=1', 'localhost').pathname, '/api/settings');
+  assert.equal(enderecoDoPedido('/idiomas/en.json', 'localhost').pathname, '/idiomas/en.json');
+  // Host vazio (pedido HTTP/1.0 sem cabeçalho) cai no `localhost` e não levanta.
+  assert.equal(enderecoDoPedido('/', '').pathname, '/');
 });

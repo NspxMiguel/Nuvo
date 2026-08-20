@@ -1,6 +1,6 @@
 {
   "name": "iaunifier",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "IA Unifier — um servidor de casa que junta IAs locais, de API e de CLI numa interface só, com memoria compartilhada entre todas elas.",
   "type": "module",
   "bin": {

@@ -1023,6 +1023,12 @@ Corrigido na 0.1.4, com a prova voltando a passar. Mac: o pacote `.tar.gz` extra
 rodado aqui. iPhone e Android: o PWA instala (manifest `standalone`, ícone
 maskable), guarda a casca e abre sem servidor.
 
+## 19/08/2026 — versão 0.1.5
+
+O modo Programar, o site em três idiomas com as capturas de cada um, a memória
+reconhecendo frase em inglês e espanhol, e cinco defeitos que a revisão do modo
+Programar achou antes de ele entrar. Detalhe de cada um nas notas da versão.
+
 ## 19/08/2026 — noite, olhando as duas telas
 
 > *"'ias ligadas' nao seria local? i18n ja foi???"*

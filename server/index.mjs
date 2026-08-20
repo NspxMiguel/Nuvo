@@ -186,6 +186,23 @@ function lanAddressSet() {
  * @param {string} pathname  o caminho da URL, como chegou
  * @returns {string} caminho relativo dentro de `web/`, sempre com `/`
  */
+/**
+ * O endereço do pedido, ou `null` quando ele não é um endereço.
+ *
+ * Um GET em `//` resolve pra `http://` sem servidor nenhum, e o construtor de
+ * `URL` levanta `ERR_INVALID_URL` — de dentro do `createServer`, onde ninguém
+ * pega. O processo fechava, e com ele todas as conversas abertas. Aconteceu de
+ * verdade aqui, num teste que montou o caminho errado; qualquer visitante
+ * consegue fazer o mesmo digitando duas barras.
+ */
+export function enderecoDoPedido(caminho, host) {
+  try {
+    return new URL(caminho, `http://${host || 'localhost'}`);
+  } catch {
+    return null;
+  }
+}
+
 export function caminhoDaInterface(pathname) {
   if (pathname === '/' || !pathname) return 'index.html';
   return normalize(pathname).split('\\').join('/').replace(/^[/.]+/, '');
@@ -259,7 +276,12 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
 
   const server = createServer(async (req, res) => {
     const host = req.headers.host || 'localhost';
-    const url = new URL(req.url, `http://${host}`);
+    const url = enderecoDoPedido(req.url, host);
+    if (!url) {
+      res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'endereço inválido' }));
+      return;
+    }
     const origin = allowedOrigin(req.headers.origin, host);
 
     if (req.method === 'OPTIONS') {
