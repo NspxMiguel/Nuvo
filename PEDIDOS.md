@@ -143,12 +143,33 @@ ao tentar abrir o app baixado.
 
 ### O que ficou faltando desta leva
 
-- [ ] **as capturas do app dentro da landing ainda mostram o nome antigo.**
-      São seis telas (`tela-conversa`, `tela-varias`, `tela-maquina`,
-      `tela-programar`, `tela-agente`, `tela-cli`), cada uma em três idiomas, e
-      as mesmas imagens alimentam o cartão do projeto no `nspx.dev`. Refazer
-      exige rodar sessão de verdade no app pra cada tela — não dá pra recortar o
-      nome de uma imagem pronta.
+- [ ] **quatro das seis capturas do app na landing ainda mostram o nome antigo.**
+
+      A `tela-conversa` foi refeita (é a que aparece primeiro e a que vira o
+      cartão do projeto no `nspx.dev`), e o `build/capturas.py` automatiza o
+      processo: sobe o app numa casa de mentira e fotografa num navegador de
+      verdade, então a imagem é o app, não uma montagem — e conversa de verdade
+      de ninguém entra numa imagem que vai pro site.
+
+      Faltam `tela-varias`, `tela-cli`, `tela-programar` e `tela-agente`. As
+      quatro mostram trabalho que só existe depois de uma sessão real com IA, e
+      escrever o conteúdo à mão seria anunciar uma coisa que o app não fez. Isso
+      é rodar as quatro sessões e fotografar.
+
+      A `tela-maquina` está de volta na versão antiga por ora: numa casa nova ela
+      abre com o aviso "falta o Ollama" ocupando o topo, o que anuncia um erro em
+      vez do produto.
+
+### Um defeito que apareceu no meio do caminho, e foi corrigido
+
+- [x] **a tela "IAs ligadas" descrevia todo modelo em português, em qualquer
+      idioma.** As frases moram numa tabela do `server/machine.mjs`, viajam como
+      dado até a tela e eram desenhadas sem passar pelo `t()` — duas linhas por
+      modelo, quatorze modelos, justamente na tela cujo trabalho é dizer, nas
+      palavras de quem lê, o que cabe na máquina dele. Corrigido, e agora um
+      teste varre o `machine.mjs` e falha quando uma frase do catálogo não tem
+      tradução (a varredura de `t('...')` não enxergava essas, que é por isso que
+      passaram batido).
 
 ---
 
