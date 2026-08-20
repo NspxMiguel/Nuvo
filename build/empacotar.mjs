@@ -240,4 +240,15 @@ for (const f of feitos) {
   console.log(`  ${f.alvo.padEnd(14)} ${(f.bytes / 1e6).toFixed(1).padStart(6)} MB  ${f.pacote.split('/').pop()}`);
 }
 writeFileSync(join(DIST, 'pacotes.json'), JSON.stringify({ versao, node: VERSAO_NODE, pacotes: feitos }, null, 2));
+
+// O arquivo de somas vai junto na versão publicada, e o instalador de uma linha
+// (`docs/instalar.sh`) lê ele antes de descompactar: download cortado no meio
+// vira erro dito em português, e não um app que abre e fecha sem explicar.
+//
+// Só as somas dos pacotes desta rodada — escrever "todas as que existem em
+// dist/" publicaria a soma de versões antigas que ficaram na pasta.
+const somas = feitos.map((f) => `${f.sha256}  ${f.pacote.split('/').pop()}`).join('\n');
+writeFileSync(join(DIST, 'SHA256SUMS.txt'), `${somas}\n`);
+
 console.log(`\nresumo em ${join(DIST, 'pacotes.json')}`);
+console.log(`somas em  ${join(DIST, 'SHA256SUMS.txt')}`);
