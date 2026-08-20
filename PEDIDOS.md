@@ -5,6 +5,45 @@ estiver entregue e conferido.
 
 ---
 
+## 20/08/2026 — o aviso da Apple ao abrir o app
+
+Mandou a captura do aviso que apareceu na primeira abertura:
+
+> **Support Ending for Intel-based Apps** — *This version of "Nuvo" includes a
+> component that will not work with a future release of macOS. Learn how to
+> update to an Apple silicon version.*
+
+- [x] **o `Nuvo.app` era anunciado como app Intel** — corrigido na 0.2.1.
+
+      O binário nunca foi o problema: `lipo -archs` responde `arm64` e nada mais.
+      O problema era o **interpretador**. O executável do pacote era um script
+      `#!/bin/sh`, e pacote cujo executável é script é anunciado com a
+      arquitetura do `/bin/sh` — que nesta máquina é `x86_64 arm64e`.
+
+      Medido lado a lado, dois pacotes iguais em `~/Applications`:
+
+      ```
+      executável = binário arm64      -> kMDItemExecutableArchitectures = (arm64)
+      executável = script #!/bin/sh   -> (x86_64, arm64)
+      ```
+
+      Agora o `Contents/MacOS/Nuvo` é o binário, sem script no meio. De quebra
+      sumiu a segunda cópia de 144 MB que ficava em `Resources/`, e a ferramenta
+      de linha de comando passou a ser o próprio executável do pacote
+      (`~/Applications/Nuvo.app/Contents/MacOS/Nuvo servico`).
+
+      Quem decide "fui aberto com duplo clique?" é o binário: o LaunchServices
+      carimba o identificador do pacote no `XPC_SERVICE_NAME`, e é esse o sinal —
+      não "a variável existe", porque terminal aberto dentro de outro app herda o
+      identificador daquele app (o meu, aqui, vinha como
+      `application.com.anthropic.claudefordesktop...`).
+
+      Conferido na sua máquina depois de instalar a 0.2.1:
+      `kMDItemExecutableArchitectures = (arm64)`, `kMDItemVersion = 0.2.1`,
+      servidor no ar na 4747, janela aberta, log em `~/Library/Logs/Nuvo.log` — e
+      o mesmo executável chamado no terminal continua sendo linha de comando, sem
+      abrir janela nenhuma.
+
 ## 20/08/2026 — o nome novo é Nuvo, e o trabalho é aqui
 
 > *"oxi, qm mando vc mexe em outros projetos? era pra continua com o Nuvo"*
