@@ -1087,7 +1087,7 @@ Quebrado em itens:
   não numa seção lá embaixo;
 - [x] **tirar a moldura que a landing põe nas capturas** — borda e canto
   arredondado que o app não tem;
-- [ ] **efeito de rolagem travada** na primeira tela: a página parece parada
+- [x] **efeito de rolagem travada** na primeira tela: a página parece parada
   enquanto o conteúdo troca ao rolar. A referência é o projeto do curso dele
   (`~/Downloads/projeto-claude`, Spider-Man, GSAP + ScrollTrigger + SplitText):
   herói pinnado, sequência de frames desenhada em canvas, troca de texto letra a
@@ -1099,3 +1099,8 @@ Quebrado em itens:
   máscara abrindo do centro sobre a captura enquanto empurra o título pra
   esquerda e o texto pra direita. `prefers-reduced-motion` mostra a primeira
   tela pronta, sem rolagem travada.
+  Conferido no ar em 19/08/2026: `#topo` mede 4,6 vezes a altura da janela e o
+  palco fica em `sticky` com `top: 0` de 18% a 78% da rolagem — é o trecho em
+  que a página parece parada. A máscara abre de 0 a 935 px nesse intervalo, e a
+  lista de nomes acompanha o idioma (Miguel/João/Ana em português,
+  Alex/Maya/Chris em inglês).
