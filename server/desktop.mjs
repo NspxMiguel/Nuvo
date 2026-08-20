@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { linhaDeComando, EMPACOTADO } from './empacotado.mjs';
 import { getAsset } from 'node:sea';
 import { loadConfig, DATA_DIR } from './config.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 // Igual ao serviço: empacotado o atalho tem que chamar o próprio executável.
 const COMANDO_SERVIDOR = linhaDeComando(import.meta.url);
@@ -313,7 +314,7 @@ const POR_SISTEMA = {
 
 function handler() {
   const impl = POR_SISTEMA[platform()];
-  if (!impl) throw new Error(`não sei criar atalho em ${platform()}`);
+  if (!impl) throw erroTraduzivel('não sei criar atalho em {sistema}', { sistema: platform() });
   return impl;
 }
 

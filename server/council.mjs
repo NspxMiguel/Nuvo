@@ -10,6 +10,7 @@
 // votar nela.
 
 import { complete, describeModel, parseJsonArray } from './complete.mjs';
+import { corpoDoErro, erroTraduzivel, textoTraduzivel } from './erro-traduzivel.mjs';
 
 const SYNTH_PROMPT = `Você recebe várias respostas independentes à mesma pergunta e escreve a resposta final.
 
@@ -47,7 +48,7 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
         const out = await complete(ref, { system, prompt, temperature, signal });
         return { ref, label: describeModel(ref), text: out.text, ms: out.ms, error: null };
       } catch (err) {
-        return { ref, label: describeModel(ref), text: '', ms: 0, error: err.message };
+        return { ref, label: describeModel(ref), text: '', ms: 0, ...corpoDoErro(err) };
       }
     })
   );
@@ -91,7 +92,7 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
           const parsed = parseJsonArray(out.text) || [];
           return { voter, order, parsed };
         } catch (err) {
-          return { voter, order, parsed: [], error: err.message };
+          return { voter, order, parsed: [], ...corpoDoErro(err) };
         }
       })
     );
@@ -145,7 +146,7 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
   }
 
   // Conselho: um modelo costura a resposta final.
-  yield { type: 'phase', text: `sintetizando com ${describeModel(judgeRef)}` };
+  yield { type: 'phase', ...textoTraduzivel('text', 'sintetizando com {ia}', { ia: describeModel(judgeRef) }) };
   const list = good.map((a, i) => `### Resposta ${i + 1}\n${a.text}`).join('\n\n');
   try {
     const final = await complete(judgeRef, {
@@ -156,7 +157,10 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
     });
     yield { type: 'synthesis', ref: judgeRef, label: describeModel(judgeRef), text: final.text, ms: final.ms };
   } catch (err) {
-    yield { type: 'error', message: `a síntese falhou: ${err.message}` };
+    yield {
+      type: 'error',
+      ...corpoDoErro(erroTraduzivel('a síntese falhou: {causa}', { causa: err.message }), undefined, 'message')
+    };
   }
   yield { type: 'done' };
 }

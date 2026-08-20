@@ -5,12 +5,13 @@
 // o texto", sem histórico, sem gravar mensagem e sem tocar na memória.
 
 import { adapterFor, contextFor, getProvider, parseRef } from './providers/index.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 /** @returns {Promise<{text: string, reasoning: string, usage: object|null, ms: number}>} */
 export async function complete(ref, { system, messages, prompt, temperature, maxTokens, signal } = {}) {
   const { providerId, modelId } = parseRef(ref);
   const provider = getProvider(providerId);
-  if (!provider) throw new Error(`provedor sumiu: ${providerId}`);
+  if (!provider) throw erroTraduzivel('provedor sumiu: {id}', { id: providerId });
   const adapter = adapterFor(provider.kind);
 
   const started = Date.now();

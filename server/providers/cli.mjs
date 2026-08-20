@@ -14,6 +14,7 @@
 
 import { spawn } from 'node:child_process';
 import { ARGS_ESTRUTURADO, nomeDoComando, traduzirLinha } from '../eventos-cli.mjs';
+import { erroTraduzivel } from '../erro-traduzivel.mjs';
 
 export const kind = 'cli';
 
@@ -264,9 +265,13 @@ export async function* stream(ctx, req) {
     }
     if (code && code !== 0 && !failure && !req.signal?.aborted) {
       const motivo = erroDoComando.trim().split('\n').filter(Boolean).at(-1);
-      failure = new Error(
-        motivo ? `${command} saiu com código ${code}: ${motivo}` : `${command} saiu com código ${code}`
-      );
+      failure = motivo
+        ? erroTraduzivel('{comando} saiu com código {codigo}: {motivo}', {
+            comando: command,
+            codigo: code,
+            motivo
+          })
+        : erroTraduzivel('{comando} saiu com código {codigo}', { comando: command, codigo: code });
     }
     done = true;
     fim = true;

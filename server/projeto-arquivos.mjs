@@ -9,6 +9,7 @@ import { execFile } from 'node:child_process';
 import { closeSync, openSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { extname, relative, resolve, sep } from 'node:path';
 import { decodeText } from './extract.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 // Pasta que só guarda coisa gerada ou baixada. Sem esta lista, um projeto de
 // Node comum entrega mais de 30 mil arquivos de `node_modules` e o limite da
@@ -54,9 +55,9 @@ function pastaValida(raiz) {
   try {
     info = statSync(base);
   } catch {
-    throw new Error(`não achei a pasta ${base} neste computador`);
+    throw erroTraduzivel('não achei a pasta {pasta} neste computador', { pasta: base });
   }
-  if (!info.isDirectory()) throw new Error(`${base} não é uma pasta`);
+  if (!info.isDirectory()) throw erroTraduzivel('{pasta} não é uma pasta', { pasta: base });
   return base;
 }
 

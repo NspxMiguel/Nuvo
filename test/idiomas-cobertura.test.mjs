@@ -136,7 +136,9 @@ test('nenhuma frase resolve plural com "(s)"', () => {
   // em cada língua. Escrever "{n} modelo(s)" pula esse mecanismo, e o texto sai
   // errado nas duas pontas: "1 modelo(s)" no singular, e no inglês a tradução
   // herda o parêntese porque o dicionário copia a forma da chave.
-  const marcadas = [...frasesDoCodigo(), ...Object.keys(en)].filter((k) => /\w\(s\)/.test(k));
+  const marcadas = [...frasesDoCodigo(), ...frasesDoServidor(), ...Object.keys(en)].filter((k) =>
+    /\w\(s\)/.test(k)
+  );
   assert.deepEqual(marcadas, [], `plural entre parênteses:\n  ${marcadas.join('\n  ')}`);
 });
 
@@ -156,25 +158,57 @@ test('nenhuma frase existe em duas versões que só diferem no ponto final', () 
   assert.deepEqual(pares, [], `frase duplicada só pelo ponto:\n  ${pares.join('\n  ')}`);
 });
 
-test('as mensagens fixas do servidor estão nos dois dicionários', () => {
-  // O servidor escreve em português: é a língua em que as mensagens nascem e
-  // ele não sabe em que idioma a tela está. Quem traduz é o cliente, em
-  // `traduzirDoServidor()` — mas só traduz o que estiver no dicionário, e o
-  // fallback do `t()` deixa a frase passar em português sem reclamar. Sem esta
-  // varredura, mudar o texto de um `throw` no servidor apaga a tradução em
-  // silêncio e o inglês volta a mostrar português.
+/**
+ * As frases que o servidor escreve. Ele só sabe português — é a língua em que
+ * as mensagens nascem —, então quem traduz é o cliente, em
+ * `traduzirDoServidor()`. Quatro formas de escrever, quatro varreduras:
+ * `throw new Error('...')` e `error: '...'` pra frase inteira; `erroTraduzivel`
+ * e `textoTraduzivel` pro molde com variável; e o campo `molde:` das regras de
+ * `errors.mjs`, que guardam o molde numa tabela em vez de numa chamada.
+ */
+function frasesDoServidor() {
   const servidor = new URL('../server/', import.meta.url);
   const frases = new Set();
+  const PADROES = [
+    /throw new Error\(\s*'((?:\\.|[^'])+)'\s*\)/g,
+    /\berror:\s*'((?:\\.|[^'])+)'/g,
+    /erroTraduzivel\(\s*'((?:\\.|[^'])+)'/g,
+    /textoTraduzivel\(\s*'\w+',\s*'((?:\\.|[^'])+)'/g,
+    /^\s*molde:\s*\n?\s*'((?:\\.|[^'])+)'/gm
+  ];
   for (const arq of globSync('**/*.mjs', { cwd: servidor })) {
     const fonte = readFileSync(new URL(arq, servidor), 'utf8');
-    for (const [, texto] of fonte.matchAll(/throw new Error\(\s*'((?:\\.|[^'])+)'\s*\)/g)) {
-      frases.add(texto.replace(/\\(['"])/g, '$1'));
-    }
-    for (const [, texto] of fonte.matchAll(/\berror:\s*'((?:\\.|[^'])+)'/g)) {
-      frases.add(texto.replace(/\\(['"])/g, '$1'));
+    for (const padrao of PADROES) {
+      for (const [, texto] of fonte.matchAll(padrao)) frases.add(texto.replace(/\\(['"])/g, '$1'));
     }
   }
-  assert.ok(frases.size > 40, `varredura achou só ${frases.size} mensagens do servidor`);
+  return frases;
+}
+
+test('as mensagens do servidor estão nos dois dicionários', () => {
+  // O `t()` cai no próprio português quando falta tradução, sem reclamar. Sem
+  // esta varredura, mudar o texto de um `throw` no servidor apaga a tradução em
+  // silêncio e o inglês volta a mostrar português no meio da tela.
+  const frases = frasesDoServidor();
+  assert.ok(frases.size > 90, `varredura achou só ${frases.size} mensagens do servidor`);
   const faltando = [...frases].filter((f) => !(f in en) || !(f in es)).sort();
   assert.deepEqual(faltando, [], `fora do dicionário:\n  ${faltando.join('\n  ')}`);
+});
+
+test('a tradução preserva os nomes das variáveis da frase', () => {
+  // A frase montada chega com `{pasta}`, `{status}`, `{causa}`. Se a tradução
+  // renomear, escrever errado ou perder um deles, o `t()` não substitui e o
+  // usuário lê a chave crua no meio da mensagem — "no encontré la carpeta
+  // {carpeta}". Não é erro de sintaxe e nenhum outro teste pega.
+  const errado = [];
+  const nomes = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  for (const [lg, dic] of [['en', en], ['es', es]]) {
+    for (const [chave, valor] of Object.entries(dic)) {
+      if (chave.startsWith('@') || typeof valor !== 'string') continue;
+      const a = nomes(chave).join(',');
+      const b = nomes(valor).join(',');
+      if (a !== b) errado.push(`[${lg}] ${chave} -> ${valor}  (${a || '—'} vs ${b || '—'})`);
+    }
+  }
+  assert.deepEqual(errado, [], `variável trocada na tradução:\n  ${errado.join('\n  ')}`);
 });

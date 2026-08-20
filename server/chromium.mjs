@@ -31,6 +31,7 @@ import {
 } from 'node:fs';
 import { basename, delimiter, join, resolve, sep } from 'node:path';
 import { DATA_DIR } from './config.mjs';
+import { erroTraduzivel, textoTraduzivel } from './erro-traduzivel.mjs';
 
 const INDICE =
   'https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json';
@@ -173,7 +174,7 @@ export function ferramentaDeDescompactar(so = process.platform, { achar = acharP
     throw new Error('não achei nem o `tar` nem o PowerShell nesta máquina — sem um dos dois não dá pra abrir o pacote do Chromium');
   }
 
-  throw new Error(`não sei descompactar em ${so}`);
+  throw erroTraduzivel('não sei descompactar em {sistema}', { sistema: so });
 }
 
 /** Roda um programa e devolve a saída; erro vira mensagem de uma linha. */
@@ -243,16 +244,22 @@ async function tamanhoDoArquivo(url, { signal } = {}) {
  */
 export async function versaoDisponivel({ signal, plataforma = plataformaDaMaquina() } = {}) {
   if (!plataforma) {
-    throw new Error(`o Chrome for Testing não publica build pra ${process.platform}/${process.arch}`);
+    throw erroTraduzivel('o Chrome for Testing não publica build pra {plataforma}', {
+      plataforma: `${process.platform}/${process.arch}`
+    });
   }
 
   const res = await buscar(INDICE, { signal });
-  if (!res.ok) throw new Error(`não deu pra ver as versões do Chromium: HTTP ${res.status}`);
+  if (!res.ok) {
+    throw erroTraduzivel('não deu pra ver as versões do Chromium: HTTP {status}', { status: res.status });
+  }
   const dados = await res.json();
 
   const canal = dados?.channels?.[CANAL];
   const alvo = canal?.downloads?.chrome?.find((d) => d.platform === plataforma);
-  if (!alvo?.url) throw new Error(`o índice do Chrome for Testing não trouxe download de ${plataforma}`);
+  if (!alvo?.url) {
+    throw erroTraduzivel('o índice do Chrome for Testing não trouxe download de {plataforma}', { plataforma });
+  }
 
   const bytes = await tamanhoDoArquivo(alvo.url, { signal });
   return { versao: String(canal.version), url: alvo.url, ...(bytes ? { bytes } : {}) };
@@ -338,11 +345,17 @@ export async function* baixarChromium({ signal } = {}) {
 
   try {
     limpar();
-    yield { type: 'phase', text: `baixando o Chromium ${versao}${bytes ? ` (${mb(bytes)} MB)` : ''}` };
+    yield {
+      type: 'phase',
+      ...textoTraduzivel('text', 'baixando o Chromium {versao}{tamanho}', {
+        versao,
+        tamanho: bytes ? ` (${mb(bytes)} MB)` : ''
+      })
+    };
     yield* baixarZip(url, parcial, { signal, esperado: bytes });
     renameSync(parcial, zip);
 
-    yield { type: 'phase', text: `descompactando com ${ferramenta.nome}` };
+    yield { type: 'phase', ...textoTraduzivel('text', 'descompactando com {ferramenta}', { ferramenta: ferramenta.nome }) };
     mkdirSync(novo, { recursive: true });
     await rodar(ferramenta.programa, ferramenta.args(zip, novo), { signal });
 
@@ -363,7 +376,7 @@ export async function* baixarChromium({ signal } = {}) {
     let aviso;
     try {
       const resposta = await rodar(binario, ['--version'], { signal, timeout: 30_000 });
-      yield { type: 'phase', text: `pronto: ${resposta || versao}` };
+      yield { type: 'phase', ...textoTraduzivel('text', 'pronto: {versao}', { versao: resposta || versao }) };
     } catch (err) {
       // Baixou e abriu o pacote — o que falhou foi executar, que em Linux
       // enxuto costuma ser biblioteca do sistema faltando. Vale entregar o
@@ -395,7 +408,7 @@ export async function* baixarChromium({ signal } = {}) {
 /** O corpo da resposta caindo no disco, contando o quanto já caiu. */
 async function* baixarZip(url, destino, { signal, esperado } = {}) {
   const res = await buscar(url, { signal, timeout: 60_000 });
-  if (!res.ok) throw new Error(`o download do Chromium falhou: HTTP ${res.status}`);
+  if (!res.ok) throw erroTraduzivel('o download do Chromium falhou: HTTP {status}', { status: res.status });
 
   const declarado = Number(res.headers.get('content-length'));
   const total = Number.isFinite(declarado) && declarado > 0 ? declarado : esperado || 0;
@@ -495,7 +508,11 @@ async function* baixarZip(url, destino, { signal, esperado } = {}) {
     // conferência lá embaixo passaria também — e o EACCES só reaparecia
     // disfarçado de "rename falhou" ou de zip corrompido.
     await fechar();
-    if (erroDeEscrita) throw new Error(`não deu pra gravar o Chromium no disco: ${erroDeEscrita.message}`);
+    if (erroDeEscrita) {
+      throw erroTraduzivel('não deu pra gravar o Chromium no disco: {causa}', {
+        causa: erroDeEscrita.message
+      });
+    }
 
     // O 100% de fechamento só vale pra download inteiro: com o corpo cortado no
     // meio a barra ia a 100% com `feito` menor que `total`, e só depois vinha o
@@ -512,7 +529,10 @@ async function* baixarZip(url, destino, { signal, esperado } = {}) {
 
   if (travado) throw new Error('a conexão parou de responder no meio do download');
   if (total && feito !== total) {
-    throw new Error(`o download veio incompleto: ${mb(feito)} MB de ${mb(total)} MB`);
+    throw erroTraduzivel('o download veio incompleto: {feito} MB de {total} MB', {
+      feito: mb(feito),
+      total: mb(total)
+    });
   }
 }
 

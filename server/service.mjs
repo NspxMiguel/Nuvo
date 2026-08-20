@@ -11,6 +11,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { comandoDoServidor, EMPACOTADO } from './empacotado.mjs';
 import { DATA_DIR } from './config.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 const LABEL = 'dev.nspx.iaunifier';
 // Empacotado, o servidor é o próprio executável e não existe arquivo de
@@ -203,7 +204,9 @@ const BY_PLATFORM = {
 
 function handler() {
   const impl = BY_PLATFORM[platform()];
-  if (!impl) throw new Error(`não sei subir sozinho em ${platform()} — rode o servidor à mão`);
+  if (!impl) {
+    throw erroTraduzivel('não sei subir sozinho em {sistema} — rode o servidor à mão', { sistema: platform() });
+  }
   return impl;
 }
 

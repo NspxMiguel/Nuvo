@@ -7,12 +7,13 @@ import * as ollama from './ollama.mjs';
 import * as cli from './cli.mjs';
 import { all, one, run, uid, now, parseJSON } from '../db.mjs';
 import { getSecret } from '../config.mjs';
+import { erroTraduzivel } from '../erro-traduzivel.mjs';
 
 const ADAPTERS = { openai, anthropic, google, ollama, cli };
 
 export function adapterFor(kind) {
   const adapter = ADAPTERS[kind];
-  if (!adapter) throw new Error(`tipo de provedor desconhecido: ${kind}`);
+  if (!adapter) throw erroTraduzivel('tipo de provedor desconhecido: {tipo}', { tipo: kind });
   return adapter;
 }
 
@@ -105,7 +106,7 @@ export async function* withStallTimeout(open, { firstMs, stallMs, signal }) {
 
 export function getProvider(id) {
   const row = one('SELECT * FROM providers WHERE id = ?', id);
-  if (!row) throw new Error(`provedor não encontrado: ${id}`);
+  if (!row) throw erroTraduzivel('provedor não encontrado: {id}', { id });
   return row;
 }
 
@@ -119,7 +120,7 @@ export function listProviders({ enabledOnly = false } = {}) {
 /** "providerId:modelId" — o modelo pode ter ":" no nome (ex.: llama3:8b). */
 export function parseRef(ref) {
   const idx = String(ref || '').indexOf(':');
-  if (idx < 0) throw new Error(`modelo inválido: ${ref}`);
+  if (idx < 0) throw erroTraduzivel('modelo inválido: {ref}', { ref });
   return { providerId: ref.slice(0, idx), modelId: ref.slice(idx + 1) };
 }
 

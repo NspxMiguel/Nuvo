@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import zlib from 'node:zlib';
 import { DATA_DIR } from './config.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 const exec = promisify(execFile);
 
@@ -314,7 +315,10 @@ export async function ligarOllama({ signal } = {}) {
   } catch (err) {
     // Quem cancelou já sabe por que não ligou; não é erro pra mostrar.
     if (foiCancelamento(err, signal)) return false;
-    throw new Error(`o Ollama está instalado em ${achado.caminho}, mas não consegui ligar: ${err.message}`);
+    throw erroTraduzivel('o Ollama está instalado em {caminho}, mas não consegui ligar: {causa}', {
+      caminho: achado.caminho,
+      causa: err.message
+    });
   }
   return esperarNoAr(30000, signal);
 }
@@ -357,7 +361,10 @@ export async function* baixarArquivo(url, destino, { signal, minimo = MINIMO_PLA
   } catch (err) {
     prazo.limpar();
     if (signal?.aborted) throw new Error('o download do Ollama foi cancelado.');
-    throw new Error(`não consegui falar com ollama.com pra baixar o Ollama (${err.message}). Veja se a internet está funcionando e tente de novo.`);
+    throw erroTraduzivel(
+      'não consegui falar com ollama.com pra baixar o Ollama ({causa}). Veja se a internet está funcionando e tente de novo.',
+      { causa: err.message }
+    );
   }
   prazo.semPrazo();
 
@@ -456,7 +463,10 @@ function arquiteturaLinux() {
   const mapa = { x64: 'amd64', arm64: 'arm64' };
   const alvo = mapa[arch()];
   if (!alvo) {
-    throw new Error(`o Ollama não tem versão pronta pra este processador (${arch()}). Dá pra compilar do código-fonte, mas isso é trabalho de quem programa.`);
+    throw erroTraduzivel(
+      'o Ollama não tem versão pronta pra este processador ({processador}). Dá pra compilar do código-fonte, mas isso é trabalho de quem programa.',
+      { processador: arch() }
+    );
   }
   return alvo;
 }
@@ -579,7 +589,10 @@ async function* instalarNoLinux(trabalho, signal) {
   try {
     await exec('tar', ['-xf', tar, '-C', NOSSA_PASTA], { signal, maxBuffer: 1 << 20 });
   } catch (err) {
-    throw new Error(`não consegui abrir o pacote do Ollama (${err.message}). Se o programa \`tar\` não existir nesta máquina, instale-o e tente de novo.`);
+    throw erroTraduzivel(
+      'não consegui abrir o pacote do Ollama ({causa}). Se o programa `tar` não existir nesta máquina, instale-o e tente de novo.',
+      { causa: err.message }
+    );
   } finally {
     rmSync(tar, { force: true });
   }
@@ -632,7 +645,9 @@ export async function* instalarOllama({ signal } = {}) {
       // cancelamento precisa estar aqui: sem ela, Cancelar durante a espera de
       // 30 s acusava o Ollama de não ter atendido.
       if (signal?.aborted) throw new Error(CANCELADA);
-      throw new Error(`o Ollama abriu mas não atendeu em ${enderecoBase()}. Abra-o na mão uma vez e tente de novo.`);
+      throw erroTraduzivel('o Ollama abriu mas não atendeu em {endereco}. Abra-o na mão uma vez e tente de novo.', {
+        endereco: enderecoBase()
+      });
     }
     return { ok: true };
   }
@@ -640,7 +655,10 @@ export async function* instalarOllama({ signal } = {}) {
   const receita = POR_SISTEMA[platform()];
   if (!receita) {
     const manual = receitaManual();
-    throw new Error(`não sei instalar o Ollama sozinho em ${platform()}. ${manual.explicacao}`);
+    throw erroTraduzivel('não sei instalar o Ollama sozinho em {sistema}. {explicacao}', {
+      sistema: platform(),
+      explicacao: manual.explicacao
+    });
   }
 
   const trabalho = pastaDeTrabalho();

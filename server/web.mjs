@@ -4,6 +4,8 @@
 // A leitura de página derruba script, style e navegação antes de virar texto —
 // o que sobra é o que um leitor veria.
 
+import { erroTraduzivel, corpoDoErro } from './erro-traduzivel.mjs';
+
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
@@ -61,7 +63,7 @@ async function get(url, { signal, timeout = 15000 } = {}) {
 export async function search(query, { limit = 6, signal } = {}) {
   const target = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
   const res = await get(target, { signal });
-  if (!res.ok) throw new Error(`busca falhou: HTTP ${res.status}`);
+  if (!res.ok) throw erroTraduzivel('busca falhou: HTTP {status}', { status: res.status });
   const html = await res.text();
 
   const out = [];
@@ -105,6 +107,7 @@ export async function search(query, { limit = 6, signal } = {}) {
  */
 export async function readPage(url, { maxChars = 12000, signal } = {}) {
   const res = await get(url, { signal, timeout: 20000 });
+  // Sem `erroTraduzivel`: "HTTP 503" não tem palavra nenhuma pra traduzir.
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const type = res.headers.get('content-type') || '';
@@ -159,7 +162,7 @@ export async function searchAndRead(query, { results = 4, read = 3, signal } = {
         const page = await readPage(hit.url, { maxChars: 6000, signal });
         pages.push({ ...hit, text: page.text, error: page.note || undefined });
       } catch (err) {
-        pages.push({ ...hit, text: '', error: err.message });
+        pages.push({ ...hit, text: '', ...corpoDoErro(err) });
       }
     })
   );

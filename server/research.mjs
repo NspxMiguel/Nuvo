@@ -7,6 +7,7 @@
 
 import { complete, parseJsonArray } from './complete.mjs';
 import { search, readPage } from './web.mjs';
+import { corpoDoErro, textoTraduzivel } from './erro-traduzivel.mjs';
 
 const PLAN_PROMPT = `Você planeja uma pesquisa na web.
 
@@ -48,7 +49,10 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
       .filter((q) => typeof q === 'string' && q.trim().length > 2)
       .slice(0, breadth);
   } catch (err) {
-    yield { type: 'note', text: `o modelo não planejou (${err.message}); busco a pergunta direto` };
+    yield {
+      type: 'note',
+      ...textoTraduzivel('text', 'o modelo não planejou ({causa}); busco a pergunta direto', { causa: err.message })
+    };
   }
   if (!queries.length) queries = [question];
 
@@ -59,13 +63,16 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
   const found = new Map();
   for (const query of queries) {
     if (signal?.aborted) return;
-    yield { type: 'phase', phase: 'busca', text: `buscando: ${query}` };
+    yield { type: 'phase', phase: 'busca', ...textoTraduzivel('text', 'buscando: {busca}', { busca: query }) };
     try {
       for (const hit of await search(query, { limit: 6, signal })) {
         if (!found.has(hit.url)) found.set(hit.url, { ...hit, query });
       }
     } catch (err) {
-      yield { type: 'note', text: `busca falhou em "${query}": ${err.message}` };
+      yield {
+        type: 'note',
+        ...textoTraduzivel('text', 'busca falhou em "{busca}": {causa}', { busca: query, causa: err.message })
+      };
     }
   }
 
@@ -104,14 +111,22 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
   for (let i = 0; i < toRead.length; i += 4) {
     if (signal?.aborted) return;
     const batch = toRead.slice(i, i + 4);
-    yield { type: 'phase', phase: 'leitura', text: `lendo ${i + 1}–${i + batch.length} de ${toRead.length}` };
+    yield {
+      type: 'phase',
+      phase: 'leitura',
+      ...textoTraduzivel('text', 'lendo {de}–{ate} de {total}', {
+        de: i + 1,
+        ate: i + batch.length,
+        total: toRead.length
+      })
+    };
     const read = await Promise.all(
       batch.map(async (hit) => {
         try {
           const page = await readPage(hit.url, { maxChars: 7000, signal });
           return { ...hit, text: page.text, title: page.title || hit.title };
         } catch (err) {
-          return { ...hit, text: '', error: err.message };
+          return { ...hit, text: '', ...corpoDoErro(err) };
         }
       })
     );
@@ -133,7 +148,17 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
     return;
   }
 
-  yield { type: 'phase', phase: 'relatório', text: `escrevendo a partir de ${usable.length} fonte(s)` };
+  // Português, inglês e espanhol cortam o plural no mesmo lugar, então a
+  // escolha aqui vale pras três; o dicionário guarda as duas formas.
+  yield {
+    type: 'phase',
+    phase: 'relatório',
+    ...textoTraduzivel(
+      'text',
+      usable.length === 1 ? 'escrevendo a partir de 1 fonte' : 'escrevendo a partir de {n} fontes',
+      { n: usable.length }
+    )
+  };
 
   const corpus = usable
     .map((page, i) => `[${i + 1}] ${page.title}\n${page.url}\n\n${page.text}`)

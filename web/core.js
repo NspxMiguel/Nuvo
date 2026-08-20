@@ -43,10 +43,42 @@ if (naTela && TOKEN) {
  * O teste de cobertura varre os `throw new Error('...')` do servidor pra que
  * essa passagem seja a exceção, e não o normal.
  */
-function traduzirDoServidor(dado) {
-  if (!dado || typeof dado !== 'object') return dado;
-  for (const campo of ['error', 'message', 'reason']) {
-    if (typeof dado[campo] === 'string') dado[campo] = t(dado[campo]);
+const CAMPOS_DE_TEXTO = ['error', 'message', 'reason', 'text'];
+
+/** Mesma substituição do `preencher()` do servidor, pra remontar a frase crua. */
+function preencher(molde, valores = {}) {
+  return String(molde).replace(/\{(\w+)\}/g, (inteiro, chave) =>
+    chave in valores ? String(valores[chave]) : inteiro
+  );
+}
+
+function traduzirDoServidor(dado, fundo = 0) {
+  if (!dado || typeof dado !== 'object' || fundo > 4) return dado;
+  if (Array.isArray(dado)) {
+    for (const item of dado) traduzirDoServidor(item, fundo + 1);
+    return dado;
+  }
+  // Frase montada com variável: o servidor manda o molde e os valores junto, e
+  // o campo de texto guarda a frase já pronta em português. Trocar só o campo
+  // que bate com essa frase evita mexer num texto que veio de outro lugar.
+  const molde = dado.i18n?.molde;
+  const cru = molde ? preencher(molde, dado.i18n?.valores) : null;
+  // Valor listado em `traduzir` é frase, não dado: entra no dicionário antes de
+  // ir pro molde, senão a casca sai traduzida e o miolo fica em português.
+  const valores = molde
+    ? Object.fromEntries(
+        Object.entries(dado.i18n.valores || {}).map(([k, v]) => [
+          k,
+          dado.i18n.traduzir?.includes(k) ? t(String(v)) : v
+        ])
+      )
+    : null;
+  for (const campo of CAMPOS_DE_TEXTO) {
+    if (typeof dado[campo] !== 'string') continue;
+    dado[campo] = cru !== null && dado[campo] === cru ? t(molde, valores) : t(dado[campo]);
+  }
+  for (const valor of Object.values(dado)) {
+    if (valor && typeof valor === 'object') traduzirDoServidor(valor, fundo + 1);
   }
   return dado;
 }

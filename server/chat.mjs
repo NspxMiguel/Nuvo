@@ -13,6 +13,7 @@ import { searchAndRead, renderWebBlock } from './web.mjs';
 import { navegarComAgente } from './agente-web.mjs';
 import { acharNavegador } from './navegador.mjs';
 import { explainProviderError } from './errors.mjs';
+import { corpoDoErro, textoTraduzivel } from './erro-traduzivel.mjs';
 
 const HISTORY_LIMIT = 40;
 
@@ -209,7 +210,7 @@ export async function* runTurn({
     docBlock = docs.block;
     if (docs.used.length) yield { type: 'docs-used', items: docs.used };
   } catch (err) {
-    yield { type: 'note', text: `anexos não entraram: ${err.message}` };
+    yield { type: 'note', ...textoTraduzivel('text', 'anexos não entraram: {causa}', { causa: err.message }) };
   }
 
   // Busca na web: ligada por turno ou pela preferência da conversa.
@@ -247,7 +248,10 @@ export async function* runTurn({
           };
         }
       } catch (err) {
-        yield { type: 'note', text: `o agente de navegador parou: ${err.message}` };
+        yield {
+          type: 'note',
+          ...textoTraduzivel('text', 'o agente de navegador parou: {causa}', { causa: err.message })
+        };
       }
     } else {
       yield { type: 'phase', text: 'buscando na web' };
@@ -259,7 +263,7 @@ export async function* runTurn({
           hits: pages.map((p, i) => ({ n: i + 1, title: p.title, url: p.url, ok: Boolean(p.text) }))
         };
       } catch (err) {
-        yield { type: 'note', text: `busca na web falhou: ${err.message}` };
+        yield { type: 'note', ...textoTraduzivel('text', 'busca na web falhou: {causa}', { causa: err.message }) };
       }
     }
   }
@@ -389,7 +393,7 @@ export async function* runTurn({
           });
       yield { type: 'done', message: partial };
     }
-    yield { type: 'error', message: explainProviderError(err, provider) };
+    yield { type: 'error', ...corpoDoErro(explainProviderError(err, provider), undefined, 'message') };
     return;
   }
 

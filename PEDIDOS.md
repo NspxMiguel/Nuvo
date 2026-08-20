@@ -1104,3 +1104,24 @@ Quebrado em itens:
   que a página parece parada. A máscara abre de 0 a 935 px nesse intervalo, e a
   lista de nomes acompanha o idioma (Miguel/João/Ana em português,
   Alex/Maya/Chris em inglês).
+
+## 20/08/2026 — primeira tela, idioma e a loja
+
+*(mandou com uma captura da landing em inglês, aberta do Brasil)*
+
+- [ ] **o "Pode falar" com os nomes tem que aparecer sem rolar**
+  > *"o pode falar + nome variando, faz aparecer msm sem scrolar"*
+- [ ] **travar a rolagem pra cima quando já está no topo**
+  > *"bloqueia o scroll pra cima da pagina, ao estar no topo da pagina, pra n
+  > ficar bugado"*
+- [ ] **a rolagem travada está lenta demais**
+  > *"scroll ta muito lento, da uma agilizada"*
+- [ ] **release e commit em inglês, e a regra vai pro CLAUDE.md**
+  > *"releases e comiits coloca em ingles ne.... mais facil. inclusive salva
+  > isso no claude md."*
+- [ ] **o site não pega o idioma pela localização** — abriu em inglês no Brasil
+  > *"E o site tbm nao está puxando idioma por localizacao, ele puxo em ingles
+  > sendo q to no brasil"* e *"pelo jeito i18n nao foi bem revisado...."*
+- [ ] **loja de MCPs e skills, puxando do GitHub sozinha, com filtros**
+  > *"adiciona loja de mcps, skills e etc. q automaticamente puxa do github. ai
+  > filtros, normal ne, + starts, + novo, recomendado e etc"*

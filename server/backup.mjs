@@ -22,6 +22,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DATA_DIR, DB_PATH, CONFIG_PATH, UPLOAD_DIR } from './config.mjs';
 import { STAGED_PATH, PREVIOUS_PATH } from './pending-restore.mjs';
 import { db } from './db.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 const SIGNATURE = 'iaunifier-backup';
 
@@ -163,7 +164,9 @@ export function unzip(buffer) {
     // banco novo: de 40 backups com um único byte alterado, 38 passavam, todos
     // com o banco malformado. Backup que não confere não é backup.
     if (crc32(data) !== declaredCrc) {
-      throw new Error(`o backup está corrompido: "${name}" não bate com a soma de verificação`);
+      throw erroTraduzivel('o backup está corrompido: "{arquivo}" não bate com a soma de verificação', {
+        arquivo: name
+      });
     }
     files.set(name, data);
 
@@ -303,7 +306,7 @@ export function restoreBackup(buffer, { keepSecrets = false } = {}) {
     }
   } catch (err) {
     rmSync(conferindo, { force: true });
-    throw new Error(`o banco dentro do backup não abre: ${err.message}`);
+    throw erroTraduzivel('o banco dentro do backup não abre: {causa}', { causa: err.message });
   }
 
   rmSync(STAGED_PATH, { force: true });

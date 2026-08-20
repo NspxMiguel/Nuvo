@@ -1,5 +1,7 @@
 // Utilitários compartilhados pelos adaptadores.
 
+import { erroTraduzivel } from '../erro-traduzivel.mjs';
+
 /** Quebra um ReadableStream de bytes em linhas de texto. */
 export async function* lines(res) {
   const reader = res.body.getReader();
@@ -48,7 +50,12 @@ export async function ensureOk(res, label) {
   } catch {
     /* corpo ilegível */
   }
-  throw new Error(`${label}: HTTP ${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
+  throw erroTraduzivel('{ia}: HTTP {status} {texto}{detalhe}', {
+    ia: label,
+    status: res.status,
+    texto: res.statusText,
+    detalhe: detail ? ` — ${detail}` : ''
+  });
 }
 
 export function trimUrl(url) {

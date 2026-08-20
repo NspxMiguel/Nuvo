@@ -56,6 +56,7 @@ import { ARGS_ESTRUTURADO, nomeDoComando } from './eventos-cli.mjs';
 import { arvoreDoProjeto, lerArquivoDoProjeto, mudancasDoProjeto } from './projeto-arquivos.mjs';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { corpoDoErro, erroTraduzivel } from './erro-traduzivel.mjs';
 
 // ------------------------------------------------------------------ helpers
 
@@ -165,7 +166,7 @@ async function pump(stream, iterator) {
   try {
     for await (const event of iterator) stream.send(event);
   } catch (err) {
-    if (err.name !== 'AbortError') stream.send({ type: 'error', message: err.message });
+    if (err.name !== 'AbortError') stream.send({ type: 'error', ...corpoDoErro(err, undefined, 'message') });
   }
   stream.end();
 }
@@ -249,15 +250,16 @@ const ROTAS_DE_CODIGO = new Set(['arvore', 'arquivo', 'mudancas']);
  */
 function pastaDoProjeto(url) {
   const id = url.searchParams.get('projeto') || '';
-  if (!id) return { erro: 'não sei de qual projeto: o pedido veio sem projeto nenhum' };
+  if (!id) return { erro: erroTraduzivel('não sei de qual projeto: o pedido veio sem projeto nenhum') };
 
   const projeto = one('SELECT * FROM projects WHERE id = ?', id);
-  if (!projeto) return { erro: 'esse projeto não existe mais — recarregue a página e escolha outro' };
+  if (!projeto) return { erro: erroTraduzivel('esse projeto não existe mais — recarregue a página e escolha outro') };
   if (!projeto.workdir) {
     return {
-      erro:
-        `esse projeto ainda não aponta pra uma pasta — abra Projetos, edite "${projeto.name}" ` +
-        'e preencha a pasta de trabalho'
+      erro: erroTraduzivel(
+        'esse projeto ainda não aponta pra uma pasta — abra Projetos, edite "{projeto}" e preencha a pasta de trabalho',
+        { projeto: projeto.name }
+      )
     };
   }
 
@@ -273,12 +275,16 @@ function pastaDoProjeto(url) {
   }
   if (!info) {
     return {
-      erro: `a pasta "${projeto.workdir}" não existe mais no disco — aponte o projeto pra outra pasta`
+      erro: erroTraduzivel('a pasta "{pasta}" não existe mais no disco — aponte o projeto pra outra pasta', {
+        pasta: projeto.workdir
+      })
     };
   }
   if (!info.isDirectory()) {
     return {
-      erro: `"${projeto.workdir}" é um arquivo, não uma pasta — o projeto precisa apontar pra uma pasta`
+      erro: erroTraduzivel('"{pasta}" é um arquivo, não uma pasta — o projeto precisa apontar pra uma pasta', {
+        pasta: projeto.workdir
+      })
     };
   }
   return { raiz };
@@ -337,7 +343,7 @@ export async function handleApi(req, res, url) {
       const subiu = await ligarOllama({});
       return json(res, { ok: subiu, ...(await estadoDoOllama({})) });
     } catch (err) {
-      return json(res, { ok: false, error: err.message, manual: receitaManual() }, 200);
+      return json(res, corpoDoErro(err, { ok: false, manual: receitaManual() }), 200);
     }
   }
 
@@ -347,7 +353,7 @@ export async function handleApi(req, res, url) {
       for await (const ev of instalarOllama({ signal })) send(ev);
       send({ type: 'pronto', ...(await estadoDoOllama({})) });
     } catch (err) {
-      send({ type: 'error', error: err.message, manual: receitaManual() });
+      send({ type: 'error', ...corpoDoErro(err, { manual: receitaManual() }) });
     }
     return end();
   }
@@ -366,7 +372,7 @@ export async function handleApi(req, res, url) {
       if (binario) patchConfig({ navegador: { fonte: 'proprio', binario } });
       send({ type: 'pronto', binario });
     } catch (err) {
-      send({ type: 'error', error: err.message });
+      send({ type: 'error', ...corpoDoErro(err) });
     }
     return end();
   }
@@ -375,7 +381,7 @@ export async function handleApi(req, res, url) {
     try {
       return json(res, await versaoDisponivel({}));
     } catch (err) {
-      return json(res, { error: err.message }, 502);
+      return json(res, corpoDoErro(err), 502);
     }
   }
 
@@ -467,7 +473,15 @@ export async function handleApi(req, res, url) {
         };
         if (!provider.enabled) return { ...base, status: 'off', message: 'desligada por você' };
         if (provider.secret_name && !listSecretNames().includes(provider.secret_name)) {
-          return { ...base, status: 'erro', message: `falta a chave "${provider.secret_name}"` };
+          return {
+            ...base,
+            status: 'erro',
+            ...corpoDoErro(
+              erroTraduzivel('falta a chave "{chave}"', { chave: provider.secret_name }),
+              undefined,
+              'message'
+            )
+          };
         }
         const started = Date.now();
         try {
@@ -477,7 +491,12 @@ export async function handleApi(req, res, url) {
           const models = await (adapter.check || adapter.listModels)(contextFor(provider));
           return { ...base, status: 'ok', ms: Date.now() - started, models: models.length };
         } catch (err) {
-          return { ...base, status: 'erro', ms: Date.now() - started, message: explainProviderError(err, provider) };
+          return {
+            ...base,
+            status: 'erro',
+            ms: Date.now() - started,
+            ...corpoDoErro(explainProviderError(err, provider), undefined, 'message')
+          };
         }
       })
     );
@@ -531,7 +550,7 @@ export async function handleApi(req, res, url) {
         await refreshModels(id);
         return json(res, providerView(getProvider(id)));
       } catch (err) {
-        return json(res, { error: err.message }, 502);
+        return json(res, corpoDoErro(err), 502);
       }
     }
 
@@ -572,7 +591,7 @@ export async function handleApi(req, res, url) {
       try {
         return json(res, await adapter.running(contextFor(provider)));
       } catch (err) {
-        return json(res, { error: err.message }, 502);
+        return json(res, corpoDoErro(err), 502);
       }
     }
   }
@@ -680,14 +699,16 @@ export async function handleApi(req, res, url) {
   // --- código do projeto: o painel da tela Programar -----------------------
   if (method === 'GET' && seg[0] === 'codigo' && ROTAS_DE_CODIGO.has(seg[1])) {
     const pasta = pastaDoProjeto(url);
-    if (pasta.erro) return json(res, { error: pasta.erro }, 400);
+    if (pasta.erro) return json(res, corpoDoErro(pasta.erro), 400);
 
     try {
       if (seg[1] === 'arvore') return json(res, await arvoreDoProjeto(pasta.raiz));
       if (seg[1] === 'mudancas') return json(res, await mudancasDoProjeto(pasta.raiz));
 
       const caminho = url.searchParams.get('caminho') || '';
-      if (!caminho) return json(res, { error: 'diga qual arquivo abrir: o pedido veio sem caminho' }, 400);
+      if (!caminho) {
+        return json(res, corpoDoErro(erroTraduzivel('diga qual arquivo abrir: o pedido veio sem caminho')), 400);
+      }
       return json(res, await lerArquivoDoProjeto(pasta.raiz, caminho));
     } catch (err) {
       // Caminho que escapa da pasta, arquivo binário, arquivo apagado entre a
@@ -695,7 +716,7 @@ export async function handleApi(req, res, url) {
       // catch a recusa da peça de arquivos subiria até o try do index.mjs, que
       // responde 500 — e a tela diria "erro interno" pra quem só clicou no
       // arquivo errado.
-      return json(res, { error: err.message }, 400);
+      return json(res, corpoDoErro(err), 400);
     }
   }
 
@@ -834,10 +855,10 @@ export async function handleApi(req, res, url) {
       try {
         const provedor = getProvider(parseRef(ref).providerId);
         if (!provedor.enabled) {
-          return json(res, { error: `a IA "${provedor.name}" está desligada` }, 400);
+          return json(res, corpoDoErro(erroTraduzivel('a IA "{ia}" está desligada', { ia: provedor.name })), 400);
         }
       } catch (err) {
-        return json(res, { error: err.message }, 400);
+        return json(res, corpoDoErro(err), 400);
       }
 
       truncateFrom(id, target.id);
@@ -984,14 +1005,14 @@ export async function handleApi(req, res, url) {
     try {
       return json(res, await webSearch(url.searchParams.get('q') || '', { limit: 8 }));
     } catch (err) {
-      return json(res, { error: err.message }, 502);
+      return json(res, corpoDoErro(err), 502);
     }
   }
   if (method === 'GET' && path === '/web/read') {
     try {
       return json(res, await readPage(url.searchParams.get('url') || ''));
     } catch (err) {
-      return json(res, { error: err.message }, 502);
+      return json(res, corpoDoErro(err), 502);
     }
   }
 
@@ -1095,9 +1116,9 @@ export async function handleApi(req, res, url) {
         message: 'cópia lida — reinicie o servidor pra os dados entrarem no lugar'
       });
     } catch (err) {
-      return json(res, { error: err.message }, 400);
+      return json(res, corpoDoErro(err), 400);
     }
   }
 
-  return json(res, { error: `rota não encontrada: ${method} ${path}` }, 404);
+  return json(res, corpoDoErro(erroTraduzivel('rota não encontrada: {metodo} {caminho}', { metodo: method, caminho: path })), 404);
 }

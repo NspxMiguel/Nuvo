@@ -13,6 +13,7 @@ import { discover, providerCount } from './discovery.mjs';
 import { autoBackup } from './backup.mjs';
 import { sweepOrphanUploads } from './documents.mjs';
 import { isSea, getAsset } from 'node:sea';
+import { corpoDoErro } from './erro-traduzivel.mjs';
 
 // Empacotado nao ha pasta no disco, e `import.meta.url` some no CommonJS do
 // SEA: montar a URL aqui estouraria antes do servidor subir.
@@ -339,7 +340,7 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
         if (res.headersSent) return res.end();
         const status = /grande demais/.test(err.message) ? 413 : 500;
         res.writeHead(status, { 'content-type': 'application/json' });
-        return res.end(JSON.stringify({ error: err.message }));
+        return res.end(JSON.stringify(corpoDoErro(err)));
       }
     }
 

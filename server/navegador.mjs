@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { platform } from 'node:process';
 import { createServer } from 'node:net';
 import { DATA_DIR, loadConfig } from './config.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 const CAMINHOS = {
   darwin: [
@@ -98,7 +99,10 @@ async function esperarPorta(porta, { limite = 20000, signal } = {}) {
     }
     await espera(250);
   }
-  throw new Error(`o navegador não respondeu em ${limite / 1000}s${ultimo ? `: ${ultimo.message}` : ''}`);
+  throw erroTraduzivel('o navegador não respondeu em {segundos}s{causa}', {
+    segundos: limite / 1000,
+    causa: ultimo ? `: ${ultimo.message}` : ''
+  });
 }
 
 /** Uma conexão CDP com uma aba, com correspondência de resposta por id. */
@@ -332,7 +336,7 @@ export async function executar(sessao, passo) {
     // isso, um domínio que não existe viraria "naveguei" e o modelo seguiria
     // lendo a página anterior achando que era a nova.
     const r = await sessao.cmd('Page.navigate', { url });
-    if (r.errorText) throw new Error(`não abriu ${url}: ${r.errorText}`);
+    if (r.errorText) throw erroTraduzivel('não abriu {url}: {causa}', { url, causa: r.errorText });
     await assentar(sessao);
     return `abri ${url}`;
   }
@@ -354,7 +358,7 @@ export async function executar(sessao, passo) {
       e.click();
       return r || 'elemento ' + ${Number(passo.alvo)};
     })()`);
-    if (ok === null) throw new Error(`não existe elemento ${passo.alvo} nesta página`);
+    if (ok === null) throw erroTraduzivel('não existe elemento {alvo} nesta página', { alvo: passo.alvo });
     await assentar(sessao);
     return `cliquei em "${ok}"`;
   }
@@ -387,7 +391,7 @@ export async function executar(sessao, passo) {
       e.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
     })()`);
-    if (ok === null) throw new Error(`não existe elemento ${passo.alvo} nesta página`);
+    if (ok === null) throw erroTraduzivel('não existe elemento {alvo} nesta página', { alvo: passo.alvo });
     if (passo.enter !== false) {
       await sessao.cmd('Input.dispatchKeyEvent', {
         type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13
@@ -415,5 +419,5 @@ export async function executar(sessao, passo) {
     return 'voltei uma página';
   }
 
-  throw new Error(`ação desconhecida: ${acao}`);
+  throw erroTraduzivel('ação desconhecida: {acao}', { acao });
 }

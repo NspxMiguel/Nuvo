@@ -5,17 +5,22 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { explainProviderError } from '../server/errors.mjs';
 
+// `explainProviderError` devolve um Error com o molde junto, pra frase chegar
+// na tela no idioma dela. O que se cobra aqui é o texto em português, que é o
+// que o Error já traz pronto em `message`.
+const frase = (...args) => explainProviderError(...args).message;
+
 const ollama = { name: 'Ollama', kind: 'ollama', base_url: 'http://localhost:11434' };
 const openai = { name: 'OpenAI', kind: 'openai', base_url: 'https://api.openai.com/v1' };
 
 test('Ollama desligado manda abrir o Ollama', () => {
-  const texto = explainProviderError(new Error('fetch failed'), ollama);
+  const texto = frase(new Error('fetch failed'), ollama);
   assert.match(texto, /ollama serve|app do Ollama/i);
   assert.match(texto, /11434/, 'o endereço tentado ajuda a achar o erro');
 });
 
 test('LM Studio desligado aponta a aba certa', () => {
-  const texto = explainProviderError(new Error('connect ECONNREFUSED 127.0.0.1:1234'), {
+  const texto = frase(new Error('connect ECONNREFUSED 127.0.0.1:1234'), {
     name: 'LM Studio',
     kind: 'lmstudio',
     base_url: 'http://localhost:1234/v1'
@@ -24,49 +29,61 @@ test('LM Studio desligado aponta a aba certa', () => {
 });
 
 test('chave recusada manda gerar outra', () => {
-  const texto = explainProviderError(new Error('openai: HTTP 401 — invalid_api_key'), openai);
+  const texto = frase(new Error('openai: HTTP 401 — invalid_api_key'), openai);
   assert.match(texto, /chave de OpenAI/);
   assert.match(texto, /nova/i);
 });
 
 test('limite de uso manda esperar ou trocar de modelo', () => {
-  const texto = explainProviderError(new Error('HTTP 429 rate_limit_exceeded'), openai);
+  const texto = frase(new Error('HTTP 429 rate_limit_exceeded'), openai);
   assert.match(texto, /esper/i);
   assert.match(texto, /outro modelo|troque de modelo/i);
 });
 
 test('sem crédito sugere o modelo local', () => {
-  const texto = explainProviderError(new Error('insufficient_quota: you exceeded your quota'), openai);
+  const texto = frase(new Error('insufficient_quota: you exceeded your quota'), openai);
   assert.match(texto, /crédito/);
   assert.match(texto, /local/);
 });
 
 test('modelo que sumiu manda atualizar a lista', () => {
-  const texto = explainProviderError(new Error('HTTP 404 model_not_found'), openai);
+  const texto = frase(new Error('HTTP 404 model_not_found'), openai);
   assert.match(texto, /atualizar/i);
 });
 
 test('conversa longa demais sugere conversa nova', () => {
-  const texto = explainProviderError(new Error('maximum context length is 8192 tokens'), openai);
+  const texto = frase(new Error('maximum context length is 8192 tokens'), openai);
   assert.match(texto, /conversa nova|contexto maior/);
 });
 
 test('CLI sem executável aponta a configuração do provedor', () => {
-  const texto = explainProviderError(new Error('spawn claude ENOENT'), { name: 'Claude CLI', kind: 'cli' });
+  const texto = frase(new Error('spawn claude ENOENT'), { name: 'Claude CLI', kind: 'cli' });
   assert.match(texto, /caminho do executável/);
 });
 
 test('a mensagem original vai junto, entre parênteses', () => {
-  const texto = explainProviderError(new Error('HTTP 401 invalid_api_key'), openai);
+  const texto = frase(new Error('HTTP 401 invalid_api_key'), openai);
   assert.match(texto, /\(HTTP 401 invalid_api_key\)$/);
 });
 
 test('erro que não se encaixa em regra nenhuma passa inteiro', () => {
-  const texto = explainProviderError(new Error('coisa esquisita que nunca vi'), openai);
+  const texto = frase(new Error('coisa esquisita que nunca vi'), openai);
   assert.equal(texto, 'coisa esquisita que nunca vi');
 });
 
 test('erro vazio não vira string vazia na tela', () => {
-  assert.match(explainProviderError(new Error('')), /sem dizer o motivo/);
-  assert.match(explainProviderError(null), /sem dizer o motivo/);
+  assert.match(frase(new Error('')), /sem dizer o motivo/);
+  assert.match(frase(null), /sem dizer o motivo/);
+});
+
+test('a frase vai com o molde, pra tela poder traduzir', () => {
+  // Sem isso a mensagem chega em português numa tela em inglês, que foi
+  // exatamente o defeito visto na captura em espanhol: "claude saiu com
+  // código 1" no meio de uma interface toda traduzida.
+  const err = explainProviderError(new Error('spawn claude ENOENT'), { name: 'Claude CLI', kind: 'cli' });
+  assert.equal(err.i18n.molde, 'o programa do terminal não rodou{ia}. Confira o caminho do executável em "IAs ligadas", no campo Ajuste do programa do terminal. ({cru})');
+  assert.deepEqual(err.i18n.valores, { ia: ' (Claude CLI)', cru: 'spawn claude ENOENT' });
+  // O miolo entre parênteses costuma ser frase do próprio servidor, e a tela
+  // tem que passá-lo pelo dicionário em vez de deixá-lo em português.
+  assert.deepEqual(err.i18n.traduzir, ['cru']);
 });

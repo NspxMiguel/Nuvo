@@ -21,6 +21,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR } from './config.mjs';
+import { erroTraduzivel } from './erro-traduzivel.mjs';
 
 const CACHE_PATH = join(DATA_DIR, 'catalogo-hf.json');
 
@@ -406,7 +407,7 @@ export async function buscarCatalogo({ limite = LIMITE_DA_LISTA, signal, timeout
   const res = await pedir(alvo, { signal, timeout, tentativas, esperaMaxMs });
   if (!res.ok) {
     await res.descartar();
-    throw new Error(`catálogo do Hugging Face falhou: HTTP ${res.status}`);
+    throw erroTraduzivel('catálogo do Hugging Face falhou: HTTP {status}', { status: res.status });
   }
   const bruto = await res.json();
   if (!Array.isArray(bruto)) throw new Error('catálogo do Hugging Face veio fora do formato');
