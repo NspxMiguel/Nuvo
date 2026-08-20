@@ -176,13 +176,19 @@ const doAssistente = (nome, entrada) =>
 test('cada ferramenta vira a ação certa, com título em português', () => {
   const acao = (nome, entrada) => traduzirLinha('claude', doAssistente(nome, entrada), RAIZ)[0].evento;
 
+  // `alvo` é o complemento sozinho, sem o verbo: é o que deixa a tela escrever
+  // a frase na língua dela em vez de mostrar o português montado aqui.
   assert.deepEqual(acao('Write', { file_path: `${RAIZ}/web/app.js` }), {
     tipo: 'ferramenta',
     id: 'toolu_1',
     acao: 'escrever',
     titulo: 'escreveu web/app.js',
+    alvo: 'web/app.js',
     arquivo: 'web/app.js'
   });
+  assert.equal(acao('Grep', { pattern: 'soma' }).alvo, 'soma');
+  assert.equal(acao('Bash', { command: 'npm test' }).alvo, 'npm test');
+  assert.equal(acao('WebFetch', { url: 'https://exemplo' }).alvo, 'WebFetch');
   assert.equal(acao('Edit', { file_path: `${RAIZ}/web/app.js` }).acao, 'editar');
   assert.equal(acao('Grep', { pattern: 'soma' }).titulo, 'buscou soma');
   assert.equal(acao('Glob', { pattern: '**/*.mjs' }).acao, 'buscar');

@@ -482,7 +482,10 @@ export async function* runTurn({
 function anotarTrabalho(lista, porId, evento) {
   if (evento.tipo === 'ferramenta') {
     if (lista.length >= TRABALHO_LIMIT) return;
-    const passo = { acao: evento.acao, titulo: evento.titulo };
+    // `alvo` junto do `titulo`: o painel remontado depois de recarregar escreve
+    // a frase na língua da tela, e sem o complemento ele só teria o texto em
+    // português que o servidor montou.
+    const passo = { acao: evento.acao, titulo: evento.titulo, alvo: evento.alvo || '' };
     if (evento.arquivo) passo.arquivo = evento.arquivo;
     if (evento.comando) passo.comando = evento.comando;
     lista.push(passo);

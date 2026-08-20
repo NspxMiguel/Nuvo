@@ -53,6 +53,34 @@ const estado = {
   transmitindo: null
 };
 
+/**
+ * A frase de cada passo, escrita na língua da tela.
+ *
+ * O servidor manda a ação e o complemento separados justamente pra isto: ele
+ * monta um `titulo` em português pra quem não souber montar, mas não sabe em
+ * que idioma a tela está. Sem isto, "leu soma.mjs" aparecia em português no
+ * meio de um painel em espanhol.
+ */
+function rotuloDoPasso(passo) {
+  const alvo = passo.alvo || '';
+  switch (passo.acao) {
+    case 'ler':
+      return t('leu {alvo}', { alvo: alvo || t('um arquivo') });
+    case 'escrever':
+      return t('escreveu {alvo}', { alvo: alvo || t('um arquivo') });
+    case 'editar':
+      return t('editou {alvo}', { alvo: alvo || t('um arquivo') });
+    case 'rodar':
+      return t('rodou {alvo}', { alvo: alvo || t('um comando') });
+    case 'buscar':
+      return t('buscou {alvo}', { alvo: alvo || t('no projeto') });
+    default:
+      // Ação que este app não conhece: o texto do servidor é melhor que nada,
+      // e é o único que sabe o que aconteceu.
+      return passo.titulo || t('usou {alvo}', { alvo: alvo || t('uma ferramenta') });
+  }
+}
+
 const ICONE_DA_ACAO = {
   ler: 'file',
   escrever: 'save',
@@ -478,7 +506,7 @@ export async function renderCode(el, { switchView }) {
         return `<div class="cd-passo${correndo ? ' correndo' : ''}${p.ok === false ? ' ruim' : ''}">
             <span class="ico">${icon(ICONE_DA_ACAO[p.acao] || ICONE_DA_ACAO.outro, 17)}</span>
             <div class="cd-passo-txt">
-              <b>${escapeHtml(p.titulo || p.arquivo || p.acao || '')}</b>
+              <b>${escapeHtml(rotuloDoPasso(p) || p.arquivo || p.acao || '')}</b>
               ${p.comando ? `<span class="cd-cmd">${escapeHtml(p.comando)}</span>` : ''}
               ${
                 temSaida
@@ -583,6 +611,7 @@ export async function renderCode(el, { switchView }) {
         id: null,
         acao: passo.acao || 'outro',
         titulo: passo.titulo || '',
+        alvo: passo.alvo || '',
         arquivo: passo.arquivo || '',
         comando: passo.comando || '',
         // A saída de cada passo não é gravada — ela é grande e envelhece rápido.
@@ -628,6 +657,7 @@ export async function renderCode(el, { switchView }) {
         id: evento.id,
         acao: evento.acao || 'outro',
         titulo: evento.titulo || '',
+        alvo: evento.alvo || '',
         arquivo: evento.arquivo || '',
         comando: evento.comando || '',
         texto: null,

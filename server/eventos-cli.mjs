@@ -351,11 +351,40 @@ function montarFerramenta({ id, acao, nome = '', arquivo = '', alvo = '', comand
     tipo: 'ferramenta',
     id: String(id || ''),
     acao,
-    titulo: titulo({ acao, nome, arquivo, alvo, comando })
+    titulo: titulo({ acao, nome, arquivo, alvo, comando }),
+    // O que vem depois do verbo, separado do verbo. O `titulo` é montado aqui
+    // em português e o servidor não sabe em que idioma a tela está: sem este
+    // campo, "leu soma.mjs" aparecia em português no app em inglês e em
+    // espanhol, no meio de um painel traduzido.
+    alvo: alvoDoTitulo({ acao, nome, arquivo, alvo, comando })
   };
   if (arquivo) evento.arquivo = arquivo;
   if (acao === 'rodar' && comando) evento.comando = comando;
   return { evento };
+}
+
+/**
+ * Só o complemento: o nome do arquivo, o comando encurtado, o termo buscado.
+ *
+ * É o que a tela precisa pra escrever a frase na língua dela. Vazio quando não
+ * há complemento nenhum — aí a tela usa a palavra genérica traduzida ("um
+ * arquivo", "a file", "un archivo").
+ */
+function alvoDoTitulo({ acao, nome, arquivo, alvo, comando }) {
+  const naTela = paraTela(arquivo);
+  switch (acao) {
+    case 'ler':
+      return naTela || alvo || '';
+    case 'escrever':
+    case 'editar':
+      return naTela || '';
+    case 'rodar':
+      return encurtar(semEnvoltorio(comando)) || '';
+    case 'buscar':
+      return encurtar(alvo || naTela, 40) || '';
+    default:
+      return nome || '';
+  }
 }
 
 /** Frase curta pra tela, no passado, como quem conta o que aconteceu. */
