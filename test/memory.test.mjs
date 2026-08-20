@@ -139,15 +139,15 @@ test('heurística pega fato nos três idiomas da interface', () => {
   // comum (o extrator custa uma chamada de modelo por turno). Enquanto os
   // padrões eram quase só de português, quem usava em espanhol nunca via a
   // memória encher — a promessa da primeira tela não valia pra ele.
-  const pt = extractHeuristic('Estou construindo o IAUnifier, um app de IA.');
-  assert.ok(pt.some((f) => /construindo o IAUnifier/i.test(f)), `pt: ${JSON.stringify(pt)}`);
+  const pt = extractHeuristic('Estou construindo o Nuvo, um app de IA.');
+  assert.ok(pt.some((f) => /construindo o Nuvo/i.test(f)), `pt: ${JSON.stringify(pt)}`);
 
-  const en = extractHeuristic("I'm building IAUnifier, and I prefer short answers.");
-  assert.ok(en.some((f) => /building IAUnifier/i.test(f)), `en: ${JSON.stringify(en)}`);
+  const en = extractHeuristic("I'm building Nuvo, and I prefer short answers.");
+  assert.ok(en.some((f) => /building Nuvo/i.test(f)), `en: ${JSON.stringify(en)}`);
   assert.ok(en.some((f) => /prefer short answers/i.test(f)), `en: ${JSON.stringify(en)}`);
 
-  const es = extractHeuristic('Estoy construyendo IAUnifier. Me gusta el café sin azúcar.');
-  assert.ok(es.some((f) => /construyendo IAUnifier/i.test(f)), `es: ${JSON.stringify(es)}`);
+  const es = extractHeuristic('Estoy construyendo Nuvo. Me gusta el café sin azúcar.');
+  assert.ok(es.some((f) => /construyendo Nuvo/i.test(f)), `es: ${JSON.stringify(es)}`);
   assert.ok(es.some((f) => /gusta el caf/i.test(f)), `es: ${JSON.stringify(es)}`);
 });
 
@@ -241,8 +241,8 @@ test('projeto em andamento vira fato', () => {
   // Quem conversa com estas IAs diz o que está construindo, e isso continua
   // valendo daqui a meses — era exatamente o tipo de frase que a heurística
   // deixava passar quando não há modelo extrator configurado.
-  const fatos = extractHeuristic('Estou construindo o IAUnifier, um app que roda no servidor de casa.');
-  assert.ok(fatos.some((f) => /IAUnifier/.test(f)), JSON.stringify(fatos));
+  const fatos = extractHeuristic('Estou construindo o Nuvo, um app que roda no servidor de casa.');
+  assert.ok(fatos.some((f) => /Nuvo/.test(f)), JSON.stringify(fatos));
 });
 
 test('memória fixada não engole a busca', async () => {

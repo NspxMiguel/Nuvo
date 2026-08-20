@@ -531,7 +531,7 @@ test('cli: comando que sai antes de ler o prompt grande não derruba o servidor'
 
 test('cli: cancelar mata o neto, não só o filho', async () => {
   const controle = new AbortController();
-  const marca = `iaunifier-teste-${process.pid}-neto`;
+  const marca = `nuvo-teste-${process.pid}-neto`;
   // O `sh` é o filho; o `sleep` é o neto. Matar só o filho deixava o neto vivo.
   const iterador = cli.stream(
     { config: { command: 'sh', args: ['-c', `sleep 30 & echo ${marca}; wait`], stdin: true } },

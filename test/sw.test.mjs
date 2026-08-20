@@ -42,7 +42,7 @@ test('a casca não promete arquivo que não existe', () => {
 test('a versão do cache muda quando a casca muda', () => {
   // `addAll` só reescreve o cache num nome novo; ficar em v2 deixaria quem já
   // instalou com a lista velha pra sempre.
-  const m = sw.match(/const CACHE = 'iaunifier-v(\d+)'/);
+  const m = sw.match(/const CACHE = 'nuvo-v(\d+)'/);
   assert.ok(m, 'o nome do cache tem que ser versionado');
   assert.ok(Number(m[1]) >= 3, `a casca cresceu depois da v2, está em v${m[1]}`);
 });

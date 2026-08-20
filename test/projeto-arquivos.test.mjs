@@ -23,7 +23,7 @@ import { arvoreDoProjeto, lerArquivoDoProjeto, mudancasDoProjeto } from '../serv
 
 // A raiz do projeto fica DENTRO de outra pasta de propósito: `fora.txt` e
 // `projeto-vizinho` são os alvos dos testes de fuga.
-const TOPO = mkdtempSync(join(tmpdir(), 'iaunifier-projeto-'));
+const TOPO = mkdtempSync(join(tmpdir(), 'nuvo-projeto-'));
 const RAIZ = join(TOPO, 'projeto');
 
 after(() => {
@@ -271,7 +271,7 @@ test('pasta que não existe também responde que não tem git', async () => {
 });
 
 test('num repositório de verdade, cada código do git vira um estado da tela', async (t) => {
-  const repo = mkdtempSync(join(tmpdir(), 'iaunifier-repo-'));
+  const repo = mkdtempSync(join(tmpdir(), 'nuvo-repo-'));
   try {
     try {
       const git = (...args) =>

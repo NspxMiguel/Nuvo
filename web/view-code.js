@@ -20,7 +20,7 @@ import { t, plural, formatarNumero } from './i18n.js';
 // A conversa de cada projeto, guardada por projeto. Sem isto a tela abria uma
 // conversa nova a cada recarregamento: o painel de trabalho voltava vazio e o
 // que a IA tinha feito ficava guardado na conversa anterior, invisível.
-const CONVERSAS = 'iaunifier.programar.conversas';
+const CONVERSAS = 'nuvo.programar.conversas';
 
 function conversasGuardadas() {
   try {

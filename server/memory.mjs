@@ -1,4 +1,4 @@
-// Memória compartilhada — o núcleo do IAUnifier.
+// Memória compartilhada — o núcleo do Nuvo.
 //
 // Um único banco de fatos que qualquer modelo lê e qualquer modelo escreve.
 // É o que faz o que foi dito pro Claude aparecer na conversa com o GPT.

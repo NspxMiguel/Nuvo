@@ -150,7 +150,7 @@ function ligarRecomendados(inner, maquina, switchView) {
         if (!local) return semLocal();
         const ref = `${local.id}:${m.id}`;
         state.model = ref;
-        localStorage.setItem('iaunifier.model', ref);
+        localStorage.setItem('nuvo.model', ref);
         toast(t('{nome} escolhida', { nome }), 'ok');
         switchView('chat');
       };
@@ -1324,7 +1324,7 @@ function cfgMobile(s, pendente) {
       </button>
     </div>
 
-    <div class="versao">IAUnifier · ${t('roda em {host}:{porta}', { host: escapeHtml(s.host), porta: s.port })}</div>
+    <div class="versao">Nuvo · ${t('roda em {host}:{porta}', { host: escapeHtml(s.host), porta: s.port })}</div>
   </div>`;
 }
 
@@ -1461,7 +1461,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
   if (modeloPadrao) {
     modeloPadrao.onchange = () => {
       state.model = modeloPadrao.value;
-      localStorage.setItem('iaunifier.model', state.model);
+      localStorage.setItem('nuvo.model', state.model);
       const sel = document.querySelector('#sel-model');
       if (sel) sel.value = state.model;
       toast(t('IA padrão trocada'), 'ok');
@@ -1471,7 +1471,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
   if (perfilPadrao) {
     perfilPadrao.onchange = () => {
       state.gemId = perfilPadrao.value;
-      localStorage.setItem('iaunifier.gem', state.gemId);
+      localStorage.setItem('nuvo.gem', state.gemId);
       const sel = document.querySelector('#sel-gem');
       if (sel) sel.value = state.gemId;
       toast(t('perfil padrão trocado'), 'ok');
@@ -1584,7 +1584,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       // Religando, o servidor devolve a chave junto: sem guardá-la, o próximo
       // pedido desta aba levaria 401 e o botão teria trancado o próprio dono.
       if (out.accessToken) {
-        localStorage.setItem('iaunifier.token', out.accessToken);
+        localStorage.setItem('nuvo.token', out.accessToken);
         toast(t('senha religada — este aparelho já está com a chave; os outros precisam dela'));
         return location.reload();
       }
@@ -1732,7 +1732,7 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
 
 views.council = function renderCouncil(el, { switchView }) {
   const models = chatModels();
-  const saved = JSON.parse(localStorage.getItem('iaunifier.council') || '[]');
+  const saved = JSON.parse(localStorage.getItem('nuvo.council') || '[]');
 
   const inner = panel(
     el,
@@ -1817,7 +1817,7 @@ views.council = function renderCouncil(el, { switchView }) {
   inner.querySelector('#c-go').onclick = async () => {
     const chosen = [...picker.querySelectorAll('input:checked')].map((i) => i.value);
     if (chosen.length < 2) return toast(t('escolha pelo menos duas IAs'), 'err');
-    localStorage.setItem('iaunifier.council', JSON.stringify(chosen));
+    localStorage.setItem('nuvo.council', JSON.stringify(chosen));
 
     const promptText = inner.querySelector('#c-prompt').value.trim();
     if (!promptText) return toast(t('escreva a pergunta'), 'err');
@@ -2047,7 +2047,7 @@ views.council = function renderCouncil(el, { switchView }) {
               };
               out.querySelector('#c-seguir').onclick = () => {
                 state.model = ev.ref;
-                localStorage.setItem('iaunifier.model', ev.ref);
+                localStorage.setItem('nuvo.model', ev.ref);
                 switchView('chat');
               };
             }

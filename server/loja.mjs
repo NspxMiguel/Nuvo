@@ -23,7 +23,7 @@ const VALIDADE_MS = 6 * 60 * 60 * 1000;
 /** Sobe quando o formato do item muda, pra invalidar cache de todo mundo. */
 const VERSAO_CACHE = 1;
 
-const UA = 'IAUnifier (loja de MCPs e skills)';
+const UA = 'Nuvo (loja de MCPs e skills)';
 
 /** Quantos itens por busca. 100 é o teto do GitHub numa página só. */
 const POR_BUSCA = 100;

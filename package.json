@@ -1,14 +1,14 @@
 {
-  "name": "iaunifier",
-  "version": "0.1.6",
-  "description": "IA Unifier — um servidor de casa que junta IAs locais, de API e de CLI numa interface só, com memoria compartilhada entre todas elas.",
+  "name": "nuvo",
+  "version": "0.2.0",
+  "description": "Nuvo \u2014 um servidor de casa que junta IAs locais, de API e de CLI numa interface s\u00f3, com mem\u00f3ria compartilhada entre todas elas.",
   "type": "module",
   "bin": {
-    "iaunifier": "bin/iaunifier.mjs"
+    "nuvo": "bin/nuvo.mjs"
   },
   "scripts": {
-    "start": "node bin/iaunifier.mjs",
-    "dev": "node --watch bin/iaunifier.mjs",
+    "start": "node bin/nuvo.mjs",
+    "dev": "node --watch bin/nuvo.mjs",
     "test": "node --test --test-timeout=30000 test/*.test.mjs"
   },
   "engines": {

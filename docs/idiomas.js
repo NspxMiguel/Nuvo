@@ -33,7 +33,7 @@ window.IDIOMAS = {
     'A tela Programar: a conversa de um lado e, do outro, o painel com cada arquivo que a IA leu e editou, o comando que rodou e quanto custou o turno':
       'The Code screen: the conversation on one side and, on the other, the panel with every file the AI read and edited, the command it ran and what the turn cost',
 
-    'IAUnifier — todas as suas IAs, uma memória só': 'IAUnifier — all your AIs, one memory',
+    'Nuvo — todas as suas IAs, uma memória só': 'Nuvo — all your AIs, one memory',
     'Programa que roda na sua máquina e junta os modelos locais, as IAs pagas por uso e os programas de terminal numa conversa só, com a mesma memória para todas.':
       'A program that runs on your own machine and puts local models, pay-as-you-go AIs and terminal programs in a single conversation, with the same memory for all of them.',
 
@@ -49,8 +49,8 @@ window.IDIOMAS = {
       'This is how the app opens. No login screen, no plan to pick — the conversation is already there.',
     'Você conta uma vez.': 'You say it once.',
     'E todas elas lembram.': 'And every one of them remembers.',
-    'IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar':
-      'IAUnifier open on a new conversation: the logo, the greeting, the shortcuts and the message box, with the chosen AI next to the send button',
+    'Nuvo aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar':
+      'Nuvo open on a new conversation: the logo, the greeting, the shortcuts and the message box, with the chosen AI next to the send button',
     'Todas as suas IAs,': 'All your AIs,',
     'uma memória só': 'one memory',
     'Os modelos que rodam no seu computador, as IAs pagas por uso e os programas de terminal, numa conversa só. O que você conta pra uma, todas sabem.':
@@ -59,8 +59,8 @@ window.IDIOMAS = {
     role: 'scroll',
 
     'Uma memória, não cinco conversas': 'One memory, not five separate chats',
-    'Cada IA que você usa hoje começa do zero. IAUnifier guarda o que importa uma vez — como você gosta de resposta, o que tem no seu projeto, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.':
-      'Every AI you use today starts from scratch. IAUnifier stores what matters once — how you like your answers, what is in your project, what has already been decided — and hands it to any of them at answer time.',
+    'Cada IA que você usa hoje começa do zero. Nuvo guarda o que importa uma vez — como você gosta de resposta, o que tem no seu projeto, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.':
+      'Every AI you use today starts from scratch. Nuvo stores what matters once — how you like your answers, what is in your project, what has already been decided — and hands it to any of them at answer time.',
     'Você vê a origem': 'You see where it came from',
     'Cada coisa guardada mostra de qual conversa veio.':
       'Every stored fact shows which conversation it came from.',
@@ -79,8 +79,8 @@ window.IDIOMAS = {
       'The Ask several screen: the question, the progress bar and three AIs answering side by side, each with how long it took',
 
     'Só as IAs que cabem na sua máquina': 'Only the AIs that fit your machine',
-    'IAUnifier olha a memória RAM e o processador da sua máquina e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase sobre para que ele é bom e por que escolhê-lo em vez do outro.':
-      'IAUnifier looks at your RAM and your processor and tells you, in plain English, what you can run: what fits comfortably, what fits tightly and what does not fit at all. Each model comes with a line about what it is good for and why to pick it over the next one.',
+    'Nuvo olha a memória RAM e o processador da sua máquina e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase sobre para que ele é bom e por que escolhê-lo em vez do outro.':
+      'Nuvo looks at your RAM and your processor and tells you, in plain English, what you can run: what fits comfortably, what fits tightly and what does not fit at all. Each model comes with a line about what it is good for and why to pick it over the next one.',
     'Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela':
       'The Connected AIs screen: the machine’s RAM and processor described in plain English, and the models recommended for it',
 
@@ -102,13 +102,13 @@ window.IDIOMAS = {
       'A conversation in agent mode: the trail shows the search, the page it opened and the reason for each step, and the answer cites its source',
 
     'Roda na sua máquina': 'It runs on your machine',
-    'IAUnifier é um programa que você instala e roda na sua máquina, não um serviço na nuvem. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam numa pasta sua — dá pra abrir, copiar e apagar na mão.':
-      'IAUnifier is a program you install and run on your own machine, not a service in the cloud. Local models answer with no internet at all. Pay-as-you-go AIs receive only what you send, with your own key. Memory, files and history live in a folder of yours — you can open it, copy it and delete it by hand.',
+    'Nuvo é um programa que você instala e roda na sua máquina, não um serviço na nuvem. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam numa pasta sua — dá pra abrir, copiar e apagar na mão.':
+      'Nuvo is a program you install and run on your own machine, not a service in the cloud. Local models answer with no internet at all. Pay-as-you-go AIs receive only what you send, with your own key. Memory, files and history live in a folder of yours — you can open it, copy it and delete it by hand.',
     'Conversa anônima': 'Private chat',
     'Um toque e a conversa não entra no histórico, não usa a memória e não aprende nada. Some quando você fechar.':
       'One tap and the conversation stays out of the history, does not use memory and learns nothing. It disappears when you close it.',
 
-    'Baixar o IAUnifier': 'Download IAUnifier',
+    'Baixar o Nuvo': 'Download Nuvo',
     Versão: 'Version',
     'Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.':
       'Free and open source. Local models cost nothing; pay-as-you-go AIs use your own key.',
@@ -154,7 +154,7 @@ window.IDIOMAS = {
     'A tela Programar: a conversa de um lado e, do outro, o painel com cada arquivo que a IA leu e editou, o comando que rodou e quanto custou o turno':
       'La pantalla Programar: la conversación de un lado y, del otro, el panel con cada archivo que la IA leyó y editó, el comando que ejecutó y cuánto costó el turno',
 
-    'IAUnifier — todas as suas IAs, uma memória só': 'IAUnifier — todas tus IAs, una sola memoria',
+    'Nuvo — todas as suas IAs, uma memória só': 'Nuvo — todas tus IAs, una sola memoria',
     'Programa que roda na sua máquina e junta os modelos locais, as IAs pagas por uso e os programas de terminal numa conversa só, com a mesma memória para todas.':
       'Un programa que se ejecuta en tu máquina y reúne los modelos locales, las IAs de pago por uso y los programas de terminal en una sola conversación, con la misma memoria para todas.',
 
@@ -170,8 +170,8 @@ window.IDIOMAS = {
       'Así se abre la app. Sin pantalla de inicio de sesión, sin elegir plan: la conversación ya está ahí.',
     'Você conta uma vez.': 'Lo cuentas una vez.',
     'E todas elas lembram.': 'Y todas lo recuerdan.',
-    'IAUnifier aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar':
-      'IAUnifier abierto en una conversación nueva: la marca, el saludo, los atajos y el campo de escritura, con la IA elegida junto al botón de enviar',
+    'Nuvo aberto numa conversa nova: a marca, a saudação, os atalhos e o campo de escrever, com a IA escolhida ao lado do botão de enviar':
+      'Nuvo abierto en una conversación nueva: la marca, el saludo, los atajos y el campo de escritura, con la IA elegida junto al botón de enviar',
     'Todas as suas IAs,': 'Todas tus IAs,',
     'uma memória só': 'una sola memoria',
     'Os modelos que rodam no seu computador, as IAs pagas por uso e os programas de terminal, numa conversa só. O que você conta pra uma, todas sabem.':
@@ -180,8 +180,8 @@ window.IDIOMAS = {
     role: 'desliza',
 
     'Uma memória, não cinco conversas': 'Una memoria, no cinco conversaciones',
-    'Cada IA que você usa hoje começa do zero. IAUnifier guarda o que importa uma vez — como você gosta de resposta, o que tem no seu projeto, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.':
-      'Cada IA que usas hoy empieza de cero. IAUnifier guarda lo que importa una vez —cómo te gustan las respuestas, qué hay en tu proyecto, qué ya quedó decidido— y se lo entrega a cualquiera de ellas a la hora de responder.',
+    'Cada IA que você usa hoje começa do zero. Nuvo guarda o que importa uma vez — como você gosta de resposta, o que tem no seu projeto, o que já ficou decidido — e entrega pra qualquer uma delas na hora de responder.':
+      'Cada IA que usas hoy empieza de cero. Nuvo guarda lo que importa una vez —cómo te gustan las respuestas, qué hay en tu proyecto, qué ya quedó decidido— y se lo entrega a cualquiera de ellas a la hora de responder.',
     'Você vê a origem': 'Ves de dónde salió',
     'Cada coisa guardada mostra de qual conversa veio.':
       'Cada cosa guardada muestra de qué conversación vino.',
@@ -200,8 +200,8 @@ window.IDIOMAS = {
       'Pantalla Preguntar a varias: la pregunta, la barra de progreso y tres IAs respondiendo lado a lado, cada una con el tiempo que tardó',
 
     'Só as IAs que cabem na sua máquina': 'Solo las IAs que caben en tu máquina',
-    'IAUnifier olha a memória RAM e o processador da sua máquina e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase sobre para que ele é bom e por que escolhê-lo em vez do outro.':
-      'IAUnifier mira la memoria RAM y el procesador de tu máquina y te dice, en español claro, qué puedes ejecutar: qué cabe holgado, qué cabe justo y qué no cabe. Cada modelo viene con una frase sobre para qué es bueno y por qué elegirlo en vez del otro.',
+    'Nuvo olha a memória RAM e o processador da sua máquina e diz, em português, o que dá pra rodar: o que cabe com folga, o que cabe apertado e o que não cabe. Cada modelo vem com uma frase sobre para que ele é bom e por que escolhê-lo em vez do outro.':
+      'Nuvo mira la memoria RAM y el procesador de tu máquina y te dice, en español claro, qué puedes ejecutar: qué cabe holgado, qué cabe justo y qué no cabe. Cada modelo viene con una frase sobre para qué es bueno y por qué elegirlo en vez del otro.',
     'Tela IAs ligadas: a memória RAM e o processador da máquina descritos em português, e os modelos recomendados pra ela':
       'Pantalla IAs conectadas: la memoria RAM y el procesador de la máquina descritos en español, y los modelos recomendados para ella',
 
@@ -223,13 +223,13 @@ window.IDIOMAS = {
       'Una conversación en modo agente: el rastro muestra la búsqueda, la página abierta y el motivo de cada paso, y la respuesta cita la fuente',
 
     'Roda na sua máquina': 'Se ejecuta en tu máquina',
-    'IAUnifier é um programa que você instala e roda na sua máquina, não um serviço na nuvem. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam numa pasta sua — dá pra abrir, copiar e apagar na mão.':
-      'IAUnifier es un programa que instalas y ejecutas en tu máquina, no un servicio en la nube. Los modelos locales responden sin internet. Las IAs de pago por uso reciben solo lo que tú envíes, con tu propia clave. La memoria, los archivos y el historial viven en una carpeta tuya: puedes abrirla, copiarla y borrarla a mano.',
+    'Nuvo é um programa que você instala e roda na sua máquina, não um serviço na nuvem. Os modelos locais respondem sem internet. As IAs pagas por uso recebem só o que você mandar, com a sua chave. Memória, arquivos e histórico ficam numa pasta sua — dá pra abrir, copiar e apagar na mão.':
+      'Nuvo es un programa que instalas y ejecutas en tu máquina, no un servicio en la nube. Los modelos locales responden sin internet. Las IAs de pago por uso reciben solo lo que tú envíes, con tu propia clave. La memoria, los archivos y el historial viven en una carpeta tuya: puedes abrirla, copiarla y borrarla a mano.',
     'Conversa anônima': 'Conversación anónima',
     'Um toque e a conversa não entra no histórico, não usa a memória e não aprende nada. Some quando você fechar.':
       'Un toque y la conversación no entra en el historial, no usa la memoria y no aprende nada. Desaparece cuando la cierras.',
 
-    'Baixar o IAUnifier': 'Descargar IAUnifier',
+    'Baixar o Nuvo': 'Descargar Nuvo',
     Versão: 'Versión',
     'Grátis e de código aberto. Os modelos locais não custam nada; as IAs pagas por uso usam a sua chave.':
       'Gratis y de código abierto. Los modelos locales no cuestan nada; las IAs de pago por uso usan tu propia clave.',

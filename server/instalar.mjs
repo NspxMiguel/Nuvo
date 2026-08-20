@@ -31,7 +31,7 @@ const BASE_PADRAO = 'http://127.0.0.1:11434';
 const ORIGEM = 'https://ollama.com/download';
 
 // Onde a nossa instalação mora quando não dá pra usar o caminho do sistema.
-// Fica junto do resto dos dados do app: quem apagar ~/.iaunifier apaga tudo
+// Fica junto do resto dos dados do app: quem apagar ~/.nuvo apaga tudo
 // junto, sem deixar pedaço de Ollama espalhado pela máquina.
 const NOSSA_PASTA = join(DATA_DIR, 'ollama');
 const LOG = join(DATA_DIR, 'ollama.log');
@@ -197,7 +197,7 @@ function candidatos() {
 async function acharInstalado() {
   // Caminho apontado à mão manda, e manda sozinho: se a pessoa disse onde está
   // e não está lá, usar outro binário em silêncio é pior que dizer que sumiu.
-  const forcado = String(process.env.IAUNIFIER_OLLAMA_BIN || '').trim();
+  const forcado = String(process.env.NUVO_OLLAMA_BIN || process.env.IAUNIFIER_OLLAMA_BIN || '').trim();
   if (forcado) {
     if (!existsSync(forcado)) return null;
     return { caminho: forcado, tipo: forcado.endsWith('.app') ? 'app' : 'binario' };
@@ -286,7 +286,7 @@ async function subir(achado) {
     proc.on('exit', (codigo) => decidir(erro, new Error(`o Ollama fechou logo depois de abrir (código ${codigo}). Veja ${LOG}.`)));
     setTimeout(() => {
       // Sobreviveu ao arranque: solta o processo, pra ele continuar servindo
-      // depois que o IAUnifier fechar.
+      // depois que o Nuvo fechar.
       proc.unref();
       decidir(ok);
     }, 500).unref?.();
@@ -451,7 +451,7 @@ export async function* baixarArquivo(url, destino, { signal, minimo = MINIMO_PLA
 
 /** Pasta de trabalho do download, dentro dos dados do app. */
 function pastaDeTrabalho() {
-  // Em ~/.iaunifier, não no /tmp: em muita distribuição o /tmp é memória RAM, e
+  // Em ~/.nuvo, não no /tmp: em muita distribuição o /tmp é memória RAM, e
   // o pacote do Linux tem mais de 1 GB — o download morreria com "sem espaço"
   // numa máquina com disco sobrando.
   const pasta = join(DATA_DIR, 'instalador-ollama');

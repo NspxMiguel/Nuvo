@@ -16,7 +16,7 @@ export const EMPACOTADO = isSea();
  */
 export function comandoDoServidor(baseUrl) {
   if (EMPACOTADO) return { programa: process.execPath, argumentos: [] };
-  const entrada = fileURLToPath(new URL('../bin/iaunifier.mjs', baseUrl));
+  const entrada = fileURLToPath(new URL('../bin/nuvo.mjs', baseUrl));
   return { programa: process.execPath, argumentos: [entrada] };
 }
 

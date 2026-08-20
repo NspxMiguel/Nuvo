@@ -98,25 +98,25 @@ function launcherSh() {
   // A checagem é por identidade, não por porta ocupada: o endereço leva o token
   // de acesso, e se outro programa tiver tomado a porta ele receberia o token.
   return `#!/bin/sh
-# Gerado pelo IAUnifier. Recriar: iaunifier instalar-app
+# Gerado pelo Nuvo. Recriar: nuvo instalar-app
 
-ping_iaunifier() {
-  curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>/dev/null | grep -q '"iaunifier"'
+ping_nuvo() {
+  curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>/dev/null | grep -q '"nuvo"'
 }
 
-if ! ping_iaunifier; then
+if ! ping_nuvo; then
   IAUNIFIER_HOME="${DATA_DIR}" ${COMANDO_SERVIDOR} >>"${join(DATA_DIR, 'servidor.log')}" 2>&1 &
   # Espera o servidor atender antes de abrir a janela, senão a primeira
   # abertura mostra "não foi possível conectar".
   i=0
   while [ $i -lt 40 ]; do
-    ping_iaunifier && break
+    ping_nuvo && break
     sleep 0.25
     i=$((i + 1))
   done
 
-  if ! ping_iaunifier; then
-    echo "IAUnifier não subiu na porta ${cfg.port}. Veja ${join(DATA_DIR, 'servidor.log')}." >&2
+  if ! ping_nuvo; then
+    echo "Nuvo não subiu na porta ${cfg.port}. Veja ${join(DATA_DIR, 'servidor.log')}." >&2
     exit 1
   fi
 fi
@@ -127,9 +127,14 @@ ${abrir}
 
 // -------------------------------------------------------------------- macOS
 
-const MAC_APP = join(homedir(), 'Applications', 'IAUnifier.app');
+const MAC_APP = join(homedir(), 'Applications', 'Nuvo.app');
+// O app já se chamou IAUnifier. Quem instalou naquela época tem um pacote com o
+// nome antigo apontando para o mesmo servidor: deixá-lo no Launchpad seria dois
+// ícones para a mesma coisa, e um deles com o nome errado.
+const MAC_APP_ANTIGO = join(homedir(), 'Applications', 'IAUnifier.app');
 
 function macInstall() {
+  rmSync(MAC_APP_ANTIGO, { recursive: true, force: true });
   const macos = join(MAC_APP, 'Contents', 'MacOS');
   const resources = join(MAC_APP, 'Contents', 'Resources');
   mkdirSync(macos, { recursive: true });
@@ -141,13 +146,13 @@ function macInstall() {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>IAUnifier</string>
-  <key>CFBundleDisplayName</key><string>IAUnifier</string>
-  <key>CFBundleIdentifier</key><string>dev.nspx.iaunifier.app</string>
+  <key>CFBundleName</key><string>Nuvo</string>
+  <key>CFBundleDisplayName</key><string>Nuvo</string>
+  <key>CFBundleIdentifier</key><string>dev.nspx.nuvo.app</string>
   <key>CFBundleVersion</key><string>1.0</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleExecutable</key><string>iaunifier</string>
+  <key>CFBundleExecutable</key><string>nuvo</string>
   <key>CFBundleIconFile</key><string>icone</string>
   <key>LSUIElement</key><true/>
 </dict>
@@ -155,7 +160,7 @@ function macInstall() {
 `
   );
 
-  const script = join(macos, 'iaunifier');
+  const script = join(macos, 'nuvo');
   writeFileSync(script, launcherSh());
   chmodSync(script, 0o755);
 
@@ -215,11 +220,17 @@ function macUninstall() {
 
 // -------------------------------------------------------------------- Linux
 
-const LINUX_DESKTOP = join(homedir(), '.local', 'share', 'applications', 'iaunifier.desktop');
-const LINUX_SCRIPT = join(DATA_DIR, 'abrir-iaunifier.sh');
-const LINUX_ICON = join(homedir(), '.local', 'share', 'icons', 'iaunifier.png');
+const LINUX_DESKTOP = join(homedir(), '.local', 'share', 'applications', 'nuvo.desktop');
+const LINUX_SCRIPT = join(DATA_DIR, 'abrir-nuvo.sh');
+const LINUX_ICON = join(homedir(), '.local', 'share', 'icons', 'nuvo.png');
+const LINUX_ANTIGOS = [
+  join(homedir(), '.local', 'share', 'applications', 'iaunifier.desktop'),
+  join(DATA_DIR, 'abrir-iaunifier.sh'),
+  join(homedir(), '.local', 'share', 'icons', 'iaunifier.png'),
+];
 
 function linuxInstall() {
+  for (const antigo of LINUX_ANTIGOS) rmSync(antigo, { force: true });
   mkdirSync(join(homedir(), '.local', 'share', 'applications'), { recursive: true });
   mkdirSync(join(homedir(), '.local', 'share', 'icons'), { recursive: true });
 
@@ -236,7 +247,7 @@ function linuxInstall() {
     LINUX_DESKTOP,
     `[Desktop Entry]
 Type=Application
-Name=IAUnifier
+Name=Nuvo
 Comment=Todas as suas IAs, uma memória só
 Exec=${LINUX_SCRIPT}
 Icon=${icone ? LINUX_ICON : 'applications-internet'}
@@ -265,9 +276,11 @@ const WIN_DIR = join(
   process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'),
   'Microsoft', 'Windows', 'Start Menu', 'Programs'
 );
-const WIN_CMD = join(WIN_DIR, 'IAUnifier.cmd');
+const WIN_CMD = join(WIN_DIR, 'Nuvo.cmd');
+const WIN_CMD_ANTIGO = join(WIN_DIR, 'IAUnifier.cmd');
 
 function winInstall() {
+  rmSync(WIN_CMD_ANTIGO, { force: true });
   mkdirSync(WIN_DIR, { recursive: true });
   const cfg = loadConfig();
   const browser = findBrowser();
@@ -277,19 +290,19 @@ function winInstall() {
     : `start "" "${url}"`;
 
   // Mesma checagem por identidade do lado do Unix: `findstr` procura a marca
-  // do IAUnifier na resposta, em vez de aceitar qualquer coisa que atenda.
+  // do Nuvo na resposta, em vez de aceitar qualquer coisa que atenda.
   writeFileSync(
     WIN_CMD,
     `@echo off\r
-rem Gerado pelo IAUnifier. Recriar: iaunifier instalar-app\r
-curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"iaunifier" >NUL\r
+rem Gerado pelo Nuvo. Recriar: nuvo instalar-app\r
+curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"nuvo" >NUL\r
 if errorlevel 1 (\r
   set IAUNIFIER_HOME=${DATA_DIR}\r
   start "" /b ${COMANDO_SERVIDOR}\r
   timeout /t 4 /nobreak >NUL\r
-  curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"iaunifier" >NUL\r
+  curl -s --max-time 1 "http://localhost:${cfg.port}/api/ping" 2>NUL | findstr /C:"nuvo" >NUL\r
   if errorlevel 1 (\r
-    echo IAUnifier nao subiu na porta ${cfg.port}. Veja ${join(DATA_DIR, 'servidor.log')}. 1>&2\r
+    echo Nuvo nao subiu na porta ${cfg.port}. Veja ${join(DATA_DIR, 'servidor.log')}. 1>&2\r
     exit /b 1\r
   )\r
 )\r

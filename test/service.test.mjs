@@ -19,10 +19,10 @@ const SUPORTADO = ['darwin', 'linux', 'win32'].includes(platform());
 test('o plano diz onde vai escrever e com qual node', { skip: !SUPORTADO }, () => {
   const plano = service.servicePlan();
   assert.equal(plano.supported, true);
-  assert.match(plano.entry, /bin[/\\]iaunifier\.mjs$/);
+  assert.match(plano.entry, /bin[/\\]nuvo\.mjs$/);
   assert.ok(plano.node, 'sem o caminho do node o serviço não sobe nada');
   assert.ok(plano.file, 'sem arquivo de destino não dá pra dizer o que foi instalado');
-  assert.ok(plano.home, 'o serviço precisa levar o IAUNIFIER_HOME junto');
+  assert.ok(plano.home, 'o serviço precisa levar o NUVO_HOME junto');
 });
 
 test('instalação que aponta pra este projeto é reconhecida', () => {
@@ -32,7 +32,7 @@ test('instalação que aponta pra este projeto é reconhecida', () => {
 });
 
 test('instalação que aponta pra outro caminho é reconhecida como velha', () => {
-  const antigo = '<string>/Users/alguem/Projetos-antigos/IAUnifier/bin/iaunifier.mjs</string>';
+  const antigo = '<string>/Users/alguem/Projetos-antigos/Nuvo/bin/nuvo.mjs</string>';
   assert.equal(
     service.describesThisProject(antigo),
     false,

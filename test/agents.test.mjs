@@ -381,13 +381,13 @@ test('pesquisa: a cota de leitura se reparte entre os ângulos planejados', asyn
     }
     const corpo = JSON.parse(options.body);
     if (/planeja uma pesquisa/i.test(corpo.messages[0]?.content || '')) {
-      return respostaDe(JSON.stringify(angulos.map((a) => `IAUnifier ${a}`)));
+      return respostaDe(JSON.stringify(angulos.map((a) => `Nuvo ${a}`)));
     }
     return respostaDe('relatório final');
   });
   try {
     const eventos = await collect(
-      runResearch({ question: 'o que é o IAUnifier', ref: refA, breadth: 4, depth: 3 })
+      runResearch({ question: 'o que é o Nuvo', ref: refA, breadth: 4, depth: 3 })
     );
     const lidas = eventos.filter((e) => e.type === 'read');
     assert.equal(lidas.length, 12, 'o teto de leitura mudou');

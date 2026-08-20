@@ -2,8 +2,9 @@ node_modules/
 .DS_Store
 *.log
 
-# Dados do usuário: banco, chaves e uploads moram em ~/.iaunifier, mas se
-# alguém apontar IAUNIFIER_HOME pra cá, nada disso pode ir pro repositório.
+# Dados do usuário: banco, chaves e uploads moram em ~/.nuvo, mas se alguém
+# apontar NUVO_HOME pra cá, nada disso pode ir pro repositório.
+.nuvo/
 .iaunifier/
 *.db
 *.db-wal

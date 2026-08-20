@@ -1,4 +1,4 @@
-// Gera o executável único do IAUnifier para macOS, Linux e Windows.
+// Gera o executável único do Nuvo para macOS, Linux e Windows.
 //
 // O caminho é o SEA do próprio Node: junta o código num arquivo CommonJS,
 // transforma em blob e injeta esse blob dentro do binário oficial do Node de
@@ -46,9 +46,9 @@ function versaoDoApp() {
 
 function juntarCodigo() {
   mkdirSync(SAIDA, { recursive: true });
-  const alvo = join(SAIDA, 'iaunifier.cjs');
+  const alvo = join(SAIDA, 'nuvo.cjs');
   sh('npx', [
-    '--yes', 'esbuild', 'bin/iaunifier.mjs',
+    '--yes', 'esbuild', 'bin/nuvo.mjs',
     '--bundle', '--platform=node', '--format=cjs', `--target=node22`,
     `--outfile=${relative(RAIZ, alvo)}`, '--log-level=error'
   ]);
@@ -88,7 +88,7 @@ function gerarBlob(entrada) {
   const assets = recursosDaWeb();
   const config = {
     main: entrada,
-    output: join(SAIDA, 'iaunifier.blob'),
+    output: join(SAIDA, 'nuvo.blob'),
     disableExperimentalSEAWarning: true,
     useSnapshot: false,
     useCodeCache: false,
@@ -128,7 +128,7 @@ function baixarNode(alvo) {
 function injetar(alvo, blob) {
   const origem = baixarNode(alvo);
   mkdirSync(DIST, { recursive: true });
-  const destino = join(SAIDA, `iaunifier-${alvo.id}${alvo.exe}`);
+  const destino = join(SAIDA, `nuvo-${alvo.id}${alvo.exe}`);
   rmSync(destino, { force: true });
   copyFileSync(origem, destino);
   chmodSync(destino, 0o755);
@@ -162,14 +162,14 @@ function sha256(arquivo) {
 
 function embalar(alvo, binario, versao) {
   mkdirSync(DIST, { recursive: true });
-  const base = `iaunifier-${versao}-${alvo.id}`;
+  const base = `nuvo-${versao}-${alvo.id}`;
 
-  // O arquivo dentro do pacote chama `iaunifier`, não `iaunifier-linux-x64`:
+  // O arquivo dentro do pacote chama `nuvo`, não `nuvo-linux-x64`:
   // é o nome que as instruções mandam rodar.
   const tmp = join(SAIDA, 'embalar');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
-  const nome = alvo.plataforma === 'win32' ? 'iaunifier.exe' : 'iaunifier';
+  const nome = alvo.plataforma === 'win32' ? 'nuvo.exe' : 'nuvo';
   const dentro = join(tmp, nome);
   copyFileSync(binario, dentro);
   chmodSync(dentro, 0o755);
@@ -187,7 +187,7 @@ function embalar(alvo, binario, versao) {
 
   const tgz = join(DIST, `${base}.tar.gz`);
   rmSync(tgz, { force: true });
-  sh('tar', ['-czf', tgz, '-C', tmp, 'iaunifier']);
+  sh('tar', ['-czf', tgz, '-C', tmp, 'nuvo']);
   rmSync(tmp, { recursive: true, force: true });
   return tgz;
 }
@@ -198,7 +198,7 @@ const versao = versaoDoApp();
 const somente = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const alvos = somente.length ? ALVOS.filter((a) => somente.includes(a.id)) : ALVOS;
 
-console.log(`IAUnifier ${versao} — empacotando com Node ${VERSAO_NODE}\n`);
+console.log(`Nuvo ${versao} — empacotando com Node ${VERSAO_NODE}\n`);
 
 console.log('1. juntando o código');
 const entrada = juntarCodigo();

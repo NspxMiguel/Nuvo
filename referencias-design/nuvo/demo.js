@@ -56,14 +56,14 @@ const FATOS = [
   ['Prefere respostas curtas, sem introdução nem resumo no fim.', 'conversa “Revisão do contrato”', 'vale pra tudo', null],
   ['O servidor de casa é um Debian 12 com 32 GB de memória e dois discos em espelho.', 'conversa “Trocar o disco”', 'vale pra tudo', null],
   ['Escreve em português do Brasil e evita anglicismo.', 'importação do ChatGPT, março', 'vale pra tudo', null],
-  ['Usa uv, não pip. Não quer sugestão de virtualenv.', 'conversa “Erro no backup”', 'só no projeto IAUnifier', 'teal'],
+  ['Usa uv, não pip. Não quer sugestão de virtualenv.', 'conversa “Erro no backup”', 'só no projeto Nuvo', 'teal'],
   ['O contrato de aluguel vence em outubro de 2026.', 'anexo contrato-2025.pdf', 'só no projeto Casa', 'amber']
 ];
 
 function encherTopbar() {
   $('#sel-model').innerHTML = MODELOS.map(([n]) => `<option>${n}</option>`).join('');
   $('#sel-gem').innerHTML = '<option>— nenhum —</option><option>Revisor de contrato</option><option>Parceiro de código</option>';
-  $('#sel-project').innerHTML = '<option>— sem projeto —</option><option>Casa</option><option>IAUnifier</option>';
+  $('#sel-project').innerHTML = '<option>— sem projeto —</option><option>Casa</option><option>Nuvo</option>';
 }
 
 function encherLista() {
@@ -630,7 +630,7 @@ function renderProjects() {
   view.className = 'view panel';
   const projetos = [
     ['Casa', 'amber', 3, 18, 'Português claro, sem jargão. Quando citar norma, cite o artigo.'],
-    ['IAUnifier', 'teal', 12, 41, 'Node 22, sem empacotador. Não sugerir React nem pip.'],
+    ['Nuvo', 'teal', 12, 41, 'Node 22, sem empacotador. Não sugerir React nem pip.'],
     ['Leituras', 'violet', 7, 9, 'Resumo em tópicos, sempre com a página citada.']
   ];
   view.innerHTML = `<div class="panel-inner">
@@ -909,7 +909,7 @@ function abrirAjustes(qual = 'conversa') {
        <button class="primary" data-fechar>Pronto</button>`
     : `<label>Qual IA responde<select>${MODELOS.map(([n]) => `<option>${n}</option>`).join('')}</select></label>
        <label>Perfil<select><option>— nenhum —</option><option>Revisor de contrato</option></select></label>
-       <label>Projeto<select><option>— sem projeto —</option><option>Casa</option><option>IAUnifier</option></select></label>
+       <label>Projeto<select><option>— sem projeto —</option><option>Casa</option><option>Nuvo</option></select></label>
        <label>Quão criativa<select><option>nada criativa</option><option selected>pouco criativa</option><option>bem criativa</option></select></label>
        <label class="full">Instrução só desta conversa<textarea rows="2" placeholder="deixe vazio pra usar a da voz"></textarea></label>
        <label class="check full"><input type="checkbox" checked /> mostrar tempo e contagem em cada resposta</label>
@@ -935,7 +935,7 @@ function aplicarTema(t) {
 
 const CODIGO = [
   {
-    nome: 'Claude Code', onde: '~/projetos/iaunifier', estado: 'trabalhando',
+    nome: 'Claude Code', onde: '~/projetos/nuvo', estado: 'trabalhando',
     saida: '<span class="cmd">$ claude "arruma o teste que quebrou no council"</span>\n\nli 3 arquivos · server/council.mjs, test/council.test.mjs, server/chat.mjs\n\n<span class="mais">+  if (voto > 10 || voto < 0) return anular(voto);</span>\n<span class="menos">-  if (voto > 10) return anular(voto);</span>\n\nrodando os testes… 284 passando, 1 falhando → 285 passando'
   },
   {

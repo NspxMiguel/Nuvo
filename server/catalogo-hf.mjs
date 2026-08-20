@@ -42,7 +42,7 @@ const ESPERA_COM_CACHE_MS = 2000;
 // a régua do `classificarCabe` espera receber.
 const GB = 1024 ** 3;
 
-const UA = 'IAUnifier (catálogo de modelos locais)';
+const UA = 'Nuvo (catálogo de modelos locais)';
 
 // Teto anônimo do Hugging Face: 500 pedidos por 5 minutos por IP. Montar o
 // catálogo inteiro custa 1 + 100 chamadas, então cabe — mas cabe uma vez, não
@@ -571,7 +571,7 @@ function gravarCache(conteudo) {
     // já está em memória, só não vai sobreviver ao próximo start.
     //
     // Mas engolir calado apaga a proteção de cota que justifica este cache
-    // existir: com `~/.iaunifier` só-leitura, três aberturas de tela viravam
+    // existir: com `~/.nuvo` só-leitura, três aberturas de tela viravam
     // três idas à rede (1 listagem + N manifestos cada) e ninguém ficava
     // sabendo — até chegar o 429.
     console.warn(`catálogo do Hugging Face: não deu pra gravar o cache em ${CACHE_PATH}: ${err.message}`);

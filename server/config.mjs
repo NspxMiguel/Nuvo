@@ -1,14 +1,49 @@
 // Configuração e diretório de dados.
 //
-// Tudo do usuário mora em ~/.iaunifier: banco, chaves e uploads. O arquivo de
+// Tudo do usuário mora em ~/.nuvo: banco, chaves e uploads. O arquivo de
 // configuração guarda segredos, então é criado com permissão 600.
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-export const DATA_DIR = process.env.IAUNIFIER_HOME || join(homedir(), '.iaunifier');
+/**
+ * Onde ficam os dados desta instalação.
+ *
+ * O app se chamava IAUnifier e guardava tudo em `~/.iaunifier`: banco de
+ * conversas, chaves de API, anexos e o perfil do navegador do agente. Trocar só
+ * o nome deixaria o app abrindo vazio, com o que já existia órfão numa pasta
+ * oculta — a perda que ninguém percebe na hora, e que só aparece quando alguém
+ * procura uma conversa antiga.
+ *
+ * Então a casa muda junto, uma vez, antes de qualquer arquivo ser aberto.
+ * `rename` no mesmo sistema de arquivos é atômico: ou a pasta inteira passou a
+ * se chamar `.nuvo`, ou nada mudou. Não existe meio-caminho com metade dos
+ * arquivos em cada lado.
+ *
+ * Se a mudança não der (permissão, volume diferente, pasta em uso), continuar
+ * morando na antiga é melhor do que começar do zero fingindo que não havia
+ * nada lá.
+ */
+function casaDoUsuario() {
+  // `IAUNIFIER_HOME` continua valendo: pode estar num script, num serviço já
+  // instalado ou no `--home` de quem atualizou sem ler nota de versão.
+  const escolhido = process.env.NUVO_HOME || process.env.IAUNIFIER_HOME;
+  if (escolhido) return escolhido;
+
+  const nova = join(homedir(), '.nuvo');
+  const antiga = join(homedir(), '.iaunifier');
+  if (existsSync(nova) || !existsSync(antiga)) return nova;
+  try {
+    renameSync(antiga, nova);
+    return nova;
+  } catch {
+    return antiga;
+  }
+}
+
+export const DATA_DIR = casaDoUsuario();
 export const DB_PATH = join(DATA_DIR, 'data.db');
 export const CONFIG_PATH = join(DATA_DIR, 'config.json');
 export const UPLOAD_DIR = join(DATA_DIR, 'uploads');

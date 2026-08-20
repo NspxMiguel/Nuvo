@@ -2,12 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "iaunifier",
+      "name": "nuvo",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "bin/iaunifier.mjs",
+        "bin/nuvo.mjs",
         "--home",
-        "../.iaunifier-preview",
+        "../.nuvo-preview",
         "--port",
         "4788",
         "--host",

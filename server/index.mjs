@@ -135,6 +135,11 @@ function authorized(req, url) {
   const cfg = loadConfig();
   if (!cfg.requireToken) return true;
   return (
+    sameToken(req.headers['x-nuvo-token'], cfg.accessToken) ||
+    // O cabeçalho com o nome antigo continua aceito: a página fica num service
+    // worker, e uma aba que ainda não trocou o `core.js` guardado manda o nome
+    // que aprendeu. Recusar seria transformar uma troca de nome em tela de
+    // senha para quem já usava.
     sameToken(req.headers['x-iaunifier-token'], cfg.accessToken) ||
     sameToken(url.searchParams.get('token'), cfg.accessToken)
   );
@@ -288,19 +293,23 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         ...(origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
-        'access-control-allow-headers': 'content-type, x-iaunifier-token',
+        'access-control-allow-headers': 'content-type, x-nuvo-token, x-iaunifier-token',
         'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS'
       });
       return res.end();
     }
 
-    // Identificação, sem token: diz apenas que é um IAUnifier que atende aqui.
+    // Identificação, sem token: diz apenas que é um Nuvo que atende aqui.
     // O atalho do dock precisa disso antes de abrir a janela — checar só "tem
     // algo escutando nesta porta" faria ele mandar o token do usuário pra
     // qualquer programa que tivesse tomado a porta.
     if (url.pathname === '/api/ping') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      return res.end(JSON.stringify({ app: 'iaunifier' }));
+      // `nomeAnterior` não é enfeite: o atalho de mesa instalado pela versão
+      // IAUnifier procura a palavra "iaunifier" nesta resposta pra decidir se o
+      // servidor já está de pé. Sem ela, aquele atalho concluiria que não está e
+      // subiria um segundo servidor na mesma porta a cada clique.
+      return res.end(JSON.stringify({ app: 'nuvo', nomeAnterior: 'iaunifier' }));
     }
 
     // O manifest descreve o app instalado, e o `start_url` dele precisa levar o
@@ -368,7 +377,7 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
     // impressão errada de que ainda existe uma tranca.
     const sufixo = cfg.requireToken ? `/?token=${cfg.accessToken}` : '/';
 
-    console.log('\n  IAUnifier no ar');
+    console.log('\n  Nuvo no ar');
     console.log(`  local:  http://localhost:${port}${sufixo}`);
     for (const addr of enderecos) console.log(`  rede:   ${addr}${sufixo}`);
 
@@ -381,7 +390,7 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
           ? '  Qualquer aparelho na sua rede abre este app, lê suas conversas e usa suas chaves de API.'
           : '  Qualquer programa desta máquina abre este app sem se identificar.'
       );
-      console.log('  Religar: node bin/iaunifier.mjs --com-token');
+      console.log('  Religar: node bin/nuvo.mjs --com-token');
     }
 
     // A promessa tem que caber no que o navegador realmente faz por HTTP na

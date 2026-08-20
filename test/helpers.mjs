@@ -1,5 +1,5 @@
 // Apoio dos testes: cada arquivo roda num diretório de dados próprio, jogado
-// fora no fim. Nenhum teste toca o ~/.iaunifier de quem estiver rodando.
+// fora no fim. Nenhum teste toca o ~/.nuvo de quem estiver rodando.
 
 import { chmodSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,11 +7,11 @@ import { join } from 'node:path';
 
 /**
  * Precisa ser chamado ANTES de importar qualquer módulo do servidor: config.mjs
- * lê IAUNIFIER_HOME no import, e db.mjs abre o banco no import.
+ * lê NUVO_HOME no import, e db.mjs abre o banco no import.
  */
 export function useTempHome() {
-  const dir = mkdtempSync(join(tmpdir(), 'iaunifier-test-'));
-  process.env.IAUNIFIER_HOME = dir;
+  const dir = mkdtempSync(join(tmpdir(), 'nuvo-test-'));
+  process.env.NUVO_HOME = dir;
   process.env.PORT = '0';
   return {
     dir,
@@ -37,7 +37,7 @@ export function useTempHome() {
  * sem isso os dois não batem na hora de encurtar o caminho do arquivo.
  */
 export function cliFalso(nome, corpo) {
-  const pasta = realpathSync(mkdtempSync(join(tmpdir(), 'iaunifier-cli-')));
+  const pasta = realpathSync(mkdtempSync(join(tmpdir(), 'nuvo-cli-')));
   const comando = join(pasta, nome);
   writeFileSync(comando, `#!${process.execPath}\n${corpo}\n`);
   chmodSync(comando, 0o755);
@@ -145,7 +145,7 @@ export async function startServer() {
       const res = await fetch(`http://127.0.0.1:${port}/api${path}`, {
         method,
         headers: {
-          'x-iaunifier-token': override === undefined ? token : override,
+          'x-nuvo-token': override === undefined ? token : override,
           ...(body !== undefined && !raw ? { 'content-type': 'application/json' } : {})
         },
         body: raw ? body : body !== undefined ? JSON.stringify(body) : undefined

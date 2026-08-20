@@ -100,7 +100,7 @@ test('o navegador lê a página e clica no que existe', { skip: !temChrome }, as
 });
 
 test('o agente sobe mesmo com a janela do app aberta', { skip: !temChrome }, async () => {
-  // Os dois usavam `~/.iaunifier/navegador`, e o Chrome recusa dois processos no
+  // Os dois usavam `~/.nuvo/navegador`, e o Chrome recusa dois processos no
   // mesmo perfil: com o ícone do app aberto, o agente esperava 20s e desistia.
   const { DATA_DIR } = await import('../server/config.mjs');
   const { join } = await import('node:path');

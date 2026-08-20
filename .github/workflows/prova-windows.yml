@@ -28,7 +28,7 @@ jobs:
           $v = "${{ github.event.inputs.versao }}"
           if (-not $v) { $v = "${{ github.event.release.tag_name }}".TrimStart('v') }
           echo "VERSAO=$v" >> $env:GITHUB_ENV
-          $url = "https://github.com/${{ github.repository }}/releases/download/v$v/iaunifier-$v-windows-x64.zip"
+          $url = "https://github.com/${{ github.repository }}/releases/download/v$v/nuvo-$v-windows-x64.zip"
           Write-Host "baixando $url"
           Invoke-WebRequest -Uri $url -OutFile pacote.zip
           Expand-Archive pacote.zip -DestinationPath app
@@ -37,8 +37,8 @@ jobs:
       - name: subir o servidor e conferir que ele serve a interface
         shell: pwsh
         run: |
-          $env:IAUNIFIER_HOME = "$PWD\casa"
-          $p = Start-Process -FilePath "app\iaunifier.exe" -ArgumentList "--port","4747" `
+          $env:NUVO_HOME = "$PWD\casa"
+          $p = Start-Process -FilePath "app\nuvo.exe" -ArgumentList "--port","4747" `
                -RedirectStandardOutput saida.txt -RedirectStandardError erro.txt -PassThru -NoNewWindow
           Start-Sleep -Seconds 12
           Write-Host "--- saída do programa:"
@@ -53,7 +53,7 @@ jobs:
           # entrado no executável, estes dariam 404 com a raiz ainda em 200.
           # O token vai no cabeçalho próprio do app — ele não usa cookie.
           foreach ($rota in @("/", "/app.js", "/styles.css", "/format.js", "/i18n.js", "/requisitos.js", "/catalogo.js", "/idiomas/en.json", "/manifest.webmanifest")) {
-            $r = Invoke-WebRequest -Uri "http://127.0.0.1:4747$rota" -Headers @{ "x-iaunifier-token" = $token } -UseBasicParsing
+            $r = Invoke-WebRequest -Uri "http://127.0.0.1:4747$rota" -Headers @{ "x-nuvo-token" = $token } -UseBasicParsing
             Write-Host ("  {0,-24} {1}  {2} bytes" -f $rota, $r.StatusCode, $r.RawContentLength)
             if ($r.StatusCode -ne 200) { throw "$rota respondeu $($r.StatusCode)" }
           }

@@ -1,8 +1,13 @@
 // Subir junto com a máquina.
 //
-// Três sistemas, três mecanismos, mesma ideia: registrar o `node bin/iaunifier`
+// Três sistemas, três mecanismos, mesma ideia: registrar o `node bin/nuvo`
 // pra iniciar no login do usuário e reiniciar sozinho se cair. Tudo no escopo
 // do usuário — nada aqui pede senha de administrador.
+//
+// O app já se chamou IAUnifier, e quem instalou naquela época tem um registro
+// com o nome antigo. Instalar de novo sem apagar aquele deixaria dois serviços
+// disputando a mesma porta a cada login — daí o `limparRegistroAntigo` no
+// começo de cada instalação.
 
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
@@ -13,7 +18,8 @@ import { comandoDoServidor, EMPACOTADO } from './empacotado.mjs';
 import { DATA_DIR } from './config.mjs';
 import { erroTraduzivel } from './erro-traduzivel.mjs';
 
-const LABEL = 'dev.nspx.iaunifier';
+const LABEL = 'dev.nspx.nuvo';
+const LABEL_ANTIGO = 'dev.nspx.iaunifier';
 // Empacotado, o servidor é o próprio executável e não existe arquivo de
 // entrada separado — o serviço do sistema tem que apontar pro binário, não pra
 // um `node caminho/arquivo.mjs` que não existe na máquina de quem baixou.
@@ -22,7 +28,9 @@ const ENTRY = ARGS[0] || NODE;
 const COMANDO = [NODE, ...ARGS];
 
 const LAUNCH_AGENT = join(homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
-const SYSTEMD_UNIT = join(homedir(), '.config', 'systemd', 'user', 'iaunifier.service');
+const LAUNCH_AGENT_ANTIGO = join(homedir(), 'Library', 'LaunchAgents', `${LABEL_ANTIGO}.plist`);
+const SYSTEMD_UNIT = join(homedir(), '.config', 'systemd', 'user', 'nuvo.service');
+const SYSTEMD_UNIT_ANTIGO = join(homedir(), '.config', 'systemd', 'user', 'iaunifier.service');
 const LOG_OUT = join(DATA_DIR, 'servidor.log');
 const LOG_ERR = join(DATA_DIR, 'servidor.err.log');
 
@@ -34,9 +42,52 @@ function sh(command, args) {
   return execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
+/**
+ * Apaga o registro que a versão IAUnifier deixou.
+ *
+ * Silencioso de propósito: quem nunca instalou a versão antiga não tem nada
+ * para apagar, e a instalação de agora não pode falhar por causa disso.
+ */
+function limparRegistroAntigo() {
+  const sistema = platform();
+  try {
+    if (sistema === 'darwin') {
+      try {
+        sh('launchctl', ['bootout', `gui/${process.getuid()}/${LABEL_ANTIGO}`]);
+      } catch {
+        /* não estava carregado */
+      }
+      rmSync(LAUNCH_AGENT_ANTIGO, { force: true });
+    } else if (sistema === 'linux') {
+      if (existsSync(SYSTEMD_UNIT_ANTIGO)) {
+        try {
+          sh('systemctl', ['--user', 'disable', '--now', 'iaunifier.service']);
+        } catch {
+          /* já estava parado */
+        }
+        rmSync(SYSTEMD_UNIT_ANTIGO, { force: true });
+        try {
+          sh('systemctl', ['--user', 'daemon-reload']);
+        } catch {
+          /* sem systemd rodando */
+        }
+      }
+    } else if (sistema === 'win32') {
+      try {
+        sh('schtasks', ['/delete', '/f', '/tn', TASK_ANTIGA]);
+      } catch {
+        /* a tarefa antiga não existe */
+      }
+    }
+  } catch {
+    /* limpeza é cortesia: nada aqui pode impedir a instalação nova */
+  }
+}
+
 // ------------------------------------------------------------------- macOS
 
 function macInstall() {
+  limparRegistroAntigo();
   mkdirSync(dirname(LAUNCH_AGENT), { recursive: true });
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -53,7 +104,7 @@ function macInstall() {
   <key>StandardErrorPath</key><string>${escapeXml(LOG_ERR)}</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>IAUNIFIER_HOME</key><string>${escapeXml(DATA_DIR)}</string>
+    <key>NUVO_HOME</key><string>${escapeXml(DATA_DIR)}</string>
   </dict>
 </dict>
 </plist>
@@ -94,9 +145,10 @@ function macStatus() {
 // ------------------------------------------------------------------- Linux
 
 function linuxInstall() {
+  limparRegistroAntigo();
   mkdirSync(dirname(SYSTEMD_UNIT), { recursive: true });
   const unit = `[Unit]
-Description=IAUnifier — servidor de IA da casa
+Description=Nuvo — servidor de IA da casa
 After=network-online.target
 
 [Service]
@@ -111,7 +163,7 @@ WantedBy=default.target
 `;
   writeFileSync(SYSTEMD_UNIT, unit);
   sh('systemctl', ['--user', 'daemon-reload']);
-  sh('systemctl', ['--user', 'enable', '--now', 'iaunifier.service']);
+  sh('systemctl', ['--user', 'enable', '--now', 'nuvo.service']);
   // Sem isso o serviço só roda enquanto houver sessão aberta.
   let lingering = true;
   try {
@@ -131,7 +183,7 @@ WantedBy=default.target
 
 function linuxUninstall() {
   try {
-    sh('systemctl', ['--user', 'disable', '--now', 'iaunifier.service']);
+    sh('systemctl', ['--user', 'disable', '--now', 'nuvo.service']);
   } catch {
     /* já estava desligado */
   }
@@ -147,7 +199,7 @@ function linuxUninstall() {
 function linuxStatus() {
   if (!existsSync(SYSTEMD_UNIT)) return { installed: false };
   try {
-    const state = sh('systemctl', ['--user', 'is-active', 'iaunifier.service']).trim();
+    const state = sh('systemctl', ['--user', 'is-active', 'nuvo.service']).trim();
     return { installed: true, running: state === 'active', state, file: SYSTEMD_UNIT };
   } catch {
     return { installed: true, running: false, file: SYSTEMD_UNIT };
@@ -156,9 +208,11 @@ function linuxStatus() {
 
 // ----------------------------------------------------------------- Windows
 
-const TASK = 'IAUnifier';
+const TASK = 'Nuvo';
+const TASK_ANTIGA = 'IAUnifier';
 
 function windowsInstall() {
+  limparRegistroAntigo();
   // `onlogon` do próprio usuário não exige administrador.
   sh('schtasks', [
     '/create', '/f',
@@ -219,7 +273,7 @@ export function uninstallService() {
 /**
  * O caminho gravado no serviço ainda aponta pra este projeto?
  *
- * O arquivo instalado guarda o caminho absoluto de `bin/iaunifier.mjs`. Mover
+ * O arquivo instalado guarda o caminho absoluto de `bin/nuvo.mjs`. Mover
  * ou renomear a pasta do projeto deixa o serviço apontando pro vazio — e o
  * launchd, com KeepAlive ligado, fica tentando subir um arquivo que não existe
  * mais, sem que nada apareça na tela.
@@ -254,7 +308,7 @@ export function serviceStatus() {
       stale: true,
       message:
         'o serviço aponta pra outro caminho — o projeto foi movido desde a instalação. ' +
-        'Rode `iaunifier instalar-servico` de novo pra corrigir.'
+        'Rode `nuvo instalar-servico` de novo pra corrigir.'
     };
   }
   return { ...base, stale: false };

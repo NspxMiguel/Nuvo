@@ -13,7 +13,7 @@ import { t, formatarNumero, plural } from './i18n.js';
 /** Quantas linhas nascem visíveis. O resto entra em blocos, a pedido. */
 const PAGINA = 15;
 
-const GUARDADO = 'iaunifier.loja';
+const GUARDADO = 'nuvo.loja';
 
 /**
  * As ordens possíveis.

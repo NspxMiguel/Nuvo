@@ -5,6 +5,56 @@ estiver entregue e conferido.
 
 ---
 
+## 20/08/2026 — o nome novo é Nuvo, e o trabalho é aqui
+
+> *"oxi, qm mando vc mexe em outros projetos? era pra continua com o Nuvo"*
+
+Ele respondeu a pergunta que estava aberta desde o pedido *"trocar o nome pro
+novo nome"*: **o nome é Nuvo**. E reclamou, com razão, de eu ter passado a tarde
+em outros repositórios em vez de continuar aqui.
+
+- [ ] **trocar o nome do app inteiro para Nuvo** — código, pasta de dados,
+      identificadores de sistema, landing, README, repositório e endereço no
+      domínio dele.
+
+## 20/08/2026 — o que ele viu na landing e no app
+
+Mandou duas capturas da landing (em inglês, no `nspx.dev`) e a saída do terminal
+ao tentar abrir o app baixado.
+
+- [ ] **"agr o scroll fico rapido dms kkk"**
+
+      Ontem ele pediu pra agilizar e eu cortei o palco de 460vh pra 250vh — de
+      3680 px de rolagem pra 2000 px. Passou do ponto.
+
+- [ ] **"e o your name ficou estranho... tbm rapido dms"**
+
+      Os nomes que passam sozinhos terminam em "YOUR NAME" / "SEU NOME". Fica
+      parecendo que o app está chamando a pessoa de "SEU NOME", em vez de mostrar
+      onde o nome dela entraria. E a passagem também está rápida demais.
+
+- [ ] **"nada acontece uai ao executar o app"**
+
+      Ele baixou o `.tar.gz` de macOS, extraiu e tentou rodar. O terminal dele:
+
+      ```
+      [oh-my-zsh] Would you like to update? [Y/n] /Users/miguel/Downloads/iaunifier ; exit;
+      ➜  ~ Users/miguel/Downloads/iaunifier ; exit;
+      zsh: no such file or directory: Users/miguel/Downloads/iaunifier
+      ```
+
+      Duas coisas empilhadas: a pergunta de atualização do oh-my-zsh comeu a
+      primeira barra do caminho (por isso o `Users/...` sem `/`), e antes disso
+      abrir um executável solto baixado da internet no macOS não é um caminho que
+      funcione — quarentena do Gatekeeper e nenhum `.app` para clicar duas vezes.
+
+- [ ] **"acho q muda a fonte, e coloca alguma animação tipo a animacao ao iniciar
+      nova conversa"**
+
+- [ ] **"n tem opção de anexar coisa no code mode nao?"**
+
+---
+
 ## 16/08/2026 — pedido de criação do projeto
 
 > "cria um app tipo o locally ai. um app mobile e pc, que roda num servidor da

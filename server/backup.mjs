@@ -24,7 +24,11 @@ import { STAGED_PATH, PREVIOUS_PATH } from './pending-restore.mjs';
 import { db } from './db.mjs';
 import { erroTraduzivel } from './erro-traduzivel.mjs';
 
-const SIGNATURE = 'iaunifier-backup';
+const SIGNATURE = 'nuvo-backup';
+
+// Backup gravado pela versão IAUnifier tem a assinatura antiga dentro. Recusá-lo
+// jogaria fora a cópia de segurança justamente de quem atualizou.
+const ASSINATURAS_ACEITAS = new Set([SIGNATURE, 'iaunifier-backup']);
 
 /** Só o dono lê. Vale pra tudo que tem chave de API dentro. */
 function segredoNoDisco(caminho) {
@@ -228,7 +232,7 @@ export function createBackup() {
 
 /** Nome com data, pra não sobrescrever backup anterior por acidente. */
 export function backupName(when = new Date()) {
-  return `iaunifier-${when.toISOString().slice(0, 19).replace(/[:T]/g, '-')}.zip`;
+  return `nuvo-${when.toISOString().slice(0, 19).replace(/[:T]/g, '-')}.zip`;
 }
 
 /**
@@ -239,7 +243,7 @@ export function backupName(when = new Date()) {
  * agora, e aí o app acharia que acabou de fazer backup.
  */
 export function backupDate(name) {
-  const m = /^iaunifier-(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})\.zip$/.exec(name);
+  const m = /^(?:nuvo|iaunifier)-(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})\.zip$/.exec(name);
   if (!m) return null;
   const [, y, mo, d, h, mi, s] = m;
   return Date.parse(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`) || null;
@@ -262,15 +266,15 @@ export function restoreBackup(buffer, { keepSecrets = false } = {}) {
   const files = unzip(buffer);
 
   const manifestRaw = files.get('manifest.json');
-  if (!manifestRaw) throw new Error('esse zip não é um backup do IAUnifier (falta o manifest)');
+  if (!manifestRaw) throw new Error('esse zip não é um backup do Nuvo (falta o manifest)');
   let manifest;
   try {
     manifest = JSON.parse(manifestRaw.toString('utf8'));
   } catch {
     throw new Error('o manifest do backup está corrompido');
   }
-  if (manifest.signature !== SIGNATURE) {
-    throw new Error('esse zip não é um backup do IAUnifier');
+  if (!ASSINATURAS_ACEITAS.has(manifest.signature)) {
+    throw new Error('esse zip não é um backup do Nuvo');
   }
 
   const database = files.get('data.db');

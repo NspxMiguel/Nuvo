@@ -9,7 +9,7 @@
 // Node traz `WebSocket` global desde a 22 e o CDP é o protocolo que o próprio
 // DevTools usa.
 //
-// O perfil é uma pasta separada em `~/.iaunifier/navegador`, não o perfil
+// O perfil é uma pasta separada em `~/.nuvo/navegador`, não o perfil
 // pessoal. Dois motivos: o Chrome recusa depuração remota no perfil padrão
 // desde a 136, e um agente com acesso à sessão do dia a dia erra caro. Como a
 // pasta persiste entre execuções, um login feito ali continua valendo depois.
@@ -53,8 +53,9 @@ const CAMINHOS = {
  * não mudaria nada: o agente continuaria pegando o Chrome do sistema.
  */
 export function acharNavegador() {
-  if (process.env.IAUNIFIER_CHROME) {
-    return existsSync(process.env.IAUNIFIER_CHROME) ? process.env.IAUNIFIER_CHROME : null;
+  const escolhido = process.env.NUVO_CHROME || process.env.IAUNIFIER_CHROME;
+  if (escolhido) {
+    return existsSync(escolhido) ? escolhido : null;
   }
   const escolha = loadConfig().navegador || {};
   if (escolha.fonte === 'proprio' && escolha.binario && existsSync(escolha.binario)) {

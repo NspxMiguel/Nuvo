@@ -63,7 +63,7 @@ test('backup leva banco, config e anexos', () => {
   assert.equal(dentro.get('uploads/anexo.txt').toString(), 'conteúdo do anexo');
 
   const manifest = JSON.parse(dentro.get('manifest.json').toString());
-  assert.equal(manifest.signature, 'iaunifier-backup');
+  assert.equal(manifest.signature, 'nuvo-backup');
   assert.equal(dentro.get('data.db').toString('utf8', 0, 15), 'SQLite format 3');
 });
 
@@ -96,7 +96,7 @@ test('restauração recusa backup com banco corrompido', () => {
   const ruim = backup.zip([
     {
       name: 'manifest.json',
-      data: Buffer.from(JSON.stringify({ signature: 'iaunifier-backup', version: 1 }))
+      data: Buffer.from(JSON.stringify({ signature: 'nuvo-backup', version: 1 }))
     },
     { name: 'data.db', data: Buffer.from('não sou um banco') }
   ]);
@@ -130,11 +130,27 @@ test('restauração não toca no banco em uso, e a troca só vale no start segui
   assert.equal(semNada.applied, false);
 });
 
+test('backup gravado pela versão anterior ainda restaura', () => {
+  // A assinatura dentro do manifest levava o nome antigo do app. Recusá-la
+  // transformaria a cópia de segurança de quem atualizou em lixo — justamente
+  // no dia em que ela seria usada.
+  const dentro = backup.unzip(backup.createBackup().buffer);
+  const entradas = [...dentro].map(([name, data]) =>
+    name === 'manifest.json'
+      ? { name, data: Buffer.from(JSON.stringify({ ...JSON.parse(data.toString()), signature: 'iaunifier-backup' })) }
+      : { name, data }
+  );
+
+  const resultado = backup.restoreBackup(backup.zip(entradas));
+  assert.equal(resultado.db, true);
+  pendente.applyPendingRestore();
+});
+
 test('restauração não escreve fora da pasta de anexos', () => {
   const malicioso = backup.zip([
     {
       name: 'manifest.json',
-      data: Buffer.from(JSON.stringify({ signature: 'iaunifier-backup', version: 1 }))
+      data: Buffer.from(JSON.stringify({ signature: 'nuvo-backup', version: 1 }))
     },
     { name: 'data.db', data: readFileSync(DB_PATH) },
     { name: 'uploads/../../../fora.txt', data: Buffer.from('escapei') }
@@ -172,7 +188,7 @@ test('zip que abre gigante é recusado em vez de derrubar o processo', () => {
   const bomba = backup.zip([
     {
       name: 'manifest.json',
-      data: Buffer.from(JSON.stringify({ signature: 'iaunifier-backup', version: 1 }))
+      data: Buffer.from(JSON.stringify({ signature: 'nuvo-backup', version: 1 }))
     },
     { name: 'data.db', data: Buffer.alloc(600 * 1024 * 1024) }
   ]);

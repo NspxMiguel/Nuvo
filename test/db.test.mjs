@@ -14,10 +14,10 @@ const RAIZ = fileURLToPath(new URL('../', import.meta.url));
 
 /** Roda o script num processo limpo, com HOME próprio. */
 function emProcessoNovo(script) {
-  const home = mkdtempSync(join(tmpdir(), 'iaunifier-db-'));
+  const home = mkdtempSync(join(tmpdir(), 'nuvo-db-'));
   try {
     return execFileSync(process.execPath, ['--input-type=module', '-e', script], {
-      env: { ...process.env, IAUNIFIER_HOME: home },
+      env: { ...process.env, NUVO_HOME: home },
       cwd: RAIZ,
       encoding: 'utf8'
     }).trim();

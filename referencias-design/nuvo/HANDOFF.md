@@ -7,7 +7,7 @@ uso e programas de terminal) usando **uma memória compartilhada**: o que você 
 todas sabem. Este pacote traz o desenho pronto de todas as telas, nos dois tamanhos, no tema
 escuro (padrão) e claro.
 
-O repositório de origem é `NspxMiguel/IAUnifier` (branch `main`, pasta `web/`). O app já existe
+O repositório de origem é `NspxMiguel/Nuvo` (branch `main`, pasta `web/`). O app já existe
 e funciona; o que está aqui é a **camada visual nova**, feita pra entrar no lugar de
 `web/styles.css` sem quebrar a fiação existente.
 

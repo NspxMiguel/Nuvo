@@ -1,4 +1,4 @@
-// Interface do IAUnifier. Sem build: ES modules servidos direto.
+// Interface do Nuvo. Sem build: ES modules servidos direto.
 
 import {
   $, $$, api, stream, state, refreshState, chatModels, modelLabel, fillSelect,
@@ -33,7 +33,7 @@ const doSistema = matchMedia('(prefers-color-scheme: dark)');
 
 function applyTheme(theme, { guardar = true } = {}) {
   document.documentElement.dataset.theme = theme;
-  if (guardar) localStorage.setItem('iaunifier.theme', theme);
+  if (guardar) localStorage.setItem('nuvo.theme', theme);
   $('#btn-theme').innerHTML = icon(theme === 'light' ? 'sun' : 'moon', 18);
   // A cor da barra do navegador vem daqui. Fixa no HTML, o celular ficava com a
   // barra escura por cima da página clara — a emenda aparece o tempo todo.
@@ -44,10 +44,10 @@ function applyTheme(theme, { guardar = true } = {}) {
 
 // Enquanto ninguém escolheu, o tema é o do aparelho: abrir o app de madrugada
 // não pode dar um clarão. A escolha manual, quando existe, ganha do sistema.
-const escolhido = localStorage.getItem('iaunifier.theme');
+const escolhido = localStorage.getItem('nuvo.theme');
 applyTheme(escolhido || (doSistema.matches ? 'dark' : 'light'), { guardar: false });
 doSistema.addEventListener('change', (e) => {
-  if (!localStorage.getItem('iaunifier.theme')) {
+  if (!localStorage.getItem('nuvo.theme')) {
     applyTheme(e.matches ? 'dark' : 'light', { guardar: false });
   }
 });
@@ -1388,7 +1388,7 @@ function renderTune() {
     };
     state.gemId = tune.querySelector('#t-gem').value;
     state.projectId = tune.querySelector('#t-project').value;
-    localStorage.setItem('iaunifier.gem', state.gemId);
+    localStorage.setItem('nuvo.gem', state.gemId);
     state.chat = await api(`/chats/${state.chatId}`, {
       method: 'PATCH',
       body: {
@@ -1463,7 +1463,7 @@ function renderView() {
 
 function startChatWithGem(gem) {
   state.gemId = gem.id;
-  localStorage.setItem('iaunifier.gem', gem.id);
+  localStorage.setItem('nuvo.gem', gem.id);
   if (gem.model) state.model = gem.model;
   newChat();
 }
@@ -1518,7 +1518,7 @@ function commands() {
       label: t('Trocar para {modelo}', { modelo: model.label }),
       run: () => {
         state.model = model.ref;
-        localStorage.setItem('iaunifier.model', model.ref);
+        localStorage.setItem('nuvo.model', model.ref);
         renderTopbar();
         toast(t('agora responde {modelo}', { modelo: model.label }));
       }
@@ -1603,7 +1603,7 @@ async function exportChat(format) {
     download(`${data.chat.title}.json`, JSON.stringify(data, null, 2), 'application/json');
   } else {
     const res = await fetch(`/api/chats/${state.chatId}/export?format=md`, {
-      headers: { 'x-iaunifier-token': localStorage.getItem('iaunifier.token') || '' }
+      headers: { 'x-nuvo-token': localStorage.getItem('nuvo.token') || '' }
     });
     download(`${state.chat?.title || 'conversa'}.md`, await res.text(), 'text/markdown');
   }
@@ -1749,12 +1749,12 @@ for (const btn of $$('.nav-item[data-view]')) {
 
 $('#sel-model').onchange = (ev) => {
   state.model = ev.target.value;
-  localStorage.setItem('iaunifier.model', state.model);
+  localStorage.setItem('nuvo.model', state.model);
   if (state.chatId) api(`/chats/${state.chatId}`, { method: 'PATCH', body: { model: state.model } });
 };
 $('#sel-gem').onchange = (ev) => {
   state.gemId = ev.target.value;
-  localStorage.setItem('iaunifier.gem', state.gemId);
+  localStorage.setItem('nuvo.gem', state.gemId);
   if (state.chatId) {
     api(`/chats/${state.chatId}`, { method: 'PATCH', body: { gem_id: state.gemId || null } });
   } else {

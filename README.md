@@ -1,4 +1,4 @@
-# IAUnifier
+# Nuvo
 
 Servidor de IA para rodar na própria máquina. Junta modelo local, modelo de API
 e IA de linha de comando numa interface só — e dá a todos eles **a mesma
@@ -15,13 +15,13 @@ no Node, então **não há dependência para instalar** e não há compilação 
 ## Rodar
 
 ```bash
-node bin/iaunifier.mjs
+node bin/nuvo.mjs
 ```
 
 O servidor imprime o endereço local e o da rede, já com o token de acesso:
 
 ```
-IAUnifier no ar
+Nuvo no ar
 local:  http://localhost:4747/?token=...
 rede:   http://10.0.0.72:4747/?token=...
 ```
@@ -37,16 +37,16 @@ como app.
 | `--no-token` | desliga o token (só em rede confiável) |
 | `--com-token` | religa o token |
 
-Tudo do usuário fica em `~/.iaunifier`: banco (`data.db`), configuração
+Tudo do usuário fica em `~/.nuvo`: banco (`data.db`), configuração
 (`config.json`, criado com permissão 600), anexos (`uploads/`) e as cópias
 automáticas (`backups/`).
 
 ## Operação
 
 ```bash
-node bin/iaunifier.mjs instalar-servico   # sobe junto com a máquina
-node bin/iaunifier.mjs servico            # instalado? rodando?
-node bin/iaunifier.mjs remover-servico
+node bin/nuvo.mjs instalar-servico   # sobe junto com a máquina
+node bin/nuvo.mjs servico            # instalado? rodando?
+node bin/nuvo.mjs remover-servico
 ```
 
 launchd no macOS, `systemd --user` no Linux, Agendador de Tarefas no Windows —
@@ -57,19 +57,19 @@ sessão aberta, e isso é dito na saída.
 ### Ícone no dock
 
 ```bash
-node bin/iaunifier.mjs instalar-app   # atalho com ícone, janela sem abas
-node bin/iaunifier.mjs remover-app
+node bin/nuvo.mjs instalar-app   # atalho com ícone, janela sem abas
+node bin/nuvo.mjs remover-app
 ```
 
 Não é Electron: empacotar um Chromium por aparência custaria centenas de
 megabytes e a primeira dependência do projeto. O atalho abre o navegador que
 você já tem em modo aplicativo — janela sem barra de endereço e sem abas —
 apontado pro servidor, subindo ele antes se não estiver de pé. No macOS sai um
-`IAUnifier.app` em `~/Applications` com ícone próprio; no Linux, um `.desktop`
+`Nuvo.app` em `~/Applications` com ícone próprio; no Linux, um `.desktop`
 no menu; no Windows, um atalho no Menu Iniciar. Sem Chrome/Edge/Brave instalado,
 abre numa aba comum do navegador padrão.
 
-O atalho confirma que quem atende na porta é mesmo o IAUnifier (`GET /api/ping`,
+O atalho confirma que quem atende na porta é mesmo o Nuvo (`GET /api/ping`,
 a única rota sem token) antes de abrir a janela — o endereço carrega o token de
 acesso, e mandá-lo pra qualquer programa que tenha tomado a porta seria entregar
 a chave da casa.
@@ -77,9 +77,9 @@ a chave da casa.
 ### Backup
 
 ```bash
-node bin/iaunifier.mjs backup [arquivo.zip]   # banco + config + anexos
-node bin/iaunifier.mjs restore arquivo.zip
-node bin/iaunifier.mjs backups                # as cópias automáticas
+node bin/nuvo.mjs backup [arquivo.zip]   # banco + config + anexos
+node bin/nuvo.mjs restore arquivo.zip
+node bin/nuvo.mjs backups                # as cópias automáticas
 ```
 
 Uma cópia por dia é feita sozinha quando o servidor sobe, e as sete últimas
@@ -101,7 +101,7 @@ enquanto estiver desligado. Religar: `--com-token` ou a mesma chave na tela.
 Religando pela tela, o servidor devolve o token na resposta e o navegador o
 guarda. Sem isso o botão seria armadilha: o pedido seguinte da própria aba que
 apertou o botão levaria 401. Os outros aparelhos precisam do token, que aparece
-no terminal e em `iaunifier --token`.
+no terminal e em `nuvo --token`.
 
 ### Quando não vem resposta
 
@@ -126,7 +126,7 @@ npm test
 ```
 
 203 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
-roda num `IAUNIFIER_HOME` temporário e substitui o `fetch` global, então nada
+roda num `NUVO_HOME` temporário e substitui o `fetch` global, então nada
 toca o banco real nem a rede.
 
 ## Provedores
@@ -228,11 +228,11 @@ política dele — o sinalizador não muda isso.
 ## Estrutura
 
 ```
-bin/iaunifier.mjs      entrada de linha de comando
+bin/nuvo.mjs      entrada de linha de comando
 server/
   index.mjs            HTTP: estáticos, autenticação por token, roteamento
   api.mjs              rotas /api
-  config.mjs           ~/.iaunifier, segredos, token
+  config.mjs           ~/.nuvo, segredos, token
   db.mjs               esquema SQLite + FTS5 e migrações
   chat.mjs             uma rodada de conversa, como gerador assíncrono
   complete.mjs         chamada avulsa a um modelo, sem conversa por trás
@@ -266,7 +266,7 @@ que o provedor funciona.
 
 ## API
 
-Todas as rotas exigem o cabeçalho `x-iaunifier-token` (ou `?token=`).
+Todas as rotas exigem o cabeçalho `x-nuvo-token` (ou `?token=`).
 
 | Rota | Faz |
 | --- | --- |
@@ -284,7 +284,7 @@ Todas as rotas exigem o cabeçalho `x-iaunifier-token` (ou `?token=`).
 | `POST /api/providers/:id/pull` | baixa modelo do Ollama (SSE) |
 | `GET /api/search` | busca em mensagens e memória |
 | `GET/PATCH /api/settings` | configuração de memória e acesso |
-| `GET /api/ping` | única rota sem token: diz só que é um IAUnifier |
+| `GET /api/ping` | única rota sem token: diz só que é um Nuvo |
 | `GET /api/health` | testa cada provedor e diz o que está errado |
 | `GET /api/backup` | baixa o zip com banco, configuração e anexos |
 | `POST /api/restore` | restaura de um zip (corpo cru); pede reinício |

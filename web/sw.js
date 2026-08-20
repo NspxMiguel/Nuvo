@@ -3,13 +3,14 @@
 // Guarda a casca (HTML, CSS, JS, ícones) e nunca toca em /api — resposta de
 // API com token e stream de conversa não podem sair de cache.
 
-const CACHE = 'iaunifier-v7';
+const CACHE = 'nuvo-v8';
 // Módulo que o app importa e não está aqui só falta quando a rede cai — que é
 // exatamente quando o cache tinha que servir. O test/sw.test.mjs compara esta
 // lista com os arquivos de web/ pra não ficar pra trás de novo.
 const SHELL = [
   '/', '/index.html', '/styles.css',
-  '/app.js', '/core.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js', '/i18n.js', '/lugar.js', '/view-loja.js',
+  '/app.js', '/core.js',
+  '/mudanca.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js', '/i18n.js', '/lugar.js', '/view-loja.js',
   '/view-code.js',
   '/requisitos.js', '/catalogo.js',
   // O manifest NÃO entra aqui. Ele carrega o token dentro do `start_url`, então

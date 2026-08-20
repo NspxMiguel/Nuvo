@@ -15,7 +15,7 @@ function flag(name) {
 // A pasta de dados é lida no import do módulo de configuração, então `--home`
 // precisa valer antes dele — daí o import dinâmico logo abaixo. Serve pra subir
 // uma segunda instância (teste, perfil separado) sem encostar na de verdade.
-if (flag('home')) process.env.IAUNIFIER_HOME = resolve(flag('home'));
+if (flag('home')) process.env.NUVO_HOME = resolve(flag('home'));
 
 // O corpo inteiro vive dentro de um `main()` em vez de usar `await` de topo.
 // O empacotador de executável único (SEA) só aceita CommonJS, e CommonJS não
@@ -27,26 +27,26 @@ async function main() {
 const { loadConfig, patchConfig, DATA_DIR } = await import('../server/config.mjs');
 
 function mostrarAjuda() {
-  console.log(`IAUnifier — servidor de IA da sua casa
+  console.log(`Nuvo — servidor de IA da sua casa
 
-  iaunifier                       sobe o servidor
-  iaunifier --port 4747           troca a porta
-  iaunifier --host 0.0.0.0        troca o endereço de escuta
-  iaunifier --token               mostra o token de acesso
-  iaunifier --home ~/.outra       usa outra pasta de dados (instância separada)
-  iaunifier --no-token            desliga o token (só em rede confiável)
-  iaunifier --com-token           religa o token, e gera um novo se preciso
+  nuvo                       sobe o servidor
+  nuvo --port 4747           troca a porta
+  nuvo --host 0.0.0.0        troca o endereço de escuta
+  nuvo --token               mostra o token de acesso
+  nuvo --home ~/.outra       usa outra pasta de dados (instância separada)
+  nuvo --no-token            desliga o token (só em rede confiável)
+  nuvo --com-token           religa o token, e gera um novo se preciso
 
-  iaunifier backup [arquivo.zip]  cópia de tudo: banco, config e anexos
-  iaunifier restore arquivo.zip   restaura por cima (guarda o banco anterior)
-  iaunifier backups               lista as cópias automáticas
+  nuvo backup [arquivo.zip]  cópia de tudo: banco, config e anexos
+  nuvo restore arquivo.zip   restaura por cima (guarda o banco anterior)
+  nuvo backups               lista as cópias automáticas
 
-  iaunifier instalar-servico      sobe junto com a máquina
-  iaunifier remover-servico       desfaz o de cima
-  iaunifier servico               diz se está instalado e rodando
+  nuvo instalar-servico      sobe junto com a máquina
+  nuvo remover-servico       desfaz o de cima
+  nuvo servico               diz se está instalado e rodando
 
-  iaunifier instalar-app          ícone no dock / menu, em janela sem abas
-  iaunifier remover-app           desfaz o de cima
+  nuvo instalar-app          ícone no dock / menu, em janela sem abas
+  nuvo remover-app           desfaz o de cima
 
   dados em ${DATA_DIR}
 `);
@@ -83,7 +83,7 @@ if (command === 'backup') {
 if (command === 'restore' || command === 'restaurar') {
   const origem = args[1];
   if (!origem) {
-    console.error('falta o arquivo: iaunifier restore arquivo.zip');
+    console.error('falta o arquivo: nuvo restore arquivo.zip');
     process.exit(1);
   }
   const { restoreBackup } = await import('../server/backup.mjs');
@@ -209,10 +209,10 @@ start().catch((err) => {
   const cfg = loadConfig();
   if (err.code === 'EADDRINUSE') {
     console.error(`a porta ${cfg.port} já está ocupada por outro programa.`);
-    // Dentro do executável não existe `bin/iaunifier.mjs` pra rodar: a instrução
+    // Dentro do executável não existe `bin/nuvo.mjs` pra rodar: a instrução
     // tem que ser o comando que a pessoa acabou de dar.
     console.error(`Suba em outra: ${linhaDeComando(import.meta.url)} --port ${cfg.port + 1}`);
-    console.error('Se for outro IAUnifier já rodando, é ele que está no ar — abra o endereço.');
+    console.error('Se for outro Nuvo já rodando, é ele que está no ar — abra o endereço.');
   } else if (err.code === 'EACCES') {
     console.error(`o sistema não deixou escutar na porta ${cfg.port}.`);
     console.error('Portas abaixo de 1024 pedem administrador; escolha uma acima disso com --port.');

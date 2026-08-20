@@ -12,10 +12,11 @@
 // O preço é que mexer no texto em português invalida a tradução daquela frase.
 // É o preço certo: quem edita a frase quer mesmo revisar a tradução dela.
 
+import './mudanca.js';
 import { api } from './core.js';
 import { idiomaDoLugar } from './lugar.js';
 
-const GUARDADO = 'iaunifier.idioma';
+const GUARDADO = 'nuvo.idioma';
 
 /** Nomes dos idiomas, cada um escrito na própria língua. */
 export const NOMES = {

@@ -1,5 +1,6 @@
 // Estado, acesso à API e peças de interface usadas por todas as telas.
 
+import './mudanca.js';
 import { icon, COLORS } from './icons.js';
 import { t } from './i18n.js';
 
@@ -16,11 +17,11 @@ const guardado = (chave) => (naTela ? localStorage.getItem(chave) || '' : '');
 if (naTela) {
   const params = new URLSearchParams(location.search);
   if (params.get('token')) {
-    localStorage.setItem('iaunifier.token', params.get('token'));
+    localStorage.setItem('nuvo.token', params.get('token'));
     history.replaceState({}, '', location.pathname);
   }
 }
-export const TOKEN = guardado('iaunifier.token');
+export const TOKEN = guardado('nuvo.token');
 
 // O manifest é o que descreve o app instalado, e o `start_url` dele precisa
 // levar o token — senão o atalho na tela inicial abre num pedido de senha.
@@ -87,7 +88,7 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
   const res = await fetch(`/api${path}`, {
     method,
     headers: {
-      'x-iaunifier-token': TOKEN,
+      'x-nuvo-token': TOKEN,
       ...(body !== undefined && !raw ? { 'content-type': 'application/json' } : {})
     },
     body: raw ? body : body !== undefined ? JSON.stringify(body) : undefined
@@ -95,7 +96,7 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
   if (res.status === 401) {
     const token = prompt(t('Senha de acesso (aparece no terminal onde o servidor subiu):'));
     if (token) {
-      localStorage.setItem('iaunifier.token', token);
+      localStorage.setItem('nuvo.token', token);
       location.reload();
     }
     throw new Error(t('sem senha de acesso'));
@@ -114,7 +115,7 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
 export async function stream(path, body, onEvent, signal) {
   const res = await fetch(`/api${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-iaunifier-token': TOKEN },
+    headers: { 'content-type': 'application/json', 'x-nuvo-token': TOKEN },
     body: JSON.stringify(body),
     signal
   });
@@ -157,8 +158,8 @@ export const state = {
   chat: null,
   messages: [],
   attachments: [],
-  model: guardado('iaunifier.model'),
-  gemId: guardado('iaunifier.gem'),
+  model: guardado('nuvo.model'),
+  gemId: guardado('nuvo.gem'),
   projectId: '',
   view: 'chat',
   streaming: null,

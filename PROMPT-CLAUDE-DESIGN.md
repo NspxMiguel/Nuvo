@@ -12,10 +12,10 @@ Copiar daqui pra baixo. Anexar as seis imagens de `referencias-design/` junto
 
 ---
 
-Preciso do desenho de interface de um app chamado **IAUnifier**, e eu sei
+Preciso do desenho de interface de um app chamado **Nuvo**, e eu sei
 exatamente a cara que quero: **o app do ChatGPT e o app do Gemini no iPhone.**
 Não "inspirado em" — é esse o alvo. As referências estão anexas e em
-https://github.com/NspxMiguel/IAUnifier/tree/main/referencias-design
+https://github.com/NspxMiguel/Nuvo/tree/main/referencias-design
 
 ## O que é o app
 
@@ -94,7 +94,7 @@ O que eu quero é **um app respeitável**: alguém abre e sente que tem gente
 cuidando dele. Isso vem de três coisas:
 
 1. **um gesto próprio.** A estrela do Gemini, o brilho, a pílula azul do ChatGPT
-   — cada app tem um sinal que é só dele. O IAUnifier precisa do dele. A ideia do
+   — cada app tem um sinal que é só dele. O Nuvo precisa do dele. A ideia do
    app é "várias IAs, uma memória", então o sinal pode vir daí: várias coisas
    que viram uma. Proponha, e proponha um só, não cinco;
 2. **movimento com sentido.** Animação existe pra dizer o que aconteceu, não pra
@@ -203,7 +203,7 @@ mais algum campo, diz qual.
 
 ## O código
 
-**https://github.com/NspxMiguel/IAUnifier** — público.
+**https://github.com/NspxMiguel/Nuvo** — público.
 
 | arquivo | linhas | o que é |
 | --- | ---: | --- |

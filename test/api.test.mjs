@@ -175,7 +175,7 @@ test('turno de conversa: stream completo com modelo falso', async () => {
     const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
     const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'oi tudo bem?', model: fakeRef })
     });
     const texto = await res.text();
@@ -215,7 +215,7 @@ test('provedor fora do ar vira evento de erro, não derruba o servidor', async (
     const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
     const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'oi', model: fakeRef })
     });
     const texto = await res.text();
@@ -255,7 +255,7 @@ test('resposta cortada no meio é gravada como interrompida', async () => {
     const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
     const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'teste de queda', model: fakeRef })
     });
     await res.text();
@@ -274,7 +274,7 @@ test('conversa sem modelo escolhido explica o problema', async () => {
   const chat = await app.api('/chats', { method: 'POST', body: {} });
   const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+    headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
     body: JSON.stringify({ content: 'oi' })
   });
   const texto = await res.text();
@@ -309,7 +309,7 @@ test('busca acha dentro das mensagens, não só no título', async () => {
     const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
     await app.raw(`/api/chats/${chat.data.id}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'me fala de arvores', model: fakeRef })
     }).then((r) => r.text());
 
@@ -351,7 +351,7 @@ test('exportar em markdown e em json', async () => {
     chatId = chat.data.id;
     await app.raw(`/api/chats/${chatId}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'pergunta exportada', model: fakeRef })
     }).then((r) => r.text());
   } finally {
@@ -438,7 +438,7 @@ test('dois streams na mesma conversa: o segundo é recusado com 409', async () =
   try {
     const primeiro = app.raw(`/api/chats/${chatId}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'pergunta lenta', model: fakeRef })
     }).then((r) => r.text());
 
@@ -458,7 +458,7 @@ test('dois streams na mesma conversa: o segundo é recusado com 409', async () =
     // E depois que solta, o mesmo pedido passa.
     const terceiro = await app.raw(`/api/chats/${chatId}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'agora vai', model: fakeRef })
     });
     assert.equal(terceiro.status, 200);
@@ -474,7 +474,7 @@ test('backup baixa um zip com o banco dentro', async () => {
   const res = await app.raw(`/api/backup?token=${app.token}`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /zip/);
-  assert.match(res.headers.get('content-disposition'), /iaunifier-.*\.zip/);
+  assert.match(res.headers.get('content-disposition'), /nuvo-.*\.zip/);
 
   const buffer = Buffer.from(await res.arrayBuffer());
   const { unzip } = await import('../server/backup.mjs');
@@ -565,7 +565,9 @@ test('saúde marca provedor desligado sem tentar falar com ele', async () => {
 test('ping responde sem token e não conta como tentativa errada', async () => {
   const semToken = await app.raw('/api/ping');
   assert.equal(semToken.status, 200);
-  assert.deepEqual(await semToken.json(), { app: 'iaunifier' });
+  // `nomeAnterior` existe pro atalho de mesa instalado pela versão IAUnifier,
+  // que procura essa palavra na resposta pra saber se o servidor está de pé.
+  assert.deepEqual(await semToken.json(), { app: 'nuvo', nomeAnterior: 'iaunifier' });
 
   // Vinte pings não podem gastar a cota de tentativas de token — senão abrir o
   // atalho do dock várias vezes trancaria o próprio usuário do lado de fora.
@@ -574,11 +576,25 @@ test('ping responde sem token e não conta como tentativa errada', async () => {
   assert.equal(depois.status, 200, 'o token bom tem que continuar valendo');
 });
 
+test('o cabeçalho de token da versão anterior continua abrindo a porta', async () => {
+  // Quem já tinha o app aberto está com o JavaScript antigo em cache do service
+  // worker, e aquele código manda `x-iaunifier-token`. Recusar seria a tela de
+  // token aparecendo do nada pra quem só atualizou o servidor.
+  const res = await app.raw('/api/state', { headers: { 'x-iaunifier-token': app.token } });
+  assert.equal(res.status, 200);
+
+  const errado = await app.raw('/api/state', { headers: { 'x-iaunifier-token': 'token-errado' } });
+  assert.equal(errado.status, 401);
+});
+
 test('ping não vaza nada além da identidade', async () => {
   const res = await app.raw('/api/ping');
   const texto = await res.text();
   assert.ok(!texto.includes(app.token), 'o token não pode sair numa rota sem autenticação');
-  assert.equal(Object.keys(JSON.parse(texto)).length, 1);
+  // A conta é o que impede a rota de virar depósito de informação: identidade e
+  // nome anterior, nada mais. Qualquer campo novo aqui precisa ser decidido, não
+  // acontecer sem querer.
+  assert.deepEqual(Object.keys(JSON.parse(texto)).sort(), ['app', 'nomeAnterior']);
 });
 
 // -------------------------------------------------- religar e desligar token
@@ -806,7 +822,7 @@ test('o provedor é chamado com um sinal vivo, não com um já cancelado', async
     const chat = await app.api('/chats', { method: 'POST', body: { model: fakeRef } });
     const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+      headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
       body: JSON.stringify({ content: 'a pergunta', model: fakeRef })
     });
     const texto = await res.text();
@@ -840,7 +856,7 @@ test('quando o navegador some de verdade, o sinal cancela', async () => {
     const pedido = app
       .raw(`/api/chats/${chat.data.id}/stream`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-iaunifier-token': app.token },
+        headers: { 'content-type': 'application/json', 'x-nuvo-token': app.token },
         body: JSON.stringify({ content: 'a pergunta', model: fakeRef }),
         signal: controle.signal
       })
@@ -887,7 +903,7 @@ test('o limite de tentativas vale em toda rota que confere token', async () => {
 
 // ------------------------------------------- código do projeto (tela Programar)
 
-// A pasta de trabalho mora dentro do IAUNIFIER_HOME do teste, que o `after` do
+// A pasta de trabalho mora dentro do NUVO_HOME do teste, que o `after` do
 // topo já apaga — assim nada sobra em /tmp quando a suíte cai no meio.
 const PASTA_DE_CODIGO = join(home.dir, 'pasta-de-codigo');
 const CONTEUDO_DA_SOMA = 'export const soma = (a, b) => a + b;\n';

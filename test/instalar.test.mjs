@@ -20,7 +20,7 @@ before(() => {
 });
 
 after(() => {
-  delete process.env.IAUNIFIER_OLLAMA_BIN;
+  delete process.env.NUVO_OLLAMA_BIN;
   home.cleanup();
 });
 
@@ -54,7 +54,7 @@ function portaViva({ versao = null } = {}) {
 function binarioDeMentira(nome = 'ollama-falso') {
   const caminho = join(home.dir, nome);
   writeFileSync(caminho, '#nao sou um programa\n', { mode: 0o644 });
-  process.env.IAUNIFIER_OLLAMA_BIN = caminho;
+  process.env.NUVO_OLLAMA_BIN = caminho;
   return caminho;
 }
 
@@ -130,7 +130,7 @@ test('programa no disco sem ninguém atendendo é "instalado_parado"', async () 
 
 test('sem programa e sem ninguém atendendo é "ausente"', async () => {
   const stub = portaMorta();
-  process.env.IAUNIFIER_OLLAMA_BIN = join(home.dir, 'isso-nao-existe');
+  process.env.NUVO_OLLAMA_BIN = join(home.dir, 'isso-nao-existe');
   try {
     assert.deepEqual(await estadoDoOllama(), { estado: 'ausente' });
   } finally {
@@ -142,7 +142,7 @@ test('sem programa e sem ninguém atendendo é "ausente"', async () => {
 
 test('ligar o que já está no ar responde sim sem mexer em nada', async () => {
   const stub = portaViva();
-  process.env.IAUNIFIER_OLLAMA_BIN = join(home.dir, 'isso-nao-existe');
+  process.env.NUVO_OLLAMA_BIN = join(home.dir, 'isso-nao-existe');
   try {
     // Sem programa nenhum apontado: se respondeu sim, foi pela porta.
     assert.equal(await ligarOllama(), true);
@@ -153,7 +153,7 @@ test('ligar o que já está no ar responde sim sem mexer em nada', async () => {
 
 test('ligar sem ter o programa instalado responde não, sem estourar', async () => {
   const stub = portaMorta();
-  process.env.IAUNIFIER_OLLAMA_BIN = join(home.dir, 'isso-nao-existe');
+  process.env.NUVO_OLLAMA_BIN = join(home.dir, 'isso-nao-existe');
   try {
     assert.equal(await ligarOllama(), false);
   } finally {

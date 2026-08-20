@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS attachments (
   mime       TEXT,
   bytes      INTEGER NOT NULL DEFAULT 0,
   chars      INTEGER NOT NULL DEFAULT 0,
-  path       TEXT,                        -- cópia crua em ~/.iaunifier/uploads
+  path       TEXT,                        -- cópia crua em ~/.nuvo/uploads
   status     TEXT NOT NULL DEFAULT 'ok',  -- ok | erro
   note       TEXT,
   created_at TEXT NOT NULL
