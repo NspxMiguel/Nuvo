@@ -195,6 +195,21 @@ test('as mensagens do servidor estão nos dois dicionários', () => {
   assert.deepEqual(faltando, [], `fora do dicionário:\n  ${faltando.join('\n  ')}`);
 });
 
+test('as frases do catálogo de modelos locais estão nos dois dicionários', () => {
+  // Estas não passam pela varredura de `t('...')`: elas vivem numa tabela em
+  // `server/machine.mjs`, viajam como dado até a tela e só ali são traduzidas.
+  // Sem este teste, um modelo novo entra no catálogo e a tela em inglês volta a
+  // mostrar duas frases em português no meio da lista — que foi exatamente o que
+  // apareceu ao refazer a captura da tela "IAs ligadas".
+  const maquina = readFileSync(new URL('../server/machine.mjs', import.meta.url), 'utf8');
+  const frases = [...maquina.matchAll(/(?:pra_que|compara):\s*\n?\s*'((?:\\.|[^'\\])*)'/g)]
+    .map(([, texto]) => texto.replace(/\\(['"])/g, '$1'));
+
+  assert.ok(frases.length >= 20, `o catálogo encolheu demais: ${frases.length} frases`);
+  const faltando = frases.filter((f) => !(f in en) || !(f in es));
+  assert.deepEqual(faltando, [], `sem tradução:\n  ${faltando.join('\n  ')}`);
+});
+
 test('a tradução preserva os nomes das variáveis da frase', () => {
   // A frase montada chega com `{pasta}`, `{status}`, `{causa}`. Se a tradução
   // renomear, escrever errado ou perder um deles, o `t()` não substitui e o

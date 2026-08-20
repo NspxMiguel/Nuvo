@@ -102,8 +102,8 @@ function linhaModelo(m) {
         <span class="nome">${escapeHtml(m.nome_legivel || m.id)}</span>
         <span class="id">${escapeHtml(m.id)} · ${gbTxt(m.gb)}</span>
       </div>
-      <div class="pra-que">${escapeHtml(m.pra_que || '')}</div>
-      <div class="compara">${escapeHtml(m.compara || '')}</div>
+      <div class="pra-que">${escapeHtml(m.pra_que ? t(m.pra_que) : '')}</div>
+      <div class="compara">${escapeHtml(m.compara ? t(m.compara) : '')}</div>
       <div class="cabe ${cabe}">${icon(cabe === 'nao' ? 'alert' : 'check', 16)} ${t(CABE_ROT[cabe])}</div>
       <div class="acoes">${
         m.instalado
@@ -204,8 +204,9 @@ function ligarRecomendados(inner, maquina, switchView) {
         linha.querySelector('.acoes').insertAdjacentHTML(
           'afterend',
           `<div class="aviso err"><div><b>${t('Não cabe nesta máquina.')}</b> ${escapeHtml(
-            m.compara ||
-              t('Ela pede {tam} só pra ela, e sobraria pouco pro resto.', { tam: gbTxt(m.gb) })
+            m.compara
+              ? t(m.compara)
+              : t('Ela pede {tam} só pra ela, e sobraria pouco pro resto.', { tam: gbTxt(m.gb) })
           )}</div></div>`
         );
       };
