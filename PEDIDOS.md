@@ -692,10 +692,37 @@ Quebrado em itens, com as palavras dele:
 - [x] **i18n no app e no site, com idioma pelo IP, e trocar o nome** (menos o nome)
   > *"falta i18n, site app e etc. puxa localizacao + idioma via localizacao ip
   > sla, e trocar o nome pro novo nome"*
-- [ ] **varredura de ortografia, maiúsculas e sentido, no app inteiro**
+- [x] **varredura de ortografia, maiúsculas e sentido, no app inteiro**
   > *"corrigir em todo o app, letras maisculas e minusculas erradas, faz uma
   > varredura de ortografia e sentido das palavras, nem tudo se traduz.. na
   > landing page ja vejo varios...."*
+
+  As 642 frases do app e as 63 da landing lidas uma a uma nas três línguas. O
+  que estava errado:
+
+  - plural entre parênteses em 9 frases (`{n} modelo(s)`), que no singular
+    escrevia "1 modelo(s)" e no inglês virava "1 model(s)" porque a tradução
+    copiava o parêntese. Trocado por `plural()`, que já existia e escolhe a
+    forma certa em cada língua. Uma delas ainda errava o verbo: "1 conversa(s)
+    ... ficaram de fora";
+  - cinco frases com `...` em vez de `…`, ao lado de doze irmãs que já usavam o
+    caractere certo;
+  - cinco frases guardadas em duas versões que só diferiam no ponto final
+    ("nada a refazer" e "nada a refazer."), cada par traduzido duas vezes;
+  - `ia` minúsculo como rótulo de modelo, e o espanhol tinha traduzido `ia` por
+    `ia`;
+  - `OpenCode` no app contra `opencode` na landing — a marca é minúscula;
+  - `wi-fi` → `Wi‑Fi`;
+  - `e.g.:` em inglês onde o português e o espanhol tinham `Ex.:`/`Ej.:`;
+  - no rodapé da landing, `Código` (o repositório) virava `Code` em inglês,
+    igual ao `Code` do menu, que aponta pra seção Programar. Agora é `Source`.
+
+  E o que não era ortografia mas apareceu na varredura: as 50 mensagens fixas
+  do servidor chegavam em português numa tela em inglês. O cliente traduz agora
+  em `traduzirDoServidor()`, nos dois pontos onde JSON do servidor vira objeto.
+  Falta ainda a mensagem montada com variável (`claude saiu com código 1`,
+  `não achei a pasta {x}`): ela exige o servidor mandar as partes separadas em
+  vez da frase pronta.
 - [x] **o "Pode falar" vira uma sequência de nomes**
   > *"e tbm ta escrito só PODE FALAR. coloca pode falar, miguel, joao e etc, ai
   > vai aparecendo varios nomes, e no final aparece "SEU NOME" Baixe o app

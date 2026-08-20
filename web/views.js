@@ -381,7 +381,7 @@ views.providers = async function renderProviders(el, { switchView }) {
   inner.querySelector('#btn-discover').onclick = async (ev) => {
     const btn = ev.currentTarget;
     btn.disabled = true;
-    btn.textContent = t('procurando...');
+    btn.textContent = t('procurando…');
     try {
       const { found } = await api('/discover', { method: 'POST' });
       toast(
@@ -403,7 +403,7 @@ views.providers = async function renderProviders(el, { switchView }) {
     const btn = ev.currentTarget;
     const status = inner.querySelector('#health-status');
     btn.disabled = true;
-    status.textContent = t('testando...');
+    status.textContent = t('testando…');
     try {
       const results = await api('/health');
       for (const r of results) {
@@ -424,7 +424,9 @@ views.providers = async function renderProviders(el, { switchView }) {
         }
         const rotulo =
           r.status === 'ok'
-            ? t('respondeu em {ms} ms · {n} modelo(s)', { ms: r.ms, n: r.models })
+            ? plural(r.models, 'respondeu em {ms} ms · 1 modelo', 'respondeu em {ms} ms · {n} modelos', {
+                ms: r.ms
+              })
             : r.message;
         alvo.className = `health ${r.status}`;
         alvo.innerHTML = `${icon('check', 14)} ${escapeHtml(rotulo)}`;
@@ -538,7 +540,7 @@ function renderOllamaManager(host, provider, reload) {
     const model = host.querySelector('#pull-name').value.trim();
     if (!model) return;
     bar.hidden = false;
-    status.textContent = t('começando...');
+    status.textContent = t('começando…');
     try {
       await stream(`/providers/${provider.id}/pull`, { model }, (ev) => {
         if (ev.type === 'progress') {
@@ -854,7 +856,7 @@ async function renderProjectFiles(host, project) {
             (f) => `<div class="linha">
                 <span class="ico">${icon('file', 18)}</span>
                 <span class="rot">${escapeHtml(f.name)}
-                  <small>${t('{n} trecho(s)', { n: f.chunks })} · ${Math.round(f.bytes / 1000)} kB${
+                  <small>${plural(f.chunks, '1 trecho', '{n} trechos')} · ${Math.round(f.bytes / 1000)} kB${
                     f.note ? ` · ${escapeHtml(f.note)}` : ''
                   }</small>
                 </span>
@@ -1029,12 +1031,16 @@ views.memory = async function renderMemory(el, { switchView }) {
       // O corte tem que aparecer: "200 conversas lidas" num export de mil
       // parece o arquivo inteiro.
       const corte = out.skipped
-        ? t(' — {n} conversa(s) além do limite ficaram de fora', { n: out.skipped })
+        ? plural(
+            out.skipped,
+            ' — 1 conversa além do limite ficou de fora',
+            ' — {n} conversas além do limite ficaram de fora'
+          )
         : '';
       toast(
-        t('{fatos} coisa(s) nova(s) de {conversas} conversa(s){corte}', {
-          fatos: out.facts.length,
-          conversas: out.conversations,
+        t('{fatos} de {conversas}{corte}', {
+          fatos: plural(out.facts.length, '1 coisa nova', '{n} coisas novas'),
+          conversas: plural(out.conversations, '1 conversa', '{n} conversas'),
           corte
         }),
         'ok'
@@ -1131,7 +1137,7 @@ const CFG_SECOES = {
         cfgLin(
           escapeHtml(p.name),
           escapeHtml(
-            `${t(KIND_ROT[p.kind] || 'paga por uso')} · ${t('{n} modelo(s)', { n: p.models.length })}`
+            `${t(KIND_ROT[p.kind] || 'paga por uso')} · ${plural(p.models.length, '1 modelo', '{n} modelos')}`
           ),
           `${p.enabled
             ? `<span class="tag on"><span class="pt"></span>${t('ligada')}</span>`
@@ -1148,7 +1154,7 @@ const CFG_SECOES = {
     ${s.requireToken
       ? ''
       : `<div class="aviso err"><div><b>${t('Este app está aberto pra rede inteira.')}</b>
-           ${t('Qualquer aparelho no seu wi-fi entra, lê suas conversas e gasta suas chaves de API. Ligue a senha aí em cima.')}</div></div>`}
+           ${t('Qualquer aparelho no seu Wi‑Fi entra, lê suas conversas e gasta suas chaves de API. Ligue a senha aí em cima.')}</div></div>`}
     ${cfgLin(t('Onde ele está escutando'), '', `<span class="val">${escapeHtml(s.host)}:${s.port}</span>`)}
     ${cfgLin(t('Chaves guardadas no servidor'), t('Elas nunca chegam ao navegador.'),
       `<span class="val">${s.secrets.length ? escapeHtml(s.secrets.join(' · ')) : t('nenhuma')}</span>`)}
@@ -1215,7 +1221,7 @@ const CFG_SECOES = {
             )
           )
           .join('')
-      : cfgLin(t('Nenhum programa ligado'), t('Claude Code, Codex, Gemini e OpenCode entram sozinhos se estiverem instalados.'),
+      : cfgLin(t('Nenhum programa ligado'), t('Claude Code, Codex, Gemini e opencode entram sozinhos se estiverem instalados.'),
           `<button class="primary" type="button" data-ir="providers">${t('Procurar agora')}</button>`)}`;
   },
 
@@ -1344,8 +1350,8 @@ async function aplicarRestauracao(file) {
     const done = await api('/restore', { method: 'POST', raw: true, body: await file.arrayBuffer() });
     toast(done.message, 'ok');
     const lido = done.config
-      ? t('Cópia lida: banco, ajustes, {n} anexo(s).', { n: done.uploads })
-      : t('Cópia lida: banco, {n} anexo(s).', { n: done.uploads });
+      ? plural(done.uploads, 'Cópia lida: banco, ajustes e 1 anexo.', 'Cópia lida: banco, ajustes e {n} anexos.')
+      : plural(done.uploads, 'Cópia lida: banco e 1 anexo.', 'Cópia lida: banco e {n} anexos.');
     alert(
       `${lido}\n\n${t('O banco entra no lugar na próxima vez que o servidor subir — trocar agora não valeria, porque este processo ainda está com o banco antigo aberto. Reinicie para concluir.')}`
     );
@@ -1484,11 +1490,11 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
       });
       if (r.done) {
         caixa.textContent = r.feitos
-          ? plural(r.feitos, '1 coisa refeita.', '{n} coisas refeitas.')
-          : t('nada a refazer.');
+          ? plural(r.feitos, '1 coisa refeita', '{n} coisas refeitas')
+          : t('nada a refazer');
         return;
       }
-      caixa.textContent = r.reason || t('não deu pra refazer agora.');
+      caixa.textContent = r.reason || t('não deu pra refazer agora');
       botaoReindex.disabled = false;
       botaoReindex.textContent = t('Tentar de novo');
       caixa.appendChild(botaoReindex);

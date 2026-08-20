@@ -32,6 +32,25 @@ if (naTela && TOKEN) {
   if (link) link.href = `/manifest.webmanifest?token=${encodeURIComponent(TOKEN)}`;
 }
 
+/**
+ * O servidor escreve em português — é onde as mensagens nascem, e ele não sabe
+ * em que idioma a tela está. Traduzir aqui, na entrada, resolve pra todo mundo
+ * de uma vez: `api()` e `stream()` são os dois únicos lugares onde JSON do
+ * servidor vira objeto, então nenhuma tela precisa lembrar de traduzir.
+ *
+ * `t()` devolve o próprio texto quando não acha tradução, então mensagem nova
+ * ou montada com variável continua aparecendo em português em vez de sumir.
+ * O teste de cobertura varre os `throw new Error('...')` do servidor pra que
+ * essa passagem seja a exceção, e não o normal.
+ */
+function traduzirDoServidor(dado) {
+  if (!dado || typeof dado !== 'object') return dado;
+  for (const campo of ['error', 'message', 'reason']) {
+    if (typeof dado[campo] === 'string') dado[campo] = t(dado[campo]);
+  }
+  return dado;
+}
+
 export async function api(path, { method = 'GET', body, raw } = {}) {
   const res = await fetch(`/api${path}`, {
     method,
@@ -50,7 +69,7 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
     throw new Error(t('sem senha de acesso'));
   }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  const data = traduzirDoServidor(text ? JSON.parse(text) : {});
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
@@ -89,7 +108,7 @@ export async function stream(path, body, onEvent, signal) {
         continue;
       }
       if (event.type === 'end') return;
-      onEvent(event);
+      onEvent(traduzirDoServidor(event));
     }
   }
 }
@@ -144,7 +163,7 @@ export function embeddingModels() {
 
 /** O ref é `providerId:modelId` — na tela mostramos o nome legível. */
 export function modelLabel(ref) {
-  if (!ref) return t('ia');
+  if (!ref) return t('IA');
   return chatModels().find((m) => m.ref === ref)?.label || ref.split(':').slice(1).join(':') || ref;
 }
 

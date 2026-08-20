@@ -128,7 +128,7 @@ function pintarAnon() {
     'afterbegin',
     `<div class="anon-faixa">
        <span class="ico">${icon('alert', 17)}</span>
-       <span><b>${t('Conversa anônima.')}</b> ${t(
+       <span><b>${t('Conversa anônima')}.</b> ${t(
          'Não entra no histórico, não aprende nada sobre você e não usa a memória. Some quando você fechar ou trocar de conversa.'
        )}</span>
      </div>`
@@ -1094,8 +1094,7 @@ function renderAttachBar() {
       )}">${icon('close', 15)}</button>`;
     chip.title =
       att.note ||
-      t('{trechos} trecho(s) · {kb} kB', {
-        trechos: att.chunks ?? 0,
+      plural(att.chunks ?? 0, '1 trecho · {kb} kB', '{n} trechos · {kb} kB', {
         kb: Math.round(att.bytes / 1000)
       });
     chip.querySelector('button').onclick = async () => {
@@ -1111,7 +1110,7 @@ async function uploadFiles(files) {
   const chatId = await ensureChat();
   for (const file of files) {
     const pending = addNote(
-      t('indexando {nome}...', { nome: escapeHtml(file.name) }),
+      t('indexando {nome}…', { nome: escapeHtml(file.name) }),
       '',
       'paperclip'
     );
@@ -1130,8 +1129,7 @@ async function uploadFiles(files) {
         );
       } else {
         addNote(
-          `${escapeHtml(file.name)} — ${t('{trechos} trecho(s), {chars} caracteres', {
-            trechos: att.chunks,
+          `${escapeHtml(file.name)} — ${plural(att.chunks, '1 trecho, {chars} caracteres', '{n} trechos, {chars} caracteres', {
             chars: att.chars
           })}`,
           'new',

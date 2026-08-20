@@ -128,7 +128,7 @@ window.IDIOMAS = {
     'compile a partir do código': 'build it from source',
 
     'código aberto': 'open source',
-    Código: 'Code',
+    Código: 'Source',
     Versões: 'Releases',
     'Voltar ao topo': 'Back to top'
   },
@@ -249,7 +249,7 @@ window.IDIOMAS = {
     'compile a partir do código': 'compílala desde el código',
 
     'código aberto': 'código abierto',
-    Código: 'Código',
+    Código: 'Código fuente',
     Versões: 'Versiones',
     'Voltar ao topo': 'Volver arriba'
   }

@@ -8,7 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { globSync, readFileSync, readdirSync } from 'node:fs';
 
 const web = new URL('../web/', import.meta.url);
 const en = JSON.parse(readFileSync(new URL('idiomas/en.json', web), 'utf8'));
@@ -129,4 +129,52 @@ test('nenhuma tradução é o próprio português copiado', () => {
     iguais(es).length < Object.keys(es).length * 0.2,
     `espanhol com ${iguais(es).length} frases iguais ao português`
   );
+});
+
+test('nenhuma frase resolve plural com "(s)"', () => {
+  // `plural(n, um, muitos)` existe justamente pra isso, e escolhe a forma certa
+  // em cada língua. Escrever "{n} modelo(s)" pula esse mecanismo, e o texto sai
+  // errado nas duas pontas: "1 modelo(s)" no singular, e no inglês a tradução
+  // herda o parêntese porque o dicionário copia a forma da chave.
+  const marcadas = [...frasesDoCodigo(), ...Object.keys(en)].filter((k) => /\w\(s\)/.test(k));
+  assert.deepEqual(marcadas, [], `plural entre parênteses:\n  ${marcadas.join('\n  ')}`);
+});
+
+test('reticências são sempre o caractere …, nunca três pontos', () => {
+  // Misturar "…" e "..." nas mensagens de progresso deixa a tela irregular e
+  // duplica a chave no dicionário: quem traduz recebe as duas e traduz duas.
+  const tres = [...frasesDoCodigo(), ...Object.keys(en)].filter((k) => k.includes('...'));
+  assert.deepEqual(tres, [], `com três pontos:\n  ${tres.join('\n  ')}`);
+});
+
+test('nenhuma frase existe em duas versões que só diferem no ponto final', () => {
+  // Aconteceu com quatro mensagens de "refazer o índice": a mesma frase entrou
+  // no dicionário com e sem ponto porque uma ia pro toast e outra pra caixa de
+  // status. Duas chaves, duas traduções, uma tela inconsistente.
+  const chaves = new Set([...frasesDoCodigo(), ...Object.keys(en)]);
+  const pares = [...chaves].filter((k) => k.endsWith('.') && chaves.has(k.slice(0, -1)));
+  assert.deepEqual(pares, [], `frase duplicada só pelo ponto:\n  ${pares.join('\n  ')}`);
+});
+
+test('as mensagens fixas do servidor estão nos dois dicionários', () => {
+  // O servidor escreve em português: é a língua em que as mensagens nascem e
+  // ele não sabe em que idioma a tela está. Quem traduz é o cliente, em
+  // `traduzirDoServidor()` — mas só traduz o que estiver no dicionário, e o
+  // fallback do `t()` deixa a frase passar em português sem reclamar. Sem esta
+  // varredura, mudar o texto de um `throw` no servidor apaga a tradução em
+  // silêncio e o inglês volta a mostrar português.
+  const servidor = new URL('../server/', import.meta.url);
+  const frases = new Set();
+  for (const arq of globSync('**/*.mjs', { cwd: servidor })) {
+    const fonte = readFileSync(new URL(arq, servidor), 'utf8');
+    for (const [, texto] of fonte.matchAll(/throw new Error\(\s*'((?:\\.|[^'])+)'\s*\)/g)) {
+      frases.add(texto.replace(/\\(['"])/g, '$1'));
+    }
+    for (const [, texto] of fonte.matchAll(/\berror:\s*'((?:\\.|[^'])+)'/g)) {
+      frases.add(texto.replace(/\\(['"])/g, '$1'));
+    }
+  }
+  assert.ok(frases.size > 40, `varredura achou só ${frases.size} mensagens do servidor`);
+  const faltando = [...frases].filter((f) => !(f in en) || !(f in es)).sort();
+  assert.deepEqual(faltando, [], `fora do dicionário:\n  ${faltando.join('\n  ')}`);
 });

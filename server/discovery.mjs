@@ -25,7 +25,7 @@ const CLI_CANDIDATES = [
   { name: 'Claude Code (CLI)', command: 'claude', args: ['-p'] },
   { name: 'Codex (CLI)', command: 'codex', args: ['exec', '--skip-git-repo-check', '-'] },
   { name: 'Gemini (CLI)', command: 'gemini', args: ['-p'] },
-  { name: 'OpenCode (CLI)', command: 'opencode', args: ['run'] }
+  { name: 'opencode (CLI)', command: 'opencode', args: ['run'] }
 ];
 
 async function alive(url, timeoutMs = 1200) {
