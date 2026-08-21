@@ -285,3 +285,12 @@ test('a loja liga busca e ordem antes de ir buscar a lista', () => {
   const antes = loja.slice(0, loja.indexOf("await api('/loja')"));
   assert.match(antes, /ligarControles\(el, abas, ordem, q\);/, 'a fiação vem antes da rede');
 });
+
+test('a gaveta só recolhe dentro de um professor', () => {
+  // A lista de professores não tem três colunas pra caber, e recolher ali tirava
+  // o menu do app de quem ainda nem escolheu com quem vai estudar.
+  const v = ler('web/view-estudos.js');
+  const entrada = v.slice(v.indexOf('export async function renderEstudos'), v.indexOf('export function sairDeEstudos'));
+  assert.match(entrada, /if \(aqui\.professorId\) \{/, 'só recolhe com professor aberto');
+  assert.match(entrada, /\} else \{\n {4}sairDeEstudos\(\);/, 'e devolve a gaveta na lista');
+});

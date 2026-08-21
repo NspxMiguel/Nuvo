@@ -258,14 +258,20 @@ function fatiar(itens, quantas = 5) {
 // ------------------------------------------------------------------- a tela
 
 export async function renderEstudos(el, ctx) {
-  // Nesta tela o material é a barra lateral. As três colunas não cabem num 1280
-  // com a gaveta aberta, então ela recolhe — e o movimento é o aviso.
+  // Dentro de um professor o material é a barra lateral: as três colunas não
+  // cabem num 1280 com a gaveta aberta, então ela recolhe — e o movimento é o
+  // aviso. Na lista de professores não há três colunas, e recolher ali só
+  // tirava o menu do app de quem ainda nem escolheu com quem vai estudar.
   const app = document.querySelector('#app');
-  if (app && !app.classList.contains('recolhido')) {
-    // Guarda que fomos nós: quem já estava com a gaveta recolhida não pode
-    // recebê-la de volta ao sair daqui, porque nunca pediu isso.
-    app.dataset.recolhiPorEstudos = '1';
-    app.classList.add('recolhido');
+  if (aqui.professorId) {
+    if (app && !app.classList.contains('recolhido')) {
+      // Guarda que fomos nós: quem já estava com a gaveta recolhida não pode
+      // recebê-la de volta ao sair daqui, porque nunca pediu isso.
+      app.dataset.recolhiPorEstudos = '1';
+      app.classList.add('recolhido');
+    }
+  } else {
+    sairDeEstudos();
   }
 
   if (!aqui.professorId) return telaDaLista(el, ctx);
