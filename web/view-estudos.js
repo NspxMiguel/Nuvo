@@ -14,7 +14,7 @@ import {
   api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel
 } from './core.js';
 import { icon } from './icons.js';
-import { t, plural, formatarNumero } from './i18n.js';
+import { t, plural, formatarNumero, formatarData } from './i18n.js';
 
 /** Guardado aqui e não no `state`: é a navegação da tela, não dado do app. */
 const aqui = {
@@ -281,6 +281,7 @@ async function telaDoProfessor(el, ctx) {
      <div class="segmentado est-abas" role="tablist">
        <button type="button" role="tab" data-aba="material">${t('Material')}</button>
        <button type="button" role="tab" data-aba="retrato">${t('Retrato do professor')}</button>
+       <button type="button" role="tab" data-aba="estudar">${t('Estudar')}</button>
      </div>
      <div class="est-grade" data-painel="material">
        <aside class="est-pastas">
@@ -297,7 +298,8 @@ async function telaDoProfessor(el, ctx) {
        </aside>
        <section id="est-corpo" class="est-corpo"></section>
      </div>
-     <div id="est-retrato" data-painel="retrato" hidden></div>`
+     <div id="est-retrato" data-painel="retrato" hidden></div>
+     <div id="est-estudar" data-painel="estudar" hidden></div>`
   );
 
   for (const btn of inner.querySelectorAll('.est-abas [data-aba]')) {
@@ -314,6 +316,11 @@ async function telaDoProfessor(el, ctx) {
 
   if (aqui.aba === 'retrato') {
     telaDoRetrato(inner.querySelector('#est-retrato'), prof, ctx);
+    paintIcons(el);
+    return;
+  }
+  if (aqui.aba === 'estudar') {
+    await telaDeEstudar(inner.querySelector('#est-estudar'), prof, ctx);
     paintIcons(el);
     return;
   }
@@ -776,4 +783,287 @@ function botaoDeGerar(host, prof, ctx, { refazer = false } = {}) {
     }
   };
   paintIcons(host);
+}
+
+// ------------------------------------------------------------------ estudar
+
+/** O que dá pra pedir, e o que cada coisa serve. Ordem: o que mais vale prova. */
+const FORMATOS = [
+  {
+    id: 'simulado',
+    ico: 'file',
+    nome: () => t('Simulado'),
+    dica: () => t('Uma prova nova no jeito dele, com o gabarito e o motivo de cada questão.'),
+    precisaRetrato: true
+  },
+  {
+    id: 'guia',
+    ico: 'book',
+    nome: () => t('Guia de estudo'),
+    dica: () => t('O que estudar, na ordem do que mais cai — e o que dá pra pular.'),
+    precisaRetrato: true
+  },
+  {
+    id: 'flashcards',
+    ico: 'layers',
+    nome: () => t('Cartões'),
+    dica: () => t('Pergunta e resposta, pra treinar de olho fechado.'),
+    precisaRetrato: false
+  },
+  {
+    id: 'resumo',
+    ico: 'edit',
+    nome: () => t('Resumo'),
+    dica: () => t('O material inteiro em pontos, com os termos definidos.'),
+    precisaRetrato: false
+  }
+];
+
+const PROBABILIDADE = {
+  alta: () => t('cai bastante'),
+  media: () => t('pode cair'),
+  baixa: () => t('cai pouco')
+};
+
+async function telaDeEstudar(host, prof, ctx) {
+  const saidas = await api(`/professores/${prof.id}/saidas`);
+  const temRetrato = !!prof.retrato;
+
+  host.innerHTML = `
+    <div class="est-formatos"></div>
+    <div id="est-andar" class="ret-andar" role="status"></div>
+    <div class="grupo-rot">${t('O que já foi feito')}</div>
+    <div id="est-saidas" class="grupo"></div>
+    <div id="est-aberto"></div>`;
+
+  const caixa = host.querySelector('.est-formatos');
+  for (const formato of FORMATOS) {
+    const trancado = formato.precisaRetrato && !temRetrato;
+    const card = document.createElement('div');
+    card.className = `card est-formato${trancado ? ' trancado' : ''}`;
+    card.innerHTML = `
+      <h4>${icon(formato.ico, 17)} ${escapeHtml(formato.nome())}</h4>
+      <p class="meta">${escapeHtml(formato.dica())}</p>
+      ${
+        trancado
+          ? `<p class="meta aviso warn">${t('precisa do retrato do professor antes')}</p>`
+          : `<div class="row">
+               <select data-modelo aria-label="${t('IA que gera')}">${modelOptions(state.model)}</select>
+               <button data-gerar="${formato.id}" class="primary" type="button">
+                 <span data-icon="sparkle" data-size="16"></span> ${t('Gerar')}
+               </button>
+             </div>`
+      }`;
+    const botao = card.querySelector('[data-gerar]');
+    if (botao) {
+      botao.onclick = () =>
+        gerar(host, prof, formato.id, card.querySelector('[data-modelo]').value, ctx);
+    }
+    caixa.appendChild(card);
+  }
+
+  const listaSaidas = host.querySelector('#est-saidas');
+  if (!saidas.length) {
+    listaSaidas.innerHTML = `<p class="meta" style="padding:14px 18px">${t(
+      'nada gerado ainda'
+    )}</p>`;
+  }
+  for (const saida of saidas) {
+    const linha = document.createElement('button');
+    linha.type = 'button';
+    linha.className = 'linha';
+    linha.innerHTML = `<span class="ico">${icon(
+      FORMATOS.find((f) => f.id === saida.tipo)?.ico || 'file',
+      18
+    )}</span>
+      <span class="grow">${escapeHtml(saida.titulo)}</span>
+      <span class="meta">${escapeHtml(formatarData(saida.created_at, { day: '2-digit', month: 'short' }) || '')}</span>`;
+    linha.onclick = () => abrirSaida(host.querySelector('#est-aberto'), saida, ctx);
+    listaSaidas.appendChild(linha);
+  }
+
+  paintIcons(host);
+}
+
+async function gerar(host, prof, tipo, ref, ctx) {
+  if (!ref) return toast(t('escolha uma IA pra gerar'), 'err');
+  const andar = host.querySelector('#est-andar');
+  const dizer = (frase) => {
+    if (andar) andar.textContent = frase;
+  };
+  for (const b of host.querySelectorAll('[data-gerar]')) b.disabled = true;
+  try {
+    await stream(`/professores/${prof.id}/gerar`, { tipo, model: ref }, (ev) => {
+      if (ev.type === 'start') {
+        dizer(
+          t('lendo {arquivos}…', { arquivos: plural(ev.arquivos, '1 arquivo', '{n} arquivos') })
+        );
+      }
+      if (ev.type === 'repetindo') dizer(t('a resposta veio torta, pedindo de novo…'));
+      if (ev.type === 'pronto') dizer('');
+      if (ev.type === 'error') throw new Error(ev.message);
+    });
+    toast(t('pronto'), 'ok');
+  } catch (err) {
+    toast(err.message || t('não deu pra gerar'), 'err');
+  } finally {
+    ctx.switchView('estudos');
+  }
+}
+
+function abrirSaida(host, saida, ctx) {
+  if (host.dataset.aberta === saida.id) {
+    host.innerHTML = '';
+    host.dataset.aberta = '';
+    return;
+  }
+  host.dataset.aberta = saida.id;
+  const j = saida.json || {};
+  const desenhar = {
+    simulado: () => desenharSimulado(j),
+    guia: () => desenharGuia(j),
+    flashcards: () => desenharCartoes(j),
+    resumo: () => desenharResumo(j)
+  }[saida.tipo];
+
+  host.innerHTML = `<section class="card est-saida">
+      <div class="row est-cabeca">
+        <h3 class="grow">${escapeHtml(saida.titulo)}</h3>
+        <button data-act="fechar" class="icon" type="button" title="${t('fechar')}"
+          aria-label="${t('fechar')}"><span data-icon="close" data-size="18"></span></button>
+        <button data-act="apagar" class="icon danger" type="button" title="${t('apagar')}"
+          aria-label="${t('apagar')}"><span data-icon="trash" data-size="18"></span></button>
+      </div>
+      ${desenhar ? desenhar() : ''}
+      ${faltouEmHtml(j.faltou)}
+    </section>`;
+
+  host.querySelector('[data-act=fechar]').onclick = () => {
+    host.innerHTML = '';
+    host.dataset.aberta = '';
+  };
+  host.querySelector('[data-act=apagar]').onclick = async () => {
+    await api(`/saidas/${saida.id}`, { method: 'DELETE' });
+    ctx.switchView('estudos');
+  };
+  host.scrollIntoView({ block: 'nearest' });
+  paintIcons(host);
+}
+
+/**
+ * O que o retrato pedia e o material não tinha.
+ *
+ * Fica visível de propósito: um simulado que calou sobre um tema de 8% parece
+ * dizer que aquele tema não cai. Dizer o que faltou é o que transforma um buraco
+ * numa instrução — anexe isto aqui.
+ */
+function faltouEmHtml(faltou) {
+  if (!faltou?.length) return '';
+  return `<div class="aviso warn est-faltou">
+    <b>${t('Ficou de fora por falta de material')}</b>
+    <ul class="ret-lista">${faltou.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ul>
+  </div>`;
+}
+
+function desenharSimulado(j) {
+  return `${j.instrucoes ? `<pre class="est-instrucoes">${escapeHtml(j.instrucoes)}</pre>` : ''}
+    ${(j.questoes || [])
+      .map(
+        (q) => `<div class="est-questao">
+          <div class="est-q-topo">
+            <b>${formatarNumero(q.n)}.</b>
+            <span class="tag prob-${escapeHtml(q.probabilidade)}">${escapeHtml(
+              (PROBABILIDADE[q.probabilidade] || (() => q.probabilidade))()
+            )}</span>
+            ${q.tema ? `<span class="meta">${escapeHtml(q.tema)}</span>` : ''}
+            ${q.valor ? `<span class="meta">${formatarNumero(q.valor)}</span>` : ''}
+          </div>
+          <p class="est-enunciado">${escapeHtml(q.enunciado)}</p>
+          ${
+            q.alternativas?.length
+              ? `<ul class="est-alts">${q.alternativas
+                  .map((a) => `<li>${escapeHtml(a)}</li>`)
+                  .join('')}</ul>`
+              : ''
+          }
+          <details class="est-gabarito">
+            <summary>${t('ver a resposta')}</summary>
+            <p>${escapeHtml(q.gabarito)}</p>
+            ${q.porque ? `<p class="meta">${t('por que esta questão')}: ${escapeHtml(q.porque)}</p>` : ''}
+            ${q.fonte ? `<p class="ret-cita">${escapeHtml(q.fonte)}</p>` : ''}
+          </details>
+        </div>`
+      )
+      .join('')}`;
+}
+
+function desenharGuia(j) {
+  return `${(j.temas || [])
+    .map(
+      (tema) => `<div class="ret-linha">
+        <div class="ret-rot"><b>${escapeHtml(tema.tema)}</b>
+          ${tema.como_ele_cobra ? `<span class="meta">${escapeHtml(tema.como_ele_cobra)}</span>` : ''}
+        </div>
+        <div class="progress"><span style="width:${Math.min(
+          Math.round((tema.peso || 0) * 100),
+          100
+        )}%"></span></div>
+        <span class="ret-num">${porcento(tema.peso)}</span>
+        ${tema.por_que_cai ? `<p class="meta">${escapeHtml(tema.por_que_cai)}</p>` : ''}
+        <ul class="ret-lista">${(tema.o_que_saber || [])
+          .map((x) => `<li>${escapeHtml(x)}</li>`)
+          .join('')}</ul>
+        ${tema.fonte ? `<p class="ret-cita">${escapeHtml(tema.fonte)}</p>` : ''}
+      </div>`
+    )
+    .join('')}
+    ${
+      j.pule?.length
+        ? `<div class="aviso ok est-pule"><b>${t('Dá pra pular')}</b>
+             <ul class="ret-lista">${j.pule
+               .map(
+                 (p) =>
+                   `<li>${escapeHtml(p.tema)}${
+                     p.por_que ? ` — <span class="muted">${escapeHtml(p.por_que)}</span>` : ''
+                   }</li>`
+               )
+               .join('')}</ul></div>`
+        : ''
+    }`;
+}
+
+function desenharCartoes(j) {
+  return `<p class="meta">${plural((j.cartoes || []).length, '1 cartão', '{n} cartões')}</p>
+    <div class="est-cartoes">${(j.cartoes || [])
+      .map(
+        (c) => `<details class="est-cartao">
+          <summary>${escapeHtml(c.frente)}</summary>
+          <p>${escapeHtml(c.verso)}</p>
+          ${c.tema ? `<p class="meta">${escapeHtml(c.tema)}</p>` : ''}
+        </details>`
+      )
+      .join('')}</div>`;
+}
+
+function desenharResumo(j) {
+  return `${j.abertura ? `<p class="est-abertura">${escapeHtml(j.abertura)}</p>` : ''}
+    ${(j.secoes || [])
+      .map(
+        (s) => `<div class="est-secao">
+          <h4>${escapeHtml(s.titulo)}</h4>
+          <ul class="ret-lista">${(s.pontos || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul>
+          ${s.fonte ? `<p class="ret-cita">${escapeHtml(s.fonte)}</p>` : ''}
+        </div>`
+      )
+      .join('')}
+    ${
+      j.termos?.length
+        ? `<div class="grupo-rot">${t('Termos')}</div>
+           <dl class="est-termos">${j.termos
+             .map(
+               (x) => `<dt>${escapeHtml(x.termo)}</dt><dd>${escapeHtml(x.definicao)}</dd>`
+             )
+             .join('')}</dl>`
+        : ''
+    }`;
 }

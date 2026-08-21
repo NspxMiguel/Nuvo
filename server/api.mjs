@@ -65,6 +65,7 @@ import {
   apagarSaida
 } from './estudos.mjs';
 import { montarRetrato, limparRetrato } from './retrato.mjs';
+import { gerarFormato, TIPOS as TIPOS_DE_SAIDA } from './estudos-formatos.mjs';
 import { runResearch } from './research.mjs';
 import { runCouncil } from './council.mjs';
 import { ftsQuery } from './vectors.mjs';
@@ -787,6 +788,21 @@ export async function handleApi(req, res, url) {
       const b = await readJSON(req);
       return json(res, reordenarPastas(seg[1], Array.isArray(b.ids) ? b.ids : []));
     }
+  }
+  if (seg[0] === 'professores' && seg[1] && seg[2] === 'gerar' && method === 'POST') {
+    const b = await readJSON(req);
+    const stream = openStream(req, res);
+    await pump(
+      stream,
+      gerarFormato({
+        professorId: seg[1],
+        tipo: TIPOS_DE_SAIDA.includes(b.tipo) ? b.tipo : '',
+        ref: b.model,
+        pastaId: b.pasta || null,
+        signal: stream.signal
+      })
+    );
+    return;
   }
   if (seg[0] === 'professores' && seg[1] && seg[2] === 'saidas' && method === 'GET') {
     return json(res, listarSaidas(seg[1], { tipo: url.searchParams.get('tipo') }));

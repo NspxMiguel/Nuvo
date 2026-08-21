@@ -2266,3 +2266,46 @@ button.icon { position: relative; }
 .ret-lista { margin: 8px 0 0; padding-left: 20px; font-size: 15.5px; }
 .ret-lista li { margin: 4px 0; }
 .ret-rodape { margin-top: 20px; }
+
+/* O que o Estudos produz. Os quatro cartões em grade, e o resultado aberto
+   embaixo — em vez de numa tela nova, porque comparar o simulado com o guia é
+   o uso normal e trocar de tela pra isso é atrito. */
+.est-formatos { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+.est-formato h4 { margin: 0 0 4px; font-size: 16.5px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+.est-formato .row { margin-top: 10px; align-items: center; }
+.est-formato select { min-width: 0; flex: 1 1 120px; }
+.est-formato.trancado { opacity: 0.65; }
+.est-saida { margin-top: 20px; }
+.est-instrucoes {
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 15px;
+  color: var(--muted);
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.est-questao { padding: 14px 0; border-top: 1px solid var(--line-soft); }
+.est-q-topo { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 14px; }
+.est-enunciado { margin: 8px 0; font-size: 16px; line-height: 1.55; }
+.est-alts { margin: 6px 0 0; padding-left: 20px; font-size: 15.5px; }
+.est-alts li { margin: 3px 0; }
+/* Probabilidade colorida: o aluno decide onde gastar o tempo pela cor, antes de ler. */
+.tag.prob-alta { color: var(--ok); }
+.tag.prob-baixa { color: var(--muted); }
+.est-gabarito { margin-top: 8px; }
+.est-gabarito summary { cursor: pointer; font-size: 15px; color: var(--accent); min-height: var(--toque); display: flex; align-items: center; }
+.est-gabarito p { margin: 6px 0; font-size: 15.5px; }
+.est-cartoes { display: flex; flex-direction: column; gap: 2px; }
+.est-cartao { border-radius: var(--radius); padding: 4px 12px; }
+.est-cartao:hover { background: var(--panel-2); }
+.est-cartao summary { cursor: pointer; min-height: var(--toque); display: flex; align-items: center; font-size: 15.5px; }
+.est-cartao p { margin: 2px 0 10px; font-size: 15.5px; color: var(--muted); }
+.est-abertura { font-size: 16px; line-height: 1.6; white-space: pre-wrap; }
+.est-secao h4 { margin: 16px 0 4px; font-size: 16.5px; font-weight: 600; }
+.est-termos { margin: 8px 0 0; font-size: 15.5px; }
+.est-termos dt { font-weight: 600; margin-top: 8px; }
+.est-termos dd { margin: 2px 0 0; color: var(--muted); }
+.est-faltou, .est-pule { margin-top: 18px; }
+.est-faltou b, .est-pule b { display: block; margin-bottom: 4px; }
