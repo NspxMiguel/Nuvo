@@ -5,6 +5,20 @@ estiver entregue e conferido.
 
 ---
 
+## 20/08/2026 — testar função por função, clicando em tudo
+
+> "tudo muito bugado, nada funciona direito.... quero q vc teste cada funçao do
+> app, funçao por função, usando claude computer use, clique em tudo, teste
+> tudo, veja os erros, e arrumeos"
+
+- [ ] **passar em cada tela do app clicando de verdade**, não só conferir se
+      renderiza. A varredura anterior olhou se a tela aparece e se o console
+      reclama; ele está falando de *usar* — mandar mensagem, criar projeto,
+      anexar, salvar ajuste — que é outra coisa.
+- [ ] **anotar cada defeito encontrado** com o que foi clicado, o que era
+      esperado e o que aconteceu.
+- [ ] **corrigir** e provar a correção repetindo o mesmo clique.
+
 ## 20/08/2026 — o aviso da Apple ao abrir o app
 
 Mandou a captura do aviso que apareceu na primeira abertura:
