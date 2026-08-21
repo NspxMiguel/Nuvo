@@ -5,6 +5,28 @@ estiver entregue e conferido.
 
 ---
 
+## 21/08/2026 — o NotebookLM pelo app, e o teste completo
+
+> "coloca opcao de usar ate o notebboklm pelo nosso app"
+
+> "testa o app inteiro como se fosse um usuario, pelo computer use, pra ver se
+> tem algo bugado, testa tudo. ou pede pro codex tbm testar, e enquanto isso vc
+> faz outra coisa"
+
+> "animações do app n tao legal, como ao clicar e entrar em telas"
+
+- [x] **NotebookLM como IA do app**, e não só motor do Estudos: aparece em IAs
+      ligadas, dá pra escolher numa conversa comum, e responde a partir dos
+      arquivos anexados. Sem arquivo ele recusa com clareza, porque NotebookLM
+      sem fonte responderia como uma IA qualquer.
+- [x] **teste do app inteiro pelo Codex**, com controle de navegador, nas três
+      larguras e nos dois temas. Achou **12 defeitos**; todos corrigidos.
+- [x] **as animações**. A causa era minha: o Estudos se redesenha a cada clique,
+      e cada redesenho repetia os 400ms de entrada — a tela inteira piscava a
+      cada toque. Agora animar é chegar numa tela; repintar não anima. O
+      histórico de conversa deixou de subir todo junto ao reabrir, e a tela do
+      professor passou a chegar escalonada como os outros painéis.
+
 ## 21/08/2026 — o que ele viu de errado na 0.3.0
 
 > "faltando varias coisas ne? ainda pedindo um monte de permissao toda vez,
