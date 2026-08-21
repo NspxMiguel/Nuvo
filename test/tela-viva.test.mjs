@@ -140,3 +140,22 @@ test('conversa aberta não fica acesa fora da tela de conversa', () => {
     'e apaga ao trocar de tela, sem precisar redesenhar a lista'
   );
 });
+
+test('"editar e reenviar" substitui em vez de duplicar', () => {
+  // Antes isto só copiava o texto pro campo: mandar de novo criava um turno novo
+  // e a pergunta antiga ficava na conversa, com a resposta que ela já tinha —
+  // e o modelo lia a errada no histórico.
+  const app = ler('web/app.js');
+  const trecho = app.slice(app.indexOf("add('edit'"), app.indexOf("add('trash'"));
+  assert.match(trecho, /method: 'DELETE'/, 'a fala antiga sai do banco');
+  assert.match(trecho, /nextElementSibling/, 'e a resposta que veio dela também');
+  assert.match(trecho, /el\.remove\(\)/, 'e as duas somem da tela');
+});
+
+test('trocar o modo do conselho apaga o resultado anterior', () => {
+  // A síntese de "uma resposta só" ficava embaixo do modo "elas votam", como se
+  // fosse a votação daquela pergunta.
+  const views = ler('web/views.js');
+  assert.match(views, /function limparResultado\(\)/, 'existe quem limpe');
+  assert.match(views, /if \(mudou\) limparResultado\(\)/, 'e trocar de modo limpa');
+});

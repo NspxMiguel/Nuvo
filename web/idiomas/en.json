@@ -833,6 +833,7 @@
   "não deu pra mandar pra revisão": "could not send to review",
   "não deu pra montar o retrato": "the portrait could not be built",
   "não deu pra refazer agora": "couldn't redo it right now",
+  "não deu pra tirar a mensagem antiga": "the old message could not be removed",
   "não deu pra ver as versões do Chromium: HTTP {status}": "the Chromium versions could not be listed: HTTP {status}",
   "não entrar em toda resposta": "don't go into every answer",
   "não existe elemento {alvo} nesta página": "there is no element {alvo} on this page",

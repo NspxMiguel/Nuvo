@@ -556,10 +556,36 @@ function wireActions(el, { id, role, text }) {
     add('speaker', t('ler em voz alta'), () => speak(text));
   }
   if (role === 'user') {
-    add('edit', t('editar e reenviar'), () => {
+    add('edit', t('editar e reenviar'), async () => {
+      // Reenviar é substituir, não repetir.
+      //
+      // Antes isto só copiava o texto pro campo: mandar de novo criava um turno
+      // novo e a pergunta antiga continuava ali, com a resposta que ela já tinha
+      // recebido. Quem quis corrigir uma palavra ficava com as duas versões na
+      // conversa e com o modelo lendo a errada no histórico.
+      //
+      // Some a fala e a resposta que veio dela — e só ela: o que veio depois é
+      // outra conversa, e apagar em cascata seria uma surpresa cara.
+      const resposta = el.nextElementSibling;
+      const daResposta =
+        resposta?.classList.contains('msg') && resposta.classList.contains('assistant')
+          ? resposta
+          : null;
+
       $('#input').value = text;
-      $('#input').focus();
       autosize($('#input'));
+      $('#input').focus();
+
+      try {
+        await api(`/messages/${id}`, { method: 'DELETE' });
+        if (daResposta?.dataset.id) await api(`/messages/${daResposta.dataset.id}`, { method: 'DELETE' });
+      } catch (err) {
+        // Não deu pra apagar: o texto já está no campo, então diga o que sobrou
+        // em vez de deixar a pessoa achar que substituiu.
+        return toast(err.message || t('não deu pra tirar a mensagem antiga'), 'err');
+      }
+      daResposta?.remove();
+      el.remove();
     });
   }
   add('trash', t('apagar'), async () => {

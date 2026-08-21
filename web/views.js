@@ -2147,9 +2147,15 @@ views.council = function renderCouncil(el, { switchView }) {
   const judgeField = inner.querySelector('#c-judge-campo');
   for (const b of modos.querySelectorAll('button[data-modo]')) {
     b.onclick = () => {
+      const mudou = modeSel.value !== b.dataset.modo;
       modeSel.value = b.dataset.modo;
       for (const o of modos.querySelectorAll('button')) o.classList.toggle('sel', o === b);
       judgeField.hidden = b.dataset.modo !== 'council';
+      // Trocar o modo apaga o resultado anterior. Ele foi feito de outro jeito e
+      // continuava na tela embaixo do modo novo — quem trocava de "uma resposta
+      // só" pra "elas votam" ficava olhando a síntese da pergunta passada como
+      // se fosse a votação.
+      if (mudou) limparResultado();
     };
   }
 
@@ -2157,6 +2163,11 @@ views.council = function renderCouncil(el, { switchView }) {
   const status = inner.querySelector('#c-status');
   const stopBtn = inner.querySelector('#c-stop');
   let controller = null;
+
+  function limparResultado() {
+    out.innerHTML = '';
+    status.textContent = '';
+  }
 
   inner.querySelector('#c-go').onclick = async () => {
     const chosen = [...picker.querySelectorAll('input:checked')].map((i) => i.value);
