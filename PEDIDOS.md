@@ -35,6 +35,15 @@ estiver entregue e conferido.
       campo vazio (Guardar da memória, baixar modelo pelo nome), a busca e a
       ordem da loja que ficavam sem ouvinte quando o GitHub não respondia, e as
       três caixas da avaliação que tinham nome duplicado e dois parágrafos cada.
+
+      O maior achado foi de estilo: **39 classes do Estudos existiam só no
+      JavaScript**. O desenho novo cobriu a tela — colunas, retrato, lista de
+      material — e não o que sai dela, então simulado, quiz, guia, resumo, linha
+      do tempo, conversa em áudio, infográfico, slides e mapa mental apareciam
+      com o HTML cru do navegador: serifa, marcador redondo, `<pre>`
+      monoespaçado no cabeçalho da prova, questão colada na seguinte. Nada
+      acusava, porque classe sem regra não é erro em lugar nenhum. Agora cada
+      saída tem a cara do que ela é, e um teste falha se isso voltar a acontecer.
 - [x] **NotebookLM por padrão**, as outras IAs só pra dar o toque do professor —
       duas mãos: ele lê o material e rascunha, a IA escolhida reescreve com o
       retrato por cima. Nenhuma das duas é ponto único de falha, e falha dele
