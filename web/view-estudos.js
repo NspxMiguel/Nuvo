@@ -52,6 +52,46 @@ const LADRILHOS = [
 const acharLadrilho = (id) => LADRILHOS.find((l) => l.id === id);
 
 /**
+ * O que a data de uma avaliação quer dizer hoje.
+ *
+ * "A2" sozinho não responde a única pergunta que quem estuda faz ao abrir a
+ * tela: já foi ou está vindo? Sem data, a resposta é honesta — "sem data" —, e
+ * não um silêncio que parece estado.
+ */
+function quandoDiz(quando) {
+  if (!quando) return { classe: 'sem', txt: () => t('sem data') };
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const [ano, mes, dia] = quando.split('-').map(Number);
+  const alvo = new Date(ano, mes - 1, dia);
+  const dias = Math.round((alvo - hoje) / 86_400_000);
+
+  if (dias < 0) return { classe: 'passou', dias, txt: () => t('já foi') };
+  if (dias === 0) return { classe: 'hoje', dias, txt: () => t('é hoje') };
+  if (dias === 1) return { classe: 'perto', dias, txt: () => t('é amanhã') };
+  if (dias <= 7) return { classe: 'perto', dias, txt: () => plural(dias, 'em 1 dia', 'em {n} dias') };
+  return {
+    classe: 'longe',
+    dias,
+    txt: () => formatarData(`${quando}T12:00:00.000Z`, { day: '2-digit', month: 'short' }) || quando
+  };
+}
+
+/**
+ * As que ainda vêm primeiro, da mais próxima pra mais distante; depois as sem
+ * data; e as que já passaram por último, da mais recente pra trás. É a ordem em
+ * que elas importam pra quem tem prova marcada.
+ */
+function porUrgencia(a, b) {
+  const qa = quandoDiz(a.quando);
+  const qb = quandoDiz(b.quando);
+  const peso = (q) => (q.classe === 'passou' ? 2 : q.classe === 'sem' ? 1 : 0);
+  if (peso(qa) !== peso(qb)) return peso(qa) - peso(qb);
+  if (qa.dias == null || qb.dias == null) return 0;
+  return peso(qa) === 2 ? qb.dias - qa.dias : qa.dias - qb.dias;
+}
+
+/**
  * As três formas de organizar, e o que cada uma faz nascer.
  *
  * Os nomes das pastas saem daqui, do lado do cliente, e viajam no pedido de
@@ -259,7 +299,7 @@ async function telaDoProfessor(el, ctx) {
     return ligarRevisao(el, prof, cartoes, ctx);
   }
 
-  const provas = prof.pastas.filter((p) => p.tipo === 'prova');
+  const provas = prof.pastas.filter((p) => p.tipo === 'prova').sort(porUrgencia);
   const aula = prof.pastas.filter((p) => p.tipo === 'material');
   const pasta = prof.pastas.find((p) => p.id === aqui.pastaAberta);
   const saida = saidas.find((s) => s.id === aqui.saidaAberta);
@@ -370,14 +410,19 @@ async function telaDoProfessor(el, ctx) {
 function linhaDeFonte(pasta) {
   const marcada = !aqui.fora.has(pasta.id);
   const quantos = pasta.anexos.length;
+  const q = pasta.tipo === 'prova' ? quandoDiz(pasta.quando) : null;
+  const embaixo = [
+    q ? q.txt() : null,
+    quantos ? plural(quantos, '1 arquivo', '{n} arquivos') : t('vazia')
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return `<div class="est-fonte${marcada ? ' on' : ''}${
     pasta.id === aqui.pastaAberta ? ' sel' : ''
-  }" data-pasta="${escapeHtml(pasta.id)}">
+  }${q ? ` q-${q.classe}` : ''}" data-pasta="${escapeHtml(pasta.id)}">
     <button class="cx" data-marcar aria-pressed="${marcada}"
       aria-label="${t('usar {nome} no que for gerado', { nome: escapeHtml(pasta.nome) })}">${icon('check', 14)}</button>
-    <button class="rot" data-abrir>${escapeHtml(pasta.nome)}<small>${
-      quantos ? plural(quantos, '1 arquivo', '{n} arquivos') : t('vazia')
-    }</small></button>
+    <button class="rot" data-abrir>${escapeHtml(pasta.nome)}<small>${escapeHtml(embaixo)}</small></button>
   </div>`;
 }
 
@@ -591,6 +636,15 @@ function avaliacaoAberta(prof, pasta) {
     <header class="est-cabeca-av">
       <h2>${escapeHtml(pasta.nome)}</h2>
       <div class="sub">${plural(pasta.anexos.length, '1 arquivo', '{n} arquivos')}</div>
+      ${
+        pasta.tipo === 'prova'
+          ? `<label class="est-quando q-${quandoDiz(pasta.quando).classe}">
+               <span>${escapeHtml(quandoDiz(pasta.quando).txt())}</span>
+               <input type="date" data-quando value="${escapeHtml(pasta.quando || '')}"
+                 aria-label="${t('dia da prova')}" />
+             </label>`
+          : ''
+      }
       <div class="acoes">
         <button class="icon" data-ren title="${t('renomear')}" aria-label="${t('renomear a pasta')}">${icon('edit', 18)}</button>
         <button class="icon danger" data-del title="${t('apagar')}" aria-label="${t('apagar a pasta')}">${icon('trash', 18)}</button>
@@ -620,7 +674,26 @@ function avaliacaoAberta(prof, pasta) {
             { quantos: plural(nunca, '1 assunto', '{n} assuntos') }
           )}</p>`
         : ''
-    }`;
+    }
+
+    <div class="est-fazer">
+      <div class="est-rot">${t('O que fazer com isto')}</div>
+      <div class="est-lads">
+        ${['resumo', 'simulado', 'flashcards', 'guia']
+          .map((id) => acharLadrilho(id))
+          .map(
+            (l) => `<button class="est-lad${
+              l.precisaRetrato && !r ? ' trancado' : ''
+            }" style="--t:var(--${l.cor})" data-gerar="${l.id}"${
+              l.precisaRetrato && !r ? ` disabled title="${t('precisa do retrato do professor antes')}"` : ''
+            }>
+              <span class="ico">${icon(l.ico, 19)}</span><span class="nm">${escapeHtml(l.nome())}</span>
+            </button>`
+          )
+          .join('')}
+      </div>
+      <p class="est-nada">${t('Sai do que está marcado na coluna da esquerda. O resto está no Estúdio.')}</p>
+    </div>`;
 }
 
 // ------------------------------------------------------------- revisar
@@ -774,6 +847,10 @@ function ligarProfessor(el, prof, saidas, ctx) {
   for (const b of el.querySelectorAll('[data-add]')) {
     b.onclick = () => enviarArquivos(aqui.pastaAberta, b.dataset.add, ctx);
   }
+  q('[data-quando]')?.addEventListener('change', async (ev) => {
+    await api(`/pastas/${aqui.pastaAberta}`, { method: 'PATCH', body: { quando: ev.target.value || null } });
+    repintar();
+  });
   q('[data-ren]')?.addEventListener('click', () => {
     const pasta = prof.pastas.find((p) => p.id === aqui.pastaAberta);
     pedirNome(q('.est-cabeca-av'), {

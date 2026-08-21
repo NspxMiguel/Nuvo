@@ -170,3 +170,28 @@ test('o que foi gerado fica guardado com as fontes', () => {
   estudos.apagarSaida(saida.id);
   assert.equal(estudos.listarSaidas(p.id).length, 0);
 });
+
+test('avaliação guarda o dia, e só o dia', () => {
+  // Prova tem dia, não horário: guardar um instante faria "hoje" virar "ontem"
+  // pra quem abrir o app de manhã cedo noutro fuso.
+  const p = estudos.criarProfessor({ nome: 'Marcos' });
+  const pasta = estudos.criarPasta(p.id, { nome: 'A2', tipo: 'prova', quando: '2026-08-24' });
+  assert.equal(pasta.quando, '2026-08-24');
+
+  assert.equal(estudos.criarPasta(p.id, { nome: 'A3', tipo: 'prova' }).quando, null);
+  assert.equal(
+    estudos.criarPasta(p.id, { nome: 'A4', tipo: 'prova', quando: '24/08/2026' }).quando,
+    null,
+    'formato torto vira sem data, não vira data errada'
+  );
+  assert.equal(
+    estudos.criarPasta(p.id, { nome: 'A5', tipo: 'prova', quando: '2026-08-24T18:30:00Z' }).quando,
+    '2026-08-24',
+    'instante é cortado no dia'
+  );
+
+  // Editar sem mencionar a data não apaga a data.
+  const renomeada = estudos.atualizarPasta(pasta.id, { nome: 'A2 nova' });
+  assert.equal(renomeada.quando, '2026-08-24');
+  assert.equal(estudos.atualizarPasta(pasta.id, { quando: null }).quando, null);
+});

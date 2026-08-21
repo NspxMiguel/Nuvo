@@ -2665,3 +2665,35 @@ button.icon { position: relative; }
 .view.entra .est-prof:nth-child(2) { animation-delay: 60ms; }
 .view.entra .est-prof:nth-child(3) { animation-delay: 100ms; }
 .view.entra .est-prof:nth-child(n + 4) { animation-delay: 140ms; }
+
+/* A data da avaliação: a cor diz o estado antes de a pessoa ler a palavra. */
+.est-fonte small { display: block; }
+.est-fonte.q-hoje .rot small, .est-fonte.q-perto .rot small { color: var(--warn); }
+.est-fonte.q-passou .rot small { color: var(--muted); opacity: 0.7; }
+.est-fonte.q-passou .rot { opacity: 0.72; }
+
+.est-quando {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  min-height: 34px;
+}
+.est-quando.q-hoje, .est-quando.q-perto { color: var(--warn); }
+.est-quando.q-passou { opacity: 0.75; }
+/* O <input type="date"> fica por cima, invisível: o calendário do sistema abre
+   no clique e a pastilha continua sendo o que se vê. */
+.est-quando input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* O que fazer com a avaliação aberta, no meio da tela.
+   O Estúdio fica na coluna da direita, e quem abre uma prova está olhando pro
+   meio — a pergunta "como recebo um resumo disto?" não podia depender de achar
+   outra coluna. */
+.est-fazer { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
+.est-fazer .est-lads { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }

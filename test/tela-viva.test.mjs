@@ -211,3 +211,19 @@ test('a animação de entrada é pra chegar na tela, não pra cada clique', () =
   assert.match(css, /#messages\.sem-entrada \.msg/, 'histórico não sobe junto');
   assert.match(css, /\.view\.entra \.est-mid \{ animation: sobe/, 'Estudos chega escalonado como os painéis');
 });
+
+test('a avaliação diz se já foi, e o resumo fica onde a pessoa está olhando', () => {
+  // As duas perguntas que ele não conseguia responder pela tela: "a A2 já foi?"
+  // e "como recebo um resumo?".
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /function quandoDiz\(quando\)/, 'a data vira estado');
+  assert.match(v, /t\('já foi'\)/, 'e diz "já foi" com todas as letras');
+  assert.match(v, /function porUrgencia\(a, b\)/, 'as que vêm primeiro aparecem primeiro');
+  assert.match(v, /\.sort\(porUrgencia\)/, 'e a lista usa isso');
+  assert.match(v, /class="est-fazer"/, 'o que fazer com a prova fica no meio da tela');
+  assert.match(
+    v,
+    /\['resumo', 'simulado', 'flashcards', 'guia'\]/,
+    'com o resumo em primeiro, que é o que ele procurou'
+  );
+});

@@ -357,6 +357,10 @@ function migrate() {
   addColumn('attachments', 'pasta_id', 'TEXT');
   addColumn('attachments', 'papel', "TEXT NOT NULL DEFAULT 'material'"); // prova | conteudo | material
   addColumn('chunks', 'pasta_id', 'TEXT');
+  // Quando a avaliação é (ou foi). Sem data, uma pasta chamada "A2" não diz se
+  // já passou ou se é semana que vem — que é a primeira coisa que quem estuda
+  // quer saber ao abrir a tela.
+  addColumn('estudo_pastas', 'quando', 'TEXT');
   addColumn('chunks', 'papel', "TEXT NOT NULL DEFAULT 'material'");
 
   // Ícone e cor no lugar do emoji.

@@ -197,20 +197,32 @@ export function pastasDo(professorId) {
   ).map(pastaPublica);
 }
 
+/**
+ * Data no formato AAAA-MM-DD, ou `null`.
+ *
+ * Só a data, sem hora: prova tem dia, não horário, e guardar um instante faria
+ * "hoje" virar "ontem" pra quem abrir o app de manhã cedo noutro fuso.
+ */
+function soData(valor) {
+  const texto = String(valor ?? '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(texto) ? texto : null;
+}
+
 function inserirPasta(professorId, pasta = {}, ord = 0) {
   const nome = texto(pasta.nome);
   exigir(nome, 'a pasta precisa de um nome');
   const tipo = TIPOS_DE_PASTA.includes(pasta.tipo) ? pasta.tipo : 'prova';
   const id = uid();
   run(
-    `INSERT INTO estudo_pastas (id, professor_id, nome, tipo, etiquetas, ord, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO estudo_pastas (id, professor_id, nome, tipo, etiquetas, ord, quando, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     professorId,
     nome,
     tipo,
     JSON.stringify(Array.isArray(pasta.etiquetas) ? pasta.etiquetas.map((e) => texto(e, 40)) : []),
     Number.isFinite(pasta.ord) ? pasta.ord : ord,
+    soData(pasta.quando),
     now()
   );
   return id;
@@ -232,10 +244,11 @@ export function atualizarPasta(id, campos = {}) {
     ? JSON.stringify(campos.etiquetas.map((e) => texto(e, 40)))
     : linha.etiquetas;
   run(
-    'UPDATE estudo_pastas SET nome = ?, tipo = ?, etiquetas = ? WHERE id = ?',
+    'UPDATE estudo_pastas SET nome = ?, tipo = ?, etiquetas = ?, quando = ? WHERE id = ?',
     nome,
     tipo,
     etiquetas,
+    'quando' in campos ? soData(campos.quando) : linha.quando,
     id
   );
   return pastaPublica(one('SELECT * FROM estudo_pastas WHERE id = ?', id));
