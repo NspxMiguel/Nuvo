@@ -387,6 +387,17 @@ export async function recallChunks(
 }
 
 /**
+ * Onde a cópia crua deste anexo mora no disco, ou `null`.
+ *
+ * Só quem precisa mandar o arquivo pra fora — o NotebookLM sobe o arquivo, não o
+ * texto — e por isso o caminho não sai por `publicAttachment`: ele é a árvore de
+ * pastas da máquina, e a tela não tem o que fazer com ela.
+ */
+export function caminhoNoDisco(id) {
+  return one('SELECT path FROM attachments WHERE id = ?', id)?.path || null;
+}
+
+/**
  * O documento inteiro de um anexo.
  *
  * Arquivo curto tem o texto guardado na própria linha. O longo não tem, e aí a

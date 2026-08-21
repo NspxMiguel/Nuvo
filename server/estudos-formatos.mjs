@@ -12,7 +12,8 @@
 // passado, que é exatamente o hábito que a ferramenta deveria substituir.
 
 import { complete, describeModel, parseJsonObject } from './complete.mjs';
-import { listAttachments, textoDoAnexo } from './documents.mjs';
+import { caminhoNoDisco, listAttachments, textoDoAnexo } from './documents.mjs';
+import { gerarNoNotebookLM } from './notebooklm.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
 import { acharProfessor, guardarSaida, pastasDo } from './estudos.mjs';
 
@@ -448,6 +449,48 @@ function material(professorId, papeis, escolhidas) {
  *
  * @param {{professorId: string, tipo: string, ref: string, pastaId?: string|null, signal?: AbortSignal}} entrada
  */
+/**
+ * O mesmo pedido, mas quem gera é o NotebookLM.
+ *
+ * Fica separado do caminho normal de propósito: é automação da tela de um
+ * terceiro, e quando ela quebra o Estudos precisa continuar de pé. Falhou, a
+ * tela diz o que aconteceu e o gerador local continua ali do lado.
+ */
+export async function* gerarPeloNotebookLM({ professorId, tipo, pastas = null, signal }) {
+  const formato = FORMATOS[tipo];
+  if (!formato) throw erroHttp(400, 'não sei gerar isso');
+  const professor = acharProfessor(professorId);
+
+  const so = Array.isArray(pastas) && pastas.length ? new Set(pastas) : null;
+  const arquivos = pastasDo(professorId)
+    .filter((p) => !so || so.has(p.id))
+    .flatMap((p) => listAttachments({ pastaId: p.id }))
+    .filter((a) => formato.papeis.includes(a.papel))
+    .map((a) => ({ id: a.id, nome: a.name, caminho: caminhoNoDisco(a.id) }))
+    .filter((a) => a.caminho);
+
+  yield { type: 'start', tipo, modelo: 'NotebookLM', arquivos: arquivos.length, cortado: false };
+
+  let saida = null;
+  for await (const ev of gerarNoNotebookLM({ arquivos, tipo, signal })) {
+    if (ev.type === 'passo') yield ev;
+    if (ev.texto) saida = ev;
+  }
+  if (!saida?.texto) throw erroHttp(422, 'o NotebookLM não devolveu nada utilizável');
+
+  const salvo = guardarSaida({
+    professorId,
+    tipo,
+    titulo: formato.titulo(professor),
+    // O NotebookLM devolve texto corrido, não o JSON dos nossos moldes: guardar
+    // como texto é honesto, e a tela desenha texto quando não há estrutura.
+    json: { texto: saida.texto },
+    fontes: saida.fontes || [],
+    modelo: 'notebooklm'
+  });
+  yield { type: 'pronto', saida: salvo };
+}
+
 export async function* gerarFormato({ professorId, tipo, ref, pastas = null, signal }) {
   const formato = FORMATOS[tipo];
   if (!formato) throw erroHttp(400, 'não sei gerar isso');

@@ -66,7 +66,8 @@ import {
 } from './estudos.mjs';
 import { modelosQueEnxergam } from './visao.mjs';
 import { montarRetrato, limparRetrato } from './retrato.mjs';
-import { gerarFormato, TIPOS as TIPOS_DE_SAIDA } from './estudos-formatos.mjs';
+import { gerarFormato, gerarPeloNotebookLM, TIPOS as TIPOS_DE_SAIDA } from './estudos-formatos.mjs';
+import { disponivel as notebookLMDisponivel } from './notebooklm.mjs';
 import {
   semearCartoes,
   fila as filaDeCartoes,
@@ -788,6 +789,15 @@ export async function handleApi(req, res, url) {
     if (method === 'PATCH') return json(res, atualizarProfessor(seg[1], await readJSON(req)));
     if (method === 'DELETE') return json(res, apagarProfessor(seg[1]));
   }
+  // A tela pergunta antes de oferecer: um motor que não está logado vira uma
+  // opção que só falha quando alguém clica.
+  if (method === 'GET' && path === '/notebooklm') {
+    try {
+      return json(res, await notebookLMDisponivel({}));
+    } catch (err) {
+      return json(res, { ok: false, porque: err.message });
+    }
+  }
   if (seg[0] === 'professores' && seg[1] && seg[2] === 'retrato') {
     if (method === 'POST') {
       const b = await readJSON(req);
@@ -834,7 +844,9 @@ export async function handleApi(req, res, url) {
     const stream = openStream(req, res);
     await pump(
       stream,
-      gerarFormato({
+      // `model: 'notebooklm'` é a escolha de motor, não um modelo: quem gera é a
+      // tela do Google, dirigida pelo navegador.
+      (b.model === 'notebooklm' ? gerarPeloNotebookLM : gerarFormato)({
         professorId: seg[1],
         tipo: TIPOS_DE_SAIDA.includes(b.tipo) ? b.tipo : '',
         ref: b.model,

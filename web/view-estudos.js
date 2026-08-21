@@ -329,7 +329,10 @@ async function telaDoProfessor(el, ctx) {
       <aside class="est-lado">
         <div class="est-rot">${t('Estúdio')}</div>
         <div class="est-quem-gera">${icon('bot', 17)}
-          <select id="est-modelo" aria-label="${t('IA que gera')}">${modelOptions(state.model)}</select>
+          <select id="est-modelo" aria-label="${t('IA que gera')}">
+            ${modelOptions(state.model)}
+            <option value="notebooklm" disabled>${t('NotebookLM (conferindo…)')}</option>
+          </select>
         </div>
         <div class="est-rot">${t('Gerar')}</div>
         <div class="est-lads">
@@ -777,6 +780,20 @@ function ligarProfessor(el, prof, saidas, ctx) {
 
   for (const b of el.querySelectorAll('[data-gerar]')) {
     b.onclick = () => gerar(el, prof, b, q('#est-modelo').value, ctx);
+  }
+
+  // O NotebookLM entra na lista só depois de o servidor dizer que ele responde:
+  // uma opção que sempre falha ao clicar é pior do que uma opção que não existe.
+  const opcaoNotebook = q('#est-modelo option[value="notebooklm"]');
+  if (opcaoNotebook) {
+    api('/notebooklm')
+      .then(({ ok, porque }) => {
+        opcaoNotebook.disabled = !ok;
+        opcaoNotebook.textContent = ok
+          ? t('NotebookLM (no seu navegador)')
+          : t('NotebookLM — {porque}', { porque: porque || t('não deu pra falar com ele') });
+      })
+      .catch(() => opcaoNotebook.remove());
   }
 
   // As saídas que têm vida própria.
