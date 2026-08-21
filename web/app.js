@@ -688,6 +688,13 @@ function renderMessages(focusId) {
       // No histórico não existe quanto tempo o modelo pensou: só o rótulo.
       endReasoning(el, null);
     }
+    // O rodapé da memória volta com a conversa. Ele é a prova de que a memória
+    // compartilhada agiu, e existia só enquanto a resposta chegava.
+    if (meta.memoria?.length && !$('#app').classList.contains('anon')) {
+      el.querySelector('.body').insertAdjacentHTML('beforeend', memFoot(meta.memoria));
+      const abrir = el.querySelector('.mem-foot [data-act=abrir]');
+      if (abrir) abrir.onclick = () => switchView('memory');
+    }
     if (meta.stats) setStats(el, meta.stats);
     wireActions(el, { id: m.id, role: m.role, text: m.content });
     wireCodeCopy(el);

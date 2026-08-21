@@ -495,6 +495,23 @@ export async function* runTurn({
         usage,
         stats,
         reasoning: reasoning || undefined,
+        // O que a memória entregou neste turno fica gravado com a resposta.
+        //
+        // Sem isto o rodapé "usei 2 coisas que já sei sobre você" só existia
+        // enquanto a resposta chegava: bastava recarregar pra sumir. A memória
+        // compartilhada é a promessa central do app, e a prova de que ela agiu
+        // não podia ser a coisa mais volátil da tela.
+        memoria: memories.length
+          ? memories.map((m) => ({
+              id: m.id,
+              text: m.text,
+              kind: m.kind,
+              scope: m.scope,
+              project_id: m.project_id,
+              source: m.source,
+              source_ref: m.source_ref
+            }))
+          : undefined,
         trabalho: trabalho.length ? trabalho : undefined,
         provider: provider.name
       });

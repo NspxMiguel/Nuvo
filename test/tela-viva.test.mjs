@@ -159,3 +159,13 @@ test('trocar o modo do conselho apaga o resultado anterior', () => {
   assert.match(views, /function limparResultado\(\)/, 'existe quem limpe');
   assert.match(views, /if \(mudou\) limparResultado\(\)/, 'e trocar de modo limpa');
 });
+
+test('o rodapé da memória sobrevive a recarregar a conversa', () => {
+  // "usei 2 coisas que já sei sobre você" é a prova de que a memória
+  // compartilhada agiu — e era a coisa mais volátil da tela: existia só enquanto
+  // a resposta chegava, e recarregar apagava.
+  const chat = ler('server/chat.mjs');
+  assert.match(chat, /memoria: memories\.length/, 'o turno grava o que a memória entregou');
+  const app = ler('web/app.js');
+  assert.match(app, /meta\.memoria\?\.length/, 'e o histórico redesenha o rodapé');
+});

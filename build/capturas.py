@@ -131,7 +131,9 @@ def roteiro_memoria(idioma):
     if not primeira:
         raise SystemExit('nenhuma IA de terminal ligada')
 
-    contando = api('/chats', {'model': primeira, 'title': CONVERSAS[idioma][0]})
+    # Títulos diferentes: a barra lateral com a mesma frase três vezes anuncia um
+    # app que não sabe nomear conversa.
+    contando = api('/chats', {'model': primeira, 'title': CONVERSAS[idioma][1]})
     falar(contando['id'], conta)
 
     # Conversa nova, outra IA: é a memória compartilhada que responde, e é isso
@@ -198,15 +200,19 @@ def capturar(quais):
             for idioma, sufixo in IDIOMAS.items():
                 # Uma conversa de cada, no idioma da vez: a barra lateral vazia
                 # anuncia um app onde nunca aconteceu nada.
-                for titulo in CONVERSAS[idioma]:
-                    api('/chats', {'title': titulo})
-
                 preparados = {}
                 for nome in quais:
                     roteiro = TELAS[nome].get('roteiro')
                     if roteiro:
                         print(f'  {nome}: rodando a sessão de verdade…')
                         preparados[nome] = ROTEIROS[roteiro](idioma)
+
+                # As de enfeite entram depois, e só as que ainda faltam: o
+                # roteiro já criou conversa com alguns desses títulos.
+                existentes = {c['title'] for c in api('/chats')}
+                for titulo in CONVERSAS[idioma]:
+                    if titulo not in existentes:
+                        api('/chats', {'title': titulo})
 
                 for nome in quais:
                     tela = TELAS[nome]
@@ -227,10 +233,12 @@ def capturar(quais):
                         pg.goto(f'http://127.0.0.1:{PORTA}/', wait_until='load')
                         preparado = preparados.get(nome)
                         if tela.get('roteiro') == 'memoria':
-                            # A conversa já existe e já tem resposta: basta abrir
-                            # a primeira da lista, que é ela.
-                            pg.wait_for_selector('#chat-list .chat-item', timeout=20_000)
-                            pg.click('#chat-list .chat-item')
+                            # Abre pelo id, não pela posição: as conversas de
+                            # enfeite entram depois e a primeira da lista deixa
+                            # de ser a que tem a resposta.
+                            alvo = f"#chat-list .chat-item[data-id='{preparado['chat']}']"
+                            pg.wait_for_selector(alvo, timeout=20_000)
+                            pg.click(alvo)
                         if tela['view']:
                             # "IAs ligadas" mora dentro do <details> "Mais", que
                             # nasce fechado: clicar no botão sem abrir antes bate
