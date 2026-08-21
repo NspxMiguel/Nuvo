@@ -5,6 +5,17 @@ estiver entregue e conferido.
 
 ---
 
+## 20/08/2026 — falta sinal de que a IA está pensando
+
+> "tem nenhum feedback q ele ta pensando/escrevendo, coloca garai"
+
+Mandou a captura da conversa: ele escreveu "de boa?" e a tela ficou parada —
+a bolha dele à direita e nada embaixo. O único sinal de que algo acontece é o
+botão de parar lá no canto do campo de escrever.
+
+- [ ] **mostrar que a resposta está vindo**, no lugar onde a resposta vai
+      aparecer, desde o instante em que ele aperta enviar.
+
 ## 20/08/2026 — testar função por função, clicando em tudo
 
 > "tudo muito bugado, nada funciona direito.... quero q vc teste cada funçao do
