@@ -45,6 +45,14 @@
   --pill: 999px;
   --toque: 44px;
 
+  /* Tamanho de controle. 44 px é a régua do dedo — a Apple mede o toque, não o
+     ponteiro. Quem está de mouse acerta um alvo de 32 px sem pensar, e o app
+     inteiro estava sendo desenhado pro dedo dentro de uma janela de desktop:
+     botão de 44 px, texto de 16 px e 18 px de folga dos dois lados. */
+  --ctl-h: var(--toque);
+  --ctl-pad: 13px 18px;
+  --ctl-fs: 16px;
+
   /* --- tipo (só a do sistema) --- */
   --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, system-ui, sans-serif;
   --font-display: var(--font-ui);
@@ -60,6 +68,17 @@
   --mola: cubic-bezier(0.34, 1.42, 0.64, 1);       /* confirmação, aparecer */
 
   color-scheme: dark;
+}
+
+/* Mouse: alvo menor, texto menor, menos folga. Só muda o que é controle — a
+   régua do dedo continua valendo em tela de toque, que é onde ela nasceu. */
+@media (pointer: fine) {
+  :root {
+    --toque: 34px;
+    --ctl-h: 32px;
+    --ctl-pad: 7px 14px;
+    --ctl-fs: 14.5px;
+  }
 }
 
 :root[data-theme='light'] {
@@ -999,10 +1018,10 @@ input, select, textarea, button {
   border: 0;
   color: var(--text);
   border-radius: var(--pill);
-  padding: 13px 18px;
+  padding: var(--ctl-pad);
   font: inherit;
-  font-size: 16px;
-  min-height: var(--toque);
+  font-size: var(--ctl-fs);
+  min-height: var(--ctl-h);
 }
 textarea, .tune textarea { border-radius: var(--radius); }
 input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }
@@ -1560,37 +1579,46 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
 @media (min-width: 761px) {
   html, body { font-size: 16px; }
   #scrim { display: none; }
+  /* A gaveta ocupava 300 px de uma janela de 1280 — quase um quarto da tela pra
+     nove palavras e uma lista de títulos. 248 px cabem o nome inteiro das telas
+     e devolvem 52 px pro que a pessoa veio ver. */
   #sidebar {
     position: static;
     transform: none;
-    width: 300px;
-    flex: 0 0 300px;
+    width: 248px;
+    flex: 0 0 248px;
     background: var(--bg);
-    padding: 14px 10px;
+    padding: 10px 8px;
     transition: margin-left var(--d3) var(--ease), opacity var(--d2) var(--ease);
   }
   /* recolher: a gaveta desliza pra fora e o conteúdo ocupa a largura toda */
-  #app.recolhido #sidebar { margin-left: -300px; opacity: 0; pointer-events: none; }
+  #app.recolhido #sidebar { margin-left: -248px; opacity: 0; pointer-events: none; }
   /* recolhida, a barra de cima ganha o botão de trazer de volta e o de nova conversa */
   #app.recolhido #btn-open-side, #app.recolhido #topbar #btn-new-chat-top { display: inline-flex; }
   #topbar #btn-new-chat-top { display: none; }
   #btn-close-side { display: inline-flex; }
   #btn-open-side { display: inline-flex; }
   #app:not(.recolhido) #btn-open-side { display: none; }
-  #btn-new-chat { position: static; flex: 1; height: 48px; padding: 0 18px; font-size: 15.5px; margin: 0; }
-  .side-foot { position: static; padding-top: 10px; gap: 8px; }
+  #btn-new-chat { position: static; flex: 1; height: 38px; padding: 0 14px; font-size: 14px; margin: 0; }
+  .side-foot { position: static; padding-top: 8px; gap: 6px; }
   .side-foot .muted { display: none; }
-  .side-foot button.icon { width: 48px; height: 48px; min-width: 48px; min-height: 48px; }
+  .side-foot button.icon { width: 38px; height: 38px; min-width: 38px; min-height: 38px; }
   #chat-list { padding-bottom: 10px; }
-  .chat-item { font-size: 15.5px; min-height: 42px; }
+  .chat-item { font-size: 14px; min-height: 32px; padding: 3px 10px; }
   .chat-item:hover { background: var(--panel); }
   .chat-item .row-actions { opacity: 0; }
   .chat-item:hover .row-actions, .chat-item.active .row-actions { opacity: 1; width: auto; overflow: visible; pointer-events: auto; }
-  .nav-item { font-size: 15.5px; min-height: 40px; }
+  .nav-item { font-size: 14px; min-height: 32px; gap: 12px; padding: 4px 10px; }
+  .nav-item .ico svg { width: 17px; height: 17px; }
+  #nav-mais > .nav-item { padding-left: 20px; }
+  .side-search { margin: 0 2px 4px; padding: 0 12px; }
+  .side-search input { padding: 7px 0; font-size: 14px; }
+  .side-head { padding: 2px 6px 8px; }
+  .list-label { font-size: 12px; padding: 12px 10px 4px; }
   #nav { gap: 0; }
   #chat-list { min-height: 0; flex: 1 1 240px; }
   .nav-item:hover { background: var(--panel); }
-  .brand { font-size: 19px; }
+  .brand { font-size: 17px; gap: 9px; }
 
   #btn-open-side { display: none; }
   #topbar { padding: 12px 20px; gap: 10px; }
@@ -2139,18 +2167,18 @@ button.icon { position: relative; }
 .est-topo {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 22px 24px 18px;
+  gap: 12px;
+  padding: 14px 20px 12px;
   flex: 0 0 auto;
 }
 .est-foto {
-  width: 54px;
-  height: 54px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 650;
   letter-spacing: -0.02em;
   color: #000;
@@ -2158,8 +2186,8 @@ button.icon { position: relative; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .est-quem { min-width: 0; flex: 1; }
-.est-quem h2 { margin: 0; font-size: 27px; font-weight: 650; letter-spacing: -0.032em; line-height: 1.1; }
-.est-quem .sub { font-size: 15px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.est-quem h2 { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: -0.028em; line-height: 1.15; }
+.est-quem .sub { font-size: 13.5px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .est-quem .sub b { color: var(--text-2); font-weight: 500; }
 .est-topo .acoes { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .est-rev {
@@ -2203,37 +2231,68 @@ button.icon { position: relative; }
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--muted);
-  padding: 18px 4px 8px;
-  letter-spacing: 0.02em;
+  padding: 12px 4px 6px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 .est-rot .n { font-variant-numeric: tabular-nums; }
 
 /* --- material: avaliação e arquivo, com o interruptor de entrar na resposta --- */
+/* A linha é uma linha: os dois botões de dentro herdavam a régua do dedo
+   (44 px de altura e 18 px de folga cada) e empurravam a pasta pra 107 px de
+   altura, com o nome quebrado em três pedaços. */
 .est-fonte {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 9px;
   width: 100%;
-  min-height: 52px;
-  padding: 9px 10px;
+  padding: 5px 8px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: none;
   color: var(--text);
   text-align: left;
   font: inherit;
   transition: background var(--d1) var(--ease);
 }
+.est-fonte:hover { background: var(--panel); }
 .est-fonte:active { background: var(--panel-2); }
 .est-fonte.sel { background: var(--accent-soft); }
-.est-fonte .rot { flex: 1; min-width: 0; font-size: 15.5px; line-height: 1.35; }
-.est-fonte .rot small { display: block; font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.est-fonte .rot {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  min-height: 0;
+  padding: 3px 0;
+  background: none;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.est-fonte .rot .nm {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.est-fonte .rot .baixo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+}
+.est-fonte .rot .qd { font-size: 12px; color: var(--muted); }
 .est-fonte .cx {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 5px;
   flex: 0 0 auto;
   background: var(--panel-3);
   display: grid;
@@ -2243,6 +2302,43 @@ button.icon { position: relative; }
 }
 .est-fonte.on .cx { background: var(--accent); color: var(--on-accent); }
 .est-fonte .ico { color: var(--muted); flex: 0 0 auto; }
+
+/* O selo de papel: a mesma palavra e a mesma cor em toda a tela. */
+.est-selo {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--t) 17%, transparent);
+  color: var(--t);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.est-n {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-left: -2px;
+  margin-right: 3px;
+}
+
+/* Os arquivos da pasta aberta, cada um dizendo o que é. */
+.est-arqs { margin: 1px 0 6px 26px; display: grid; gap: 1px; }
+.est-arq {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px 3px 9px;
+  border-left: 2px solid color-mix(in srgb, var(--t) 55%, transparent);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.est-arq .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .est-add {
   display: flex;
@@ -2262,7 +2358,7 @@ button.icon { position: relative; }
 
 /* --- o retrato --- */
 .est-mid .veredito {
-  font-size: 25px;
+  font-size: 20px;
   font-weight: 550;
   line-height: 1.28;
   letter-spacing: -0.025em;
@@ -2296,7 +2392,7 @@ button.icon { position: relative; }
 /* números da prova: três fatos, sem caixa */
 .est-fatos { display: flex; flex-wrap: wrap; gap: 34px; }
 .est-fatos div { display: flex; flex-direction: column; gap: 3px; }
-.est-fatos .v { font-size: 27px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.est-fatos .v { font-size: 22px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .est-fatos .r { font-size: 14.5px; color: var(--muted); }
 
 /* peso: UMA barra, não oito barrinhas */
@@ -2428,13 +2524,13 @@ button.icon { position: relative; }
 .est-quem-gera {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  margin-top: 4px;
-  padding: 0 12px;
-  border-radius: 12px;
+  gap: 7px;
+  min-height: 34px;
+  margin-top: 2px;
+  padding: 0 10px;
+  border-radius: 10px;
   background: var(--panel);
-  font-size: 14.5px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 .est-quem-gera select {
@@ -2444,29 +2540,43 @@ button.icon { position: relative; }
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 13px;
   font-weight: 600;
+  min-height: 0;
   padding: 0;
 }
-.est-lads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* O estúdio é uma lista, não um mosaico: dez quadrados de 82 px viravam uma
+   parede de 500 px de altura na coluna, e o nome de cada um quebrava em duas
+   linhas. Em linha, os dez cabem na tela e ainda sobra o "já gerado". A mesma
+   regra serve na coluna estreita (uma por linha) e no meio (quatro por linha). */
+.est-lads { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 5px; }
 .est-lad {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 82px;
-  padding: 12px;
+  align-items: center;
+  gap: 9px;
+  min-height: 0;
+  padding: 7px 10px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--t) 13%, transparent);
   color: var(--text);
   text-align: left;
   font: inherit;
   transition: background var(--d1) var(--ease), transform var(--d1) var(--ease);
 }
-.est-lad:active { transform: scale(0.97); background: color-mix(in srgb, var(--t) 22%, transparent); }
-.est-lad .ico { color: var(--t); }
-.est-lad .nm { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.est-lad:hover { background: color-mix(in srgb, var(--t) 20%, transparent); }
+.est-lad:active { transform: scale(0.97); background: color-mix(in srgb, var(--t) 26%, transparent); }
+.est-lad .ico { color: var(--t); flex: 0 0 auto; line-height: 0; }
+.est-lad .nm { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+/* Diz o que o retrato acrescenta neste gerador, em vez de trancar o botão. */
+.est-lad .marca {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.est-lad .marca.com { color: var(--t); }
 .est-lad.ocupado { opacity: 0.6; }
 
 .est-feito {
@@ -2622,14 +2732,35 @@ button.icon { position: relative; }
 .est-foto-btn { padding: 0; border: 0; background: none; border-radius: 50%; flex: 0 0 auto; line-height: 0; }
 .est-foto-btn:hover { outline: 2px solid var(--accent); outline-offset: 2px; }
 .est-foto img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-/* Ladrilho que precisa do retrato fica visivelmente fora de alcance, não some. */
-.est-lad.trancado { opacity: 0.45; }
+/* Os três passos do Estudos: o que entra, o que o app faz, o que sai. */
+.est-passos {
+  list-style: none;
+  margin: 30px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-width: 44em;
+}
+.est-passos li {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border-left: 2px solid var(--line);
+}
+.est-passos li.agora { background: var(--panel); border-left-color: var(--accent); }
+.est-passos li.feito { border-left-color: var(--ok); }
+.est-passos b { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; }
+.est-passos li.agora b { color: var(--accent); }
+.est-passos span { font-size: 13.5px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+
 /* Frase de apoio nas colunas: pequena, cinza, sem virar parágrafo. */
-.est-nada { font-size: 13.5px; color: var(--muted); padding: 8px 4px 0; line-height: 1.5; margin: 0; }
+.est-nada { font-size: 12.5px; color: var(--muted); padding: 8px 4px 0; line-height: 1.45; margin: 0; }
+.est-duas { padding-top: 5px; }
 .est-explica { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 46em; text-wrap: pretty; }
 .est-achado blockquote.sem { opacity: 0.6; }
 .est-cabeca-av { margin: 10px 0 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.est-cabeca-av h2 { margin: 0; font-size: 25px; font-weight: 650; letter-spacing: -0.03em; }
+.est-cabeca-av h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.03em; }
 .est-cabeca-av .sub { font-size: 15px; color: var(--muted); }
 .est-cabeca-av .acoes { margin-left: auto; display: flex; gap: 6px; }
 .est-saida { margin-top: 18px; }

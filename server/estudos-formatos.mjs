@@ -12,6 +12,7 @@
 // passado, que é exatamente o hábito que a ferramenta deveria substituir.
 
 import { complete, describeModel, parseJsonObject } from './complete.mjs';
+import { getProvider, parseRef } from './providers/index.mjs';
 import { caminhoNoDisco, listAttachments, textoDoAnexo } from './documents.mjs';
 import { gerarNoNotebookLM } from './notebooklm.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
@@ -66,6 +67,31 @@ function retratoEmPalavras(retrato) {
 
 const REGRAS_DE_FONTE = `Toda afirmação sai do material que você recebeu. Onde citar, cite literal.
 Se o material não cobrir um tema que o retrato pede, diga isso no campo "faltou" em vez de inventar conteúdo.`;
+
+/** O modelo escolhido pertence a um provedor NotebookLM? */
+function ehRefDoNotebookLM(ref) {
+  try {
+    return getProvider(parseRef(ref).providerId)?.kind === 'notebooklm';
+  } catch {
+    return false;
+  }
+}
+
+/** Segunda mão: o que dizer quando a leitura veio pronta de fora. */
+const RASCUNHO_ALHEIO = `O material abaixo já vem lido e organizado por outra ferramenta.
+Não é fonte nova: não acrescente fato que não esteja nele, e não repita a estrutura dele por preguiça.
+Seu trabalho é reescrever aquilo no formato pedido.`;
+
+/** Segunda mão, com retrato: é aqui que o professor entra. */
+const TOQUE_DO_PROFESSOR = `Agora o que importa: refaça isso do jeito DESTE professor.
+Respeite o peso de cada tema, o nível cognitivo e o formato de questão do retrato.
+Use os verbos de comando dele, na frequência em que ele usa.
+Se ele tem mania — pedir exemplo do cotidiano, mandar justificar, cobrar sempre uma citação —, repita a mania.
+O que sair tem que passar pelo teste do aluno dele: "isso é cara de prova do professor".`;
+
+/** Sem retrato, dizer o que falta é melhor do que fingir que o toque existiu. */
+const SEM_RETRATO = `Não existe retrato deste professor ainda, então nada de inventar mania nem estilo dele.
+Fique no material, sem chutar como ele cobraria.`;
 
 /**
  * Os formatos. Cada um diz o que pede ao modelo, como confere a resposta e o
@@ -450,17 +476,14 @@ function material(professorId, papeis, escolhidas) {
  * @param {{professorId: string, tipo: string, ref: string, pastaId?: string|null, signal?: AbortSignal}} entrada
  */
 /**
- * O mesmo pedido, mas quem gera é o NotebookLM.
+ * Rascunho do NotebookLM: a primeira mão.
  *
- * Fica separado do caminho normal de propósito: é automação da tela de um
- * terceiro, e quando ela quebra o Estudos precisa continuar de pé. Falhou, a
- * tela diz o que aconteceu e o gerador local continua ali do lado.
+ * Devolve o texto corrido que ele produziu, ou `null` quando não deu — sessão
+ * caída, tela mudada, sem material em disco. Falhar aqui não derruba a geração:
+ * a segunda mão lê os arquivos direto, que é o que ela fazia antes de existir
+ * primeira mão nenhuma.
  */
-export async function* gerarPeloNotebookLM({ professorId, tipo, pastas = null, signal }) {
-  const formato = FORMATOS[tipo];
-  if (!formato) throw erroHttp(400, 'não sei gerar isso');
-  const professor = acharProfessor(professorId);
-
+async function* rascunhoDoNotebookLM({ professorId, tipo, formato, pastas, signal, sessao }) {
   const so = Array.isArray(pastas) && pastas.length ? new Set(pastas) : null;
   const arquivos = pastasDo(professorId)
     .filter((p) => !so || so.has(p.id))
@@ -468,61 +491,138 @@ export async function* gerarPeloNotebookLM({ professorId, tipo, pastas = null, s
     .filter((a) => formato.papeis.includes(a.papel))
     .map((a) => ({ id: a.id, nome: a.name, caminho: caminhoNoDisco(a.id) }))
     .filter((a) => a.caminho);
+  if (!arquivos.length) return null;
 
-  yield { type: 'start', tipo, modelo: 'NotebookLM', arquivos: arquivos.length, cortado: false };
-
-  let saida = null;
-  for await (const ev of gerarNoNotebookLM({ arquivos, tipo, signal })) {
-    if (ev.type === 'passo') yield ev;
-    if (ev.texto) saida = ev;
+  // `for await` não enxerga o `return` de um gerador — o valor final só sai pelo
+  // `next()`. Com o laço, `texto` nunca chegava e toda geração pelo NotebookLM
+  // morria em "não devolveu nada utilizável".
+  const it = gerarNoNotebookLM({ arquivos, tipo, signal, sessao });
+  let passo = await it.next();
+  while (!passo.done) {
+    yield passo.value;
+    passo = await it.next();
   }
-  if (!saida?.texto) throw erroHttp(422, 'o NotebookLM não devolveu nada utilizável');
-
-  const salvo = guardarSaida({
-    professorId,
-    tipo,
-    titulo: formato.titulo(professor),
-    // O NotebookLM devolve texto corrido, não o JSON dos nossos moldes: guardar
-    // como texto é honesto, e a tela desenha texto quando não há estrutura.
-    json: { texto: saida.texto },
-    fontes: saida.fontes || [],
-    modelo: 'notebooklm'
-  });
-  yield { type: 'pronto', saida: salvo };
+  const texto = String(passo.value?.texto || '').trim();
+  return texto
+    ? { texto, fontes: arquivos.map((a) => ({ anexo: a.id, nome: a.nome, papel: 'notebooklm' })) }
+    : null;
 }
 
-export async function* gerarFormato({ professorId, tipo, ref, pastas = null, signal }) {
+/**
+ * Gera um formato com as duas mãos.
+ *
+ * Primeira mão: o NotebookLM lê o material e devolve o rascunho. Ele é bom
+ * nisso, já está pago e não gasta a cota de ninguém.
+ *
+ * Segunda mão: a IA escolhida pega esse rascunho e aplica o retrato — o peso de
+ * cada tema, o nível que ele exige, os verbos dele. É o passo que transforma
+ * "um simulado de biologia" em "a prova que ESTE professor faria".
+ *
+ * Sem NotebookLM na jogada (não configurado, sessão caída, ou porque quem
+ * escolheu foi ele mesmo no seletor) o funil continua inteiro: a segunda mão lê
+ * os arquivos direto. Nenhuma das duas é ponto único de falha.
+ */
+export async function* gerarFormato({
+  professorId,
+  tipo,
+  ref,
+  pastas = null,
+  signal,
+  notebooklm = true,
+  // Injetada só pelos testes, como em `gerarNoNotebookLM`: a tela do Google não
+  // entra na suíte, mas o contrato entre as duas mãos entra.
+  sessao = null
+}) {
   const formato = FORMATOS[tipo];
   if (!formato) throw erroHttp(400, 'não sei gerar isso');
   if (!ref) throw erroHttp(400, 'escolha uma IA pra gerar');
 
   const professor = acharProfessor(professorId);
-  if (formato.precisaRetrato && !professor.retrato) {
-    throw erroHttp(400, 'monte o retrato do professor primeiro — é ele que recorta o que sai daqui');
+  const soNotebookLM = ehRefDoNotebookLM(ref);
+
+  yield {
+    type: 'start',
+    tipo,
+    modelo: soNotebookLM ? 'NotebookLM' : describeModel(ref),
+    // Quem lê é uma coisa, quem finaliza é outra: a tela mostra as duas etapas
+    // porque elas demoram e a pessoa precisa saber em qual está.
+    rascunho: soNotebookLM || notebooklm ? 'NotebookLM' : null,
+    toque: soNotebookLM ? null : describeModel(ref),
+    retrato: !!professor.retrato,
+    arquivos: 0,
+    cortado: false
+  };
+
+  // --- primeira mão -------------------------------------------------------
+  let rascunho = null;
+  if (soNotebookLM || notebooklm) {
+    try {
+      rascunho = yield* rascunhoDoNotebookLM({ professorId, tipo, formato, pastas, signal, sessao });
+    } catch (err) {
+      if (signal?.aborted) return;
+      if (soNotebookLM) throw err;
+      yield { type: 'passo', o_que: 'o NotebookLM não respondeu; lendo o material aqui mesmo' };
+    }
   }
 
-  const fonte = material(professorId, formato.papeis, pastas);
+  if (soNotebookLM) {
+    if (!rascunho) throw erroHttp(422, 'o NotebookLM não devolveu nada utilizável');
+    const salvo = guardarSaida({
+      professorId,
+      pastaId: Array.isArray(pastas) && pastas.length === 1 ? pastas[0] : null,
+      tipo,
+      titulo: formato.titulo(professor),
+      // Texto corrido, não o JSON dos nossos moldes: guardar como texto é
+      // honesto, e a tela desenha texto quando não há estrutura.
+      json: { texto: rascunho.texto },
+      fontes: rascunho.fontes,
+      modelo: 'notebooklm'
+    });
+    yield { type: 'pronto', saida: salvo };
+    return;
+  }
+
+  // --- segunda mão --------------------------------------------------------
+  const fonte = rascunho
+    ? { texto: rascunho.texto, fontes: rascunho.fontes, cortado: false, quantos: rascunho.fontes.length }
+    : material(professorId, formato.papeis, pastas);
   if (!fonte.texto) {
     throw erroHttp(400, 'não há material pra ler — anexe o conteúdo da matéria antes');
   }
 
-  yield { type: 'start', tipo, modelo: describeModel(ref), arquivos: fonte.quantos, cortado: fonte.cortado };
+  yield {
+    type: 'etapa',
+    o_que: rascunho ? 'toque' : 'sozinho',
+    modelo: describeModel(ref),
+    arquivos: fonte.quantos,
+    cortado: fonte.cortado
+  };
 
   const retrato = retratoEmPalavras(professor.retrato);
   const entrada = [
     `Professor: ${professor.nome}${professor.materia ? ` (${professor.materia})` : ''}`,
     retrato ? `\n# Retrato do professor\n${retrato}` : '',
-    `\n# Material\n${fonte.texto}`
+    rascunho
+      ? `\n# Rascunho (leitura do material feita pelo NotebookLM)\n${rascunho.texto}`
+      : `\n# Material\n${fonte.texto}`
   ]
     .filter(Boolean)
     .join('\n');
+
+  const sistema = [
+    formato.prompt,
+    rascunho ? RASCUNHO_ALHEIO : '',
+    retrato ? TOQUE_DO_PROFESSOR : SEM_RETRATO
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   let pronto = null;
   for (let tentativa = 0; tentativa < 2 && !pronto; tentativa += 1) {
     if (signal?.aborted) return;
     if (tentativa) yield { type: 'repetindo' };
     const saida = await complete(ref, {
-      system: formato.prompt,
+      system: sistema,
       prompt: tentativa === 0 ? entrada : `${entrada}\n\nDevolva SOMENTE o objeto JSON. Nada antes, nada depois.`,
       temperature: tentativa === 0 ? 0.3 : 0,
       signal
@@ -539,7 +639,7 @@ export async function* gerarFormato({ professorId, tipo, ref, pastas = null, sig
     titulo: formato.titulo(professor),
     json: pronto,
     fontes: fonte.fontes,
-    modelo: ref
+    modelo: rascunho ? `notebooklm+${ref}` : ref
   });
 
   yield { type: 'pronto', saida: salvo };

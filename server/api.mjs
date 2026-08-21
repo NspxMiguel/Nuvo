@@ -66,7 +66,7 @@ import {
 } from './estudos.mjs';
 import { modelosQueEnxergam } from './visao.mjs';
 import { montarRetrato, limparRetrato } from './retrato.mjs';
-import { gerarFormato, gerarPeloNotebookLM, TIPOS as TIPOS_DE_SAIDA } from './estudos-formatos.mjs';
+import { gerarFormato, TIPOS as TIPOS_DE_SAIDA } from './estudos-formatos.mjs';
 import { disponivel as notebookLMDisponivel } from './notebooklm.mjs';
 import {
   semearCartoes,
@@ -254,15 +254,6 @@ export function limparMenu(bruto) {
     escondidos: conhecidas(bruto.escondidos).filter((x) => x !== 'chat'),
     noMais: conhecidas(bruto.noMais)
   };
-}
-
-/** O modelo escolhido pertence a um provedor NotebookLM? */
-function ehNotebookLM(ref) {
-  try {
-    return getProvider(parseRef(ref).providerId)?.kind === 'notebooklm';
-  } catch {
-    return false;
-  }
 }
 
 function settingsView(req) {
@@ -851,14 +842,15 @@ export async function handleApi(req, res, url) {
     const stream = openStream(req, res);
     await pump(
       stream,
-      // Quem gera sai do TIPO do provedor escolhido, não de uma string mágica: o
-      // NotebookLM é uma IA da lista como as outras, e escolher ele no seletor
-      // já quer dizer "gere por ele".
-      (ehNotebookLM(b.model) ? gerarPeloNotebookLM : gerarFormato)({
+      // Uma geração, duas mãos: o NotebookLM lê o material e a IA escolhida dá o
+      // toque do professor por cima. Escolher o NotebookLM no seletor quer dizer
+      // "só ele", sem segunda mão.
+      gerarFormato({
         professorId: seg[1],
         tipo: TIPOS_DE_SAIDA.includes(b.tipo) ? b.tipo : '',
         ref: b.model,
         pastas: Array.isArray(b.pastas) ? b.pastas : b.pasta ? [b.pasta] : null,
+        notebooklm: b.notebooklm !== false,
         signal: stream.signal
       })
     );

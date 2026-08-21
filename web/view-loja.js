@@ -199,6 +199,12 @@ export async function viewLoja(el) {
   const q = el.querySelector('#loja-q');
   ordem.value = estado.ordem;
 
+  // Os controles são ligados ANTES da busca: quando ela falhava, o `return` do
+  // catch deixava busca, ordem e abas sem ouvinte nenhum até a tela ser
+  // redesenhada — a barra continuava lá, aceitando digitação e não filtrando
+  // nada.
+  ligarControles(el, abas, ordem, q);
+
   let dados;
   try {
     dados = await api('/loja');
@@ -235,7 +241,10 @@ export async function viewLoja(el) {
 
   el.querySelector('#loja-fonte').textContent = procedencia();
   pintarLista(el);
+}
 
+/** Busca, ordem, abas e "ver mais" — tudo o que a tela responde sem servidor. */
+function ligarControles(el, abas, ordem, q) {
   abas.onclick = (ev) => {
     const btn = ev.target.closest('[data-cat]');
     if (!btn) return;

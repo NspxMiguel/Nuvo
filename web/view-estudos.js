@@ -35,21 +35,74 @@ const aqui = {
   fora: new Set()
 };
 
-/** Os dez geradores, na ordem em que aparecem no estúdio. */
+/**
+ * Os dez geradores, na ordem em que aparecem no estúdio.
+ *
+ * `toque` diz se o retrato do professor muda o resultado. Slide e linha do tempo
+ * são a matéria organizada — o professor não muda isso. Simulado, quiz e guia
+ * são a prova dele, e sem o retrato saem genéricos.
+ *
+ * Nenhum deles fica trancado: metade do estúdio ficava cinza num professor novo
+ * e parecia app quebrado. Sem retrato eles geram, e a etiqueta diz o que a
+ * pessoa está perdendo.
+ */
 const LADRILHOS = [
-  { id: 'simulado', ico: 'file', cor: 'amber', nome: () => t('Simulado'), precisaRetrato: true },
-  { id: 'guia', ico: 'book', cor: 'teal', nome: () => t('Guia de estudo'), precisaRetrato: true },
-  { id: 'flashcards', ico: 'layers', cor: 'indigo', nome: () => t('Cartões'), precisaRetrato: false },
-  { id: 'resumo', ico: 'edit', cor: 'sky', nome: () => t('Resumo'), precisaRetrato: false },
-  { id: 'mapa', ico: 'spark', cor: 'violet', nome: () => t('Mapa mental'), precisaRetrato: false },
-  { id: 'linha', ico: 'activity', cor: 'lime', nome: () => t('Linha do tempo'), precisaRetrato: false },
-  { id: 'podcast', ico: 'speaker', cor: 'rose', nome: () => t('Conversa em áudio'), precisaRetrato: true },
-  { id: 'quiz', ico: 'check', cor: 'teal', nome: () => t('Quiz'), precisaRetrato: false },
-  { id: 'infografico', ico: 'cpu', cor: 'amber', nome: () => t('Infográfico'), precisaRetrato: true },
-  { id: 'slides', ico: 'file', cor: 'slate', nome: () => t('Slides'), precisaRetrato: true }
+  { id: 'simulado', ico: 'file', cor: 'amber', nome: () => t('Simulado'), toque: true },
+  { id: 'guia', ico: 'book', cor: 'teal', nome: () => t('Guia de estudo'), toque: true },
+  { id: 'flashcards', ico: 'layers', cor: 'indigo', nome: () => t('Cartões'), toque: true },
+  { id: 'quiz', ico: 'check', cor: 'teal', nome: () => t('Quiz'), toque: true },
+  { id: 'resumo', ico: 'edit', cor: 'sky', nome: () => t('Resumo'), toque: false },
+  { id: 'mapa', ico: 'spark', cor: 'violet', nome: () => t('Mapa mental'), toque: false },
+  { id: 'linha', ico: 'activity', cor: 'lime', nome: () => t('Linha do tempo'), toque: false },
+  { id: 'podcast', ico: 'speaker', cor: 'rose', nome: () => t('Conversa em áudio'), toque: false },
+  { id: 'infografico', ico: 'cpu', cor: 'amber', nome: () => t('Infográfico'), toque: false },
+  { id: 'slides', ico: 'file', cor: 'slate', nome: () => t('Slides'), toque: false }
 ];
 
+/** Um ladrilho do estúdio. `temRetrato` só muda a etiqueta, nunca destranca. */
+const ladrilho = (l, temRetrato) =>
+  `<button class="est-lad" style="--t:var(--${l.cor})" data-gerar="${l.id}">
+    <span class="ico">${icon(l.ico, 18)}</span>
+    <span class="nm">${escapeHtml(l.nome())}</span>
+    ${
+      l.toque
+        ? `<span class="marca${temRetrato ? ' com' : ''}">${
+            temRetrato ? t('com o jeito dele') : t('sem o retrato')
+          }</span>`
+        : ''
+    }
+  </button>`;
+
 const acharLadrilho = (id) => LADRILHOS.find((l) => l.id === id);
+
+/**
+ * Os três papéis, com a palavra que a pessoa lê.
+ *
+ * O papel é a coisa mais importante de um arquivo aqui dentro e era a única
+ * que a tela não dizia: a prova, o que ela cobrou, e o que ele ensinou sem
+ * cobrar entravam na lista com a mesma cara. É a diferença entre os dois
+ * últimos que vira previsão, então ela aparece em todo lugar em que um arquivo
+ * aparece — mesma palavra, mesma cor, da lista ao estúdio.
+ */
+const PAPEIS = {
+  prova: { cor: 'amber', curto: () => t('Prova'), longo: () => t('a prova em si') },
+  conteudo: { cor: 'teal', curto: () => t('Caiu'), longo: () => t('caiu nesta prova') },
+  material: { cor: 'slate', curto: () => t('Aula'), longo: () => t('dado em aula') }
+};
+const papelDe = (p) => PAPEIS[p] || PAPEIS.material;
+
+/** A etiqueta de papel, do tamanho de uma palavra. */
+const selo = (papel) =>
+  `<span class="est-selo" style="--t:var(--${papelDe(papel).cor})">${escapeHtml(
+    papelDe(papel).curto()
+  )}</span>`;
+
+/** Quantos arquivos de cada papel a pasta tem, dito em etiqueta e não em total. */
+function contagemDePapeis(anexos = []) {
+  return ['prova', 'conteudo', 'material']
+    .map((papel) => [papel, anexos.filter((a) => a.papel === papel).length])
+    .filter(([, n]) => n > 0);
+}
 
 /**
  * O que a data de uma avaliação quer dizer hoje.
@@ -374,24 +427,17 @@ async function telaDoProfessor(el, ctx) {
 
       <aside class="est-lado">
         <div class="est-rot">${t('Estúdio')}</div>
-        <div class="est-quem-gera">${icon('bot', 17)}
-          <select id="est-modelo" aria-label="${t('IA que gera')}">${modelOptions(
+        <div class="est-quem-gera">${icon('bot', 16)}
+          <select id="est-modelo" aria-label="${t('IA que dá o toque do professor')}">${modelOptions(
             aqui.modelo || state.model
           )}</select>
         </div>
+        <p class="est-nada est-duas">${t(
+          'O NotebookLM lê o material. Esta IA reescreve com o jeito do professor.'
+        )}</p>
         <div class="est-rot">${t('Gerar')}</div>
         <div class="est-lads">
-          ${LADRILHOS.map(
-            (l) => `<button class="est-lad${
-              l.precisaRetrato && !prof.retrato ? ' trancado' : ''
-            }" style="--t:var(--${l.cor})" data-gerar="${l.id}"${
-              l.precisaRetrato && !prof.retrato
-                ? ` disabled title="${t('precisa do retrato do professor antes')}"`
-                : ''
-            }>
-              <span class="ico">${icon(l.ico, 19)}</span><span class="nm">${escapeHtml(l.nome())}</span>
-            </button>`
-          ).join('')}
+          ${LADRILHOS.map((l) => ladrilho(l, !!prof.retrato)).join('')}
         </div>
         ${
           saidas.length
@@ -409,21 +455,37 @@ async function telaDoProfessor(el, ctx) {
 
 function linhaDeFonte(pasta) {
   const marcada = !aqui.fora.has(pasta.id);
-  const quantos = pasta.anexos.length;
+  const aberta = pasta.id === aqui.pastaAberta;
   const q = pasta.tipo === 'prova' ? quandoDiz(pasta.quando) : null;
-  const embaixo = [
-    q ? q.txt() : null,
-    quantos ? plural(quantos, '1 arquivo', '{n} arquivos') : t('vazia')
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  return `<div class="est-fonte${marcada ? ' on' : ''}${
-    pasta.id === aqui.pastaAberta ? ' sel' : ''
-  }${q ? ` q-${q.classe}` : ''}" data-pasta="${escapeHtml(pasta.id)}">
+  const papeis = contagemDePapeis(pasta.anexos);
+  return `<div class="est-fonte${marcada ? ' on' : ''}${aberta ? ' sel' : ''}${
+    q ? ` q-${q.classe}` : ''
+  }" data-pasta="${escapeHtml(pasta.id)}">
     <button class="cx" data-marcar aria-pressed="${marcada}"
-      aria-label="${t('usar {nome} no que for gerado', { nome: escapeHtml(pasta.nome) })}">${icon('check', 14)}</button>
-    <button class="rot" data-abrir>${escapeHtml(pasta.nome)}<small>${escapeHtml(embaixo)}</small></button>
-  </div>`;
+      aria-label="${t('usar {nome} no que for gerado', { nome: escapeHtml(pasta.nome) })}">${icon('check', 13)}</button>
+    <button class="rot" data-abrir>
+      <span class="nm">${escapeHtml(pasta.nome)}</span>
+      <span class="baixo">${
+        q ? `<span class="qd">${escapeHtml(q.txt())}</span>` : ''
+      }${
+        papeis.length
+          ? papeis.map(([papel, n]) => `${selo(papel)}<i class="est-n">${formatarNumero(n)}</i>`).join('')
+          : `<span class="qd">${t('vazia')}</span>`
+      }</span>
+    </button>
+  </div>${
+    // Aberta, a pasta mostra os arquivos com o papel de cada um: o total nunca
+    // respondeu "qual destes é a prova e qual é só matéria de aula".
+    aberta && pasta.anexos.length
+      ? `<div class="est-arqs">${pasta.anexos
+          .map(
+            (a) => `<div class="est-arq" style="--t:var(--${papelDe(a.papel).cor})">
+              <span class="nm">${escapeHtml(a.name)}</span>${selo(a.papel)}
+            </div>`
+          )
+          .join('')}</div>`
+      : ''
+  }`;
 }
 
 function linhaDeSaida(s) {
@@ -437,6 +499,44 @@ function linhaDeSaida(s) {
     )}</small></span>
     ${icon('chevron', 16)}
   </button>`;
+}
+
+/**
+ * Os três passos da tela, com o atual aceso.
+ *
+ * O meio ficava vazio num professor novo e a pergunta que sobrava era "e agora?".
+ * Três linhas respondem: o que entra, o que o app faz com isso, e o que sai.
+ */
+function comoFunciona(prof) {
+  const temProva = prof.material.provas > 0;
+  const passos = [
+    {
+      feito: prof.material.provas + prof.material.conteudos + prof.material.materiais > 0,
+      agora: !temProva,
+      titulo: () => t('1. Jogue as provas antigas dele aqui'),
+      exp: () => t('Prova é amostra: é ela que diz o que ele cobra. Matéria de aula entra depois, e é o contraste entre as duas que vira previsão.')
+    },
+    {
+      feito: false,
+      agora: temProva,
+      titulo: () => t('2. O app lê as provas e monta o retrato'),
+      exp: () => t('Peso de cada tema, nível que ele exige, verbo que ele usa, o que ele ensina e nunca cobrou — cada achado com a citação da prova de onde saiu.')
+    },
+    {
+      feito: false,
+      agora: false,
+      titulo: () => t('3. Tudo que o estúdio gerar sai com o jeito dele'),
+      exp: () => t('O NotebookLM lê o material e rascunha; a IA escolhida reescreve com o retrato por cima. Simulado, guia, cartões e quiz saem com cara de prova dele.')
+    }
+  ];
+  return `<ol class="est-passos">${passos
+    .map(
+      (p) => `<li class="${p.agora ? 'agora' : p.feito ? 'feito' : ''}">
+        <b>${escapeHtml(p.titulo())}</b>
+        <span>${escapeHtml(p.exp())}</span>
+      </li>`
+    )
+    .join('')}</ol>`;
 }
 
 // ---------------------------------------------------------------- o retrato
@@ -465,6 +565,7 @@ function desenharRetrato(prof) {
             )}</button>`
       }</div>
       <div id="est-andar" class="est-andar" role="status"></div>
+      ${comoFunciona(prof)}
     </div>`;
   }
 
@@ -680,16 +781,7 @@ function avaliacaoAberta(prof, pasta) {
       <div class="est-rot">${t('O que fazer com isto')}</div>
       <div class="est-lads">
         ${['resumo', 'simulado', 'flashcards', 'guia']
-          .map((id) => acharLadrilho(id))
-          .map(
-            (l) => `<button class="est-lad${
-              l.precisaRetrato && !r ? ' trancado' : ''
-            }" style="--t:var(--${l.cor})" data-gerar="${l.id}"${
-              l.precisaRetrato && !r ? ` disabled title="${t('precisa do retrato do professor antes')}"` : ''
-            }>
-              <span class="ico">${icon(l.ico, 19)}</span><span class="nm">${escapeHtml(l.nome())}</span>
-            </button>`
-          )
+          .map((id) => ladrilho(acharLadrilho(id), !!r))
           .join('')}
       </div>
       <p class="est-nada">${t('Sai do que está marcado na coluna da esquerda. O resto está no Estúdio.')}</p>
@@ -1003,10 +1095,18 @@ async function gerar(el, prof, botao, ref, ctx) {
   const pastas = prof.pastas.filter((p) => !aqui.fora.has(p.id)).map((p) => p.id);
   try {
     await stream(`/professores/${prof.id}/gerar`, { tipo, model: ref, pastas }, (ev) => {
-      if (ev.type === 'start' && ev.arquivos) {
-        fase = t('lendo {arquivos}…', { arquivos: plural(ev.arquivos, '1 arquivo', '{n} arquivos') });
-      }
+      if (ev.type === 'start') fase = ev.rascunho ? t('NotebookLM lendo…') : t('lendo…');
       if (ev.type === 'passo' && ev.o_que) fase = ev.o_que;
+      // A segunda mão é a que interessa: é ela que põe o professor no resultado,
+      // e sem dizer isso a espera parece o mesmo passo demorando o dobro.
+      if (ev.type === 'etapa') {
+        fase =
+          ev.o_que === 'toque'
+            ? t('{ia} dando o toque do professor…', { ia: ev.modelo })
+            : t('lendo {arquivos}…', {
+                arquivos: plural(ev.arquivos || 0, '1 arquivo', '{n} arquivos')
+              });
+      }
       if (ev.type === 'repetindo') fase = t('de novo…');
       if (ev.type === 'pronto') aqui.saidaAberta = ev.saida.id;
       if (ev.type === 'error') throw new Error(ev.message);

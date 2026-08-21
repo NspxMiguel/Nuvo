@@ -36,11 +36,38 @@ test('nenhuma função de idioma fica sem quem a chame', () => {
   assert.deepEqual(orfas, [], 'função de idioma exportada e nunca chamada');
 });
 
+/**
+ * O CSS sem os blocos `@media`, contando chave por chave.
+ *
+ * Cortar no primeiro `@media` era mais curto e passou a mentir no dia em que um
+ * `@media` entrou perto do topo: o resto do arquivo sumiu junto e regras que
+ * existem apareceram como ausentes.
+ */
+function semMedia(css) {
+  let fora = '';
+  for (let i = 0; i < css.length; i += 1) {
+    if (!css.startsWith('@media', i)) {
+      fora += css[i];
+      continue;
+    }
+    const abre = css.indexOf('{', i);
+    if (abre < 0) break;
+    let nivel = 0;
+    let j = abre;
+    for (; j < css.length; j += 1) {
+      if (css[j] === '{') nivel += 1;
+      else if (css[j] === '}' && (nivel -= 1) === 0) break;
+    }
+    i = j;
+  }
+  return fora;
+}
+
 test('o menu cede espaço antes da lista de conversas', () => {
   // Com o "Mais" aberto o menu passa de 480px numa gaveta `overflow: hidden`.
   // Sem estas duas regras a lista sobrava com 54px e não rolava em canto nenhum.
   const css = ler('web/styles.css');
-  const foraDeMedia = css.split('@media')[0];
+  const foraDeMedia = semMedia(css);
   assert.match(foraDeMedia, /#sidebar nav \{[^}]*overflow-y: auto/, 'o menu rola sozinho');
   assert.match(foraDeMedia, /#sidebar nav \{[^}]*flex: 0 3 auto/, 'e encolhe antes da lista');
   const piso = /#chat-list \{[^}]*flex: 1 1 (\d+)px/.exec(foraDeMedia);
@@ -226,4 +253,35 @@ test('a avaliação diz se já foi, e o resumo fica onde a pessoa está olhando'
     /\['resumo', 'simulado', 'flashcards', 'guia'\]/,
     'com o resumo em primeiro, que é o que ele procurou'
   );
+});
+
+test('todo arquivo diz se é prova, se caiu na prova, ou se é só aula', () => {
+  // Os três papéis só apareciam com uma avaliação aberta. Na coluna da esquerda
+  // e no estúdio, prova e caderno de aula tinham a mesma cara — e é a diferença
+  // entre os dois que o app inteiro promete usar.
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /const PAPEIS = \{/, 'os três papéis têm um vocabulário só');
+  assert.match(v, /const selo = \(papel\)/, 'e viram etiqueta');
+  assert.match(v, /function contagemDePapeis/, 'a pasta fechada diz quantos de cada');
+  assert.match(v, /class="est-arqs"/, 'a pasta aberta lista os arquivos');
+  assert.match(v, /class="est-arq"[^`]*\$\{selo\(a\.papel\)\}/, 'com o papel em cada um');
+});
+
+test('nenhum gerador do estúdio nasce trancado', () => {
+  // Cinco dos dez ladrilhos ficavam `disabled` num professor novo, com o motivo
+  // escondido num `title`. Metade do estúdio cinza é o que ele leu como botão
+  // que não funciona.
+  const v = ler('web/view-estudos.js');
+  assert.doesNotMatch(v, /precisaRetrato/, 'o retrato não tranca mais nada');
+  assert.doesNotMatch(v, /data-gerar="\$\{l\.id\}"[^`]*disabled/, 'nenhum ladrilho sai desabilitado');
+  assert.match(v, /const ladrilho = \(l, temRetrato\)/, 'um desenho só pros dez');
+  assert.match(v, /t\('sem o retrato'\)/, 'e a etiqueta diz o que falta em vez de bloquear');
+});
+
+test('a loja liga busca e ordem antes de ir buscar a lista', () => {
+  // O `return` do catch pulava a fiação inteira: quando o GitHub não respondia,
+  // a barra de busca e o seletor de ordem continuavam na tela sem ouvinte.
+  const loja = ler('web/view-loja.js');
+  const antes = loja.slice(0, loja.indexOf("await api('/loja')"));
+  assert.match(antes, /ligarControles\(el, abas, ordem, q\);/, 'a fiação vem antes da rede');
 });
