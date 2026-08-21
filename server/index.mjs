@@ -347,7 +347,10 @@ export async function start({ quiet = false, discover: shouldDiscover = true, ba
       } catch (err) {
         if (res.writableEnded) return;
         if (res.headersSent) return res.end();
-        const status = /grande demais/.test(err.message) ? 413 : 500;
+        // Erro que já sabe o próprio código (404 de coisa que não existe, 400
+        // de pedido torto) chega com ele; o resto é 500 mesmo.
+        const dele = Number(err?.status);
+        const status = dele >= 400 && dele <= 599 ? dele : /grande demais/.test(err.message) ? 413 : 500;
         res.writeHead(status, { 'content-type': 'application/json' });
         return res.end(JSON.stringify(corpoDoErro(err)));
       }

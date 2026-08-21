@@ -47,6 +47,21 @@ import {
   deleteAttachment,
   deleteAttachmentsOf
 } from './documents.mjs';
+import {
+  PAPEIS,
+  listarProfessores,
+  criarProfessor,
+  verProfessor,
+  atualizarProfessor,
+  apagarProfessor,
+  criarPasta,
+  atualizarPasta,
+  apagarPasta,
+  reordenarPastas,
+  listarSaidas,
+  acharSaida,
+  apagarSaida
+} from './estudos.mjs';
 import { runResearch } from './research.mjs';
 import { runCouncil } from './council.mjs';
 import { ftsQuery } from './vectors.mjs';
@@ -715,6 +730,39 @@ export async function handleApi(req, res, url) {
     }
   }
 
+  // --- estudos: professores, as caixas deles e o que foi gerado ------------
+  //
+  // Erro aqui vira 404/400 pelo `erroTraduzivel` que o módulo levanta, e não por
+  // um `if` repetido em cada rota: quem sabe o que é "professor não encontrado" é
+  // o armário, não o roteador.
+  if (method === 'GET' && path === '/professores') return json(res, listarProfessores());
+  if (method === 'POST' && path === '/professores') {
+    return json(res, criarProfessor(await readJSON(req)));
+  }
+  if (seg[0] === 'professores' && seg[1] && !seg[2]) {
+    if (method === 'GET') return json(res, verProfessor(seg[1]));
+    if (method === 'PATCH') return json(res, atualizarProfessor(seg[1], await readJSON(req)));
+    if (method === 'DELETE') return json(res, apagarProfessor(seg[1]));
+  }
+  if (seg[0] === 'professores' && seg[1] && seg[2] === 'pastas') {
+    if (method === 'POST' && !seg[3]) return json(res, criarPasta(seg[1], await readJSON(req)));
+    if (method === 'POST' && seg[3] === 'ordem') {
+      const b = await readJSON(req);
+      return json(res, reordenarPastas(seg[1], Array.isArray(b.ids) ? b.ids : []));
+    }
+  }
+  if (seg[0] === 'professores' && seg[1] && seg[2] === 'saidas' && method === 'GET') {
+    return json(res, listarSaidas(seg[1], { tipo: url.searchParams.get('tipo') }));
+  }
+  if (seg[0] === 'pastas' && seg[1]) {
+    if (method === 'PATCH') return json(res, atualizarPasta(seg[1], await readJSON(req)));
+    if (method === 'DELETE') return json(res, apagarPasta(seg[1]));
+  }
+  if (seg[0] === 'saidas' && seg[1]) {
+    if (method === 'GET') return json(res, acharSaida(seg[1]));
+    if (method === 'DELETE') return json(res, apagarSaida(seg[1]));
+  }
+
   // --- código do projeto: o painel da tela Programar -----------------------
   if (method === 'GET' && seg[0] === 'codigo' && ROTAS_DE_CODIGO.has(seg[1])) {
     const pasta = pastaDoProjeto(url);
@@ -958,7 +1006,8 @@ export async function handleApi(req, res, url) {
       res,
       listAttachments({
         chatId: url.searchParams.get('chat'),
-        projectId: url.searchParams.get('project')
+        projectId: url.searchParams.get('project'),
+        pastaId: url.searchParams.get('pasta')
       })
     );
   }
@@ -969,7 +1018,9 @@ export async function handleApi(req, res, url) {
       name: url.searchParams.get('name') || 'arquivo',
       mime: req.headers['content-type'] || '',
       chatId: url.searchParams.get('chat') || null,
-      projectId: url.searchParams.get('project') || null
+      projectId: url.searchParams.get('project') || null,
+      pastaId: url.searchParams.get('pasta') || null,
+      papel: PAPEIS.includes(url.searchParams.get('papel')) ? url.searchParams.get('papel') : 'material'
     });
     return json(res, publicAttachment(attachment));
   }

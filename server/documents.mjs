@@ -63,7 +63,18 @@ function chunkText(text) {
 }
 
 /** Salva o arquivo, extrai o texto e indexa. */
-export async function addAttachment({ buffer, name, mime, chatId = null, projectId = null }) {
+export async function addAttachment({
+  buffer,
+  name,
+  mime,
+  chatId = null,
+  projectId = null,
+  // Escopo do Estudos. `papel` diz o que este arquivo é dentro da pasta — a
+  // prova, o conteúdo que ela cobrou, ou material solto de aula —, e é o que
+  // permite comparar o que o professor ensina com o que ele cobra.
+  pastaId = null,
+  papel = 'material'
+}) {
   const id = uid();
   const { text, note, kind } = extractText(buffer, name, mime);
 
@@ -84,11 +95,13 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
   // fosse pesquisável e nunca devolve nada.
   tx(() => {
     run(
-      `INSERT INTO attachments (id, chat_id, project_id, name, mime, bytes, chars, path, status, note, text, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO attachments (id, chat_id, project_id, pasta_id, papel, name, mime, bytes, chars, path, status, note, text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       chatId,
       projectId,
+      pastaId,
+      papel,
       name,
       mime || kind,
       buffer.length,
@@ -105,11 +118,13 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
     const stamp = now();
     for (const [ord, piece] of pieces.entries()) {
       run(
-        'INSERT INTO chunks (id, attachment_id, chat_id, project_id, ord, text, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+        'INSERT INTO chunks (id, attachment_id, chat_id, project_id, pasta_id, papel, ord, text, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)',
         uid(),
         id,
         chatId,
         projectId,
+        pastaId,
+        papel,
         ord,
         piece,
         stamp
@@ -143,7 +158,7 @@ export async function addAttachment({ buffer, name, mime, chatId = null, project
 // nenhum dos dois é usado pela interface, e mandar os dois significa expor a
 // árvore de pastas da máquina e repetir até 6 kB por anexo a cada listagem.
 const CAMPOS_PUBLICOS = [
-  'id', 'chat_id', 'project_id', 'name', 'mime',
+  'id', 'chat_id', 'project_id', 'pasta_id', 'papel', 'name', 'mime',
   'bytes', 'chars', 'status', 'note', 'created_at'
 ];
 
@@ -157,9 +172,15 @@ export function publicAttachment(row) {
   return fora;
 }
 
-export function listAttachments({ chatId = null, projectId = null } = {}) {
+export function listAttachments({ chatId = null, projectId = null, pastaId = null } = {}) {
   const campos = CAMPOS_PUBLICOS.map((c) => `a.${c}`).join(', ');
   const contagem = '(SELECT COUNT(*) FROM chunks WHERE attachment_id = a.id) AS chunks';
+  if (pastaId) {
+    return all(
+      `SELECT ${campos}, ${contagem} FROM attachments a WHERE a.pasta_id = ? ORDER BY a.created_at`,
+      pastaId
+    );
+  }
   if (chatId) {
     return all(
       `SELECT ${campos}, ${contagem} FROM attachments a WHERE a.chat_id = ? ORDER BY a.created_at`,
@@ -197,11 +218,13 @@ export function deleteAttachment(id) {
  * era daquela conversa. O documento ficaria lá pra sempre, com o conteúdo
  * dentro, depois de o usuário achar que tinha apagado.
  */
-export function deleteAttachmentsOf({ chatId = null, projectId = null } = {}) {
-  if (!chatId && !projectId) return 0;
-  const rows = chatId
-    ? all('SELECT id FROM attachments WHERE chat_id = ?', chatId)
-    : all('SELECT id FROM attachments WHERE project_id = ?', projectId);
+export function deleteAttachmentsOf({ chatId = null, projectId = null, pastaId = null } = {}) {
+  if (!chatId && !projectId && !pastaId) return 0;
+  const rows = pastaId
+    ? all('SELECT id FROM attachments WHERE pasta_id = ?', pastaId)
+    : chatId
+      ? all('SELECT id FROM attachments WHERE chat_id = ?', chatId)
+      : all('SELECT id FROM attachments WHERE project_id = ?', projectId);
   for (const row of rows) deleteAttachment(row.id);
   return rows.length;
 }
@@ -240,7 +263,10 @@ export function sweepOrphanUploads() {
  * Trechos relevantes dos anexos da conversa (e do projeto). Mesma pontuação
  * híbrida da memória: posição no ranking FTS mais similaridade de cosseno.
  */
-export async function recallChunks(query, { chatId = null, projectId = null, limit = 6 } = {}) {
+export async function recallChunks(
+  query,
+  { chatId = null, projectId = null, pastaId = null, pastaIds = null, papeis = null, limit = 6 } = {}
+) {
   const scope = [];
   const params = [];
   if (chatId) {
@@ -251,8 +277,20 @@ export async function recallChunks(query, { chatId = null, projectId = null, lim
     scope.push('c.project_id = ?');
     params.push(projectId);
   }
+  const pastas = pastaIds?.length ? pastaIds : pastaId ? [pastaId] : null;
+  if (pastas) {
+    scope.push(`c.pasta_id IN (${pastas.map(() => '?').join(', ')})`);
+    params.push(...pastas);
+  }
   if (!scope.length) return [];
-  const where = `(${scope.join(' OR ')})`;
+  // O escopo é OU: um trecho vale se está em QUALQUER um dos lugares pedidos.
+  // O papel é E: dentro do escopo, só os trechos que exercem aquele papel. É o
+  // que deixa perguntar "só as provas" sem arrastar o conteúdo junto.
+  let where = `(${scope.join(' OR ')})`;
+  if (papeis?.length) {
+    where += ` AND c.papel IN (${papeis.map(() => '?').join(', ')})`;
+    params.push(...papeis);
+  }
 
   const scores = new Map();
   const byId = new Map();
@@ -296,7 +334,16 @@ export async function recallChunks(query, { chatId = null, projectId = null, lim
     .slice(0, limit)
     .map(([id]) => byId.get(id))
     .filter(Boolean)
-    .map((row) => ({ id: row.id, source: row.source, ord: row.ord, text: row.text }));
+    .map((row) => ({
+      id: row.id,
+      // `anexo` e `papel` viajam junto porque a citação da tela precisa abrir o
+      // arquivo certo, e o retrato precisa saber se aquele trecho é prova ou aula.
+      anexo: row.attachment_id,
+      papel: row.papel,
+      source: row.source,
+      ord: row.ord,
+      text: row.text
+    }));
 }
 
 /**

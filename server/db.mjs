@@ -185,6 +185,60 @@ CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
   INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
   INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
 END;
+
+-- Estudos: um professor, o que ele cobra, e o material que prova isso.
+--
+-- O retrato é o que separa isto de um leitor de PDF: um JSON com o que este
+-- professor cobra, em que formato, em que nível e com que manias, extraído das
+-- provas passadas e com a citação de onde cada achado saiu. Fica na linha do
+-- professor porque é dele, não de uma prova: cada prova nova o melhora.
+CREATE TABLE IF NOT EXISTS professores (
+  id             TEXT PRIMARY KEY,
+  nome           TEXT NOT NULL,
+  materia        TEXT,
+  escola         TEXT,
+  foto           TEXT,                          -- arquivo em ~/.nuvo/uploads
+  cor            TEXT NOT NULL DEFAULT 'indigo',
+  organizacao    TEXT NOT NULL DEFAULT 'pastas', -- pastas | periodo | etiquetas
+  retrato        TEXT,
+  retrato_em     TEXT,
+  retrato_modelo TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL
+);
+
+-- A caixa onde o material entra. Uma pasta do tipo prova é uma avaliação (a A1
+-- do primeiro trimestre); uma do tipo material é o que o professor ensina fora
+-- de prova nenhuma. A distinção não é enfeite: comparar o que ele ensina com o que
+-- ele cobra é de onde sai a previsão, e misturar as duas caixas apaga a
+-- comparação.
+CREATE TABLE IF NOT EXISTS estudo_pastas (
+  id           TEXT PRIMARY KEY,
+  professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+  nome         TEXT NOT NULL,
+  tipo         TEXT NOT NULL DEFAULT 'prova',   -- prova | material
+  etiquetas    TEXT NOT NULL DEFAULT '[]',
+  ord          INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_pastas_prof ON estudo_pastas(professor_id, ord);
+
+-- O que o Estudos produziu: simulado, guia, flashcards, mapa mental. Guardado
+-- como JSON estruturado, e não como texto pronto, porque a mesma saída é
+-- desenhada de jeitos diferentes na tela e na exportação — e porque a lista de
+-- fontes precisa continuar clicável depois de fechar o app.
+CREATE TABLE IF NOT EXISTS estudo_saidas (
+  id           TEXT PRIMARY KEY,
+  professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+  pasta_id     TEXT REFERENCES estudo_pastas(id) ON DELETE CASCADE,
+  tipo         TEXT NOT NULL,
+  titulo       TEXT NOT NULL,
+  json         TEXT NOT NULL DEFAULT '{}',
+  fontes       TEXT NOT NULL DEFAULT '[]',
+  modelo       TEXT,
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_saidas_prof ON estudo_saidas(professor_id, tipo);
 `);
 
 export const now = () => new Date().toISOString();
@@ -262,6 +316,17 @@ export function normalizeText(text) {
 }
 
 function migrate() {
+  // Onde o anexo mora no Estudos, e qual é o papel dele ali.
+  //
+  // `papel` existe por um pedido explícito: dentro da pasta de uma prova entram
+  // duas coisas diferentes — a prova em si e o conteúdo que ela cobrou. Sem
+  // separar as duas, o retrato do professor acabaria comparando a prova com
+  // material solto de outro assunto, que é justamente o erro a evitar.
+  addColumn('attachments', 'pasta_id', 'TEXT');
+  addColumn('attachments', 'papel', "TEXT NOT NULL DEFAULT 'material'"); // prova | conteudo | material
+  addColumn('chunks', 'pasta_id', 'TEXT');
+  addColumn('chunks', 'papel', "TEXT NOT NULL DEFAULT 'material'");
+
   // Ícone e cor no lugar do emoji.
   addColumn('gems', 'icon', "TEXT NOT NULL DEFAULT 'sparkle'");
   addColumn('gems', 'color', "TEXT NOT NULL DEFAULT 'indigo'");
@@ -304,6 +369,8 @@ function migrate() {
     }
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_memories_norm ON memories(norm, project_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_attachments_pasta ON attachments(pasta_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_chunks_pasta ON chunks(pasta_id)');
 
   // O `codex exec` recusa rodar fora de repositório git ("Not inside a trusted
   // directory"), e o servidor sobe de onde o usuário mandar. Quem já tinha o

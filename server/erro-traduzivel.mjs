@@ -36,6 +36,25 @@ export function erroTraduzivel(molde, valores = {}, traduzir) {
 }
 
 /**
+ * O mesmo erro, com o código HTTP que ele merece.
+ *
+ * Sem isto tudo que o servidor levanta vira 500 — inclusive "professor não
+ * encontrado", que não é falha do servidor, e "o professor precisa de um nome",
+ * que é o pedido estando errado. O 500 mentiria sobre de quem é o problema, e
+ * quem lê o log iria caçar defeito onde não tem.
+ *
+ * @param {number} status
+ * @param {string} molde
+ * @param {Record<string, unknown>} [valores]
+ * @param {string[]} [traduzir]
+ */
+export function erroHttp(status, molde, valores = {}, traduzir) {
+  const err = erroTraduzivel(molde, valores, traduzir);
+  err.status = status;
+  return err;
+}
+
+/**
  * O corpo JSON de uma falha: a frase pronta mais, quando o erro veio de
  * `erroTraduzivel`, o molde e os valores pro cliente remontar a frase no
  * idioma dele.
