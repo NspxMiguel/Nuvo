@@ -199,3 +199,15 @@ test('a busca dos ajustes procura dentro das seções', () => {
   assert.match(views, /corpo\.includes\(alvo\)/, 'e entra na comparação');
   assert.match(views, /painel\.hidden = !!alvo && achou === 0/, 'sem resultado, o corpo some junto');
 });
+
+test('a animação de entrada é pra chegar na tela, não pra cada clique', () => {
+  // O Estudos se redesenha a cada ação — marcar uma fonte, abrir uma pasta,
+  // gerar. Com a animação ligada em toda repintura, a tela inteira piscava 400ms
+  // a cada toque.
+  const app = ler('web/app.js');
+  assert.match(app, /const chegando = state\.view !== view;/, 'sabe se está chegando ou repintando');
+  assert.match(app, /if \(!chegando\) return;/, 'e só anima ao chegar');
+  const css = ler('web/styles.css');
+  assert.match(css, /#messages\.sem-entrada \.msg/, 'histórico não sobe junto');
+  assert.match(css, /\.view\.entra \.est-mid \{ animation: sobe/, 'Estudos chega escalonado como os painéis');
+});

@@ -471,7 +471,11 @@ function messageEl(role, text, meta = {}) {
   if (role === 'user') body.textContent = text;
   else body.innerHTML = renderMarkdown(text);
 
-  $('#messages').appendChild(el);
+  const caixa = $('#messages');
+  // Mensagem nova entra animando de novo: a marca do histórico vale só pro
+  // desenho de uma vez que acabou de acontecer.
+  caixa.classList.remove('sem-entrada');
+  caixa.appendChild(el);
   manterEsperaNoFim();
   scrollDown();
   return el;
@@ -651,7 +655,11 @@ function addNote(text, cls = '', iconName = 'brain') {
   const el = document.createElement('div');
   el.className = `note ${cls}`;
   el.innerHTML = `<span class="ico">${icon(iconName, 17)}</span><span>${text}</span>`;
-  $('#messages').appendChild(el);
+  const caixa = $('#messages');
+  // Mensagem nova entra animando de novo: a marca do histórico vale só pro
+  // desenho de uma vez que acabou de acontecer.
+  caixa.classList.remove('sem-entrada');
+  caixa.appendChild(el);
   manterEsperaNoFim();
   scrollDown();
   return el;
@@ -729,6 +737,10 @@ function vigiarOFim() {
 function renderMessages(focusId) {
   const box = $('#messages');
   box.innerHTML = '';
+  // Histórico não "chega": ele já estava lá. Sem isto, abrir uma conversa de
+  // trinta mensagens fazia as trinta subirem ao mesmo tempo — o que não é uma
+  // entrada, é a página inteira tremendo em cima da animação da tela.
+  box.classList.add('sem-entrada');
   for (const m of state.messages) {
     if (m.role === 'system') continue;
     const meta = typeof m.meta === 'string' ? JSON.parse(m.meta || '{}') : m.meta || {};
@@ -1713,6 +1725,13 @@ function switchView(view) {
   if ($('#app').classList.contains('anon')) toggleAnon();
   // Estudos recolhe a gaveta pra caber as três colunas; sair devolve.
   if (state.view === 'estudos' && view !== 'estudos') sairDeEstudos();
+
+  // A animação de entrada é pra CHEGAR numa tela, não pra cada clique dentro
+  // dela. Telas que se redesenham a cada ação — o Estudos redesenha ao marcar
+  // uma fonte, abrir uma pasta, gerar — repetiam os 400ms de subida a cada
+  // toque, e a tela inteira piscava a cada interação. Repintar a mesma tela
+  // continua repintando; só não volta a entrar.
+  const chegando = state.view !== view;
   state.view = view;
   for (const el of $$('.view')) {
     el.hidden = true;
@@ -1732,6 +1751,7 @@ function switchView(view) {
   // Tirar e repor força o navegador a rodar a animação de novo quando é a
   // mesma tela; sem o reflow no meio, ele funde as duas mudanças em nada.
   const entrar = () => {
+    if (!chegando) return;
     void alvo.offsetWidth;
     alvo.classList.add('entra');
   };

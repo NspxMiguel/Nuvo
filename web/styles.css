@@ -2647,3 +2647,21 @@ button.icon { position: relative; }
   .est-quem .sub { white-space: normal; }
   .est-topo .acoes { flex: 1 1 100%; justify-content: flex-start; }
 }
+
+/* Histórico não "chega": ele já estava lá. A subida é pra mensagem nova. */
+#messages.sem-entrada .msg, #messages.sem-entrada .note { animation: none; }
+
+/* Estudos chega em três tempos, como os painéis.
+   A tela do professor não é um `.panel-inner`, então ela não pegava o
+   escalonamento que as outras têm: entrava como um bloco só, e um bloco de
+   1280px subindo de uma vez é o que fica pesado. Cabeçalho, material e trabalho
+   entram a 40ms de distância; o estúdio fecha. */
+.view.entra .est-topo { animation: sobe var(--d3) var(--ease) 40ms both; }
+.view.entra .est-mat { animation: sobe var(--d3) var(--ease) 80ms both; }
+.view.entra .est-mid { animation: sobe var(--d3) var(--ease) 120ms both; }
+.view.entra .est-lado { animation: sobe var(--d3) var(--ease) 160ms both; }
+.view.entra .est-prof { animation: sobe var(--d3) var(--ease) both; }
+/* Os cartões de professor entram um atrás do outro, não todos juntos. */
+.view.entra .est-prof:nth-child(2) { animation-delay: 60ms; }
+.view.entra .est-prof:nth-child(3) { animation-delay: 100ms; }
+.view.entra .est-prof:nth-child(n + 4) { animation-delay: 140ms; }
