@@ -8,7 +8,7 @@ import { all, one, run, uid, now, parseJSON } from './db.mjs';
 import { adapterFor, contextFor, getProvider, parseRef, withStallTimeout } from './providers/index.mjs';
 import { loadConfig } from './config.mjs';
 import { recall, renderForPrompt, learnFromExchange } from './memory.mjs';
-import { renderDocuments } from './documents.mjs';
+import { caminhoNoDisco, listAttachments, renderDocuments } from './documents.mjs';
 import { searchAndRead, renderWebBlock } from './web.mjs';
 import { escolherModelosDoAgente, navegarComAgente } from './agente-web.mjs';
 import { acharNavegador } from './navegador.mjs';
@@ -376,6 +376,17 @@ export async function* runTurn({
         maxTokens: chat.max_tokens ?? null,
         unfiltered: Boolean(gem?.unfiltered),
         workdir: project?.workdir || null,
+        // Só o NotebookLM usa isto: ele não recebe o texto do anexo, recebe o
+        // arquivo. Montado aqui porque é aqui que se sabe o que a conversa tem.
+        arquivos:
+          provider.kind === 'notebooklm'
+            ? [
+                ...listAttachments({ chatId: chat.id }),
+                ...(project ? listAttachments({ projectId: project.id }) : [])
+              ]
+                .map((a) => ({ id: a.id, nome: a.name, caminho: caminhoNoDisco(a.id) }))
+                .filter((a) => a.caminho)
+            : undefined,
         // Três condições, e nenhuma sobra.
         //
         // `programar` é a tela Programar pedindo — e só ela pede. Antes bastava

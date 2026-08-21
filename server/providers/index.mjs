@@ -5,11 +5,12 @@ import * as anthropic from './anthropic.mjs';
 import * as google from './google.mjs';
 import * as ollama from './ollama.mjs';
 import * as cli from './cli.mjs';
+import * as notebooklm from './notebooklm.mjs';
 import { all, one, run, uid, now, parseJSON } from '../db.mjs';
 import { getSecret } from '../config.mjs';
 import { erroTraduzivel } from '../erro-traduzivel.mjs';
 
-const ADAPTERS = { openai, anthropic, google, ollama, cli };
+const ADAPTERS = { openai, anthropic, google, ollama, cli, notebooklm };
 
 export function adapterFor(kind) {
   const adapter = ADAPTERS[kind];

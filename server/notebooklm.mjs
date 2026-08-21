@@ -345,6 +345,87 @@ export async function disponivel({ signal, sessao: sessaoInjetada } = {}) {
 }
 
 /**
+ * A mesma tela, com a pergunta que quem chamou quiser.
+ *
+ * É o que permite usar o NotebookLM como uma IA do app, e não só como gerador do
+ * Estudos: a conversa manda as fontes e a pergunta, e a resposta volta pra cá.
+ *
+ * NotebookLM sem fonte nenhuma não é o NotebookLM — ele responde a partir do que
+ * você subiu, e sem isso não há o que responder. Por isso a recusa é explícita
+ * em vez de virar uma resposta genérica que pareceria uma IA comum.
+ *
+ * @param {{arquivos: Array<{id:string,nome:string,caminho:string}>, pergunta: string,
+ *          signal?: AbortSignal, sessao?: object}} entrada
+ */
+export async function* perguntarNoNotebookLM({ arquivos, pergunta, signal, sessao: sessaoInjetada } = {}) {
+  const lista = Array.isArray(arquivos) ? arquivos : [];
+  if (!lista.length || lista.some((a) => !a?.caminho || !a?.nome)) {
+    throw erroHttp(400, 'o NotebookLM responde a partir de arquivos — anexe pelo menos um');
+  }
+  const texto = String(pergunta || '').trim();
+  if (!texto) throw erroHttp(400, 'sem pergunta não há o que perguntar');
+
+  const pedido = [
+    texto,
+    '',
+    'Responda em português do Brasil, a partir apenas das fontes deste notebook.',
+    `Escreva a resposta entre ${INICIO} e ${FIM}.`,
+    FIM_DO_PEDIDO
+  ].join('\n');
+
+  yield* conversarNaTela({
+    arquivos: lista,
+    pedido,
+    signal,
+    sessao: sessaoInjetada,
+    oQuePede: 'mandando a pergunta'
+  });
+}
+
+/**
+ * O caminho comum das duas: abre, confere a conta, cria o notebook, sobe os
+ * arquivos, manda o pedido e lê a resposta. O valor final é `{texto, fontes}`.
+ */
+async function* conversarNaTela({ arquivos, pedido, signal, sessao: sessaoInjetada, oQuePede }) {
+  const caminhos = arquivos.map((a) => resolve(String(a.caminho)));
+  const fontes = arquivos.map((a) => ({ id: a.id, nome: a.nome }));
+
+  let aberto = null;
+  try {
+    yield { type: 'passo', o_que: 'abrindo o NotebookLM' };
+    aberto = sessaoInjetada ? null : await naTela(signal, () => abrirNavegador({ janela: false, signal }));
+    const sessao = sessaoInjetada || aberto.sessao;
+
+    await navegar(sessao, signal);
+    yield { type: 'passo', o_que: 'conferindo a sessão do NotebookLM' };
+    if (!(await conferirConta(sessao, signal))) throw erroDeTela();
+
+    yield { type: 'passo', o_que: 'criando um notebook' };
+    await clicarRotulo(sessao, ROTULOS.criar, signal);
+
+    yield {
+      type: 'passo',
+      o_que: `enviando ${arquivos.length} arquivo${arquivos.length === 1 ? '' : 's'}`
+    };
+    await subirArquivos(sessao, caminhos, signal);
+
+    yield { type: 'passo', o_que: 'esperando o NotebookLM ler as fontes' };
+    await esperarNotebook(sessao, arquivos.map((a) => a.nome), signal);
+
+    yield { type: 'passo', o_que: oQuePede };
+    await enviarPedido(sessao, pedido, signal);
+
+    yield { type: 'passo', o_que: 'esperando a resposta do NotebookLM' };
+    return { texto: await esperarResposta(sessao, signal), fontes };
+  } catch (err) {
+    if (ehCancelamento(err, signal) || err?.status === 400 || err?.status === 503) throw err;
+    throw erroDeTela();
+  } finally {
+    await aberto?.encerrar();
+  }
+}
+
+/**
  * Cria um notebook descartável, envia as fontes e pede a saída no chat.
  *
  * O valor final do gerador é `{texto, fontes}`; antes dele saem apenas eventos

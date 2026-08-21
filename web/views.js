@@ -52,6 +52,7 @@ const CABE_ROT = { folga: 'cabe com folga', aperto: 'cabe apertado', nao: 'não 
 const KIND_ROT = {
   ollama: 'roda nesta máquina',
   cli: 'programa do terminal',
+  notebooklm: 'pelo seu navegador',
   openai: 'paga por uso',
   anthropic: 'paga por uso',
   google: 'paga por uso'
@@ -274,6 +275,7 @@ views.providers = async function renderProviders(el, { switchView }) {
              <option value="google">${t('paga por uso')} · Google</option>
              <option value="ollama">${t('roda nesta máquina')} · Ollama</option>
              <option value="cli">${t('programa do terminal')}</option>
+             <option value="notebooklm">${t('pelo seu navegador')} · NotebookLM</option>
            </select>
          </label>
        </div>
@@ -492,6 +494,20 @@ views.providers = async function renderProviders(el, { switchView }) {
 
   inner.querySelector('#btn-add-provider').onclick = async () => {
     const configText = inner.querySelector('#new-config').value.trim();
+    // O NotebookLM não tem chave nem endereço: quem responde é a tela do Google
+    // no navegador do app. Deixar os campos à mostra convidaria a preencher o
+    // que não existe.
+    if (inner.querySelector('#new-kind').value === 'notebooklm') {
+      try {
+        await api('/providers', { method: 'POST', body: { name: 'NotebookLM', kind: 'notebooklm' } });
+        await refreshState();
+        switchView('providers');
+        return toast(t('NotebookLM ligado — ele responde a partir dos arquivos da conversa'), 'ok');
+      } catch (err) {
+        return toast(err.message, 'err');
+      }
+    }
+
     let config = {};
     if (configText) {
       try {
