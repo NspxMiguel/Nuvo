@@ -26,6 +26,11 @@ const aqui = {
   saidaAberta: null,
   revisando: false,
   cartao: 0,
+  /** A IA escolhida no estúdio. Guardada aqui porque a tela é redesenhada a cada
+   *  ação, e sem isto o seletor voltava sozinho pro padrão depois de gerar. */
+  modelo: null,
+  /** Quantos cartões a rodada tinha quando começou. Ver a explicação no contador. */
+  totalDaRodada: 0,
   /** Fontes desmarcadas. Guardar o que está FORA deixa o padrão ser "tudo entra". */
   fora: new Set()
 };
@@ -249,6 +254,7 @@ async function telaDoProfessor(el, ctx) {
 
   el.className = 'view';
   if (aqui.revisando && cartoes.cartoes.length) {
+    if (!aqui.totalDaRodada) aqui.totalDaRodada = cartoes.cartoes.length;
     el.innerHTML = `<div class="est">${telaDeRevisar(prof, cartoes)}</div>`;
     return ligarRevisao(el, prof, cartoes, ctx);
   }
@@ -329,7 +335,9 @@ async function telaDoProfessor(el, ctx) {
       <aside class="est-lado">
         <div class="est-rot">${t('Estúdio')}</div>
         <div class="est-quem-gera">${icon('bot', 17)}
-          <select id="est-modelo" aria-label="${t('IA que gera')}">${modelOptions(state.model)}</select>
+          <select id="est-modelo" aria-label="${t('IA que gera')}">${modelOptions(
+            aqui.modelo || state.model
+          )}</select>
         </div>
         <div class="est-rot">${t('Gerar')}</div>
         <div class="est-lads">
@@ -391,14 +399,27 @@ function linhaDeSaida(s) {
 function desenharRetrato(prof) {
   const r = prof.retrato;
   if (!r) {
+    // Com prova anexada, o que falta é mandar montar — e sem este botão não
+    // havia como: o retrato ficava impossível de existir e os geradores que
+    // dependem dele, trancados pra sempre.
+    const temProva = prof.material.provas > 0;
     return `<div class="est-sec" style="margin-top:22px">
-      <p class="veredito" style="margin:0">${t('Ainda não tem retrato. Falta uma prova dele.')}</p>
+      <p class="veredito" style="margin:0">${
+        temProva
+          ? t('As provas estão aqui. Falta ler.')
+          : t('Ainda não tem retrato. Falta uma prova dele.')
+      }</p>
       <div class="est-conf"><span class="pt"></span><span>${t(
         'Com uma prova o app já mostra o que ele cobra; com quatro, os pesos param de oscilar. Material de aula sozinho não diz o que cai.'
       )}</span></div>
-      <div class="row"><button class="primary" id="est-primeira-prova">${icon('upload', 18)} ${t(
-        'Adicionar uma prova dele'
-      )}</button></div>
+      <div class="row">${
+        temProva
+          ? `<button class="primary" id="est-montar">${icon('sparkle', 18)} ${t('Montar o retrato')}</button>`
+          : `<button class="primary" id="est-primeira-prova">${icon('upload', 18)} ${t(
+              'Adicionar uma prova dele'
+            )}</button>`
+      }</div>
+      <div id="est-andar" class="est-andar" role="status"></div>
     </div>`;
   }
 
@@ -418,7 +439,9 @@ function desenharRetrato(prof) {
     <div class="est-conf"><span class="pt"></span>
       <span>${t('Confiança')} <b>${escapeHtml(conf.nota || '—')}</b> — ${escapeHtml(
         (CONFIANCA[conf.nota] || (() => t('sem nota de confiança')))()
-      )}</span></div>
+      )}</span>
+      <button class="ghost" id="est-montar">${icon('refresh', 16)} ${t('Refazer')}</button></div>
+    <div id="est-andar" class="est-andar" role="status"></div>
 
     ${
       r.formato
@@ -618,8 +641,11 @@ function telaDeRevisar(prof, fila) {
 
   return `<div class="est-revisar">
     <div class="est-passo">${t('cartão {n} de {total}', {
+      // O total é o da fila em que esta rodada começou, e não o que sobra agora:
+      // com os dois andando ao mesmo tempo, o contador mostrava "4 de 12" e
+      // depois "5 de 9" — o numerador subindo enquanto o denominador encolhia.
       n: formatarNumero(aqui.cartao + 1),
-      total: formatarNumero(fila.cartoes.length)
+      total: formatarNumero(aqui.totalDaRodada || fila.cartoes.length)
     })}${prof.materia ? ` · ${escapeHtml(prof.materia)}` : ''}</div>
     <div class="est-cartao" data-cartao="${escapeHtml(cartao.id)}">
       <div class="frente">${escapeHtml(cartao.frente)}</div>
@@ -661,8 +687,9 @@ function ligarRevisao(el, prof, fila, ctx) {
       toast(err.message || t('não deu pra gravar a revisão'), 'err');
     }
     aqui.cartao += 1;
-    if (aqui.cartao >= fila.cartoes.length) {
+    if (aqui.cartao >= aqui.totalDaRodada || aqui.cartao >= fila.cartoes.length) {
       aqui.cartao = 0;
+      aqui.totalDaRodada = 0;
       aqui.revisando = false;
       toast(t('Por hoje acabou'), 'ok');
     }
@@ -672,14 +699,19 @@ function ligarRevisao(el, prof, fila, ctx) {
   q('[data-sair-rev]').onclick = () => {
     aqui.revisando = false;
     aqui.cartao = 0;
+    aqui.totalDaRodada = 0;
     ctx.switchView('estudos');
   };
   // Espaço mostra, número responde: cem cartões não se faz com o mouse.
   el.onkeydown = (ev) => {
-    if (ev.key === ' ' && q('.verso').hidden) {
+    if (ev.key === ' ' && q('.verso') && q('.verso').hidden) {
       ev.preventDefault();
       return mostrar();
     }
+    // A tela é redesenhada inteira ao sair da revisão, e este `onkeydown` ficava
+    // preso no elemento antigo: qualquer tecla dentro de Estudos quebrava em
+    // "Cannot read properties of null".
+    if (!q('.verso')) return;
     if (!q('.verso').hidden && ['1', '2', '3', '4'].includes(ev.key)) {
       ev.preventDefault();
       responder(Number(ev.key));
@@ -710,6 +742,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
   q('#est-revisar')?.addEventListener('click', () => {
     aqui.revisando = true;
     aqui.cartao = 0;
+    aqui.totalDaRodada = 0;
     repintar();
   });
   q('#est-foto').onclick = () => escolherFoto(prof, ctx);
@@ -736,6 +769,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
     repintar();
   });
   q('#est-primeira-prova')?.addEventListener('click', () => criarPasta(prof, ctx, q('.est-mat')));
+  q('#est-montar')?.addEventListener('click', (ev) => montarRetrato(el, prof, ev.currentTarget, q('#est-modelo').value, ctx));
 
   for (const b of el.querySelectorAll('[data-add]')) {
     b.onclick = () => enviarArquivos(aqui.pastaAberta, b.dataset.add, ctx);
@@ -775,8 +809,12 @@ function ligarProfessor(el, prof, saidas, ctx) {
     repintar();
   });
 
+  const seletor = q('#est-modelo');
+  seletor.onchange = () => {
+    aqui.modelo = seletor.value;
+  };
   for (const b of el.querySelectorAll('[data-gerar]')) {
-    b.onclick = () => gerar(el, prof, b, q('#est-modelo').value, ctx);
+    b.onclick = () => gerar(el, prof, b, seletor.value, ctx);
   }
 
 
@@ -823,6 +861,42 @@ function ligarApagar(botao, aoConfirmar) {
     window.clearTimeout(armado);
     await aoConfirmar();
   };
+}
+
+/** Manda montar o retrato, contando o que está sendo lido. */
+async function montarRetrato(el, prof, botao, ref, ctx) {
+  if (!ref) return toast(t('escolha uma IA pra montar o retrato'), 'err');
+  const andar = el.querySelector('#est-andar');
+  const dizer = (frase) => {
+    if (andar) andar.textContent = frase;
+  };
+  botao.disabled = true;
+  try {
+    await stream(`/professores/${prof.id}/retrato`, { model: ref }, (ev) => {
+      if (ev.type === 'start') {
+        dizer(
+          t('lendo {provas} e {materiais}', {
+            provas: plural(ev.provas, '1 prova', '{n} provas'),
+            materiais: plural(ev.materiais, '1 material', '{n} materiais')
+          })
+        );
+      }
+      if (ev.type === 'lendo') dizer(t('lendo {nome}…', { nome: ev.nome }));
+      if (ev.type === 'lida') {
+        dizer(t('{nome}: {questoes}', { nome: ev.nome, questoes: plural(ev.questoes, '1 questão', '{n} questões') }));
+      }
+      if (ev.type === 'pulada') dizer(t('{nome} ficou de fora — {porque}', { nome: ev.nome, porque: ev.porque }));
+      if (ev.type === 'sintetizando') dizer(t('juntando tudo…'));
+      if (ev.type === 'repetindo') dizer(t('a resposta veio torta, pedindo de novo…'));
+      if (ev.type === 'error') throw new Error(ev.message);
+    });
+    toast(t('retrato pronto'), 'ok');
+  } catch (err) {
+    toast(err.message || t('não deu pra montar o retrato'), 'err');
+  } finally {
+    botao.disabled = false;
+    ctx.switchView('estudos');
+  }
 }
 
 async function gerar(el, prof, botao, ref, ctx) {

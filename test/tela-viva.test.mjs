@@ -169,3 +169,14 @@ test('o rodapé da memória sobrevive a recarregar a conversa', () => {
   const app = ler('web/app.js');
   assert.match(app, /meta\.memoria\?\.length/, 'e o histórico redesenha o rodapé');
 });
+
+test('parar fecha a bolha de espera na hora', () => {
+  // O `finally` do turno só roda quando o stream termina de verdade, e um CLI
+  // pode levar treze segundos pra morrer. Nesse tempo a roseta continuava
+  // girando como se o "parar" não tivesse sido apertado.
+  const app = ler('web/app.js');
+  assert.match(app, /function pararEspera\(\)/, 'existe quem feche na hora');
+  const stop = app.slice(app.indexOf("$('#btn-stop').onclick"), app.indexOf("$('#btn-stop').onclick") + 160);
+  assert.match(stop, /pararEspera\(\)/, 'o botão de parar fecha antes de abortar');
+  assert.match(app, /pararEspera\(\);\n    state\.streaming\.abort\(\)/, 'e o Esc também');
+});

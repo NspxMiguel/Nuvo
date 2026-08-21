@@ -523,6 +523,17 @@ function fecharEspera(el, { apagar = false } = {}) {
  * chegam depois de ela existir e entram pelo fim da lista — sem esta correção
  * a resposta pendente ficaria acima da pergunta que a gerou.
  */
+/**
+ * Fecha a bolha de espera agora, sem esperar o turno desmontar.
+ *
+ * Quem apertou parar quer ver parar. O `finally` do turno só roda quando o
+ * stream termina de verdade, e um CLI pode levar treze segundos pra morrer —
+ * nesse tempo a roseta continuava girando como se nada tivesse acontecido.
+ */
+function pararEspera() {
+  if (bolhaDeEspera) fecharEspera(bolhaDeEspera, { apagar: !bolhaDeEspera.querySelector('.body')?.textContent.trim() });
+}
+
 function manterEsperaNoFim() {
   if (!bolhaDeEspera || !bolhaDeEspera.parentElement) return;
   $('#messages').appendChild(bolhaDeEspera);
@@ -1964,7 +1975,10 @@ $('#file-input').onchange = (ev) => {
   ev.target.value = '';
 };
 $('#btn-mic').onclick = toggleDictation;
-$('#btn-stop').onclick = () => state.streaming?.abort();
+$('#btn-stop').onclick = () => {
+  pararEspera();
+  state.streaming?.abort();
+};
 
 const novaConversa = () => {
   newChat();
@@ -2100,7 +2114,10 @@ document.addEventListener('keydown', (ev) => {
   // Esc fecha o modo voz antes de cortar a resposta: com a camada aberta é
   // ela que a pessoa está vendo, e é dela que quer sair.
   if (ev.key === 'Escape' && voz.aberto) return fecharVoz();
-  if (ev.key === 'Escape' && state.streaming) state.streaming.abort();
+  if (ev.key === 'Escape' && state.streaming) {
+    pararEspera();
+    state.streaming.abort();
+  }
 });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

@@ -2633,3 +2633,17 @@ button.icon { position: relative; }
 .est-cabeca-av .sub { font-size: 15px; color: var(--muted); }
 .est-cabeca-av .acoes { margin-left: auto; display: flex; gap: 6px; }
 .est-saida { margin-top: 18px; }
+
+/* O que está sendo lido enquanto o retrato é montado, e o cabeçalho de Estudos
+   no celular: nome e ações em linhas separadas, porque em 390px eles colidiam —
+   o nome ficava espremido contra o botão de revisar e o título era cortado. */
+.est-andar { min-height: 20px; font-size: 14.5px; color: var(--muted); margin-top: 8px; }
+.est-conf #est-montar { margin-left: auto; flex: 0 0 auto; }
+
+@media (max-width: 560px) {
+  .est-topo { flex-wrap: wrap; row-gap: 10px; }
+  .est-quem { flex: 1 1 calc(100% - 68px); }
+  .est-quem h2 { font-size: 23px; }
+  .est-quem .sub { white-space: normal; }
+  .est-topo .acoes { flex: 1 1 100%; justify-content: flex-start; }
+}

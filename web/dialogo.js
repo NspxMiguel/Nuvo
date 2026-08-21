@@ -94,6 +94,17 @@ function mostrar({ tipo, titulo, texto, rotulo, valor = '', placeholder = '', mu
       evento.preventDefault();
       desistir();
     };
+    // Esc explícito, além do `cancel` nativo.
+    //
+    // O `cancel` do <dialog> é ação padrão do navegador, e nem sempre dispara
+    // quando a tecla vem de fora — automação, teclado virtual, alguns modos de
+    // acessibilidade. Ouvir a tecla aqui fecha do mesmo jeito e não atrapalha o
+    // caminho nativo: quem chegar primeiro resolve, e `terminar` ignora o segundo.
+    const teclou = (evento) => {
+      if (evento.key !== 'Escape') return;
+      evento.preventDefault();
+      desistir();
+    };
     const apontarFundo = (evento) => {
       comecouNoFundo = evento.target === dialogo;
     };
@@ -112,6 +123,7 @@ function mostrar({ tipo, titulo, texto, rotulo, valor = '', placeholder = '', mu
       formulario.removeEventListener('submit', enviar);
       botaoCancelar.removeEventListener('click', desistir);
       dialogo.removeEventListener('cancel', cancelar);
+      dialogo.removeEventListener('keydown', teclou);
       dialogo.removeEventListener('pointerdown', apontarFundo);
       dialogo.removeEventListener('click', clicarFundo);
       dialogo.removeEventListener('close', fecharPorFora);
@@ -120,6 +132,7 @@ function mostrar({ tipo, titulo, texto, rotulo, valor = '', placeholder = '', mu
     formulario.addEventListener('submit', enviar);
     botaoCancelar.addEventListener('click', desistir);
     dialogo.addEventListener('cancel', cancelar);
+    dialogo.addEventListener('keydown', teclou);
     dialogo.addEventListener('pointerdown', apontarFundo);
     dialogo.addEventListener('click', clicarFundo);
     dialogo.addEventListener('close', fecharPorFora);

@@ -26,3 +26,14 @@ test('a guarda distingue a API do app de métodos com o mesmo nome', () => {
   assert.deepEqual([...permitidas.matchAll(CHAMADA_NATIVA)], []);
   assert.equal([...'confirm();'.matchAll(CHAMADA_NATIVA)].length, 1);
 });
+
+test('Esc fecha, mesmo quando o cancel nativo não dispara', () => {
+  // O `cancel` do <dialog> é ação padrão do navegador e nem sempre acontece
+  // quando a tecla vem de fora — automação, teclado virtual, alguns modos de
+  // acessibilidade. Foi assim que apareceu: o diálogo ficava aberto e só o
+  // botão Cancelar fechava.
+  const fonte = readFileSync(new URL('dialogo.js', web), 'utf8');
+  assert.match(fonte, /const teclou = \(evento\) => \{/, 'existe um Esc explícito');
+  assert.match(fonte, /addEventListener\('keydown', teclou\)/, 'ligado no diálogo');
+  assert.match(fonte, /removeEventListener\('keydown', teclou\)/, 'e desligado junto com o resto');
+});
