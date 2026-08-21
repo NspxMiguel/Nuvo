@@ -224,6 +224,83 @@ ${REGRAS_DE_FONTE}`,
           .filter((t) => t.termo)
       };
     }
+  },
+
+  mapa: {
+    papeis: ['conteudo', 'material'],
+    precisaRetrato: false,
+    titulo: (prof) => `Mapa de ${prof.materia || prof.nome}`,
+    prompt: `Você desenha o mapa mental de um material de estudo.
+
+Devolva SOMENTE um objeto JSON:
+{"centro": "o assunto do material, em até 4 palavras",
+ "ramos": [{"nome": "...", "peso": 0.0, "folhas": ["...", "..."]}]}
+
+Regras:
+- Entre 3 e 7 ramos. Mais que isso vira lista, e lista já existe no resumo.
+- Cada ramo com 2 a 6 folhas. Folha é um conceito, não uma frase.
+- "peso" é o quanto aquele ramo ocupa do material, de 0 a 1.
+${REGRAS_DE_FONTE}`,
+    conferir: (bruto) => {
+      const ramos = lista(bruto?.ramos)
+        .map((r) => ({
+          nome: texto(r.nome, 60),
+          peso: Number(r.peso) > 1 ? Number(r.peso) / 100 : Number(r.peso) || 0,
+          folhas: lista(r.folhas).map((f) => texto(f, 60)).filter(Boolean).slice(0, 8)
+        }))
+        .filter((r) => r.nome)
+        .slice(0, 8);
+      return ramos.length ? { centro: texto(bruto.centro, 60) || '—', ramos } : null;
+    }
+  },
+
+  linha: {
+    papeis: ['conteudo', 'material'],
+    precisaRetrato: false,
+    titulo: (prof) => `Linha do tempo de ${prof.materia || prof.nome}`,
+    prompt: `Você monta a linha do tempo do que o material descreve.
+
+Devolva SOMENTE um objeto JSON:
+{"marcos": [{"quando": "1789 | século XIX | fase clara", "o_que": "...", "porque_importa": "uma frase", "fonte": "trecho literal"}]}
+
+Regras:
+- Serve pra data e também pra etapa de processo (glicólise → ciclo de Krebs → cadeia).
+- Em ordem. Se o material não tem nada sequencial, devolva {"marcos": []}.
+${REGRAS_DE_FONTE}`,
+    conferir: (bruto) => {
+      const marcos = lista(bruto?.marcos)
+        .map((m) => ({
+          quando: texto(m.quando, 60),
+          o_que: texto(m.o_que, 300),
+          porque_importa: texto(m.porque_importa, 300),
+          fonte: texto(m.fonte, 600)
+        }))
+        .filter((m) => m.quando && m.o_que);
+      return marcos.length ? { marcos } : null;
+    }
+  },
+
+  podcast: {
+    papeis: ['conteudo', 'material'],
+    precisaRetrato: true,
+    titulo: (prof) => `Conversa sobre ${prof.materia || prof.nome}`,
+    prompt: `Você escreve o roteiro de uma conversa de dois minutos entre duas pessoas explicando a matéria.
+
+Devolva SOMENTE um objeto JSON:
+{"titulo": "...", "falas": [{"quem": "a|b", "texto": "uma ou duas frases"}]}
+
+Regras:
+- "a" pergunta e duvida como um aluno que não entendeu; "b" explica.
+- Fala curta: isto vai ser lido em voz alta, e parágrafo longo em voz sintética cansa.
+- Entre 14 e 30 falas, cobrindo o que o professor mais cobra primeiro.
+- Nada de "olá, sejam bem-vindos ao podcast". Comece pela matéria.
+${REGRAS_DE_FONTE}`,
+    conferir: (bruto) => {
+      const falas = lista(bruto?.falas)
+        .map((f) => ({ quem: f.quem === 'a' ? 'a' : 'b', texto: texto(f.texto, 700) }))
+        .filter((f) => f.texto);
+      return falas.length >= 4 ? { titulo: texto(bruto.titulo, 160), falas } : null;
+    }
   }
 };
 

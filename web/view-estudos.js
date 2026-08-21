@@ -832,6 +832,27 @@ const FORMATOS = [
     nome: () => t('Resumo'),
     dica: () => t('O material inteiro em pontos, com os termos definidos.'),
     precisaRetrato: false
+  },
+  {
+    id: 'mapa',
+    ico: 'layers',
+    nome: () => t('Mapa mental'),
+    dica: () => t('A matéria inteira num desenho só, pra ver como as partes se ligam.'),
+    precisaRetrato: false
+  },
+  {
+    id: 'linha',
+    ico: 'activity',
+    nome: () => t('Linha do tempo'),
+    dica: () => t('A ordem das coisas — datas, ou as etapas de um processo.'),
+    precisaRetrato: false
+  },
+  {
+    id: 'podcast',
+    ico: 'speaker',
+    nome: () => t('Conversa em áudio'),
+    dica: () => t('Duas vozes explicando a matéria, pra ouvir no caminho da escola.'),
+    precisaRetrato: true
   }
 ];
 
@@ -939,7 +960,10 @@ function abrirSaida(host, saida, ctx) {
     simulado: () => desenharSimulado(j),
     guia: () => desenharGuia(j),
     flashcards: () => desenharCartoes(j),
-    resumo: () => desenharResumo(j)
+    resumo: () => desenharResumo(j),
+    mapa: () => desenharMapa(j),
+    linha: () => desenharLinha(j),
+    podcast: () => desenharPodcast(j)
   }[saida.tipo];
 
   host.innerHTML = `<section class="card est-saida">
@@ -980,6 +1004,7 @@ function abrirSaida(host, saida, ctx) {
       toast(err.message || t('não deu pra mandar pra revisão'), 'err');
     }
   });
+  ligarPodcast(host, j);
   host.scrollIntoView({ block: 'nearest' });
   paintIcons(host);
 }
@@ -1235,4 +1260,202 @@ async function telaDeRevisar(host, prof, ctx) {
 
   desenhar();
   paintIcons(host);
+}
+
+// ------------------------------------------------- mapa, linha do tempo, voz
+
+/**
+ * O mapa mental, desenhado em SVG aqui mesmo.
+ *
+ * Sem biblioteca: um mapa mental é um círculo no meio e ramos em volta, e a
+ * conta que põe cada ramo no lugar cabe em dez linhas. Trazer uma biblioteca de
+ * grafo pra isso seria a primeira dependência do projeto — por um desenho.
+ */
+function desenharMapa(j) {
+  const ramos = (j.ramos || []).slice(0, 8);
+  if (!ramos.length) return '';
+
+  // O tamanho sai do conteúdo, não de um número fixo: com seis ramos de cinco
+  // folhas cada, uma caixa pequena faz as folhas de um ramo entrarem por cima do
+  // ramo vizinho — que foi exatamente o que aconteceu na primeira versão.
+  const maisFolhas = Math.max(...ramos.map((r) => (r.folhas || []).length), 0);
+  const L = 900;
+  const A = Math.max(520, 260 + maisFolhas * 20 + ramos.length * 26);
+  const cx = L / 2;
+  const cy = A / 2;
+  const raio = Math.min(cx - 210, cy - 90);
+
+  const cores = ['indigo', 'teal', 'amber', 'rose', 'violet', 'sky', 'lime', 'slate'];
+  // Uma volta inteira dividida pelos ramos, começando no topo. Metade de um
+  // passo de deslocamento evita que o primeiro ramo caia exatamente em cima do
+  // centro quando são dois ou quatro.
+  const passo = (Math.PI * 2) / ramos.length;
+
+  const quebrar = (frase, porLinha) => {
+    const linhas = [];
+    let atual = '';
+    for (const palavra of String(frase).split(/\s+/)) {
+      if ((`${atual} ${palavra}`).trim().length > porLinha && atual) {
+        linhas.push(atual);
+        atual = palavra;
+      } else {
+        atual = (`${atual} ${palavra}`).trim();
+      }
+    }
+    if (atual) linhas.push(atual);
+    return linhas;
+  };
+
+  const partes = ramos.map((ramo, i) => {
+    const ang = i * passo + passo / 2 - Math.PI / 2;
+    const x = cx + Math.cos(ang) * raio;
+    const y = cy + Math.sin(ang) * raio;
+    const cor = `var(--${cores[i % cores.length]})`;
+    const caminho = `M ${cx} ${cy} Q ${(cx + x) / 2 + Math.cos(ang) * 24} ${
+      (cy + y) / 2 + Math.sin(ang) * 24
+    } ${x} ${y}`;
+
+    // Ramo à esquerda escreve pra esquerda; ramo em cima ou embaixo escreve
+    // centralizado, senão o texto atravessa o meio do desenho.
+    const eixo = Math.cos(ang);
+    const ancora = eixo < -0.35 ? 'end' : eixo > 0.35 ? 'start' : 'middle';
+    const dx = ancora === 'end' ? -14 : ancora === 'start' ? 14 : 0;
+    const paraCima = Math.sin(ang) < -0.35 && ancora === 'middle';
+    const base = y + (ancora === 'middle' ? (paraCima ? -30 : 26) : 5);
+    const folhas = (ramo.folhas || [])
+      .slice(0, 6)
+      .map(
+        (folha, k) =>
+          `<text x="${x + dx}" y="${base + 20 + k * 18}" text-anchor="${ancora}"
+             class="mapa-folha">${escapeHtml(folha)}</text>`
+      )
+      .join('');
+
+    return `<path d="${caminho}" stroke="${cor}" class="mapa-traco" />
+      <circle cx="${x}" cy="${y}" r="${5 + Math.round((ramo.peso || 0) * 12)}" fill="${cor}" />
+      <text x="${x + dx}" y="${base}" text-anchor="${ancora}" class="mapa-ramo">${escapeHtml(
+        ramo.nome
+      )}</text>
+      ${folhas}`;
+  });
+
+  // O centro cabe em até três linhas dentro do círculo; o raio acompanha.
+  const todasDoCentro = quebrar(j.centro || '', 16);
+  const linhasDoCentro = todasDoCentro.slice(0, 3);
+  // Vírgula pendurada no fim quando o resto não coube: "Célula, metabolismo,
+  // genética," anuncia um quarto item que não está lá.
+  if (linhasDoCentro.length && todasDoCentro.length > linhasDoCentro.length) {
+    const ultima = linhasDoCentro.length - 1;
+    linhasDoCentro[ultima] = `${linhasDoCentro[ultima].replace(/[,;·\s]+$/, '')}…`;
+  }
+  const raioDoCentro = 34 + linhasDoCentro.length * 9;
+
+  return `<div class="est-mapa">
+    <svg viewBox="0 0 ${L} ${A}" role="img" aria-label="${t('mapa mental da matéria')}">
+      ${partes.join('')}
+      <circle cx="${cx}" cy="${cy}" r="${raioDoCentro}" class="mapa-centro" />
+      ${linhasDoCentro
+        .map(
+          (linha, k) =>
+            `<text x="${cx}" y="${
+              cy + 5 - ((linhasDoCentro.length - 1) * 16) / 2 + k * 16
+            }" text-anchor="middle" class="mapa-centro-txt">${escapeHtml(linha)}</text>`
+        )
+        .join('')}
+    </svg>
+  </div>`;
+}
+
+function desenharLinha(j) {
+  const marcos = j.marcos || [];
+  if (!marcos.length) return `<p class="meta">${t('o material não tem nada em sequência')}</p>`;
+  return `<ol class="est-linha">${marcos
+    .map(
+      (m) => `<li>
+        <span class="est-quando">${escapeHtml(m.quando)}</span>
+        <div>
+          <b>${escapeHtml(m.o_que)}</b>
+          ${m.porque_importa ? `<p class="meta">${escapeHtml(m.porque_importa)}</p>` : ''}
+          ${m.fonte ? `<p class="ret-cita">${escapeHtml(m.fonte)}</p>` : ''}
+        </div>
+      </li>`
+    )
+    .join('')}</ol>`;
+}
+
+function desenharPodcast(j) {
+  const falas = j.falas || [];
+  return `<div class="row">
+      <button data-act="ouvir" class="primary" type="button">
+        <span data-icon="speaker" data-size="16"></span> ${t('Ouvir')}
+      </button>
+      <button data-act="parar" class="ghost" type="button" hidden>
+        <span data-icon="stop" data-size="16"></span> ${t('Parar')}
+      </button>
+      <span class="meta">${plural(falas.length, '1 fala', '{n} falas')}</span>
+    </div>
+    <div class="est-falas">${falas
+      .map(
+        (f, i) =>
+          `<p class="est-fala quem-${escapeHtml(f.quem)}" data-fala="${i}">${escapeHtml(f.texto)}</p>`
+      )
+      .join('')}</div>`;
+}
+
+/**
+ * Lê a conversa em voz alta, com duas vozes.
+ *
+ * Usa o `speechSynthesis` do próprio navegador — o mesmo que o modo voz do app
+ * já usa. Não é a voz do NotebookLM, e não finge ser: é de graça, funciona sem
+ * rede e sai na hora, o que pra ouvir no caminho da escola é o que importa.
+ */
+function ligarPodcast(host, j) {
+  const ouvir = host.querySelector('[data-act=ouvir]');
+  if (!ouvir || !j.falas?.length) return;
+  const parar = host.querySelector('[data-act=parar]');
+
+  if (!('speechSynthesis' in window)) {
+    ouvir.disabled = true;
+    ouvir.title = t('este navegador não lê em voz alta');
+    return;
+  }
+
+  const vozes = speechSynthesis.getVoices().filter((v) => v.lang.startsWith('pt'));
+  const escolher = (quem) => vozes[quem === 'a' ? 0 : 1 % Math.max(vozes.length, 1)] || vozes[0] || null;
+
+  let tocando = false;
+  const limpar = () => {
+    tocando = false;
+    speechSynthesis.cancel();
+    ouvir.hidden = false;
+    parar.hidden = true;
+    for (const p of host.querySelectorAll('.est-fala')) p.classList.remove('falando');
+  };
+
+  ouvir.onclick = async () => {
+    tocando = true;
+    ouvir.hidden = true;
+    parar.hidden = false;
+    for (const [i, fala] of j.falas.entries()) {
+      if (!tocando) return;
+      const alvo = host.querySelector(`[data-fala="${i}"]`);
+      alvo?.classList.add('falando');
+      alvo?.scrollIntoView({ block: 'nearest' });
+      await new Promise((resolve) => {
+        const dito = new SpeechSynthesisUtterance(fala.texto);
+        const voz = escolher(fala.quem);
+        if (voz) dito.voice = voz;
+        // Quem pergunta fala um tom acima: com uma voz só, as duas pessoas
+        // viram uma pessoa lendo, e a conversa perde a graça toda.
+        dito.pitch = fala.quem === 'a' ? 1.15 : 0.92;
+        dito.rate = 1.02;
+        dito.onend = resolve;
+        dito.onerror = resolve;
+        speechSynthesis.speak(dito);
+      });
+      alvo?.classList.remove('falando');
+    }
+    limpar();
+  };
+  parar.onclick = limpar;
 }

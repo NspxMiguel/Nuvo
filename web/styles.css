@@ -2327,3 +2327,41 @@ button.icon { position: relative; }
    fica caro quando dá pra ver que isso empurra o cartão pra três meses. */
 .rev-quando { font-size: 12.5px; opacity: 0.75; font-weight: 400; }
 .rev-acoes button.block { flex-direction: row; width: 100%; }
+
+/* Mapa mental, linha do tempo e a conversa em áudio. */
+.est-mapa { overflow-x: auto; margin-top: 10px; }
+.est-mapa svg { width: 100%; min-width: 720px; height: auto; }
+.mapa-traco { fill: none; stroke-width: 2; opacity: 0.55; }
+.mapa-centro { fill: var(--accent); }
+.mapa-centro-txt { fill: #fff; font-size: 15px; font-weight: 600; }
+.mapa-ramo { fill: var(--text); font-size: 14.5px; font-weight: 600; }
+.mapa-folha { fill: var(--muted); font-size: 13px; }
+
+.est-linha { list-style: none; margin: 10px 0 0; padding: 0; }
+.est-linha li { display: flex; gap: 16px; padding: 12px 0; border-left: 2px solid var(--glass-line); padding-left: 18px; margin-left: 6px; position: relative; }
+/* O ponto na régua: é ele que faz a lista virar linha do tempo. */
+.est-linha li::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 18px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.est-quando { flex: 0 0 110px; color: var(--accent); font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.est-linha b { font-size: 15.5px; font-weight: 600; }
+
+.est-falas { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.est-fala { margin: 0; padding: 10px 14px; border-radius: var(--radius); font-size: 15.5px; line-height: 1.55; max-width: 82%; }
+.est-fala.quem-a { background: var(--panel-2); align-self: flex-start; }
+.est-fala.quem-b { background: var(--accent-soft); align-self: flex-end; }
+/* Quem está falando agora fica marcado: dá pra acompanhar lendo enquanto ouve. */
+.est-fala.falando { outline: 2px solid var(--accent); }
+
+@media (max-width: 560px) {
+  .est-linha li { flex-direction: column; gap: 4px; }
+  .est-quando { flex: none; }
+  .est-fala { max-width: 100%; }
+}
