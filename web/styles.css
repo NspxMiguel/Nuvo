@@ -2231,3 +2231,32 @@ button.icon { position: relative; }
   .est-pastas .chat-item { width: auto; white-space: nowrap; }
   .est-pastas .link-btn { white-space: nowrap; align-self: center; }
 }
+
+/* O retrato: peso se lê melhor visto do que lido, e toda afirmação vem com a
+   frase da prova que a sustenta logo abaixo. */
+.est-abas { margin-bottom: 16px; }
+.ret-topo { align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.ret-topo select { max-width: 220px; }
+.ret-conf.palpite { color: var(--warn); }
+.ret-conf.boa { color: var(--ok); }
+.ret-andar { min-height: 20px; font-size: 14.5px; color: var(--muted); }
+.ret-secao h3 { display: flex; align-items: center; gap: 9px; font-size: 17px; }
+.ret-linha { margin: 12px 0; }
+.ret-rot { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 15.5px; }
+.ret-rot b { font-weight: 600; }
+.ret-linha .progress { margin: 5px 0 2px; }
+.ret-num { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* A citação é o que separa isto de um chute: fica em itálico, recuada, com a
+   barra do lado — do jeito que citação de texto se marca em qualquer lugar. */
+.ret-cita {
+  margin: 6px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--glass-line);
+  color: var(--muted);
+  font-size: 14.5px;
+  font-style: italic;
+}
+.ret-verbos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.ret-lista { margin: 8px 0 0; padding-left: 20px; font-size: 15.5px; }
+.ret-lista li { margin: 4px 0; }
+.ret-rodape { margin-top: 20px; }

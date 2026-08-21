@@ -10,7 +10,7 @@
 // A organização é escolhida uma vez, na criação do professor, porque escola não
 // é toda igual: trimestre com A1 e A2, bimestre, semestre, ou nada disso.
 
-import { api, state, escapeHtml, paintIcons, toast, iconPicker, badge } from './core.js';
+import { api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions } from './core.js';
 import { icon } from './icons.js';
 import { t, plural, formatarNumero } from './i18n.js';
 
@@ -276,7 +276,11 @@ async function telaDoProfessor(el, ctx) {
        <span class="tag">${plural(prof.material.conteudos, '1 conteúdo', '{n} conteúdos')}</span>
        <span class="tag">${plural(prof.material.materiais, '1 material', '{n} materiais')}</span>
      </div>
-     <div class="est-grade">
+     <div class="segmentado est-abas" role="tablist">
+       <button type="button" role="tab" data-aba="material">${t('Material')}</button>
+       <button type="button" role="tab" data-aba="retrato">${t('Retrato do professor')}</button>
+     </div>
+     <div class="est-grade" data-painel="material">
        <aside class="est-pastas">
          <div class="grupo-rot">${t('Avaliações')}</div>
          <div id="est-provas" class="grupo"></div>
@@ -290,8 +294,27 @@ async function telaDoProfessor(el, ctx) {
          </button>
        </aside>
        <section id="est-corpo" class="est-corpo"></section>
-     </div>`
+     </div>
+     <div id="est-retrato" data-painel="retrato" hidden></div>`
   );
+
+  for (const btn of inner.querySelectorAll('.est-abas [data-aba]')) {
+    btn.classList.toggle('sel', btn.dataset.aba === aqui.aba);
+    btn.setAttribute('aria-selected', String(btn.dataset.aba === aqui.aba));
+    btn.onclick = () => {
+      aqui.aba = btn.dataset.aba;
+      ctx.switchView('estudos');
+    };
+  }
+  for (const painel of inner.querySelectorAll('[data-painel]')) {
+    painel.hidden = painel.dataset.painel !== aqui.aba;
+  }
+
+  if (aqui.aba === 'retrato') {
+    telaDoRetrato(inner.querySelector('#est-retrato'), prof, ctx);
+    paintIcons(el);
+    return;
+  }
 
   const linhaDaPasta = (pasta) => {
     const btn = document.createElement('button');
@@ -521,4 +544,234 @@ function escolherArquivos(pastaId, papel, ctx) {
     ctx.switchView('estudos');
   };
   campo.click();
+}
+
+// -------------------------------------------------------- o retrato na tela
+
+/** Como cada nível de Bloom se chama pra quem lê, e o que ele quer dizer. */
+const ROTULO_DO_NIVEL = {
+  lembrar: () => t('lembrar'),
+  entender: () => t('entender'),
+  aplicar: () => t('aplicar'),
+  analisar: () => t('analisar'),
+  avaliar: () => t('avaliar'),
+  criar: () => t('criar')
+};
+
+/**
+ * O quanto dá pra confiar, dito na cara.
+ *
+ * Com uma prova só o retrato é a descrição daquela prova. Chamar isso de padrão
+ * do professor é o erro que os preditores de prova comerciais cometem, e é o que
+ * transforma uma ferramenta útil numa que engana.
+ */
+const ROTULO_DA_CONFIANCA = {
+  palpite: () => t('ainda é palpite — só uma prova'),
+  indicio: () => t('indício — duas provas'),
+  media: () => t('razoável — falta o material de aula'),
+  boa: () => t('boa — provas e aula batendo')
+};
+
+const porcento = (fracao) => `${formatarNumero(Math.round((Number(fracao) || 0) * 100))}%`;
+
+/** Uma barra e um número: peso se lê melhor visto do que lido. */
+function linhaDePeso(rotulo, peso, citacao, extra = '') {
+  return `<div class="ret-linha">
+    <div class="ret-rot"><b>${escapeHtml(rotulo)}</b>${extra}</div>
+    <div class="progress"><span style="width:${Math.min(Math.round((Number(peso) || 0) * 100), 100)}%"></span></div>
+    <span class="ret-num">${porcento(peso)}</span>
+    ${citacao ? `<p class="ret-cita">${escapeHtml(citacao)}</p>` : ''}
+  </div>`;
+}
+
+function telaDoRetrato(host, prof, ctx) {
+  const retrato = prof.retrato;
+  const podeGerar = prof.material.provas > 0;
+
+  if (!retrato) {
+    host.innerHTML = `<div class="cd-vazio">
+      <span class="ico">${icon('sparkle', 32)}</span>
+      <b>${t('Ainda não há retrato dele')}</b>
+      <span>${
+        podeGerar
+          ? t(
+              'O Nuvo vai ler as provas que você anexou, uma por uma, e depois comparar com o material de aula. O que sai é o que ele cobra, em que formato e em que nível — com o trecho da prova do lado de cada achado.'
+            )
+          : t('Anexe pelo menos uma prova dele. Sem prova não há o que retratar.')
+      }</span>
+      <div id="ret-acao" class="row"></div>
+      <div id="ret-andar" class="ret-andar" role="status"></div>
+    </div>`;
+    if (podeGerar) botaoDeGerar(host.querySelector('#ret-acao'), prof, ctx);
+    return paintIcons(host);
+  }
+
+  const conf = retrato.confianca || {};
+  host.innerHTML = `
+    <div class="row ret-topo">
+      <span class="tag ret-conf ${escapeHtml(conf.nota || '')}">
+        ${escapeHtml((ROTULO_DA_CONFIANCA[conf.nota] || (() => t('sem nota de confiança')))())}
+      </span>
+      <span class="grow"></span>
+      <span class="meta">${escapeHtml(prof.retrato_modelo || '')}</span>
+      <span id="ret-acao"></span>
+    </div>
+    <div id="ret-andar" class="ret-andar" role="status"></div>
+
+    ${secao('file', t('Como a prova dele é'), formatoEmHtml(retrato.formato))}
+    ${secao(
+      'book',
+      t('O que ele cobra'),
+      retrato.conteudo
+        .map((c) =>
+          linhaDePeso(
+            c.tema,
+            c.peso,
+            c.citacao,
+            c.apareceu_em?.length
+              ? `<span class="meta">${escapeHtml(c.apareceu_em.join(' · '))}</span>`
+              : ''
+          )
+        )
+        .join('')
+    )}
+    ${secao(
+      'brain',
+      t('O que ele pede de você'),
+      retrato.cognitivo
+        .map((c) => linhaDePeso((ROTULO_DO_NIVEL[c.nivel] || (() => c.nivel))(), c.peso))
+        .join('')
+    )}
+    ${
+      retrato.verbos.length
+        ? secao(
+            'edit',
+            t('Como ele manda fazer'),
+            `<div class="ret-verbos">${retrato.verbos
+              .map(
+                (v) =>
+                  `<span class="tag" title="${escapeHtml(v.exemplo || '')}">${escapeHtml(
+                    v.verbo
+                  )} <b>${formatarNumero(v.vezes)}</b></span>`
+              )
+              .join('')}</div>`
+          )
+        : ''
+    }
+    ${
+      retrato.pegadinhas.length
+        ? secao(
+            'alert',
+            t('Onde ele derruba quem decorou'),
+            retrato.pegadinhas
+              .map(
+                (p) =>
+                  `<div class="ret-linha"><div class="ret-rot"><b>${escapeHtml(p.padrao)}</b></div>
+                   ${p.exemplo ? `<p class="ret-cita">${escapeHtml(p.exemplo)}</p>` : ''}</div>`
+              )
+              .join('')
+          )
+        : ''
+    }
+    ${
+      retrato.manias.length
+        ? secao('spark', t('Manias dele'), `<ul class="ret-lista">${retrato.manias
+            .map((m) => `<li>${escapeHtml(m)}</li>`)
+            .join('')}</ul>`)
+        : ''
+    }
+    ${
+      retrato.so_na_aula.length
+        ? secao(
+            'filter',
+            t('Ensina e nunca cobrou'),
+            `<p class="meta">${t(
+              'Está no material de aula e não apareceu em nenhuma prova. É o primeiro lugar onde economizar tempo.'
+            )}</p>
+             <ul class="ret-lista">${retrato.so_na_aula
+               .map((s) => `<li>${escapeHtml(s)}</li>`)
+               .join('')}</ul>`
+          )
+        : ''
+    }
+    <p class="meta ret-rodape">${t(
+      'Isto é leitura de máquina sobre as provas que você deu a ela. Confira antes de estudar por aqui: o que estiver errado, apague.'
+    )}</p>`;
+
+  botaoDeGerar(host.querySelector('#ret-acao'), prof, ctx, { refazer: true });
+  paintIcons(host);
+}
+
+function secao(ico, titulo, dentro) {
+  if (!dentro) return '';
+  return `<section class="card ret-secao">
+    <h3>${icon(ico, 17)} ${escapeHtml(titulo)}</h3>
+    ${dentro}
+  </section>`;
+}
+
+function formatoEmHtml(formato) {
+  if (!formato) return '';
+  const partes = [];
+  if (formato.n_questoes) {
+    partes.push(`<span class="tag">${plural(formato.n_questoes, '1 questão', '{n} questões')}</span>`);
+  }
+  for (const tipo of formato.tipos || []) {
+    partes.push(`<span class="tag">${escapeHtml(tipo.tipo)} <b>${porcento(tipo.peso)}</b></span>`);
+  }
+  if (!partes.length && !formato.pontuacao) return '';
+  return `<div class="ret-verbos">${partes.join('')}</div>
+    ${formato.pontuacao ? `<p class="meta">${escapeHtml(formato.pontuacao)}</p>` : ''}`;
+}
+
+/** O botão que manda montar, com a escolha da IA do lado. */
+function botaoDeGerar(host, prof, ctx, { refazer = false } = {}) {
+  if (!host) return;
+  host.innerHTML = `
+    <select id="ret-modelo" aria-label="${t('IA que monta o retrato')}">${modelOptions(
+      state.model
+    )}</select>
+    <button id="ret-gerar" class="primary" type="button">
+      <span data-icon="sparkle"></span> ${refazer ? t('Refazer o retrato') : t('Montar o retrato')}
+    </button>`;
+
+  const botao = host.querySelector('#ret-gerar');
+  const andar = host.closest('#est-retrato')?.querySelector('#ret-andar');
+  botao.onclick = async () => {
+    const ref = host.querySelector('#ret-modelo').value;
+    if (!ref) return toast(t('escolha uma IA pra montar o retrato'), 'err');
+    botao.disabled = true;
+    const passos = [];
+    const contar = (linha) => {
+      passos.push(linha);
+      if (andar) andar.textContent = passos.slice(-1)[0];
+    };
+    try {
+      await stream(`/professores/${prof.id}/retrato`, { model: ref }, (ev) => {
+        if (ev.type === 'start') {
+          contar(
+            t('lendo {provas} e {materiais}', {
+              provas: plural(ev.provas, '1 prova', '{n} provas'),
+              materiais: plural(ev.materiais, '1 material', '{n} materiais')
+            })
+          );
+        }
+        if (ev.type === 'lendo') contar(t('lendo {nome}…', { nome: ev.nome }));
+        if (ev.type === 'lida') {
+          contar(t('{nome}: {questoes}', { nome: ev.nome, questoes: plural(ev.questoes, '1 questão', '{n} questões') }));
+        }
+        if (ev.type === 'pulada') contar(t('{nome} ficou de fora — {porque}', { nome: ev.nome, porque: ev.porque }));
+        if (ev.type === 'sintetizando') contar(t('juntando tudo…'));
+        if (ev.type === 'repetindo') contar(t('a resposta veio torta, pedindo de novo…'));
+        if (ev.type === 'error') throw new Error(ev.message);
+      });
+      toast(t('retrato pronto'), 'ok');
+    } catch (err) {
+      toast(err.message || t('não deu pra montar o retrato'), 'err');
+    } finally {
+      botao.disabled = false;
+      ctx.switchView('estudos');
+    }
+  };
+  paintIcons(host);
 }

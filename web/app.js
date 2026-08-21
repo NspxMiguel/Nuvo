@@ -5,7 +5,6 @@ import {
   escapeHtml, toast, paintIcons, modelOptions, origemDoFato
 } from './core.js';
 import { icon } from './icons.js';
-import { confirmar } from './dialogo.js';
 import { ligarBrilho, roseta } from './glow.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { statsLine } from './format.js';
@@ -213,16 +212,7 @@ function chatRow(chat) {
   };
   item.querySelector('[data-act=del]').onclick = async (ev) => {
     ev.stopPropagation();
-    if (
-      !(await confirmar({
-        titulo: t('Apagar'),
-        texto: t('Apagar "{titulo}"?', { titulo: chat.title }),
-        acao: t('Apagar'),
-        perigo: true
-      }))
-    ) {
-      return;
-    }
+    if (!confirm(t('Apagar "{titulo}"?', { titulo: chat.title }))) return;
     await api(`/chats/${chat.id}`, { method: 'DELETE' });
     if (state.chatId === chat.id) newChat();
     await load();
