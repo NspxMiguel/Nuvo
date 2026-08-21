@@ -494,12 +494,28 @@ function linhaDeFonte(pasta) {
   }`;
 }
 
+/**
+ * Quem fez, dito com as duas mãos.
+ *
+ * `notebooklm+<ref>` é o caminho padrão, e `modelLabel` sozinho não conhece esse
+ * formato: a lista dizia só "default", que é o nome do modelo do CLI e não
+ * informa nada — nem quem leu, nem quem deu o toque.
+ */
+function quemFez(modelo) {
+  if (!modelo) return '';
+  if (modelo === 'notebooklm') return 'NotebookLM';
+  const [primeira, ...resto] = String(modelo).split('+');
+  return primeira === 'notebooklm' && resto.length
+    ? `NotebookLM → ${modelLabel(resto.join('+'))}`
+    : modelLabel(modelo);
+}
+
 function linhaDeSaida(s) {
   const l = acharLadrilho(s.tipo);
   return `<button class="est-feito" style="--t:var(--${l?.cor || 'slate'})" data-saida="${escapeHtml(s.id)}">
     <span class="ico">${icon(l?.ico || 'file', 18)}</span>
     <span class="rot">${escapeHtml(s.titulo)}<small>${escapeHtml(
-      [formatarData(s.created_at, { day: '2-digit', month: 'short' }), s.modelo ? modelLabel(s.modelo) : '']
+      [formatarData(s.created_at, { day: '2-digit', month: 'short' }), quemFez(s.modelo)]
         .filter(Boolean)
         .join(' · ')
     )}</small></span>
@@ -1165,7 +1181,7 @@ function desenharSaida(saida) {
         [
           l ? l.nome() : saida.tipo,
           formatarData(saida.created_at, { day: '2-digit', month: 'short' }),
-          saida.modelo ? modelLabel(saida.modelo) : ''
+          quemFez(saida.modelo)
         ]
           .filter(Boolean)
           .join(' · ')
@@ -1261,7 +1277,10 @@ function faltouEmHtml(faltou) {
 }
 
 function desenharSimulado(j) {
-  return `${j.instrucoes ? `<pre class="est-instrucoes">${escapeHtml(j.instrucoes)}</pre>` : ''}
+  // O cabeçalho da prova é o que o professor escreveria em cima da folha, não
+  // código: num `<pre>` sem regra de estilo ele saía em monoespaçada e sem
+  // quebra de linha, e um cabeçalho comprido rolava a tela pro lado.
+  return `${j.instrucoes ? `<p class="est-instrucoes">${escapeHtml(j.instrucoes)}</p>` : ''}
     ${(j.questoes || [])
       .map(
         (q) => `<div class="est-questao">

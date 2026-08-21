@@ -120,7 +120,6 @@ Fique no material, sem chutar como ele cobraria.`;
 export const FORMATOS = {
   simulado: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: true,
     titulo: (prof) => `Simulado de ${prof.materia || prof.nome}`,
     prompt: `Você escreve uma prova NOVA no estilo de um professor específico, para o aluno treinar.
 
@@ -170,7 +169,6 @@ ${REGRAS_DE_FONTE}`,
 
   guia: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: true,
     titulo: (prof) => `Guia de estudo de ${prof.materia || prof.nome}`,
     prompt: `Você escreve um guia de estudo recortado pelo que UM professor específico cobra.
 
@@ -212,7 +210,6 @@ ${REGRAS_DE_FONTE}`,
 
   flashcards: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: false,
     titulo: (prof) => `Cartões de ${prof.materia || prof.nome}`,
     prompt: `Você escreve cartões de memorização a partir de um material de estudo.
 
@@ -239,7 +236,6 @@ ${REGRAS_DE_FONTE}`,
 
   resumo: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: false,
     titulo: (prof) => `Resumo de ${prof.materia || prof.nome}`,
     prompt: `Você resume um material de estudo para quem vai fazer prova.
 
@@ -275,7 +271,6 @@ ${REGRAS_DE_FONTE}`,
 
   mapa: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: false,
     titulo: (prof) => `Mapa de ${prof.materia || prof.nome}`,
     prompt: `Você desenha o mapa mental de um material de estudo.
 
@@ -303,7 +298,6 @@ ${REGRAS_DE_FONTE}`,
 
   linha: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: false,
     titulo: (prof) => `Linha do tempo de ${prof.materia || prof.nome}`,
     prompt: `Você monta a linha do tempo do que o material descreve.
 
@@ -329,7 +323,6 @@ ${REGRAS_DE_FONTE}`,
 
   podcast: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: true,
     titulo: (prof) => `Conversa sobre ${prof.materia || prof.nome}`,
     prompt: `Você escreve o roteiro de uma conversa de dois minutos entre duas pessoas explicando a matéria.
 
@@ -351,7 +344,6 @@ ${REGRAS_DE_FONTE}`,
   },
   quiz: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: false,
     titulo: (prof) => `Quiz de ${prof.materia || prof.nome}`,
     prompt: `Você escreve um quiz de múltipla escolha pra alguém treinar rápido.
 
@@ -389,7 +381,6 @@ ${REGRAS_DE_FONTE}`,
 
   infografico: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: true,
     titulo: (prof) => `Infográfico de ${prof.materia || prof.nome}`,
     prompt: `Você resume a matéria numa página só, do jeito que cabe num cartaz.
 
@@ -431,7 +422,6 @@ ${REGRAS_DE_FONTE}`,
 
   slides: {
     papeis: ['conteudo', 'material'],
-    precisaRetrato: true,
     titulo: (prof) => `Slides de ${prof.materia || prof.nome}`,
     prompt: `Você monta uma sequência de slides pra revisar a matéria.
 

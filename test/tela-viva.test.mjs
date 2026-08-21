@@ -294,3 +294,21 @@ test('a gaveta só recolhe dentro de um professor', () => {
   assert.match(entrada, /if \(aqui\.professorId\) \{/, 'só recolhe com professor aberto');
   assert.match(entrada, /\} else \{\n {4}sairDeEstudos\(\);/, 'e devolve a gaveta na lista');
 });
+
+test('nenhuma classe do Estudos fica sem regra de estilo', () => {
+  // Trinta e nove classes do Estudos passaram a existir só no JavaScript: o
+  // desenho novo cobriu a TELA e não o que sai dela, e simulado, quiz, slides e
+  // infográfico apareciam com o HTML cru do navegador. Nada acusava, porque
+  // classe sem regra não é erro em lugar nenhum — só fica feio.
+  const js = ler('web/view-estudos.js');
+  const css = ler('web/styles.css');
+  const usadas = new Set();
+  for (const [, lista] of js.matchAll(/class="([^"$]*)"/g)) {
+    for (const nome of lista.split(/\s+/)) {
+      if (/^(est|ret|mapa|quiz|info|slide|q)-/.test(nome)) usadas.add(nome);
+    }
+  }
+  assert.ok(usadas.size > 40, `só ${usadas.size} classes encontradas — a varredura quebrou`);
+  const orfas = [...usadas].filter((n) => !css.includes(`.${n}`)).sort();
+  assert.deepEqual(orfas, [], 'classe do Estudos usada no JS e sem uma linha de CSS');
+});

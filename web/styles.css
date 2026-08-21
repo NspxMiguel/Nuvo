@@ -2607,10 +2607,10 @@ button.icon { position: relative; }
 .est-feito {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-  min-height: 48px;
-  padding: 6px 8px;
+  min-height: 0;
+  padding: 5px 8px;
   border: 0;
   border-radius: 12px;
   background: none;
@@ -2621,8 +2621,23 @@ button.icon { position: relative; }
 }
 .est-feito:active { background: var(--panel-2); }
 .est-feito .ico { color: var(--t, var(--muted)); flex: 0 0 auto; }
-.est-feito .rot { flex: 1; min-width: 0; font-size: 15px; }
-.est-feito .rot small { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
+.est-feito .rot {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.est-feito .rot small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* --- saída aberta: simulado --- */
 .est-saida { max-width: 720px; }
@@ -2778,6 +2793,309 @@ button.icon { position: relative; }
 .est-passos b { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; }
 .est-passos li.agora b { color: var(--accent); }
 .est-passos span { font-size: 13.5px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+
+/* Cabeçalho do simulado: a folha de prova começa aqui. */
+.est-instrucoes {
+  margin: 14px 0 18px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+
+
+/* --------------------------------------------------------------------------
+   O que o Estúdio produz.
+
+   Estas dez saídas nasceram sem folha de estilo: o desenho novo do Estudos
+   cobriu a TELA (colunas, retrato, material) e não o que sai dela, então o
+   simulado, o resumo, o quiz, os slides e o infográfico apareciam com o HTML
+   cru do navegador — Times New Roman, marcador redondo, `<pre>` monoespaçado,
+   questão colada na seguinte. Era a parte do app que o usuário mais espera ver
+   bonita, e a única sem uma regra sequer.
+   -------------------------------------------------------------------------- */
+
+/* --- listas e citações, compartilhadas por quase todas as saídas --- */
+.ret-lista { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 5px; }
+.ret-lista li {
+  position: relative;
+  padding-left: 15px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.ret-lista li::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0.62em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+/* A citação é o que prova a afirmação: vem do material, com a letra dele. */
+.ret-cita {
+  margin: 7px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+/* --- simulado: uma folha de prova --- */
+.est-questao {
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.est-questao:first-of-type { border-top: 0; }
+.est-q-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.est-q-topo > b { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.est-q-topo .meta { font-size: 12px; color: var(--muted); }
+/* Quanto o tema pesa no retrato, dito em cor além de palavra. */
+.est-q-topo .tag {
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.est-q-topo .tag.prob-alta { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+.est-q-topo .tag.prob-media { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.est-enunciado { margin: 0; font-size: 14.5px; line-height: 1.6; text-wrap: pretty; }
+.est-alts { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.est-alts li {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.est-gabarito { margin-top: 9px; }
+.est-gabarito > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.est-gabarito > summary::-webkit-details-marker { display: none; }
+.est-gabarito > summary::before { content: '＋'; font-weight: 400; }
+.est-gabarito[open] > summary::before { content: '−'; }
+.est-gabarito[open] > summary { margin-bottom: 7px; }
+.est-gabarito > p { margin: 0 0 5px; font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
+/* "Por que esta questão" é a régua do retrato aplicada: sai destacada, porque é
+   o que separa este simulado de um gerador de exercícios qualquer. */
+.est-gabarito > p.meta {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.est-faltou, .est-pule { margin-top: 18px; }
+
+/* --- resumo --- */
+.est-abertura {
+  margin: 14px 0 6px;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.est-secao { padding: 14px 0; border-top: 1px solid var(--line-soft); }
+.est-secao h4 { margin: 0; font-size: 14.5px; font-weight: 650; letter-spacing: -0.01em; }
+.est-termos { margin: 6px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+.est-termos dt { font-size: 13.5px; font-weight: 600; }
+.est-termos dd { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+
+/* --- guia de estudo --- */
+.ret-linha { padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.ret-linha:first-of-type { border-top: 0; }
+.ret-rot { display: flex; align-items: baseline; gap: 8px; }
+.ret-rot b { font-size: 14.5px; font-weight: 650; }
+.ret-rot .meta { font-size: 12px; color: var(--muted); }
+.ret-num {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- cartões (a lista, antes de virar revisão) --- */
+.est-cartoes { margin-top: 14px; display: grid; gap: 3px; }
+.est-cartoes > details {
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+.est-cartoes > details > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 13.5px;
+  font-weight: 550;
+  line-height: 1.45;
+}
+.est-cartoes > details > summary::-webkit-details-marker { display: none; }
+.est-cartoes > details > p { margin: 7px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.est-cartoes > details > p.meta { font-size: 11.5px; color: var(--muted); }
+
+/* --- quiz: alternativa é botão, e a correção pinta o botão --- */
+.est-quiz { margin-top: 12px; }
+.quiz-alts { display: grid; gap: 4px; margin-top: 9px; }
+.quiz-alt {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 9px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.quiz-alt:hover:not(:disabled) { background: var(--panel-2); }
+.quiz-letra {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: var(--panel-3);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+.quiz-alt.certa { background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.quiz-alt.certa .quiz-letra { background: var(--ok); color: #000; }
+.quiz-alt.errada { background: color-mix(in srgb, var(--danger) 16%, transparent); }
+.quiz-alt.errada .quiz-letra { background: var(--danger); color: #000; }
+.quiz-porque {
+  margin-top: 9px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+}
+.quiz-porque p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-2); }
+.quiz-porque p.meta { margin-top: 5px; font-size: 12px; color: var(--muted); }
+.quiz-porque .ret-cita { border-left-color: var(--accent-line); }
+
+/* --- linha do tempo --- */
+.est-linha { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 0; }
+.est-linha > li {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.est-linha > li:first-child { border-top: 0; }
+/* O "quando" da linha do tempo é rótulo de marco; o `.est-quando` da avaliação é
+   um campo de data. Mesmo nome de classe, telas diferentes — esta regra só vale
+   dentro da linha. */
+.est-linha .est-quando {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+}
+.est-linha b { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.est-linha p { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
+.est-linha p.meta { color: var(--muted); }
+
+/* --- conversa em áudio: duas vozes, uma de cada lado --- */
+.est-falas { margin-top: 14px; display: grid; gap: 7px; }
+.est-fala {
+  margin: 0;
+  max-width: 82%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  background: var(--panel);
+  font-size: 13.5px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.est-fala:nth-child(even) { justify-self: end; background: var(--accent-soft); }
+/* A fala que está tocando acende, pra dar pra acompanhar de olho. */
+.est-fala.tocando { box-shadow: inset 2px 0 0 var(--accent); background: var(--panel-2); }
+
+/* --- infográfico --- */
+.est-info { margin-top: 14px; display: grid; gap: 16px; }
+.est-info > h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.03em; line-height: 1.15; }
+.info-fina { margin: -10px 0 0; font-size: 14px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
+.info-numeros { display: flex; flex-wrap: wrap; gap: 26px; }
+.info-numeros div { display: grid; gap: 2px; }
+.info-numeros b { font-size: 24px; font-weight: 650; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.info-numeros span { font-size: 12px; color: var(--muted); }
+.info-blocos { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.info-bloco { padding: 12px 14px; border-radius: 12px; background: var(--panel); }
+.info-bloco h3 { margin: 0 0 5px; font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
+.info-bloco p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
+.info-bloco .progress { height: 4px; margin-top: 10px; }
+.info-seq { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.info-seq span {
+  padding: 5px 11px;
+  border-radius: var(--pill);
+  background: var(--panel);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.info-seq i { color: var(--muted); font-style: normal; }
+.info-lembre { margin: 0; }
+
+/* --- slides: um por vez, e cada um cabe numa folha impressa --- */
+/* O chevron do app aponta pra baixo: virar 180° dava uma seta pra cima, não
+   pra frente. Anterior e próximo são um quarto de volta pra cada lado. */
+.est-slides-topo { margin-top: 12px; }
+.est-slides-topo [data-slide] span { display: inline-flex; }
+.est-slides-topo [data-slide='-1'] span { transform: rotate(90deg); }
+.est-slides-topo [data-slide='1'] span { transform: rotate(-90deg); }
+.est-slide {
+  margin-top: 10px;
+  padding: 30px 34px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  aspect-ratio: 16 / 9;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.est-slide h3 { margin: 0 0 14px; font-size: 24px; font-weight: 650; letter-spacing: -0.03em; line-height: 1.15; }
+.est-slide ul { margin: 0; padding-left: 20px; display: grid; gap: 9px; }
+.est-slide li { font-size: 15px; line-height: 1.5; text-wrap: pretty; }
+.slide-nota { margin-top: auto; padding-top: 14px; font-size: 12px; color: var(--muted); }
+/* Impresso, todos os slides aparecem, um por página, sem o resto do app. */
+@media print {
+  body * { visibility: hidden; }
+  .est-slides, .est-slides * { visibility: visible; }
+  .est-slides { position: absolute; inset: 0; }
+  .est-slide { display: flex !important; page-break-after: always; background: none; border: 1px solid #ccc; }
+  .est-slide[hidden] { display: flex !important; }
+  .est-slides-topo { display: none; }
+}
+
+/* --- mapa mental: o texto do SVG --- */
+.mapa-centro { fill: var(--accent); }
+.mapa-centro-txt { fill: var(--on-accent); font-size: 13px; font-weight: 650; }
+.mapa-traco { fill: none; stroke-width: 1.6; opacity: 0.55; }
+.mapa-ramo { fill: var(--text); font-size: 12.5px; font-weight: 650; }
+.mapa-folha { fill: var(--muted); font-size: 11.5px; }
 
 /* Frase de apoio nas colunas: pequena, cinza, sem virar parágrafo. */
 .est-nada { font-size: 12.5px; color: var(--muted); padding: 8px 4px 0; line-height: 1.45; margin: 0; }
