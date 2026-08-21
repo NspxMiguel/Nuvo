@@ -874,6 +874,68 @@ input.rename {
 .voice-pe .icon.off { background: var(--panel); color: var(--muted); }
 .voice-pe .primary { height: 58px; padding: 0 30px; font-size: 17px; }
 
+/* --------------------------------------------------------------- diálogo */
+
+dialog.dialogo {
+  width: min(520px, calc(100vw - 32px));
+  max-width: 520px;
+  max-height: min(82dvh, 680px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--bg) 72%, transparent);
+  overflow: hidden;
+}
+dialog.dialogo[open] { animation: sobe var(--d2) var(--ease) both; }
+dialog.dialogo::backdrop {
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: fade var(--d2) var(--ease) both;
+}
+.dialogo .dialogo-card {
+  margin: 0;
+  padding: 24px;
+  background: var(--panel);
+  overflow-y: auto;
+  max-height: min(82dvh, 680px);
+}
+.dialogo-cabecalho { display: flex; align-items: center; gap: 12px; }
+.dialogo-cabecalho .ico { color: var(--accent); }
+.dialogo.perigo .dialogo-cabecalho .ico { color: var(--danger); }
+.dialogo-cabecalho h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.dialogo-texto {
+  margin: 16px 0 0;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dialogo .dialogo-field { margin: 18px 0 0; }
+.dialogo-field textarea { min-height: 132px; }
+.dialogo .dialogo-acoes { justify-content: flex-end; margin-top: 24px; }
+.dialogo .dialogo-acao.danger {
+  background: var(--danger);
+  color: var(--bg);
+  font-weight: 600;
+}
+.dialogo button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dialogo.perigo .dialogo-acao:focus-visible { outline-color: var(--danger); }
+
+@media (max-width: 520px) {
+  dialog.dialogo { width: calc(100vw - 24px); }
+  .dialogo .dialogo-card { padding: 20px; }
+  .dialogo .dialogo-acoes { display: grid; grid-template-columns: 1fr 1fr; }
+  .dialogo .dialogo-acoes button:only-child { grid-column: 1 / -1; }
+}
+
 /* ---------------------------------------------------------------- painéis */
 
 .panel { padding: 0 18px 32px; overflow-y: auto; }
@@ -2059,4 +2121,113 @@ button.icon { position: relative; }
      a duas palavras por linha. */
   .loja-item { grid-template-columns: 1fr; }
   .loja-item a { justify-self: start; }
+}
+
+/* ------------------------------------------------------------------ Estudos
+   A tela é uma coluna de caixas à esquerda e o miolo à direita, igual à gaveta
+   do app: quem estuda passa o tempo dentro de uma pasta, não escolhendo pasta.
+   No celular a coluna vira uma faixa que rola de lado, porque duas colunas em
+   360px deixam as duas ilegíveis. */
+.prof-cara {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--tint, var(--indigo));
+  color: #fff;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.prof-cara img { width: 100%; height: 100%; object-fit: cover; }
+.prof-card h3 { align-items: center; }
+
+.org-lista { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.org-op {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  min-height: var(--toque);
+}
+.org-op.sel { border-color: var(--accent); background: var(--accent-soft); }
+.org-op b { font-size: 15.5px; font-weight: 600; }
+
+.est-topo { align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.est-topo .volta { transform: rotate(90deg); }
+
+.est-grade { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 26px; align-items: start; }
+.est-pastas { min-width: 0; }
+.est-pastas .grupo-rot:first-child { padding-top: 6px; }
+.est-pastas .chat-item { width: 100%; }
+.est-corpo { min-width: 0; }
+.est-cabeca { align-items: center; gap: 8px; position: relative; }
+.est-cabeca h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+
+.est-caixas { display: flex; flex-direction: column; gap: 18px; margin-top: 14px; }
+.est-caixa h4 {
+  margin: 0 0 4px;
+  font-size: 16.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.est-arquivos { display: flex; flex-direction: column; gap: 2px; margin: 10px 0 4px; }
+.est-arquivo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: var(--toque);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 15.5px;
+}
+.est-arquivo:hover { background: var(--panel-2); }
+.est-arquivo .ico { color: var(--muted); display: flex; }
+.est-arquivo .meta { flex: 0 0 auto; font-size: 14px; }
+/* Arquivo que não deu pra ler não some da lista: some o texto dele, e a nota do
+   servidor toma o lugar da contagem de trechos. */
+.est-arquivo.ruim .ico { color: var(--warn); }
+.est-arquivo.ruim .meta { color: var(--warn); }
+
+/* O campo que nasce no lugar do nome, em vez de um diálogo por cima da tela. */
+.est-batismo { padding: 6px 10px; }
+.est-batismo input {
+  width: 100%;
+  min-height: var(--toque);
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 15.5px;
+}
+/* Apagar em dois toques: o botão diz o que vai acontecer antes de acontecer. */
+.icon.armado {
+  width: auto;
+  padding: 0 14px;
+  gap: 7px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .est-grade { grid-template-columns: 1fr; gap: 14px; }
+  .est-pastas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .est-pastas .grupo-rot { padding: 0 4px; align-self: center; white-space: nowrap; }
+  .est-pastas .grupo { display: flex; gap: 6px; }
+  .est-pastas .chat-item { width: auto; white-space: nowrap; }
+  .est-pastas .link-btn { white-space: nowrap; align-self: center; }
 }

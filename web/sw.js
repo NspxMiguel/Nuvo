@@ -12,6 +12,7 @@ const SHELL = [
   '/app.js', '/core.js',
   '/mudanca.js', '/views.js', '/icons.js', '/md.js', '/glow.js', '/format.js', '/i18n.js', '/lugar.js', '/view-loja.js',
   '/view-code.js',
+  '/view-estudos.js',
   '/requisitos.js', '/catalogo.js',
   // O manifest NÃO entra aqui. Ele carrega o token dentro do `start_url`, então
   // o servidor exige token pra devolvê-lo — e o service worker pede sem token.

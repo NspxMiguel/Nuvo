@@ -1,0 +1,524 @@
+// Estudos: um professor, o que ele cobra, e o material que prova isso.
+//
+// A tela existe pra uma coisa que nenhum leitor de PDF faz: comparar o que o
+// professor ENSINA com o que ele COBRA. Por isso o material não entra num monte
+// só. Cada pasta é uma avaliação (a A1 do primeiro trimestre) ou a aula, e
+// dentro da pasta de uma prova cada arquivo diz o que é — a prova em si ou o
+// conteúdo que ela cobrou. A diferença entre os dois é a previsão; misturar as
+// caixas apaga a comparação e sobra um resumidor comum.
+//
+// A organização é escolhida uma vez, na criação do professor, porque escola não
+// é toda igual: trimestre com A1 e A2, bimestre, semestre, ou nada disso.
+
+import { api, state, escapeHtml, paintIcons, toast, iconPicker, badge } from './core.js';
+import { icon } from './icons.js';
+import { t, plural, formatarNumero } from './i18n.js';
+
+/** Guardado aqui e não no `state`: é a navegação da tela, não dado do app. */
+const aqui = {
+  professorId: null,
+  pastaId: null,
+  aba: 'material'
+};
+
+/**
+ * As três formas de organizar, e o que cada uma faz nascer.
+ *
+ * Os nomes das pastas saem daqui, do lado do cliente, e viajam pro servidor no
+ * pedido de criação: o servidor não tem `t()`, e uma pasta semeada em português
+ * apareceria assim pra quem lê o app em inglês.
+ */
+const ORGANIZACOES = [
+  {
+    id: 'pastas',
+    nome: () => t('Pastas que eu crio'),
+    dica: () => t('Você dá o nome de cada uma. Serve pra qualquer escola.'),
+    semear: () => [{ nome: t('Material da aula'), tipo: 'material' }]
+  },
+  {
+    id: 'periodo',
+    nome: () => t('Trimestre com A1 e A2'),
+    dica: () => t('Já nasce com as seis avaliações do ano montadas.'),
+    semear: () => [
+      ...[1, 2, 3].flatMap((tri) =>
+        ['A1', 'A2'].map((prova) => ({
+          nome: t('{n}º trimestre · {prova}', { n: formatarNumero(tri), prova }),
+          tipo: 'prova'
+        }))
+      ),
+      { nome: t('Material da aula'), tipo: 'material' }
+    ]
+  },
+  {
+    id: 'etiquetas',
+    nome: () => t('Tudo junto, com etiquetas'),
+    dica: () => t('Um monte só, e você marca cada arquivo depois.'),
+    semear: () => [
+      { nome: t('Provas'), tipo: 'prova' },
+      { nome: t('Material da aula'), tipo: 'material' }
+    ]
+  }
+];
+
+/** O que um arquivo é dentro da pasta. É isto que separa aula de prova. */
+const PAPEIS = [
+  {
+    id: 'prova',
+    nome: () => t('A prova'),
+    dica: () => t('O que ele cobrou de verdade.'),
+    ico: 'file'
+  },
+  {
+    id: 'conteudo',
+    nome: () => t('O conteúdo que caiu'),
+    dica: () => t('A matéria daquela prova — o recorte que ele escolheu.'),
+    ico: 'book'
+  },
+  {
+    id: 'material',
+    nome: () => t('Material de aula'),
+    dica: () => t('O que ele ensina fora de prova nenhuma.'),
+    ico: 'layers'
+  }
+];
+
+const acharOrganizacao = (id) => ORGANIZACOES.find((o) => o.id === id) || ORGANIZACOES[0];
+const acharPapel = (id) => PAPEIS.find((p) => p.id === id) || PAPEIS[2];
+
+function painel(el, titulo, ico, dica, dentro) {
+  el.className = `view panel${el.classList.contains('entra') ? ' entra' : ''}`;
+  el.innerHTML = `<div class="panel-inner">
+      <h2><span class="ico">${icon(ico, 19)}</span> ${escapeHtml(titulo)}</h2>
+      <p class="hint">${dica}</p>
+      ${dentro}
+    </div>`;
+  return el.querySelector('.panel-inner');
+}
+
+/** A cara do professor: a foto que ele escolheu, ou a inicial do nome. */
+function retratoDoProfessor(p, tamanho = 44) {
+  const estilo = `width:${tamanho}px;height:${tamanho}px;--tint:var(--${p.cor || 'indigo'})`;
+  if (p.foto) {
+    // O endereço leva o id do professor, não o nome do arquivo, e o `?v=` muda
+    // quando a foto muda — senão o navegador continua mostrando a antiga.
+    return `<span class="prof-cara" style="${estilo}"><img src="/api/professores/${encodeURIComponent(
+      p.id
+    )}/foto?v=${encodeURIComponent(p.updated_at || '')}" alt="" /></span>`;
+  }
+  const inicial = (p.nome || '?').trim().charAt(0).toUpperCase();
+  return `<span class="prof-cara" style="${estilo}">${escapeHtml(inicial)}</span>`;
+}
+
+// ------------------------------------------------------------------- a tela
+
+export async function renderEstudos(el, ctx) {
+  if (aqui.professorId) return telaDoProfessor(el, ctx);
+  return telaDaLista(el, ctx);
+}
+
+async function telaDaLista(el, ctx) {
+  const professores = await api('/professores');
+
+  const dentro = professores.length
+    ? `<div id="prof-cards" class="grid"></div>
+       <div class="row"><button id="btn-novo-prof" class="primary" type="button">
+         <span data-icon="plus"></span> ${t('Adicionar professor')}
+       </button></div>`
+    : `<div class="cd-vazio">
+         <span class="ico">${icon('book', 34)}</span>
+         <b>${t('Comece pelo professor')}</b>
+         <span>${t(
+           'Jogue aqui as provas que ele já aplicou e o conteúdo que caiu em cada uma. Com isso o Nuvo monta o retrato dele — o que ele cobra, em que formato e em que nível — e passa a estudar com você por esse recorte, em vez de pela matéria inteira.'
+         )}</span>
+         <div class="row"><button id="btn-novo-prof" class="primary" type="button">
+           <span data-icon="plus"></span> ${t('Adicionar professor')}
+         </button></div>
+       </div>`;
+
+  const inner = painel(
+    el,
+    t('Estudos'),
+    'book',
+    t('Cada professor tem um jeito de fazer prova. Aqui a gente descobre qual é o dele.'),
+    `${dentro}<div id="prof-novo"></div>`
+  );
+
+  const cards = inner.querySelector('#prof-cards');
+  for (const p of professores) {
+    const card = document.createElement('article');
+    card.className = 'card prof-card';
+    card.style.setProperty('--tint', `var(--${p.cor || 'indigo'})`);
+    card.innerHTML = `
+      <h3>${retratoDoProfessor(p)} <span class="grow">${escapeHtml(p.nome)}</span></h3>
+      <div class="meta">${escapeHtml(p.materia || t('sem matéria'))}</div>
+      <div class="row prof-tags"></div>
+      <div class="row">
+        <button data-act="abrir" class="primary" type="button">
+          <span data-icon="folder"></span> ${t('Abrir')}
+        </button>
+      </div>`;
+    card.querySelector('[data-act=abrir]').onclick = () => {
+      aqui.professorId = p.id;
+      aqui.pastaId = null;
+      aqui.aba = 'material';
+      ctx.switchView('estudos');
+    };
+    cards?.appendChild(card);
+  }
+
+  inner.querySelector('#btn-novo-prof').onclick = () =>
+    formularioDeProfessor(inner.querySelector('#prof-novo'), ctx);
+
+  paintIcons(el);
+}
+
+/**
+ * O formulário do professor novo, com a escolha da organização.
+ *
+ * A escolha aparece aqui e não nos Ajustes porque ela é por professor: a escola
+ * dele pode ser de trimestre e o curso de fora, de módulo.
+ */
+function formularioDeProfessor(host, ctx) {
+  if (host.dataset.aberto === '1') {
+    host.innerHTML = '';
+    host.dataset.aberto = '0';
+    return;
+  }
+  host.dataset.aberto = '1';
+  host.innerHTML = `
+    <div class="card">
+      <h3>${t('Professor novo')}</h3>
+      <label class="field">${t('Nome')} <input id="pf-nome" placeholder="${t('Marcos')}" /></label>
+      <label class="field">${t('Matéria')} <input id="pf-materia" placeholder="${t('Biologia')}" /></label>
+      <label class="field">${t('Cor')}<div id="pf-cor"></div></label>
+      <div class="grupo-rot">${t('Como você quer organizar as provas dele')}</div>
+      <div id="pf-org" class="org-lista"></div>
+      <div class="row">
+        <button id="pf-criar" class="primary" type="button">
+          <span data-icon="check"></span> ${t('Criar professor')}
+        </button>
+      </div>
+    </div>`;
+
+  const escolhida = { id: 'pastas' };
+  const lista = host.querySelector('#pf-org');
+  const pintarOrg = () => {
+    lista.innerHTML = ORGANIZACOES.map(
+      (o) => `<button type="button" class="org-op${o.id === escolhida.id ? ' sel' : ''}"
+        data-org="${o.id}" aria-pressed="${o.id === escolhida.id}">
+        <b>${escapeHtml(o.nome())}</b><span class="meta">${escapeHtml(o.dica())}</span>
+      </button>`
+    ).join('');
+    for (const btn of lista.querySelectorAll('[data-org]')) {
+      btn.onclick = () => {
+        escolhida.id = btn.dataset.org;
+        pintarOrg();
+      };
+    }
+  };
+  pintarOrg();
+
+  const cor = iconPicker(host.querySelector('#pf-cor'), { icon: 'book', color: 'indigo' });
+
+  host.querySelector('#pf-criar').onclick = async () => {
+    const nome = host.querySelector('#pf-nome').value.trim();
+    if (!nome) return toast(t('o professor precisa de um nome'), 'err');
+    const org = acharOrganizacao(escolhida.id);
+    const novo = await api('/professores', {
+      method: 'POST',
+      body: {
+        nome,
+        materia: host.querySelector('#pf-materia').value.trim() || null,
+        cor: cor.color,
+        organizacao: org.id,
+        pastas: org.semear()
+      }
+    });
+    aqui.professorId = novo.id;
+    aqui.pastaId = novo.pastas[0]?.id || null;
+    ctx.switchView('estudos');
+    toast(t('professor criado'), 'ok');
+  };
+
+  paintIcons(host);
+}
+
+// ------------------------------------------------------------- o professor
+
+async function telaDoProfessor(el, ctx) {
+  let prof;
+  try {
+    prof = await api(`/professores/${aqui.professorId}`);
+  } catch {
+    // Apagado noutra aba, ou o banco trocado por um backup: voltar pra lista é
+    // melhor do que uma tela de erro que não tem saída.
+    aqui.professorId = null;
+    return telaDaLista(el, ctx);
+  }
+
+  const provas = prof.pastas.filter((p) => p.tipo === 'prova');
+  const materiais = prof.pastas.filter((p) => p.tipo === 'material');
+  if (!aqui.pastaId || !prof.pastas.some((p) => p.id === aqui.pastaId)) {
+    aqui.pastaId = prof.pastas[0]?.id || null;
+  }
+
+  const inner = painel(
+    el,
+    prof.nome,
+    'book',
+    escapeHtml(prof.materia || t('sem matéria')),
+    `<div class="row est-topo">
+       <button id="est-voltar" class="ghost" type="button">
+         <span data-icon="chevron" class="volta"></span> ${t('Todos os professores')}
+       </button>
+       <span class="grow"></span>
+       <span class="tag">${plural(prof.material.provas, '1 prova', '{n} provas')}</span>
+       <span class="tag">${plural(prof.material.conteudos, '1 conteúdo', '{n} conteúdos')}</span>
+       <span class="tag">${plural(prof.material.materiais, '1 material', '{n} materiais')}</span>
+     </div>
+     <div class="est-grade">
+       <aside class="est-pastas">
+         <div class="grupo-rot">${t('Avaliações')}</div>
+         <div id="est-provas" class="grupo"></div>
+         <button id="est-nova-prova" class="link-btn" type="button">
+           <span data-icon="plus" data-size="16"></span> ${t('Nova avaliação')}
+         </button>
+         <div class="grupo-rot">${t('Fora de prova')}</div>
+         <div id="est-materiais" class="grupo"></div>
+         <button id="est-nova-pasta" class="link-btn" type="button">
+           <span data-icon="plus" data-size="16"></span> ${t('Nova pasta')}
+         </button>
+       </aside>
+       <section id="est-corpo" class="est-corpo"></section>
+     </div>`
+  );
+
+  const linhaDaPasta = (pasta) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `chat-item${pasta.id === aqui.pastaId ? ' active' : ''}`;
+    const quantos = pasta.anexos.length;
+    btn.innerHTML = `<span class="grow">${escapeHtml(pasta.nome)}</span>
+      <span class="badge-n">${quantos ? formatarNumero(quantos) : ''}</span>`;
+    btn.onclick = () => {
+      aqui.pastaId = pasta.id;
+      ctx.switchView('estudos');
+    };
+    return btn;
+  };
+
+  const caixaProvas = inner.querySelector('#est-provas');
+  const caixaMateriais = inner.querySelector('#est-materiais');
+  if (!provas.length) {
+    caixaProvas.innerHTML = `<p class="meta">${t('nenhuma avaliação ainda')}</p>`;
+  }
+  for (const pasta of provas) caixaProvas.appendChild(linhaDaPasta(pasta));
+  for (const pasta of materiais) caixaMateriais.appendChild(linhaDaPasta(pasta));
+
+  inner.querySelector('#est-voltar').onclick = () => {
+    aqui.professorId = null;
+    aqui.pastaId = null;
+    ctx.switchView('estudos');
+  };
+  inner.querySelector('#est-nova-prova').onclick = () =>
+    criarPasta(prof, 'prova', ctx, caixaProvas);
+  inner.querySelector('#est-nova-pasta').onclick = () =>
+    criarPasta(prof, 'material', ctx, caixaMateriais);
+
+  const pasta = prof.pastas.find((p) => p.id === aqui.pastaId);
+  await corpoDaPasta(inner.querySelector('#est-corpo'), prof, pasta, ctx);
+
+  paintIcons(el);
+}
+
+/**
+ * Nome novo escrito no lugar onde a coisa vai ficar, e não numa caixa por cima.
+ *
+ * Diálogo de navegador trava a janela e, num app sem barra de endereço, parece
+ * defeito do sistema. Aqui o campo nasce na lista, com o nome sugerido já
+ * selecionado: Enter confirma, Esc desiste, e quem só queria ver a lista não
+ * precisou fechar nada.
+ */
+function pedirNome(host, { valor = '', dica = '', aoConfirmar }) {
+  const linha = document.createElement('div');
+  linha.className = 'est-batismo';
+  linha.innerHTML = `<input type="text" aria-label="${dica || t('nome')}" placeholder="${escapeHtml(
+    dica
+  )}" />`;
+  host.appendChild(linha);
+  const campo = linha.querySelector('input');
+  campo.value = valor;
+  campo.focus();
+  campo.select();
+
+  let fechado = false;
+  const sair = () => {
+    if (fechado) return;
+    fechado = true;
+    linha.remove();
+  };
+  campo.onkeydown = (ev) => {
+    if (ev.key === 'Escape') {
+      ev.stopPropagation();
+      return sair();
+    }
+    if (ev.key !== 'Enter') return;
+    const nome = campo.value.trim();
+    sair();
+    if (nome) aoConfirmar(nome);
+  };
+  // Clicar fora é desistir, não confirmar: confirmar o que a pessoa não terminou
+  // de escrever cria pasta com nome pela metade.
+  campo.onblur = sair;
+  return linha;
+}
+
+function criarPasta(prof, tipo, ctx, host) {
+  pedirNome(host, {
+    dica: tipo === 'prova' ? t('A1 do 1º trimestre') : t('Nome da pasta'),
+    aoConfirmar: async (nome) => {
+      const pasta = await api(`/professores/${prof.id}/pastas`, {
+        method: 'POST',
+        body: { nome, tipo }
+      });
+      aqui.pastaId = pasta.id;
+      ctx.switchView('estudos');
+    }
+  });
+}
+
+/**
+ * O miolo: os arquivos da pasta aberta, separados pelo papel que exercem.
+ *
+ * Numa pasta de prova as três caixas aparecem, e as duas primeiras são as que
+ * importam. Numa pasta de aula só existe material, e mostrar as outras duas
+ * vazias só convidaria a jogar prova no lugar errado.
+ */
+async function corpoDaPasta(host, prof, pasta, ctx) {
+  if (!pasta) {
+    host.innerHTML = `<div class="cd-vazio">
+      <span class="ico">${icon('folder', 30)}</span>
+      <b>${t('Nenhuma pasta ainda')}</b>
+      <span>${t('Crie a primeira avaliação dele aqui do lado.')}</span>
+    </div>`;
+    return paintIcons(host);
+  }
+
+  const papeis = pasta.tipo === 'prova' ? PAPEIS : PAPEIS.filter((p) => p.id === 'material');
+
+  host.innerHTML = `
+    <div class="row est-cabeca">
+      <h3 class="grow">${escapeHtml(pasta.nome)}</h3>
+      <button data-act="ren" class="icon" type="button" title="${t('renomear')}"
+        aria-label="${t('renomear a pasta')}"><span data-icon="edit" data-size="18"></span></button>
+      <button data-act="del" class="icon danger" type="button" title="${t('apagar')}"
+        aria-label="${t('apagar a pasta')}"><span data-icon="trash" data-size="18"></span></button>
+    </div>
+    <div class="est-caixas"></div>`;
+
+  const caixas = host.querySelector('.est-caixas');
+  for (const papel of papeis) {
+    const dela = pasta.anexos.filter((a) => a.papel === papel.id);
+    const caixa = document.createElement('div');
+    caixa.className = 'card est-caixa';
+    caixa.innerHTML = `
+      <h4>${icon(papel.ico, 17)} ${escapeHtml(papel.nome())}
+        <span class="tag">${dela.length ? formatarNumero(dela.length) : t('vazio')}</span>
+      </h4>
+      <p class="meta">${escapeHtml(papel.dica())}</p>
+      <div class="est-arquivos"></div>
+      <div class="row">
+        <button data-add="${papel.id}" class="ghost" type="button">
+          <span data-icon="plus" data-size="16"></span> ${t('Adicionar arquivo')}
+        </button>
+      </div>`;
+
+    const lista = caixa.querySelector('.est-arquivos');
+    for (const anexo of dela) {
+      const linha = document.createElement('div');
+      linha.className = `est-arquivo${anexo.status === 'ok' ? '' : ' ruim'}`;
+      linha.innerHTML = `<span class="ico">${icon('file', 16)}</span>
+        <span class="grow">${escapeHtml(anexo.name)}</span>
+        <span class="meta">${
+          anexo.status === 'ok'
+            ? plural(anexo.chunks || 0, '1 trecho', '{n} trechos')
+            : escapeHtml(anexo.note || t('não deu pra ler'))
+        }</span>
+        <button data-del="${anexo.id}" class="icon" type="button" title="${t('apagar')}"
+          aria-label="${t('apagar {nome}', { nome: escapeHtml(anexo.name) })}">
+          <span data-icon="trash" data-size="16"></span></button>`;
+      linha.querySelector('[data-del]').onclick = async () => {
+        await api(`/attachments/${anexo.id}`, { method: 'DELETE' });
+        ctx.switchView('estudos');
+      };
+      lista.appendChild(linha);
+    }
+    if (!dela.length) lista.innerHTML = `<p class="meta">${t('nada aqui ainda')}</p>`;
+
+    caixa.querySelector('[data-add]').onclick = () => escolherArquivos(pasta.id, papel.id, ctx);
+    caixas.appendChild(caixa);
+  }
+
+  const cabeca = host.querySelector('.est-cabeca');
+  host.querySelector('[data-act=ren]').onclick = () => {
+    pedirNome(cabeca, {
+      valor: pasta.nome,
+      dica: t('Nome da pasta'),
+      aoConfirmar: async (nome) => {
+        await api(`/pastas/${pasta.id}`, { method: 'PATCH', body: { nome } });
+        ctx.switchView('estudos');
+      }
+    });
+  };
+
+  // Apagar pede confirmação no próprio botão, em dois toques. Some sozinho se a
+  // pessoa não confirmar: um botão vermelho armado pra sempre é armadilha.
+  const apagar = host.querySelector('[data-act=del]');
+  let armado = 0;
+  apagar.onclick = async () => {
+    if (!armado) {
+      armado = window.setTimeout(() => {
+        armado = 0;
+        apagar.classList.remove('armado');
+        apagar.innerHTML = icon('trash', 18);
+      }, 4000);
+      apagar.classList.add('armado');
+      apagar.innerHTML = `${icon('trash', 16)} <span>${t('apagar mesmo?')}</span>`;
+      return;
+    }
+    window.clearTimeout(armado);
+    await api(`/pastas/${pasta.id}`, { method: 'DELETE' });
+    aqui.pastaId = null;
+    ctx.switchView('estudos');
+  };
+
+  paintIcons(host);
+}
+
+/** Abre o seletor de arquivos e sobe um por um, dizendo o papel de cada. */
+function escolherArquivos(pastaId, papel, ctx) {
+  const campo = document.createElement('input');
+  campo.type = 'file';
+  campo.multiple = true;
+  campo.onchange = async () => {
+    const arquivos = [...(campo.files || [])];
+    if (!arquivos.length) return;
+    let erros = 0;
+    for (const arquivo of arquivos) {
+      try {
+        await api(
+          `/attachments?pasta=${encodeURIComponent(pastaId)}&papel=${encodeURIComponent(
+            papel
+          )}&name=${encodeURIComponent(arquivo.name)}`,
+          { method: 'POST', body: await arquivo.arrayBuffer(), raw: true }
+        );
+      } catch {
+        erros += 1;
+      }
+    }
+    if (erros) toast(plural(erros, '1 arquivo não entrou', '{n} arquivos não entraram'), 'err');
+    else toast(plural(arquivos.length, '1 arquivo entrou', '{n} arquivos entraram'), 'ok');
+    ctx.switchView('estudos');
+  };
+  campo.click();
+}

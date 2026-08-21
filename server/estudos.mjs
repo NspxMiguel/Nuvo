@@ -8,7 +8,11 @@
 //
 // Nada aqui chama modelo. Isto é o armário; quem lê e conclui é o retrato.
 
+import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { basename, join } from 'node:path';
+
 import { all, one, run, tx, uid, now, parseJSON } from './db.mjs';
+import { UPLOAD_DIR } from './config.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
 import { deleteAttachmentsOf, listAttachments } from './documents.mjs';
 
@@ -122,6 +126,66 @@ export function apagarProfessor(id) {
   for (const pasta of pastasDo(id)) deleteAttachmentsOf({ pastaId: pasta.id });
   run('DELETE FROM professores WHERE id = ?', id);
   return { ok: true };
+}
+
+/**
+ * A foto do professor.
+ *
+ * Guardada em `~/.nuvo/uploads` como qualquer anexo, e servida por uma rota que
+ * recebe o id do professor — nunca o nome do arquivo. Nome de arquivo na URL é
+ * como se pede `../../.ssh/id_rsa` a um servidor educado.
+ *
+ * O tipo é decidido pelos primeiros bytes, e não pelo `content-type` que o
+ * navegador mandou nem pela extensão: os dois são escolha de quem envia.
+ */
+const ASSINATURAS = [
+  { mime: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47] },
+  { mime: 'image/jpeg', bytes: [0xff, 0xd8, 0xff] },
+  { mime: 'image/webp', bytes: [0x52, 0x49, 0x46, 0x46], em: 8, mais: [0x57, 0x45, 0x42, 0x50] }
+];
+
+const LIMITE_DA_FOTO = 4 * 1024 * 1024;
+
+export function tipoDaImagem(buffer) {
+  for (const a of ASSINATURAS) {
+    const cabe = a.bytes.every((b, i) => buffer[i] === b);
+    const resto = !a.mais || a.mais.every((b, i) => buffer[a.em + i] === b);
+    if (cabe && resto) return a.mime;
+  }
+  return null;
+}
+
+export function guardarFoto(professorId, buffer) {
+  acharProfessor(professorId);
+  exigir(buffer?.length, 'chegou um arquivo vazio');
+  exigir(buffer.length <= LIMITE_DA_FOTO, 'a foto passa de 4 MB');
+  const mime = tipoDaImagem(buffer);
+  exigir(mime, 'a foto precisa ser PNG, JPG ou WebP');
+
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+  const nome = `prof-${professorId}.${mime.split('/')[1]}`;
+  writeFileSync(join(UPLOAD_DIR, nome), buffer);
+  // A anterior pode ter outra extensão: sem apagar, sobra lixo no disco a cada troca.
+  const antiga = one('SELECT foto FROM professores WHERE id = ?', professorId)?.foto;
+  if (antiga && antiga !== nome) {
+    try {
+      unlinkSync(join(UPLOAD_DIR, antiga));
+    } catch {
+      /* já não estava lá */
+    }
+  }
+  run('UPDATE professores SET foto = ?, updated_at = ? WHERE id = ?', nome, now(), professorId);
+  return verProfessor(professorId);
+}
+
+export function lerFoto(professorId) {
+  const nome = acharProfessor(professorId).foto;
+  exigirExiste(nome, 'este professor não tem foto');
+  // `basename` porque o que está no banco só pode ser um nome simples — se um dia
+  // virar caminho, ele para aqui em vez de sair da pasta de uploads.
+  const caminho = join(UPLOAD_DIR, basename(nome));
+  const buffer = readFileSync(caminho);
+  return { buffer, mime: tipoDaImagem(buffer) || 'application/octet-stream' };
 }
 
 // ------------------------------------------------------------------ pastas

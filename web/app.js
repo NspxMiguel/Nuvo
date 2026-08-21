@@ -5,6 +5,7 @@ import {
   escapeHtml, toast, paintIcons, modelOptions, origemDoFato
 } from './core.js';
 import { icon } from './icons.js';
+import { confirmar } from './dialogo.js';
 import { ligarBrilho, roseta } from './glow.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { statsLine } from './format.js';
@@ -13,6 +14,7 @@ import {
 } from './i18n.js';
 import { views } from './views.js';
 import { renderCode } from './view-code.js';
+import { renderEstudos } from './view-estudos.js';
 import {
   lerRequisitos, faltaAlgo, cartaoRequisitos, ligarRequisitos,
   faltaEscolherNavegador, perguntarNavegador
@@ -26,6 +28,7 @@ const brilho = ligarBrilho($('#glow'));
 // A tela de programar mora num arquivo só dela: ela é a única que tem conversa
 // e painel na mesma tela, e junto das outras dobraria o views.js.
 views.code = renderCode;
+views.estudos = renderEstudos;
 
 // -------------------------------------------------------------------- tema
 
@@ -210,7 +213,16 @@ function chatRow(chat) {
   };
   item.querySelector('[data-act=del]').onclick = async (ev) => {
     ev.stopPropagation();
-    if (!confirm(t('Apagar "{titulo}"?', { titulo: chat.title }))) return;
+    if (
+      !(await confirmar({
+        titulo: t('Apagar'),
+        texto: t('Apagar "{titulo}"?', { titulo: chat.title }),
+        acao: t('Apagar'),
+        perigo: true
+      }))
+    ) {
+      return;
+    }
     await api(`/chats/${chat.id}`, { method: 'DELETE' });
     if (state.chatId === chat.id) newChat();
     await load();

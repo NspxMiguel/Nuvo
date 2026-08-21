@@ -54,6 +54,8 @@ import {
   verProfessor,
   atualizarProfessor,
   apagarProfessor,
+  guardarFoto,
+  lerFoto,
   criarPasta,
   atualizarPasta,
   apagarPasta,
@@ -743,6 +745,16 @@ export async function handleApi(req, res, url) {
     if (method === 'GET') return json(res, verProfessor(seg[1]));
     if (method === 'PATCH') return json(res, atualizarProfessor(seg[1], await readJSON(req)));
     if (method === 'DELETE') return json(res, apagarProfessor(seg[1]));
+  }
+  if (seg[0] === 'professores' && seg[1] && seg[2] === 'foto') {
+    if (method === 'POST') return json(res, guardarFoto(seg[1], await readBuffer(req, 8 * 1024 * 1024)));
+    if (method === 'GET') {
+      const { buffer, mime } = lerFoto(seg[1]);
+      // Sem cache no navegador: trocar a foto e continuar vendo a antiga é o
+      // tipo de defeito que a pessoa acha que é dela.
+      res.writeHead(200, { 'content-type': mime, 'cache-control': 'no-store' });
+      return res.end(buffer);
+    }
   }
   if (seg[0] === 'professores' && seg[1] && seg[2] === 'pastas') {
     if (method === 'POST' && !seg[3]) return json(res, criarPasta(seg[1], await readJSON(req)));
