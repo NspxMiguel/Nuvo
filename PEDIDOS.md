@@ -5,6 +5,23 @@ estiver entregue e conferido.
 
 ---
 
+## 21/08/2026 — o app está confuso
+
+> "o app ta bem confuso, a a2 ja foi ou nao? como recebo resumo? testa tudo ai e
+> me coloca o app na tela"
+
+Duas perguntas que a tela não respondia, e as duas viraram conserto:
+
+- [x] **"a A2 já foi ou não?"** — avaliação passou a ter dia, e a linha diz em
+      palavras: já foi · é hoje · é amanhã · em 3 dias · 30 de set. · sem data.
+      A cor diz antes de a pessoa ler. A lista ordena pelo que importa: o que
+      vem primeiro e mais perto no topo, depois as sem data, e as que já foram
+      por último.
+- [x] **"como recebo resumo?"** — os geradores moravam só na coluna da direita,
+      e quem abre uma prova está olhando pro meio. Resumo, simulado, cartões e
+      guia agora ficam embaixo das três caixas da avaliação aberta, com o resumo
+      em primeiro — que foi o que ele procurou e não achou.
+
 ## 21/08/2026 — o NotebookLM pelo app, e o teste completo
 
 > "coloca opcao de usar ate o notebboklm pelo nosso app"
