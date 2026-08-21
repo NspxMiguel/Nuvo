@@ -1467,22 +1467,22 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
     border-radius: var(--pill);
     color: var(--muted);
   }
-  .cfg-rail .busca input { border: 0; background: none; padding: 11px 0; flex: 1; min-width: 0; font-size: 15px; color: var(--text); }
+  .cfg-rail .busca input { border: 0; background: none; padding: 7px 0; flex: 1; min-width: 0; font-size: 14px; color: var(--text); }
   .cfg-rail .busca input:focus { box-shadow: none; }
-  .cfg-rot { font-size: 13px; color: var(--muted); padding: 18px 14px 6px; }
+  .cfg-rot { font-size: 12px; color: var(--muted); padding: 14px 11px 4px; }
   .cfg-item {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 12px;
+    gap: 11px;
     width: 100%;
-    min-height: 42px;
-    padding: 8px 14px;
+    min-height: 32px;
+    padding: 5px 11px;
     background: none;
     border: 0;
     border-radius: var(--radius);
     color: var(--text-2);
-    font-size: 15.5px;
+    font-size: 14px;
     text-align: left;
     cursor: pointer;
   }
@@ -1492,8 +1492,8 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
   .cfg-item.sel > .ico { color: var(--text); }
 
   .cfg-corpo { overflow-y: auto; padding: 16px 26px 44px 30px; min-width: 0; }
-  .cfg-corpo h3 { font-size: 21px; font-weight: 650; letter-spacing: -0.02em; margin: 8px 0 4px; }
-  .cfg-corpo h4 { font-size: 15px; font-weight: 600; color: var(--muted); margin: 32px 0 0; }
+  .cfg-corpo h3 { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; margin: 6px 0 4px; }
+  .cfg-corpo h4 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 26px 0 0; }
   /* linha de ajuste: rótulo e explicação à esquerda, controle à direita */
   .cfg-lin {
     display: grid;
@@ -1504,8 +1504,8 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
     border-top: 1px solid var(--line-soft);
   }
   .cfg-lin:first-of-type { border-top: 0; }
-  .cfg-lin .rot { font-size: 16px; }
-  .cfg-lin .rot small { display: block; font-size: 14px; color: var(--muted); margin-top: 4px; max-width: 62ch; line-height: 1.5; text-wrap: pretty; }
+  .cfg-lin .rot { font-size: 14.5px; }
+  .cfg-lin .rot small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 4px; max-width: 62ch; line-height: 1.5; text-wrap: pretty; }
   .cfg-lin .ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
   .cfg-lin input[type='text'], .cfg-lin select { flex: 1 1 220px; min-width: 0; max-width: 380px; }
   .cfg-lin textarea { width: 100%; min-height: 150px; }
@@ -1634,8 +1634,14 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
   .msg .actions { opacity: 0; transition: opacity var(--d1) var(--ease); }
   .msg:hover .actions { opacity: 1; }
 
+  /* Título de tela de 28 px numa coluna de 760 px é cartaz, não cabeçalho: o
+     nome da tela já está aceso na gaveta e não precisa gritar de novo. */
   .panel { padding: 4px 24px 40px; }
-  .panel h2 { font-size: 28px; }
+  .panel h2 { font-size: 22px; margin: 4px 0 6px; }
+  .panel p.hint { font-size: 14px; margin-bottom: 20px; }
+  .panel h3.sec { font-size: 12.5px; margin: 22px 0 6px; }
+  .vazio h1 { font-size: 26px; }
+  .vazio h1 span { font-size: 15px; }
   .grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 
   /* o painel de ajustes deixa de ser folha de baixo e vira faixa no topo */

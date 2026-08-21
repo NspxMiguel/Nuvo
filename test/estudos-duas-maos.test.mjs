@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { useTempHome, cliFalso, collect } from './helpers.mjs';
 
 const home = useTempHome();
-const { gerarFormato } = await import('../server/estudos-formatos.mjs');
+const { gerarFormato, esquecerFalhaDoNotebookLM } = await import('../server/estudos-formatos.mjs');
 const { criarProfessor } = await import('../server/estudos.mjs');
 const { addAttachment } = await import('../server/documents.mjs');
 const { run, uid, now } = await import('../server/db.mjs');
@@ -92,6 +92,9 @@ const RETRATO = {
 };
 
 async function palco({ comRetrato = true } = {}) {
+  // Cada teste começa com o NotebookLM valendo de novo: o descanso de meia hora
+  // depois de uma falha é comportamento de produção, não estado entre testes.
+  esquecerFalhaDoNotebookLM();
   const prof = criarProfessor({
     nome: 'Ricardo Alves',
     materia: 'Biologia',
@@ -207,6 +210,29 @@ test('pedido com notebooklm desligado nem tenta abrir a tela do Google', async (
     assert.equal(eventos.find((e) => e.type === 'start').rascunho, null);
     assert.equal(eventos.find((e) => e.type === 'etapa').o_que, 'sozinho');
     assert.ok(existsSync(espelho));
+  } finally {
+    falso.limpar();
+  }
+});
+
+test('depois de o NotebookLM cair, a geração seguinte não paga o pedágio de novo', async () => {
+  const prof = await palco();
+  const espelho = join(home.dir, 'pedido-6.txt');
+  const { ref, falso } = iaDeMentira(espelho);
+  try {
+    await collect(
+      gerarFormato({ professorId: prof.id, tipo: 'resumo', ref, sessao: new SessaoFalsa({ fora: true }) })
+    );
+    // Segunda tentativa: nem tenta abrir a tela, e diz isso desde o start.
+    const eventos = await collect(
+      gerarFormato({ professorId: prof.id, tipo: 'resumo', ref, sessao: new SessaoFalsa({ fora: true }) })
+    );
+    assert.equal(eventos.find((e) => e.type === 'start').rascunho, null);
+    assert.equal(
+      eventos.some((e) => e.type === 'passo' && /não respondeu/.test(e.o_que || '')),
+      false,
+      'não repete o aviso porque nem tentou'
+    );
   } finally {
     falso.limpar();
   }

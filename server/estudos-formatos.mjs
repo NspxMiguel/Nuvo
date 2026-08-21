@@ -77,6 +77,26 @@ function ehRefDoNotebookLM(ref) {
   }
 }
 
+/**
+ * Memória curta de quando o NotebookLM falhou.
+ *
+ * Tentar a primeira mão é abrir um Chrome sem janela e dirigir a tela do Google;
+ * quando a sessão caiu, isso custa uns vinte segundos antes de desistir. Sem
+ * lembrar da falha, cada geração pagaria esse pedágio de novo — e o padrão
+ * "NotebookLM primeiro" viraria "o app trava vinte segundos toda vez".
+ *
+ * Meia hora é curto o bastante pra ele entrar na conta e voltar a valer sem
+ * reiniciar nada, e longo o bastante pra uma tarde de estudo não pagar duas vezes.
+ */
+const DESCANSO = 30 * 60 * 1000;
+let caiuEm = 0;
+const descansando = () => caiuEm > 0 && Date.now() - caiuEm < DESCANSO;
+
+/** Só pros testes: esquece a última falha. */
+export function esquecerFalhaDoNotebookLM() {
+  caiuEm = 0;
+}
+
 /** Segunda mão: o que dizer quando a leitura veio pronta de fora. */
 const RASCUNHO_ALHEIO = `O material abaixo já vem lido e organizado por outra ferramenta.
 Não é fonte nova: não acrescente fato que não esteja nele, e não repita a estrutura dele por preguiça.
@@ -540,13 +560,14 @@ export async function* gerarFormato({
   const professor = acharProfessor(professorId);
   const soNotebookLM = ehRefDoNotebookLM(ref);
 
+  const primeiraMao = soNotebookLM || (notebooklm && !descansando());
   yield {
     type: 'start',
     tipo,
     modelo: soNotebookLM ? 'NotebookLM' : describeModel(ref),
     // Quem lê é uma coisa, quem finaliza é outra: a tela mostra as duas etapas
     // porque elas demoram e a pessoa precisa saber em qual está.
-    rascunho: soNotebookLM || notebooklm ? 'NotebookLM' : null,
+    rascunho: primeiraMao ? 'NotebookLM' : null,
     toque: soNotebookLM ? null : describeModel(ref),
     retrato: !!professor.retrato,
     arquivos: 0,
@@ -555,12 +576,14 @@ export async function* gerarFormato({
 
   // --- primeira mão -------------------------------------------------------
   let rascunho = null;
-  if (soNotebookLM || notebooklm) {
+  if (soNotebookLM || (notebooklm && !descansando())) {
     try {
       rascunho = yield* rascunhoDoNotebookLM({ professorId, tipo, formato, pastas, signal, sessao });
+      if (rascunho) caiuEm = 0;
     } catch (err) {
       if (signal?.aborted) return;
       if (soNotebookLM) throw err;
+      caiuEm = Date.now();
       yield { type: 'passo', o_que: 'o NotebookLM não respondeu; lendo o material aqui mesmo' };
     }
   }
