@@ -180,3 +180,22 @@ test('parar fecha a bolha de espera na hora', () => {
   assert.match(stop, /pararEspera\(\)/, 'o botão de parar fecha antes de abortar');
   assert.match(app, /pararEspera\(\);\n    state\.streaming\.abort\(\)/, 'e o Esc também');
 });
+
+test('dá pra arquivar e desarquivar, não só ver arquivadas', () => {
+  // A gaveta mostrava "ver arquivadas" e o servidor já sabia arquivar, mas não
+  // havia ação em lugar nenhum: era uma lista onde nada entrava e de onde nada
+  // saía.
+  const app = ler('web/app.js');
+  assert.match(app, /async function arquivarConversa\(/, 'existe a ação');
+  assert.match(app, /label: t\('Arquivar esta conversa'\)/, 'alcançável pela paleta');
+  assert.match(app, /data-act=unarchive/, 'e a volta fica na própria linha da arquivada');
+});
+
+test('a busca dos ajustes procura dentro das seções', () => {
+  // Procurar "foto" não achava nada, embora "Quem lê foto" esteja em IAs
+  // ligadas: a busca só olhava o nome das seções.
+  const views = ler('web/views.js');
+  assert.match(views, /const dentroDaSecao = new Map\(\)/, 'o conteúdo de cada seção é indexado');
+  assert.match(views, /corpo\.includes\(alvo\)/, 'e entra na comparação');
+  assert.match(views, /painel\.hidden = !!alvo && achou === 0/, 'sem resultado, o corpo some junto');
+});

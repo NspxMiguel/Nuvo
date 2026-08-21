@@ -906,19 +906,40 @@ async function gerar(el, prof, botao, ref, ctx) {
   const antes = rotulo?.textContent;
   botao.classList.add('ocupado');
   botao.disabled = true;
-  if (rotulo) rotulo.textContent = t('gerando…');
+
+  // O relógio andando é o que separa "está trabalhando" de "travou".
+  //
+  // Um simulado leva de trinta segundos a um minuto, e um rótulo parado em
+  // "gerando…" nesse tempo parece a tela morta — foi assim que apareceu no teste.
+  // Os dois primeiros segundos ficam sem número: um "1 s" que pisca e some é
+  // ruído, não informação.
+  const inicio = Date.now();
+  let fase = t('gerando…');
+  const pintar = () => {
+    if (!rotulo) return;
+    const seg = Math.round((Date.now() - inicio) / 1000);
+    rotulo.textContent = seg >= 2 ? `${fase} ${formatarNumero(seg)} s` : fase;
+  };
+  pintar();
+  const relogio = window.setInterval(pintar, 1000);
 
   const pastas = prof.pastas.filter((p) => !aqui.fora.has(p.id)).map((p) => p.id);
   try {
     await stream(`/professores/${prof.id}/gerar`, { tipo, model: ref, pastas }, (ev) => {
-      if (ev.type === 'repetindo' && rotulo) rotulo.textContent = t('de novo…');
+      if (ev.type === 'start' && ev.arquivos) {
+        fase = t('lendo {arquivos}…', { arquivos: plural(ev.arquivos, '1 arquivo', '{n} arquivos') });
+      }
+      if (ev.type === 'passo' && ev.o_que) fase = ev.o_que;
+      if (ev.type === 'repetindo') fase = t('de novo…');
       if (ev.type === 'pronto') aqui.saidaAberta = ev.saida.id;
       if (ev.type === 'error') throw new Error(ev.message);
+      pintar();
     });
     toast(t('pronto'), 'ok');
   } catch (err) {
     toast(err.message || t('não deu pra gerar'), 'err');
   } finally {
+    window.clearInterval(relogio);
     botao.classList.remove('ocupado');
     botao.disabled = false;
     if (rotulo && antes) rotulo.textContent = antes;

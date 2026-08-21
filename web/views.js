@@ -1725,13 +1725,38 @@ views.settings = async function renderSettings(el, { switchView, applyTheme, apl
     vazio.className = 'cfg-rot';
     vazio.hidden = true;
     trilha.appendChild(vazio);
+    // O que existe DENTRO de cada seção também é procurável.
+    //
+    // Antes a busca olhava só o nome das seções, então procurar "foto" não
+    // achava nada — embora "Quem lê foto" esteja em IAs ligadas. Cada seção é
+    // uma função pura de template: dá pra desenhar uma vez, escondida, e guardar
+    // o texto pra comparar.
+    const dentroDaSecao = new Map();
+    const rascunho = document.createElement('div');
+    for (const [chave, monta] of Object.entries(CFG_SECOES)) {
+      try {
+        rascunho.innerHTML = monta(settings, pendente);
+        dentroDaSecao.set(chave, rascunho.textContent.toLowerCase());
+      } catch {
+        dentroDaSecao.set(chave, '');
+      }
+    }
+    rascunho.innerHTML = '';
+
+    const painel = el.querySelector('.cfg-corpo');
+
     busca.oninput = () => {
       const alvo = busca.value.trim().toLowerCase();
       let achou = 0;
       for (const b of el.querySelectorAll('.cfg-item')) {
-        b.hidden = !!alvo && !b.textContent.toLowerCase().includes(alvo);
+        const nome = b.textContent.toLowerCase();
+        const corpo = dentroDaSecao.get(b.dataset.secao) || '';
+        b.hidden = !!alvo && !nome.includes(alvo) && !corpo.includes(alvo);
         if (!b.hidden) achou += 1;
       }
+      // Sem resultado, o conteúdo da seção aberta some junto: deixá-lo embaixo do
+      // "nada encontrado" faz parecer que aquilo é o resultado da busca.
+      if (painel) painel.hidden = !!alvo && achou === 0;
       for (const rot of el.querySelectorAll('.cfg-rail .cfg-rot')) {
         if (rot === vazio) continue;
         let visivel = false;

@@ -213,11 +213,27 @@ function chatRow(chat) {
       )}">${icon('trash', 17)}</button>
     </span>`;
 
+  if (chat.archived) {
+    // Na lista de arquivadas o botão de renomear dá lugar ao de tirar de lá: é a
+    // única ação que essa lista precisa, e sem ela não havia volta.
+    const desarquivar = item.querySelector('[data-act=rename]');
+    desarquivar.title = t('tirar do arquivo');
+    desarquivar.setAttribute('aria-label', t('tirar do arquivo'));
+    desarquivar.innerHTML = icon('archive', 17);
+    desarquivar.dataset.act = 'unarchive';
+  }
   item.onclick = () => openChat(chat.id);
-  item.querySelector('[data-act=rename]').onclick = (ev) => {
+  const renomear = item.querySelector('[data-act=rename]');
+  if (renomear) {
+    renomear.onclick = (ev) => {
+      ev.stopPropagation();
+      startRename(item, chat);
+    };
+  }
+  item.querySelector('[data-act=unarchive]')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
-    startRename(item, chat);
-  };
+    arquivarConversa(chat.id, false);
+  });
   item.querySelector('[data-act=del]').onclick = async (ev) => {
     ev.stopPropagation();
     if (
@@ -523,6 +539,32 @@ function fecharEspera(el, { apagar = false } = {}) {
  * chegam depois de ela existir e entram pelo fim da lista — sem esta correção
  * a resposta pendente ficaria acima da pergunta que a gerou.
  */
+/**
+ * Arquiva ou tira do arquivo a conversa aberta.
+ *
+ * O servidor já sabia disto e a gaveta já mostrava "ver arquivadas": faltava
+ * qualquer jeito de arquivar ou desarquivar, então a lista de arquivadas era um
+ * lugar onde nada entrava e de onde nada saía.
+ */
+async function arquivarConversa(id, arquivar = true) {
+  if (!id) return;
+  try {
+    await api(`/chats/${id}`, { method: 'PATCH', body: { archived: arquivar } });
+  } catch (err) {
+    return toast(err.message || t('não deu pra arquivar'), 'err');
+  }
+  await refreshState();
+  if (arquivar && state.chatId === id) {
+    // Arquivou a que estava aberta: abre a primeira que sobrou, senão a tela
+    // fica mostrando uma conversa que não está mais na lista.
+    const proxima = state.chats[0];
+    if (proxima) await openChat(proxima.id);
+    else await newChat();
+  }
+  renderSidebar($('#side-search').value);
+  toast(arquivar ? t('conversa arquivada') : t('conversa de volta'), 'ok');
+}
+
 /**
  * Fecha a bolha de espera agora, sem esperar o turno desmontar.
  *
@@ -1749,6 +1791,11 @@ function commands() {
     { icon: 'plug', label: t('IAs ligadas'), run: () => switchView('providers') },
     { icon: 'settings', label: t('Ajustes'), run: () => switchView('settings') },
     { icon: 'paperclip', label: t('Anexar arquivo'), run: () => $('#file-input').click() },
+    {
+      icon: 'archive',
+      label: t('Arquivar esta conversa'),
+      run: () => arquivarConversa(state.chatId, true)
+    },
     {
       icon: 'globe',
       label: state.useWeb
