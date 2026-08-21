@@ -165,3 +165,16 @@ test('IA que devolve nada não vira anexo vazio em silêncio', async () => {
     /não devolveu texto nenhum/
   );
 });
+
+test('HEIC mantém a explicação dele, mesmo sem IA que enxergue', async () => {
+  // As duas coisas são imagem e as duas falham, mas por motivos diferentes.
+  // Dizer "ligue uma IA que enxerga" pra um HEIC manda a pessoa configurar algo
+  // que não resolveria nada — nenhuma IA lê HEIC.
+  const { addAttachment } = await import('../server/documents.mjs');
+  const png = await addAttachment({ buffer: PNG, name: 'prova.png', mime: 'image/png' });
+  const heic = await addAttachment({ buffer: HEIC, name: 'IMG_1.HEIC', mime: '' });
+  assert.equal(png.status, 'erro');
+  assert.match(png.note, /IA que enxerga/);
+  assert.equal(heic.status, 'erro');
+  assert.match(heic.note, /JPG/);
+});

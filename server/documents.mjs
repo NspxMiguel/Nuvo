@@ -97,10 +97,14 @@ export async function addAttachment({
   papel = 'material'
 }) {
   const id = uid();
-  let { text, note, kind } = extractText(buffer, name, mime);
+  let { text, note, kind, precisaVisao } = extractText(buffer, name, mime);
 
   // Imagem: o texto vem de uma IA que enxerga, não do extrator.
-  if (kind === 'imagem' && !text) {
+  //
+  // Só quando o extrator disse que dá pra ler. HEIC também é imagem e já vem com
+  // a explicação certa ("exporte como JPG"); trocá-la por "ligue uma IA que
+  // enxerga" mandaria a pessoa configurar uma coisa que não resolveria nada.
+  if (kind === 'imagem' && precisaVisao && !text) {
     const ref = quemEnxerga();
     if (!ref) {
       note = textoTraduzivel(
