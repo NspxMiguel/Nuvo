@@ -1158,6 +1158,7 @@ const CFG_TRILHA = [
   ]],
   [() => t('Personalizar'), [
     ['perfis', 'sparkle', () => t('Perfis')],
+    ['menu', 'layers', () => t('Botões do menu')],
     ['terminal', 'code', () => t('Programas do terminal')],
     ['agente', 'globe', () => t('Modo agente')],
     ['atalhos', 'command', () => t('Atalhos de teclado')]
@@ -1175,7 +1176,69 @@ const cfgChave = (id, on) =>
   `<input type="checkbox" id="${id}"${on ? ' checked' : ''} hidden />
    <span class="chave${on ? ' on' : ''}" data-chave="${id}" role="switch" aria-checked="${!!on}" tabindex="0"></span>`;
 
+/** As telas da gaveta, com o nome e o ícone que aparecem no menu. */
+const TELAS_DA_GAVETA = [
+  ['chat', 'chat', () => t('Conversas')],
+  ['council', 'users', () => t('Perguntar pra várias')],
+  ['research', 'globe', () => t('Pesquisar na web')],
+  ['code', 'code', () => t('Programar')],
+  ['estudos', 'book', () => t('Estudos')],
+  ['memory', 'brain', () => t('Memória')],
+  ['projects', 'folder', () => t('Projetos')],
+  ['gems', 'sparkle', () => t('Perfis')],
+  ['providers', 'plug', () => t('IAs ligadas')],
+  ['loja', 'layers', () => t('Loja')]
+];
+
+const MENU_PADRAO_DA_TELA = {
+  ordem: TELAS_DA_GAVETA.map(([id]) => id),
+  escondidos: [],
+  noMais: ['memory', 'projects', 'gems', 'providers', 'loja']
+};
+
 const CFG_SECOES = {
+  menu: (settings) => {
+    const cfg = settings.menu || MENU_PADRAO_DA_TELA;
+    const nomes = new Map(TELAS_DA_GAVETA.map(([id, ico, rot]) => [id, { ico, rot }]));
+    return `<h3>${t('Botões do menu')}</h3>
+      <p class="hint">${t(
+        'Escolha o que aparece na gaveta, em que ordem, e o que fica guardado dentro do "Mais".'
+      )}</p>
+      <div id="menu-lista" class="grupo">${cfg.ordem
+        .filter((id) => nomes.has(id))
+        .map((id, i) => {
+          const { ico, rot } = nomes.get(id);
+          const escondido = cfg.escondidos.includes(id);
+          const noMais = cfg.noMais.includes(id);
+          // Conversas não some: esconder tudo deixaria a gaveta vazia e sem
+          // caminho de volta pra cá.
+          const fixo = id === 'chat';
+          return `<div class="linha menu-linha" data-id="${id}">
+            <span class="ico">${icon(ico, 18)}</span>
+            <span class="grow">${escapeHtml(rot())}</span>
+            <label class="check" title="${t('aparece na gaveta')}">
+              <input type="checkbox" data-campo="ver" ${escondido ? '' : 'checked'}
+                ${fixo ? 'disabled' : ''} aria-label="${t('mostrar {nome}', { nome: rot() })}" />
+              <span>${t('aparece')}</span>
+            </label>
+            <label class="check" title="${t('fica dentro do Mais')}">
+              <input type="checkbox" data-campo="mais" ${noMais ? 'checked' : ''}
+                aria-label="${t('guardar {nome} dentro do Mais', { nome: rot() })}" />
+              <span>${t('no Mais')}</span>
+            </label>
+            <button type="button" class="icon" data-mover="-1" ${i === 0 ? 'disabled' : ''}
+              title="${t('subir')}" aria-label="${t('subir {nome}', { nome: rot() })}">${icon('chevron', 16)}</button>
+            <button type="button" class="icon vira" data-mover="1"
+              ${i === cfg.ordem.length - 1 ? 'disabled' : ''}
+              title="${t('descer')}" aria-label="${t('descer {nome}', { nome: rot() })}">${icon('chevron', 16)}</button>
+          </div>`;
+        })
+        .join('')}</div>
+      <div class="row">
+        <button id="menu-padrao" class="ghost" type="button">${t('Voltar ao padrão')}</button>
+      </div>`;
+  },
+
   geral: () => `<h3>${t('Geral')}</h3>
     ${cfgLin(t('Idioma'), t('Vale pra tela e pras mensagens do servidor. Sem escolher, ele segue o lugar onde você está.'),
       `<select id="s-idioma">${Object.entries(IDIOMAS)
@@ -1476,7 +1539,7 @@ async function rodarReindex(aoAndar) {
   }
 }
 
-views.settings = async function renderSettings(el, { switchView, applyTheme }) {
+views.settings = async function renderSettings(el, { switchView, applyTheme, aplicarMenu }) {
   const [settings, pendente] = await Promise.all([api('/settings'), api('/reindex')]);
   const secao = CFG_SECOES[cfgSecao] ? cfgSecao : 'geral';
   const tema = document.documentElement.dataset.theme;
@@ -1511,6 +1574,55 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
 
   // Trocar o idioma redesenha a tela inteira (o ouvinte de `aoTrocarIdioma`
   // mora no app.js), então não há nada pra fazer depois de chamar.
+  // --- botões do menu -------------------------------------------------------
+  const listaDoMenu = q('#menu-lista');
+  if (listaDoMenu) {
+    const cfg = {
+      ordem: [...(settings.menu?.ordem || MENU_PADRAO_DA_TELA.ordem)],
+      escondidos: [...(settings.menu?.escondidos || [])],
+      noMais: [...(settings.menu?.noMais || MENU_PADRAO_DA_TELA.noMais)]
+    };
+    const guardar = async () => {
+      const fora = await api('/settings', { method: 'PATCH', body: { menu: cfg } });
+      state.settings = fora;
+      aplicarMenu?.();
+      switchView('settings');
+    };
+    const marcar = (lista, id, ligado) => {
+      const dentro = lista.includes(id);
+      if (ligado && !dentro) lista.push(id);
+      if (!ligado && dentro) lista.splice(lista.indexOf(id), 1);
+    };
+
+    for (const linha of listaDoMenu.querySelectorAll('.menu-linha')) {
+      const id = linha.dataset.id;
+      linha.querySelector('[data-campo=ver]').onchange = (ev) => {
+        marcar(cfg.escondidos, id, !ev.target.checked);
+        guardar();
+      };
+      linha.querySelector('[data-campo=mais]').onchange = (ev) => {
+        marcar(cfg.noMais, id, ev.target.checked);
+        guardar();
+      };
+      for (const botao of linha.querySelectorAll('[data-mover]')) {
+        botao.onclick = () => {
+          const de = cfg.ordem.indexOf(id);
+          const para = de + Number(botao.dataset.mover);
+          if (de < 0 || para < 0 || para >= cfg.ordem.length) return;
+          cfg.ordem.splice(para, 0, cfg.ordem.splice(de, 1)[0]);
+          guardar();
+        };
+      }
+    }
+    q('#menu-padrao').onclick = async () => {
+      const fora = await api('/settings', { method: 'PATCH', body: { menu: MENU_PADRAO_DA_TELA } });
+      state.settings = fora;
+      aplicarMenu?.();
+      switchView('settings');
+      toast(t('menu de volta ao padrão'), 'ok');
+    };
+  }
+
   const selIdioma = q('#s-idioma');
   if (selIdioma) selIdioma.onchange = () => trocarIdioma(selIdioma.value);
 

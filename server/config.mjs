@@ -65,6 +65,12 @@ const DEFAULTS = {
     embeddingModel: null, // ex.: { provider: 'lmstudio', model: 'text-embedding-nomic-embed-text-v1.5' }
     extractorModel: null // ex.: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' }
   },
+  // Quais botões aparecem na gaveta, em que ordem, e quais ficam dentro do
+  // "Mais". `null` = ninguém mexeu ainda, e vale a ordem que o HTML traz.
+  //
+  // Mora aqui e não no `localStorage` porque o app é servidor de casa: a escolha
+  // tem que valer no computador e no celular, que são dois navegadores.
+  menu: null,
   // Idioma escolhido na mão. `null` = ainda não escolheu, e aí vale o que o
   // navegador pedir no `Accept-Language`.
   idioma: null,

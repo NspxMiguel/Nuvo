@@ -230,6 +230,30 @@ function providerView(p) {
   };
 }
 
+/** As telas que podem estar na gaveta. Fora daqui é lixo ou versão futura. */
+const TELAS_DO_MENU = [
+  'chat', 'council', 'research', 'code', 'estudos',
+  'memory', 'projects', 'gems', 'providers', 'loja'
+];
+
+export function limparMenu(bruto) {
+  if (!bruto || typeof bruto !== 'object') return null;
+  const conhecidas = (lista) =>
+    [...new Set((Array.isArray(lista) ? lista : []).filter((x) => TELAS_DO_MENU.includes(x)))];
+
+  const ordem = conhecidas(bruto.ordem);
+  // O que a tela não citou entra no fim, na ordem de sempre: uma versão nova do
+  // app que traz uma tela a mais não pode fazê-la sumir pra quem já configurou.
+  const completa = [...ordem, ...TELAS_DO_MENU.filter((x) => !ordem.includes(x))];
+  // Esconder não desagrupa: quem estava dentro do "Mais" continua lá, e ao
+  // voltar a aparecer volta no lugar de onde saiu, em vez de brotar no topo.
+  return {
+    ordem: completa,
+    escondidos: conhecidas(bruto.escondidos).filter((x) => x !== 'chat'),
+    noMais: conhecidas(bruto.noMais)
+  };
+}
+
 function settingsView(req) {
   const cfg = loadConfig();
   return {
@@ -240,6 +264,7 @@ function settingsView(req) {
     secrets: listSecretNames(),
     embeddingAvailable: embeddingAvailable(),
     idioma: cfg.idioma || null,
+    menu: cfg.menu || null,
     idiomas: IDIOMAS,
     // A tela precisa saber se a escolha de navegador já foi feita: é ela quem
     // pergunta, na primeira vez que alguém liga o modo agente.
@@ -1243,6 +1268,9 @@ export async function handleApi(req, res, url) {
     // Idioma que o app não fala não vira config: guardar um valor que ninguém
     // sabe carregar faria a tela cair no padrão sem dizer por quê.
     if (b.idioma !== undefined) patch.idioma = IDIOMAS.includes(b.idioma) ? b.idioma : null;
+    // Menu: só nomes de tela que existem entram, e Conversas nunca sai da lista
+    // — esconder tudo deixaria a gaveta vazia sem caminho de volta.
+    if (b.menu !== undefined) patch.menu = limparMenu(b.menu);
 
     const antes = loadConfig().requireToken;
     if (b.requireToken !== undefined) patch.requireToken = !!b.requireToken;

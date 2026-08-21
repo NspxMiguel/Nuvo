@@ -95,3 +95,32 @@ test('descer a conversa não pega carona no scroll suave do CSS', () => {
   assert.match(app, /function vigiarOFim\(/, 'alguém segura o fim quando o conteúdo cresce depois');
   assert.match(app, /^vigiarOFim\(\);$/m, 'e o vigia é ligado no boot');
 });
+
+test('o menu sai da configuração, não do HTML cravado', () => {
+  // A ordem e o agrupamento moravam em dois lugares: a marcação do index.html e
+  // uma constante no app.js. Mexer num sem o outro deixava a gaveta mentindo.
+  const app = ler('web/app.js');
+  assert.match(app, /function aplicarMenu\(/, 'existe quem aplique a configuração na gaveta');
+  assert.doesNotMatch(app, /const DENTRO_DE_MAIS = \[/, 'o agrupamento não é mais constante');
+  assert.match(app, /menuAtual\(\)\.noMais\.includes\(view\)/, 'o "Mais" abre pelo que está configurado');
+  // Os botões continuam no HTML: é de lá que a varredura de tradução tira as
+  // frases, e é lá que eles existem antes de o JavaScript rodar.
+  const html = ler('web/index.html');
+  for (const tela of ['chat', 'estudos', 'code', 'loja']) {
+    assert.match(html, new RegExp(`data-view="${tela}"`), `${tela} tem botão no HTML`);
+  }
+  const views = ler('web/views.js');
+  assert.match(views, /\['menu', 'layers'/, 'a seção de ajustes existe na trilha');
+});
+
+test('esconder uma tela não pode deixar a gaveta sem saída', async () => {
+  // Conversas é o caminho de volta. Se ela pudesse sumir junto com o resto, a
+  // única forma de desfazer seria mexer no config.json na mão.
+  const { limparMenu } = await import('../server/api.mjs');
+  const fora = limparMenu({ escondidos: ['chat', 'loja', 'inventada'], ordem: ['loja'], noMais: ['gems'] });
+  assert.deepEqual(fora.escondidos, ['loja'], 'Conversas não entra em escondidos, e tela inventada some');
+  assert.equal(fora.ordem[0], 'loja', 'a ordem pedida vale');
+  assert.ok(fora.ordem.includes('estudos'), 'tela que a tela não citou entra no fim, não some');
+  assert.deepEqual(fora.noMais, ['gems']);
+  assert.equal(limparMenu(null), null, 'sem configuração, vale o padrão');
+});

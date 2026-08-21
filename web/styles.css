@@ -2365,3 +2365,10 @@ button.icon { position: relative; }
   .est-quando { flex: none; }
   .est-fala { max-width: 100%; }
 }
+
+/* Botões do menu: a mesma lista da gaveta, com o que aparece e onde. */
+.menu-linha { gap: 10px; flex-wrap: wrap; }
+.menu-linha .check { flex: 0 0 auto; font-size: 14px; }
+.menu-linha .icon { width: 34px; height: 34px; }
+/* A seta de descer é a de subir virada: um caminho de SVG a menos. */
+.menu-linha .icon.vira svg { transform: rotate(180deg); }

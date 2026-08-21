@@ -107,6 +107,9 @@ async function load() {
   // aparecer em português e piscar pro idioma certo.
   await iniciarIdioma(state.settings?.idiomaSugerido);
   traduzirDocumento();
+  // Depois do estado, porque a configuração da gaveta vem com ele — e antes do
+  // primeiro desenho, senão o menu pisca na ordem antiga.
+  aplicarMenu();
   renderSidebar();
   renderTopbar();
   renderView();
@@ -1569,8 +1572,43 @@ function renderTune() {
 
 // ------------------------------------------------------------------- views
 
-/** As telas que moram dentro do <details id="nav-mais"> da gaveta. */
-const DENTRO_DE_MAIS = ['memory', 'projects', 'gems', 'providers', 'loja'];
+/** Onde cada tela mora quando ninguém mexeu na configuração. */
+const MENU_PADRAO = {
+  ordem: ['chat', 'council', 'research', 'code', 'estudos', 'memory', 'projects', 'gems', 'providers', 'loja'],
+  escondidos: [],
+  noMais: ['memory', 'projects', 'gems', 'providers', 'loja']
+};
+
+const menuAtual = () => state.settings?.menu || MENU_PADRAO;
+
+/**
+ * Põe a gaveta do jeito que a pessoa escolheu.
+ *
+ * Os botões continuam no HTML, e não são criados aqui: é de lá que a varredura
+ * de tradução tira as frases, e é lá que eles existem antes de o JavaScript
+ * rodar. O que esta função faz é mover, esconder e reordenar o que já existe.
+ */
+function aplicarMenu() {
+  const cfg = menuAtual();
+  const nav = $('#nav');
+  const mais = $('#nav-mais');
+  if (!nav || !mais) return;
+
+  const botoes = new Map(
+    $$('#nav [data-view]').map((b) => [b.dataset.view, b])
+  );
+  for (const nome of cfg.ordem) {
+    const botao = botoes.get(nome);
+    if (!botao) continue;
+    botao.hidden = cfg.escondidos.includes(nome);
+    // `appendChild` num nó que já está na árvore move em vez de copiar, então a
+    // ordem sai da própria sequência das chamadas.
+    (cfg.noMais.includes(nome) ? mais : nav).appendChild(botao);
+  }
+  // O "Mais" fica no fim do menu de cima, e some quando não há nada dentro.
+  nav.appendChild(mais);
+  mais.hidden = !cfg.noMais.some((n) => !cfg.escondidos.includes(n));
+}
 
 function switchView(view) {
   // O anônimo vale pra conversa em que foi ligado, e só pra ela.
@@ -1584,7 +1622,7 @@ function switchView(view) {
   alvo.hidden = false;
   for (const btn of $$('.nav-item')) btn.classList.toggle('active', btn.dataset.view === view);
   // O "Mais" abre sozinho quando a tela ativa está dentro dele.
-  if (DENTRO_DE_MAIS.includes(view)) $('#nav-mais').open = true;
+  if (menuAtual().noMais.includes(view)) $('#nav-mais').open = true;
   // A malha do rodapé é da conversa: fora dela some, ao voltar renasce.
   if (view === 'chat') brilho.pulsar();
   else brilho.apagar();
@@ -1603,7 +1641,7 @@ function switchView(view) {
 }
 
 function renderView() {
-  const ctx = { switchView, applyTheme, startChatWithGem, startChatInProject };
+  const ctx = { switchView, applyTheme, startChatWithGem, startChatInProject, aplicarMenu };
   const render = views[state.view];
   if (!render) return Promise.resolve();
   // Painel busca dados do servidor. Celular que sai do alcance do wi-fi, ou
@@ -2020,6 +2058,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 $('#brand-marca').innerHTML = roseta(26, 'fixa');
 paintIcons();
 vigiarOFim();
+aplicarMenu();
 // Primeiro dos três momentos do brilho: a chegada.
 brilho.pulsar();
 load()
