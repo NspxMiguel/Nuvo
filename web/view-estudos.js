@@ -1,14 +1,16 @@
-// Estudos: um professor, o que ele cobra, e o material que prova isso.
+// Estudos: um professor por vez.
 //
-// A tela existe pra uma coisa que nenhum leitor de PDF faz: comparar o que o
-// professor ENSINA com o que ele COBRA. Por isso o material não entra num monte
-// só. Cada pasta é uma avaliação (a A1 do primeiro trimestre) ou a aula, e
-// dentro da pasta de uma prova cada arquivo diz o que é — a prova em si ou o
-// conteúdo que ela cobrou. A diferença entre os dois é a previsão; misturar as
-// caixas apaga a comparação e sobra um resumidor comum.
+// A ideia que sustenta a tela: prova passada é amostra do que ele cobra,
+// material de aula é o universo do que ele ensina — e a diferença entre os dois
+// é a previsão. Por isso o retrato é a primeira coisa que aparece, e as três
+// caixas de material ficam visivelmente separadas.
 //
-// A organização é escolhida uma vez, na criação do professor, porque escola não
-// é toda igual: trimestre com A1 e A2, bimestre, semestre, ou nada disso.
+// Sem abas e sem pilha de cartões: material à esquerda, trabalho no meio,
+// estúdio à direita, cada região com rolagem própria. Abaixo de 1200px vira uma
+// região por vez, escolhida por um segmentado de três palavras.
+//
+// Entrar aqui recolhe a gaveta do app: nesta tela o material É a barra lateral,
+// e sem isso as três colunas não cabem num 1280. Sair devolve a gaveta.
 
 import {
   api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel
@@ -16,19 +18,40 @@ import {
 import { icon } from './icons.js';
 import { t, plural, formatarNumero, formatarData } from './i18n.js';
 
-/** Guardado aqui e não no `state`: é a navegação da tela, não dado do app. */
+/** Navegação da tela — não é dado do app, então não mora no `state`. */
 const aqui = {
   professorId: null,
-  pastaId: null,
-  aba: 'material'
+  regiao: 'retrato',     // material | retrato | estudio, só usado no estreito
+  pastaAberta: null,
+  saidaAberta: null,
+  revisando: false,
+  cartao: 0,
+  /** Fontes desmarcadas. Guardar o que está FORA deixa o padrão ser "tudo entra". */
+  fora: new Set()
 };
+
+/** Os dez geradores, na ordem em que aparecem no estúdio. */
+const LADRILHOS = [
+  { id: 'simulado', ico: 'file', cor: 'amber', nome: () => t('Simulado'), precisaRetrato: true },
+  { id: 'guia', ico: 'book', cor: 'teal', nome: () => t('Guia de estudo'), precisaRetrato: true },
+  { id: 'flashcards', ico: 'layers', cor: 'indigo', nome: () => t('Cartões'), precisaRetrato: false },
+  { id: 'resumo', ico: 'edit', cor: 'sky', nome: () => t('Resumo'), precisaRetrato: false },
+  { id: 'mapa', ico: 'spark', cor: 'violet', nome: () => t('Mapa mental'), precisaRetrato: false },
+  { id: 'linha', ico: 'activity', cor: 'lime', nome: () => t('Linha do tempo'), precisaRetrato: false },
+  { id: 'podcast', ico: 'speaker', cor: 'rose', nome: () => t('Conversa em áudio'), precisaRetrato: true },
+  { id: 'quiz', ico: 'check', cor: 'teal', nome: () => t('Quiz'), precisaRetrato: false },
+  { id: 'infografico', ico: 'cpu', cor: 'amber', nome: () => t('Infográfico'), precisaRetrato: true },
+  { id: 'slides', ico: 'file', cor: 'slate', nome: () => t('Slides'), precisaRetrato: true }
+];
+
+const acharLadrilho = (id) => LADRILHOS.find((l) => l.id === id);
 
 /**
  * As três formas de organizar, e o que cada uma faz nascer.
  *
- * Os nomes das pastas saem daqui, do lado do cliente, e viajam pro servidor no
- * pedido de criação: o servidor não tem `t()`, e uma pasta semeada em português
- * apareceria assim pra quem lê o app em inglês.
+ * Os nomes das pastas saem daqui, do lado do cliente, e viajam no pedido de
+ * criação: o servidor não tem `t()`, e uma pasta semeada em português apareceria
+ * assim pra quem lê o app em inglês.
  */
 const ORGANIZACOES = [
   {
@@ -62,517 +85,832 @@ const ORGANIZACOES = [
   }
 ];
 
-/** O que um arquivo é dentro da pasta. É isto que separa aula de prova. */
-const PAPEIS = [
-  {
-    id: 'prova',
-    nome: () => t('A prova'),
-    dica: () => t('O que ele cobrou de verdade.'),
-    ico: 'file'
-  },
-  {
-    id: 'conteudo',
-    nome: () => t('O conteúdo que caiu'),
-    dica: () => t('A matéria daquela prova — o recorte que ele escolheu.'),
-    ico: 'book'
-  },
-  {
-    id: 'material',
-    nome: () => t('Material de aula'),
-    dica: () => t('O que ele ensina fora de prova nenhuma.'),
-    ico: 'layers'
-  }
-];
-
 const acharOrganizacao = (id) => ORGANIZACOES.find((o) => o.id === id) || ORGANIZACOES[0];
-const acharPapel = (id) => PAPEIS.find((p) => p.id === id) || PAPEIS[2];
 
-function painel(el, titulo, ico, dica, dentro) {
-  el.className = `view panel${el.classList.contains('entra') ? ' entra' : ''}`;
-  el.innerHTML = `<div class="panel-inner">
-      <h2><span class="ico">${icon(ico, 19)}</span> ${escapeHtml(titulo)}</h2>
-      <p class="hint">${dica}</p>
-      ${dentro}
-    </div>`;
-  return el.querySelector('.panel-inner');
+/** Quanto aquele tema pesa no retrato, dito em palavra em vez de número. */
+const PROBABILIDADE = {
+  alta: () => t('cai bastante'),
+  media: () => t('pode cair'),
+  baixa: () => t('cai pouco')
+};
+
+/** "1 dia", "15 dias", "3 meses" — mês só quando passa de dois, senão fica pedante. */
+function emDias(dias) {
+  const n = Math.max(1, Math.round(Number(dias) || 1));
+  if (n < 60) return plural(n, '1 dia', '{n} dias');
+  return plural(Math.round(n / 30), '1 mês', '{n} meses');
 }
 
-/** A cara do professor: a foto que ele escolheu, ou a inicial do nome. */
-function retratoDoProfessor(p, tamanho = 44) {
-  const estilo = `width:${tamanho}px;height:${tamanho}px;--tint:var(--${p.cor || 'indigo'})`;
-  if (p.foto) {
-    // O endereço leva o id do professor, não o nome do arquivo, e o `?v=` muda
-    // quando a foto muda — senão o navegador continua mostrando a antiga.
-    return `<span class="prof-cara" style="${estilo}"><img src="/api/professores/${encodeURIComponent(
-      p.id
-    )}/foto?v=${encodeURIComponent(p.updated_at || '')}" alt="" /></span>`;
-  }
-  const inicial = (p.nome || '?').trim().charAt(0).toUpperCase();
-  return `<span class="prof-cara" style="${estilo}">${escapeHtml(inicial)}</span>`;
+/** Como cada nível de Bloom se chama, e o que ele quer dizer em português de gente. */
+const NIVEIS = {
+  lembrar: { nome: () => t('lembrar'), exp: () => t('repetir o que está escrito') },
+  entender: { nome: () => t('entender'), exp: () => t('explicar com as próprias palavras') },
+  aplicar: { nome: () => t('aplicar'), exp: () => t('usar num caso novo') },
+  analisar: { nome: () => t('analisar'), exp: () => t('comparar, separar as partes') },
+  avaliar: { nome: () => t('avaliar'), exp: () => t('julgar e defender o julgamento') },
+  criar: { nome: () => t('criar'), exp: () => t('montar algo que não estava lá') }
+};
+
+const CONFIANCA = {
+  palpite: () => t('ainda é palpite — uma prova só descreve aquela prova, não o professor'),
+  indicio: () => t('dá pra ver tendência, ainda não previsão. Com quatro provas os pesos param de oscilar'),
+  media: () => t('as provas batem entre si, mas falta o material de aula pra saber o que ele não cobra'),
+  boa: () => t('provas e material de aula batendo — dá pra confiar nos pesos')
+};
+
+const CORES = ['indigo', 'teal', 'amber', 'rose', 'violet', 'sky', 'lime', 'slate'];
+const porcento = (f) => Math.round((Number(f) || 0) * 100);
+const inicial = (nome) => (nome || '?').trim().charAt(0).toUpperCase();
+
+/** A barra empilhada e a legenda: peso se lê melhor visto do que lido. */
+const barra = (itens) =>
+  `<div class="est-barra">${itens
+    .map((i) => `<i style="--t:var(--${i.cor});width:${i.pct}%"></i>`)
+    .join('')}</div>`;
+
+const legenda = (itens) =>
+  `<ul class="est-leg">${itens
+    .map(
+      (i) => `<li><span class="pt" style="--t:var(--${i.cor})"></span>
+      <span class="nm">${escapeHtml(i.nome)}${
+        i.exp ? ` <small>· ${escapeHtml(i.exp)}</small>` : ''
+      }</span><b>${formatarNumero(i.pct)}%</b></li>`
+    )
+    .join('')}</ul>`;
+
+/**
+ * Fatia a lista em barra: o que sobra depois dos maiores vira "resto".
+ *
+ * Oito faixas de 4% viram um borrão colorido que não diz nada. Cinco e um resto
+ * é o que ainda se lê de longe.
+ */
+function fatiar(itens, quantas = 5) {
+  const ordenado = [...itens].sort((a, b) => b.peso - a.peso);
+  const cabeca = ordenado.slice(0, quantas).map((x, i) => ({
+    nome: x.nome,
+    exp: x.exp,
+    pct: porcento(x.peso),
+    cor: CORES[i % CORES.length]
+  }));
+  const resto = ordenado.slice(quantas).reduce((n, x) => n + porcento(x.peso), 0);
+  if (resto > 0) cabeca.push({ nome: t('resto'), pct: resto, cor: 'slate' });
+  return cabeca;
 }
 
 // ------------------------------------------------------------------- a tela
 
 export async function renderEstudos(el, ctx) {
-  if (aqui.professorId) return telaDoProfessor(el, ctx);
-  return telaDaLista(el, ctx);
+  // Nesta tela o material é a barra lateral. As três colunas não cabem num 1280
+  // com a gaveta aberta, então ela recolhe — e o movimento é o aviso.
+  const app = document.querySelector('#app');
+  if (app && !app.classList.contains('recolhido')) {
+    // Guarda que fomos nós: quem já estava com a gaveta recolhida não pode
+    // recebê-la de volta ao sair daqui, porque nunca pediu isso.
+    app.dataset.recolhiPorEstudos = '1';
+    app.classList.add('recolhido');
+  }
+
+  if (!aqui.professorId) return telaDaLista(el, ctx);
+  return telaDoProfessor(el, ctx);
+}
+
+/** Devolve a gaveta ao sair — só se tiver sido a gente a recolher. */
+export function sairDeEstudos() {
+  const app = document.querySelector('#app');
+  if (!app?.dataset.recolhiPorEstudos) return;
+  delete app.dataset.recolhiPorEstudos;
+  app.classList.remove('recolhido');
 }
 
 async function telaDaLista(el, ctx) {
   const professores = await api('/professores');
+  el.className = 'view panel';
+  el.innerHTML = `<div class="panel-inner">
+    <h2>${t('Estudos')}</h2>
+    <p class="hint">${t(
+      'Um professor por vez. O app lê as provas dele e devolve o material recortado pelo jeito dele cobrar.'
+    )}</p>
+    <div class="est-profs">
+      ${professores
+        .map(
+          (p) => `<button class="est-prof" data-prof="${escapeHtml(p.id)}">
+            ${fotoDo(p, 44)}
+            <span class="rot"><b>${escapeHtml(p.nome)}</b><small>${escapeHtml(
+              p.materia || t('sem matéria')
+            )}</small></span>
+            <span class="est-selo${p.retrato ? '' : ' sem'}">${
+              p.retrato ? `${icon('check', 16)} ${t('com retrato')}` : t('sem prova ainda')
+            }</span>
+          </button>`
+        )
+        .join('')}
+      <button class="est-add" id="est-novo">${icon('plus', 18)} ${t('Adicionar professor')}</button>
+    </div>
+    <div id="est-form"></div>
+  </div>`;
 
-  const dentro = professores.length
-    ? `<div id="prof-cards" class="grid"></div>
-       <div class="row"><button id="btn-novo-prof" class="primary" type="button">
-         <span data-icon="plus"></span> ${t('Adicionar professor')}
-       </button></div>`
-    : `<div class="cd-vazio">
-         <span class="ico">${icon('book', 34)}</span>
-         <b>${t('Comece pelo professor')}</b>
-         <span>${t(
-           'Jogue aqui as provas que ele já aplicou e o conteúdo que caiu em cada uma. Com isso o Nuvo monta o retrato dele — o que ele cobra, em que formato e em que nível — e passa a estudar com você por esse recorte, em vez de pela matéria inteira.'
-         )}</span>
-         <div class="row"><button id="btn-novo-prof" class="primary" type="button">
-           <span data-icon="plus"></span> ${t('Adicionar professor')}
-         </button></div>
-       </div>`;
-
-  const inner = painel(
-    el,
-    t('Estudos'),
-    'book',
-    t('Cada professor tem um jeito de fazer prova. Aqui a gente descobre qual é o dele.'),
-    `${dentro}<div id="prof-novo"></div>`
-  );
-
-  const cards = inner.querySelector('#prof-cards');
-  for (const p of professores) {
-    const card = document.createElement('article');
-    card.className = 'card prof-card';
-    card.style.setProperty('--tint', `var(--${p.cor || 'indigo'})`);
-    card.innerHTML = `
-      <h3>${retratoDoProfessor(p)} <span class="grow">${escapeHtml(p.nome)}</span></h3>
-      <div class="meta">${escapeHtml(p.materia || t('sem matéria'))}</div>
-      <div class="row prof-tags"></div>
-      <div class="row">
-        <button data-act="abrir" class="primary" type="button">
-          <span data-icon="folder"></span> ${t('Abrir')}
-        </button>
-      </div>`;
-    card.querySelector('[data-act=abrir]').onclick = () => {
-      aqui.professorId = p.id;
-      aqui.pastaId = null;
-      aqui.aba = 'material';
+  for (const botao of el.querySelectorAll('[data-prof]')) {
+    botao.onclick = () => {
+      aqui.professorId = botao.dataset.prof;
+      aqui.regiao = 'retrato';
+      aqui.pastaAberta = null;
+      aqui.saidaAberta = null;
+      aqui.fora.clear();
       ctx.switchView('estudos');
     };
-    cards?.appendChild(card);
   }
-
-  inner.querySelector('#btn-novo-prof').onclick = () =>
-    formularioDeProfessor(inner.querySelector('#prof-novo'), ctx);
-
+  el.querySelector('#est-novo').onclick = () => formularioDeProfessor(el.querySelector('#est-form'), ctx);
   paintIcons(el);
 }
 
-/**
- * O formulário do professor novo, com a escolha da organização.
- *
- * A escolha aparece aqui e não nos Ajustes porque ela é por professor: a escola
- * dele pode ser de trimestre e o curso de fora, de módulo.
- */
-function formularioDeProfessor(host, ctx) {
-  if (host.dataset.aberto === '1') {
-    host.innerHTML = '';
-    host.dataset.aberto = '0';
-    return;
-  }
-  host.dataset.aberto = '1';
-  host.innerHTML = `
-    <div class="card">
-      <h3>${t('Professor novo')}</h3>
-      <label class="field">${t('Nome')} <input id="pf-nome" placeholder="${t('Marcos')}" /></label>
-      <label class="field">${t('Matéria')} <input id="pf-materia" placeholder="${t('Biologia')}" /></label>
-      <label class="field">${t('Cor')}<div id="pf-cor"></div></label>
-      <div class="grupo-rot">${t('Como você quer organizar as provas dele')}</div>
-      <div id="pf-org" class="org-lista"></div>
-      <div class="row">
-        <button id="pf-criar" class="primary" type="button">
-          <span data-icon="check"></span> ${t('Criar professor')}
-        </button>
-      </div>
-    </div>`;
-
-  const escolhida = { id: 'pastas' };
-  const lista = host.querySelector('#pf-org');
-  const pintarOrg = () => {
-    lista.innerHTML = ORGANIZACOES.map(
-      (o) => `<button type="button" class="org-op${o.id === escolhida.id ? ' sel' : ''}"
-        data-org="${o.id}" aria-pressed="${o.id === escolhida.id}">
-        <b>${escapeHtml(o.nome())}</b><span class="meta">${escapeHtml(o.dica())}</span>
-      </button>`
-    ).join('');
-    for (const btn of lista.querySelectorAll('[data-org]')) {
-      btn.onclick = () => {
-        escolhida.id = btn.dataset.org;
-        pintarOrg();
-      };
-    }
-  };
-  pintarOrg();
-
-  const cor = iconPicker(host.querySelector('#pf-cor'), { icon: 'book', color: 'indigo' });
-
-  host.querySelector('#pf-criar').onclick = async () => {
-    const nome = host.querySelector('#pf-nome').value.trim();
-    if (!nome) return toast(t('o professor precisa de um nome'), 'err');
-    const org = acharOrganizacao(escolhida.id);
-    const novo = await api('/professores', {
-      method: 'POST',
-      body: {
-        nome,
-        materia: host.querySelector('#pf-materia').value.trim() || null,
-        cor: cor.color,
-        organizacao: org.id,
-        pastas: org.semear()
-      }
-    });
-    aqui.professorId = novo.id;
-    aqui.pastaId = novo.pastas[0]?.id || null;
-    ctx.switchView('estudos');
-    toast(t('professor criado'), 'ok');
-  };
-
-  paintIcons(host);
+function fotoDo(p, tamanho) {
+  const estilo = `--t:var(--${p.cor || 'indigo'});width:${tamanho}px;height:${tamanho}px`;
+  if (!p.foto) return `<span class="est-foto" style="${estilo}">${escapeHtml(inicial(p.nome))}</span>`;
+  return `<span class="est-foto" style="${estilo}"><img src="/api/professores/${encodeURIComponent(
+    p.id
+  )}/foto?v=${encodeURIComponent(p.updated_at || '')}" alt="" /></span>`;
 }
 
-// ------------------------------------------------------------- o professor
+// -------------------------------------------------------------- o professor
 
 async function telaDoProfessor(el, ctx) {
   let prof;
   try {
     prof = await api(`/professores/${aqui.professorId}`);
   } catch {
-    // Apagado noutra aba, ou o banco trocado por um backup: voltar pra lista é
-    // melhor do que uma tela de erro que não tem saída.
     aqui.professorId = null;
     return telaDaLista(el, ctx);
   }
 
+  const [saidas, cartoes] = await Promise.all([
+    api(`/professores/${prof.id}/saidas`),
+    api(`/professores/${prof.id}/cartoes`).catch(() => ({ contagem: { hoje: 0 }, cartoes: [] }))
+  ]);
+
+  el.className = 'view';
+  if (aqui.revisando && cartoes.cartoes.length) {
+    el.innerHTML = `<div class="est">${telaDeRevisar(prof, cartoes)}</div>`;
+    return ligarRevisao(el, prof, cartoes, ctx);
+  }
+
   const provas = prof.pastas.filter((p) => p.tipo === 'prova');
-  const materiais = prof.pastas.filter((p) => p.tipo === 'material');
-  if (!aqui.pastaId || !prof.pastas.some((p) => p.id === aqui.pastaId)) {
-    aqui.pastaId = prof.pastas[0]?.id || null;
-  }
+  const aula = prof.pastas.filter((p) => p.tipo === 'material');
+  const pasta = prof.pastas.find((p) => p.id === aqui.pastaAberta);
+  const saida = saidas.find((s) => s.id === aqui.saidaAberta);
 
-  const inner = painel(
-    el,
-    prof.nome,
-    'book',
-    escapeHtml(prof.materia || t('sem matéria')),
-    `<div class="row est-topo">
-       <button id="est-foto" class="prof-troca" type="button" title="${t('trocar a foto')}"
-         aria-label="${t('trocar a foto de {nome}', { nome: escapeHtml(prof.nome) })}">
-         ${retratoDoProfessor(prof, 38)}
-       </button>
-       <button id="est-voltar" class="ghost" type="button">
-         <span data-icon="chevron" class="volta"></span> ${t('Todos os professores')}
-       </button>
-       <span class="grow"></span>
-       <span class="tag">${plural(prof.material.provas, '1 prova', '{n} provas')}</span>
-       <span class="tag">${plural(prof.material.conteudos, '1 conteúdo', '{n} conteúdos')}</span>
-       <span class="tag">${plural(prof.material.materiais, '1 material', '{n} materiais')}</span>
-     </div>
-     <div class="segmentado est-abas" role="tablist">
-       <button type="button" role="tab" data-aba="material">${t('Material')}</button>
-       <button type="button" role="tab" data-aba="retrato">${t('Retrato do professor')}</button>
-       <button type="button" role="tab" data-aba="estudar">${t('Estudar')}</button>
-       <button type="button" role="tab" data-aba="revisar">${t('Revisar')}<span id="est-vence" class="badge-n"></span></button>
-     </div>
-     <div class="est-grade" data-painel="material">
-       <aside class="est-pastas">
-         <div class="grupo-rot">${t('Avaliações')}</div>
-         <div id="est-provas" class="grupo"></div>
-         <button id="est-nova-prova" class="link-btn" type="button">
-           <span data-icon="plus" data-size="16"></span> ${t('Nova avaliação')}
-         </button>
-         <div class="grupo-rot">${t('Fora de prova')}</div>
-         <div id="est-materiais" class="grupo"></div>
-         <button id="est-nova-pasta" class="link-btn" type="button">
-           <span data-icon="plus" data-size="16"></span> ${t('Nova pasta')}
-         </button>
-       </aside>
-       <section id="est-corpo" class="est-corpo"></section>
-     </div>
-     <div id="est-retrato" data-painel="retrato" hidden></div>
-     <div id="est-estudar" data-painel="estudar" hidden></div>
-     <div id="est-revisar" data-painel="revisar" hidden></div>`
-  );
+  const meio = saida
+    ? desenharSaida(saida)
+    : pasta
+      ? avaliacaoAberta(prof, pasta)
+      : desenharRetrato(prof);
 
-  for (const btn of inner.querySelectorAll('.est-abas [data-aba]')) {
-    btn.classList.toggle('sel', btn.dataset.aba === aqui.aba);
-    btn.setAttribute('aria-selected', String(btn.dataset.aba === aqui.aba));
-    btn.onclick = () => {
-      aqui.aba = btn.dataset.aba;
-      ctx.switchView('estudos');
-    };
-  }
-  for (const painel of inner.querySelectorAll('[data-painel]')) {
-    painel.hidden = painel.dataset.painel !== aqui.aba;
-  }
+  el.innerHTML = `<div class="est">
+    <header class="est-topo">
+      <button class="est-foto-btn" id="est-foto" title="${t('trocar a foto')}"
+        aria-label="${t('trocar a foto')}">${fotoDo(prof, 54)}</button>
+      <div class="est-quem">
+        <h2>${escapeHtml(prof.nome)}</h2>
+        <div class="sub">${escapeHtml(prof.materia || t('sem matéria'))} · <b>${plural(
+          prof.material.provas,
+          '1 prova',
+          '{n} provas'
+        )}</b> · ${plural(
+          prof.material.conteudos + prof.material.materiais,
+          '1 arquivo',
+          '{n} arquivos'
+        )}</div>
+      </div>
+      <div class="acoes">
+        ${
+          cartoes.contagem.hoje
+            ? `<button class="est-rev" id="est-revisar">${icon('layers', 18)} ${t(
+                'Revisar'
+              )} <b>${formatarNumero(cartoes.contagem.hoje)}</b></button>`
+            : ''
+        }
+        <button class="icon" id="est-trocar" title="${t('trocar de professor')}"
+          aria-label="${t('trocar de professor')}">${icon('users', 20)}</button>
+      </div>
+    </header>
 
-  if (aqui.aba === 'retrato') {
-    telaDoRetrato(inner.querySelector('#est-retrato'), prof, ctx);
-    paintIcons(el);
-    return;
-  }
-  if (aqui.aba === 'estudar') {
-    await telaDeEstudar(inner.querySelector('#est-estudar'), prof, ctx);
-    paintIcons(el);
-    return;
-  }
-  if (aqui.aba === 'revisar') {
-    await telaDeRevisar(inner.querySelector('#est-revisar'), prof, ctx);
-    paintIcons(el);
-    return;
-  }
+    <div class="est-abas">
+      <div class="segmentado" role="tablist">
+        ${[
+          ['material', t('Material')],
+          ['retrato', t('Retrato')],
+          ['estudio', t('Estúdio')]
+        ]
+          .map(
+            ([k, r]) =>
+              `<button type="button" role="tab" data-regiao="${k}" class="${
+                aqui.regiao === k ? 'sel' : ''
+              }" aria-selected="${aqui.regiao === k}">${escapeHtml(r)}</button>`
+          )
+          .join('')}
+      </div>
+    </div>
 
-  // O contador do que vence hoje aparece na aba, em qualquer aba: é o que faz a
-  // pessoa lembrar de revisar sem precisar procurar.
-  api(`/professores/${prof.id}/cartoes?limite=1`)
-    .then(({ contagem }) => {
-      const alvo = inner.querySelector('#est-vence');
-      if (alvo) alvo.textContent = contagem.hoje ? formatarNumero(contagem.hoje) : '';
-    })
-    .catch(() => {});
+    <div class="est-cols" data-aba="${aqui.regiao}">
+      <aside class="est-mat">
+        <div class="est-rot">${t('Avaliações')} <span class="n">${formatarNumero(provas.length)}</span></div>
+        ${
+          provas.length
+            ? provas.map((p) => linhaDeFonte(p)).join('')
+            : `<p class="est-nada">${t('Nenhuma prova dele ainda. É a prova que diz o que cai.')}</p>`
+        }
+        <div class="est-rot">${t('Material de aula')} <span class="n">${formatarNumero(aula.length)}</span></div>
+        ${aula.map((p) => linhaDeFonte(p)).join('')}
+        <button class="est-add" id="est-nova-pasta">${icon('plus', 18)} ${t('Adicionar material')}</button>
+        <p class="est-nada">${t('O que está marcado entra nas respostas e no que for gerado.')}</p>
+      </aside>
 
-  const linhaDaPasta = (pasta) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `chat-item${pasta.id === aqui.pastaId ? ' active' : ''}`;
-    const quantos = pasta.anexos.length;
-    btn.innerHTML = `<span class="grow">${escapeHtml(pasta.nome)}</span>
-      <span class="badge-n">${quantos ? formatarNumero(quantos) : ''}</span>`;
-    btn.onclick = () => {
-      aqui.pastaId = pasta.id;
-      ctx.switchView('estudos');
-    };
-    return btn;
-  };
+      <div class="est-mid">${meio}</div>
 
-  const caixaProvas = inner.querySelector('#est-provas');
-  const caixaMateriais = inner.querySelector('#est-materiais');
-  if (!provas.length) {
-    caixaProvas.innerHTML = `<p class="meta">${t('nenhuma avaliação ainda')}</p>`;
-  }
-  for (const pasta of provas) caixaProvas.appendChild(linhaDaPasta(pasta));
-  for (const pasta of materiais) caixaMateriais.appendChild(linhaDaPasta(pasta));
+      <aside class="est-lado">
+        <div class="est-rot">${t('Estúdio')}</div>
+        <div class="est-quem-gera">${icon('bot', 17)}
+          <select id="est-modelo" aria-label="${t('IA que gera')}">${modelOptions(state.model)}</select>
+        </div>
+        <div class="est-rot">${t('Gerar')}</div>
+        <div class="est-lads">
+          ${LADRILHOS.map(
+            (l) => `<button class="est-lad${
+              l.precisaRetrato && !prof.retrato ? ' trancado' : ''
+            }" style="--t:var(--${l.cor})" data-gerar="${l.id}"${
+              l.precisaRetrato && !prof.retrato
+                ? ` disabled title="${t('precisa do retrato do professor antes')}"`
+                : ''
+            }>
+              <span class="ico">${icon(l.ico, 19)}</span><span class="nm">${escapeHtml(l.nome())}</span>
+            </button>`
+          ).join('')}
+        </div>
+        ${
+          saidas.length
+            ? `<div class="est-rot">${t('Já gerado')} <span class="n">${formatarNumero(saidas.length)}</span></div>
+               ${saidas.map((s) => linhaDeSaida(s)).join('')}`
+            : ''
+        }
+      </aside>
+    </div>
+  </div>`;
 
-  // A foto entra pelo mesmo caminho de qualquer arquivo, e o servidor decide se
-  // é imagem pelos primeiros bytes — não pela extensão nem pelo que o navegador
-  // disse que era.
-  inner.querySelector('#est-foto').onclick = () => {
-    const campo = document.createElement('input');
-    campo.type = 'file';
-    campo.accept = 'image/png,image/jpeg,image/webp';
-    campo.onchange = async () => {
-      const arquivo = campo.files?.[0];
-      if (!arquivo) return;
-      try {
-        await api(`/professores/${prof.id}/foto`, {
-          method: 'POST',
-          body: await arquivo.arrayBuffer(),
-          raw: true
-        });
-        ctx.switchView('estudos');
-      } catch (err) {
-        toast(err.message || t('não deu pra guardar a foto'), 'err');
-      }
-    };
-    campo.click();
-  };
-
-  inner.querySelector('#est-voltar').onclick = () => {
-    aqui.professorId = null;
-    aqui.pastaId = null;
-    ctx.switchView('estudos');
-  };
-  inner.querySelector('#est-nova-prova').onclick = () =>
-    criarPasta(prof, 'prova', ctx, caixaProvas);
-  inner.querySelector('#est-nova-pasta').onclick = () =>
-    criarPasta(prof, 'material', ctx, caixaMateriais);
-
-  const pasta = prof.pastas.find((p) => p.id === aqui.pastaId);
-  await corpoDaPasta(inner.querySelector('#est-corpo'), prof, pasta, ctx);
-
+  ligarProfessor(el, prof, saidas, ctx);
   paintIcons(el);
 }
 
-/**
- * Nome novo escrito no lugar onde a coisa vai ficar, e não numa caixa por cima.
- *
- * Diálogo de navegador trava a janela e, num app sem barra de endereço, parece
- * defeito do sistema. Aqui o campo nasce na lista, com o nome sugerido já
- * selecionado: Enter confirma, Esc desiste, e quem só queria ver a lista não
- * precisou fechar nada.
- */
-function pedirNome(host, { valor = '', dica = '', aoConfirmar }) {
-  const linha = document.createElement('div');
-  linha.className = 'est-batismo';
-  linha.innerHTML = `<input type="text" aria-label="${dica || t('nome')}" placeholder="${escapeHtml(
-    dica
-  )}" />`;
-  host.appendChild(linha);
-  const campo = linha.querySelector('input');
-  campo.value = valor;
-  campo.focus();
-  campo.select();
-
-  let fechado = false;
-  const sair = () => {
-    if (fechado) return;
-    fechado = true;
-    linha.remove();
-  };
-  campo.onkeydown = (ev) => {
-    if (ev.key === 'Escape') {
-      ev.stopPropagation();
-      return sair();
-    }
-    if (ev.key !== 'Enter') return;
-    const nome = campo.value.trim();
-    sair();
-    if (nome) aoConfirmar(nome);
-  };
-  // Clicar fora é desistir, não confirmar: confirmar o que a pessoa não terminou
-  // de escrever cria pasta com nome pela metade.
-  campo.onblur = sair;
-  return linha;
+function linhaDeFonte(pasta) {
+  const marcada = !aqui.fora.has(pasta.id);
+  const quantos = pasta.anexos.length;
+  return `<div class="est-fonte${marcada ? ' on' : ''}${
+    pasta.id === aqui.pastaAberta ? ' sel' : ''
+  }" data-pasta="${escapeHtml(pasta.id)}">
+    <button class="cx" data-marcar aria-pressed="${marcada}"
+      aria-label="${t('usar {nome} no que for gerado', { nome: escapeHtml(pasta.nome) })}">${icon('check', 14)}</button>
+    <button class="rot" data-abrir>${escapeHtml(pasta.nome)}<small>${
+      quantos ? plural(quantos, '1 arquivo', '{n} arquivos') : t('vazia')
+    }</small></button>
+  </div>`;
 }
 
-function criarPasta(prof, tipo, ctx, host) {
+function linhaDeSaida(s) {
+  const l = acharLadrilho(s.tipo);
+  return `<button class="est-feito" style="--t:var(--${l?.cor || 'slate'})" data-saida="${escapeHtml(s.id)}">
+    <span class="ico">${icon(l?.ico || 'file', 18)}</span>
+    <span class="rot">${escapeHtml(s.titulo)}<small>${escapeHtml(
+      [formatarData(s.created_at, { day: '2-digit', month: 'short' }), s.modelo ? modelLabel(s.modelo) : '']
+        .filter(Boolean)
+        .join(' · ')
+    )}</small></span>
+    ${icon('chevron', 16)}
+  </button>`;
+}
+
+// ---------------------------------------------------------------- o retrato
+
+function desenharRetrato(prof) {
+  const r = prof.retrato;
+  if (!r) {
+    return `<div class="est-sec" style="margin-top:22px">
+      <p class="veredito" style="margin:0">${t('Ainda não tem retrato. Falta uma prova dele.')}</p>
+      <div class="est-conf"><span class="pt"></span><span>${t(
+        'Com uma prova o app já mostra o que ele cobra; com quatro, os pesos param de oscilar. Material de aula sozinho não diz o que cai.'
+      )}</span></div>
+      <div class="row"><button class="primary" id="est-primeira-prova">${icon('upload', 18)} ${t(
+        'Adicionar uma prova dele'
+      )}</button></div>
+    </div>`;
+  }
+
+  const conf = r.confianca || {};
+  const cobra = fatiar((r.conteudo || []).map((c) => ({ nome: c.tema, peso: c.peso })));
+  const pede = fatiar(
+    (r.cognitivo || []).map((c) => ({
+      nome: (NIVEIS[c.nivel]?.nome || (() => c.nivel))(),
+      exp: NIVEIS[c.nivel]?.exp(),
+      peso: c.peso
+    })),
+    6
+  );
+
+  return `
+    <p class="veredito">${escapeHtml(vereditoDe(prof, r))}</p>
+    <div class="est-conf"><span class="pt"></span>
+      <span>${t('Confiança')} <b>${escapeHtml(conf.nota || '—')}</b> — ${escapeHtml(
+        (CONFIANCA[conf.nota] || (() => t('sem nota de confiança')))()
+      )}</span></div>
+
+    ${
+      r.formato
+        ? `<div class="est-sec">
+            <h3>${t('Como a prova dele é')}</h3>
+            <div class="est-fatos">${fatosDoFormato(r.formato)}</div>
+          </div>`
+        : ''
+    }
+
+    ${
+      cobra.length
+        ? `<div class="est-sec"><h3>${t('O que ele cobra')}</h3>${barra(cobra)}${legenda(cobra)}</div>`
+        : ''
+    }
+    ${
+      pede.length
+        ? `<div class="est-sec"><h3>${t('O que ele pede')}</h3>${barra(pede)}${legenda(pede)}</div>`
+        : ''
+    }
+    ${
+      r.verbos?.length
+        ? `<div class="est-sec"><h3>${t('Os verbos que ele usa')}</h3>
+             <div class="est-verbos">${r.verbos
+               .map(
+                 (v) =>
+                   `<span class="est-verbo" title="${escapeHtml(v.exemplo || '')}">${escapeHtml(
+                     v.verbo
+                   )} <b>${formatarNumero(v.vezes)}×</b></span>`
+               )
+               .join('')}</div></div>`
+        : ''
+    }
+    ${achadosEmHtml(r)}
+    ${
+      r.so_na_aula?.length
+        ? `<div class="est-sec">
+            <h3>${t('Ensina e nunca cobrou')}</h3>
+            <p class="est-explica">${t(
+              '{quantos} aparecem no material de aula e não caíram em nenhuma das {provas}. Estudar isso por último é a aposta que o app faria.',
+              {
+                quantos: plural(r.so_na_aula.length, '1 assunto', '{n} assuntos'),
+                provas: plural(conf.provas || 0, '1 prova', '{n} provas')
+              }
+            )}</p>
+            <div class="est-nunca">${r.so_na_aula
+              .map((n) => `<span>${escapeHtml(n)}</span>`)
+              .join('')}</div>
+          </div>`
+        : ''
+    }`;
+}
+
+/**
+ * A frase que resume o professor.
+ *
+ * Montada aqui e não pedida ao modelo: o retrato já tem os números, e uma frase
+ * derivada deles nunca desmente o que está logo abaixo — uma frase gerada
+ * desmentiria de vez em quando, e aí a tela inteira perde a credibilidade.
+ */
+function vereditoDe(prof, r) {
+  const tema = (r.conteudo || [])[0];
+  const nivel = [...(r.cognitivo || [])].sort((a, b) => b.peso - a.peso)[0];
+  const tipo = (r.formato?.tipos || [])[0];
+  const partes = [];
+  if (tema) partes.push(t('cobra {tema} acima de tudo', { tema: tema.tema }));
+  if (nivel) {
+    partes.push(
+      t('e pede {nivel}, não decoreba', { nivel: (NIVEIS[nivel.nivel]?.nome || (() => nivel.nivel))() })
+    );
+  }
+  if (!partes.length) return t('{nome} — ainda pouco material pra concluir alguma coisa', { nome: prof.nome });
+  return `${prof.nome} ${partes.join(' ')}${
+    tipo ? t(', em prova de {tipo}', { tipo: tipo.tipo }) : ''
+  }.`;
+}
+
+function fatosDoFormato(f) {
+  const fatos = [];
+  if (f.n_questoes) fatos.push([formatarNumero(f.n_questoes), t('questões por prova')]);
+  const maior = [...(f.tipos || [])].sort((a, b) => b.peso - a.peso)[0];
+  if (maior) fatos.push([`${formatarNumero(porcento(maior.peso))}%`, maior.tipo]);
+  if (f.pontuacao) fatos.push([f.pontuacao.split(/[;,.]/)[0].trim().slice(0, 14), t('pontuação')]);
+  return fatos
+    .map(
+      ([v, r]) => `<div><span class="v">${escapeHtml(v)}</span><span class="r">${escapeHtml(r)}</span></div>`
+    )
+    .join('');
+}
+
+/** Pegadinhas e manias, cada achado com o trecho literal da prova ao lado. */
+function achadosEmHtml(r) {
+  const achados = [
+    ...(r.pegadinhas || []).map((p) => ({ tipo: t('pegadinha'), tit: p.padrao, trecho: p.exemplo })),
+    ...(r.manias || []).map((m) => ({ tipo: t('mania'), tit: m, trecho: '' }))
+  ];
+  if (!achados.length) return '';
+  return `<div class="est-sec"><h3>${t('Pegadinhas e manias')}</h3>
+    ${achados
+      .map(
+        (a) => `<div class="est-achado">
+          <div><h4>${escapeHtml(a.tit)}</h4></div>
+          ${
+            a.trecho
+              ? `<blockquote>“${escapeHtml(a.trecho)}”<cite>${escapeHtml(a.tipo)}</cite></blockquote>`
+              : `<blockquote class="sem"><cite>${escapeHtml(a.tipo)}</cite></blockquote>`
+          }
+        </div>`
+      )
+      .join('')}</div>`;
+}
+
+// ------------------------------------------------------- a avaliação aberta
+
+function avaliacaoAberta(prof, pasta) {
+  const conta = (papel) => pasta.anexos.filter((a) => a.papel === papel);
+  const provas = conta('prova');
+  const conteudos = conta('conteudo');
+  const aulas = conta('material');
+  const r = prof.retrato;
+  const nunca = r?.so_na_aula?.length || 0;
+
+  const caixa = (cor, papel, titulo, explica, itens, papelDoAdd) => `
+    <div class="est-caixa" style="--t:var(--${cor})">
+      <span class="papel">${escapeHtml(papel)}</span>
+      <h4>${escapeHtml(titulo)}</h4>
+      <p class="exp">${escapeHtml(explica)}</p>
+      <ul>${
+        itens.length
+          ? itens
+              .map(
+                (a) =>
+                  `<li>${escapeHtml(a.name)} <span class="pes">${
+                    a.status === 'ok'
+                      ? plural(a.chunks || 0, '1 trecho', '{n} trechos')
+                      : escapeHtml(a.note || t('não deu pra ler'))
+                  }</span></li>`
+              )
+              .join('')
+          : `<li class="fora">${t('vazio')}</li>`
+      }</ul>
+      <button class="ghost" data-add="${papelDoAdd}">${icon('plus', 17)} ${t('Adicionar arquivo')}</button>
+    </div>`;
+
+  return `
+    <button class="est-volta" data-volta>${icon('chevron', 17)} ${t('Retrato do professor')}</button>
+    <header class="est-cabeca-av">
+      <h2>${escapeHtml(pasta.nome)}</h2>
+      <div class="sub">${plural(pasta.anexos.length, '1 arquivo', '{n} arquivos')}</div>
+      <div class="acoes">
+        <button class="icon" data-ren title="${t('renomear')}" aria-label="${t('renomear a pasta')}">${icon('edit', 18)}</button>
+        <button class="icon danger" data-del title="${t('apagar')}" aria-label="${t('apagar a pasta')}">${icon('trash', 18)}</button>
+      </div>
+    </header>
+
+    <div class="est-tri">
+      ${
+        pasta.tipo === 'prova'
+          ? caixa('amber', t('o documento'), t('A prova'),
+              t('O arquivo como ele entregou. Serve de prova do que o app afirma: todo achado aponta pra uma linha daqui.'),
+              provas, 'prova') +
+            caixa('teal', t('a amostra'), t('O conteúdo que caiu'),
+              t('Só o que esta prova cobrou de verdade. É a amostra do jeito dele.'),
+              conteudos, 'conteudo')
+          : ''
+      }
+      ${caixa('slate', t('o universo'), t('Material de aula'),
+        t('Tudo o que ele ensinou no período. Bem maior do que o que ele cobra — e é isso que dá a previsão.'),
+        aulas, 'material')}
+    </div>
+
+    ${
+      nunca
+        ? `<p class="est-gap">${t(
+            'A diferença entre as duas últimas caixas é a previsão: {quantos} que ele ensina e nunca cobrou.',
+            { quantos: plural(nunca, '1 assunto', '{n} assuntos') }
+          )}</p>`
+        : ''
+    }`;
+}
+
+// ------------------------------------------------------------- revisar
+
+function telaDeRevisar(prof, fila) {
+  const cartao = fila.cartoes[aqui.cartao % fila.cartoes.length];
+  const notas = [
+    { valor: 1, nome: () => t('Errei'), id: 'denovo', cls: 'dura' },
+    { valor: 2, nome: () => t('Difícil'), id: 'dificil', cls: '' },
+    { valor: 3, nome: () => t('Bom'), id: 'bom', cls: '' },
+    { valor: 4, nome: () => t('Fácil'), id: 'facil', cls: 'facil' }
+  ];
+  const emDias = (d) => {
+    const n = Math.max(1, Math.round(Number(d) || 1));
+    if (n === 1) return t('volta hoje');
+    return n < 60 ? plural(n, '1 dia', '{n} dias') : plural(Math.round(n / 30), '1 mês', '{n} meses');
+  };
+
+  return `<div class="est-revisar">
+    <div class="est-passo">${t('cartão {n} de {total}', {
+      n: formatarNumero(aqui.cartao + 1),
+      total: formatarNumero(fila.cartoes.length)
+    })}${prof.materia ? ` · ${escapeHtml(prof.materia)}` : ''}</div>
+    <div class="est-cartao" data-cartao="${escapeHtml(cartao.id)}">
+      <div class="frente">${escapeHtml(cartao.frente)}</div>
+      <div class="verso" hidden>${escapeHtml(cartao.verso)}</div>
+      ${cartao.fonte ? `<div class="fonte" hidden>${escapeHtml(cartao.fonte)}</div>` : ''}
+    </div>
+    <div class="est-notas" hidden>${notas
+      .map(
+        (n) =>
+          `<button class="est-nota ${n.cls}" data-nota="${n.valor}">${escapeHtml(
+            n.nome()
+          )}<small>${escapeHtml(emDias(cartao.previsao?.[n.id]))}</small></button>`
+      )
+      .join('')}</div>
+    <div class="row" style="justify-content:center">
+      <button class="primary" data-mostrar>${t('Mostrar a resposta')}</button>
+    </div>
+    <button class="ghost" data-sair-rev>${icon('close', 17)} ${t('Sair da revisão')}</button>
+  </div>`;
+}
+
+function ligarRevisao(el, prof, fila, ctx) {
+  const q = (s) => el.querySelector(s);
+  const mostrar = () => {
+    q('.verso').hidden = false;
+    if (q('.fonte')) q('.fonte').hidden = false;
+    q('.est-notas').hidden = false;
+    q('[data-mostrar]').closest('.row').hidden = true;
+    q('[data-nota="3"]')?.focus();
+  };
+  q('[data-mostrar]').onclick = mostrar;
+  q('[data-mostrar]').focus();
+
+  const responder = async (nota) => {
+    const id = q('.est-cartao').dataset.cartao;
+    try {
+      await api(`/cartoes/${id}/responder`, { method: 'POST', body: { nota } });
+    } catch (err) {
+      toast(err.message || t('não deu pra gravar a revisão'), 'err');
+    }
+    aqui.cartao += 1;
+    if (aqui.cartao >= fila.cartoes.length) {
+      aqui.cartao = 0;
+      aqui.revisando = false;
+      toast(t('Por hoje acabou'), 'ok');
+    }
+    ctx.switchView('estudos');
+  };
+  for (const b of el.querySelectorAll('[data-nota]')) b.onclick = () => responder(Number(b.dataset.nota));
+  q('[data-sair-rev]').onclick = () => {
+    aqui.revisando = false;
+    aqui.cartao = 0;
+    ctx.switchView('estudos');
+  };
+  // Espaço mostra, número responde: cem cartões não se faz com o mouse.
+  el.onkeydown = (ev) => {
+    if (ev.key === ' ' && q('.verso').hidden) {
+      ev.preventDefault();
+      return mostrar();
+    }
+    if (!q('.verso').hidden && ['1', '2', '3', '4'].includes(ev.key)) {
+      ev.preventDefault();
+      responder(Number(ev.key));
+    }
+  };
+  el.tabIndex = 0;
+  paintIcons(el);
+}
+
+// -------------------------------------------------------------- a ligação
+
+function ligarProfessor(el, prof, saidas, ctx) {
+  const q = (s) => el.querySelector(s);
+  const repintar = () => ctx.switchView('estudos');
+
+  for (const b of el.querySelectorAll('[data-regiao]')) {
+    b.onclick = () => {
+      aqui.regiao = b.dataset.regiao;
+      repintar();
+    };
+  }
+  q('#est-trocar').onclick = () => {
+    aqui.professorId = null;
+    aqui.pastaAberta = null;
+    aqui.saidaAberta = null;
+    repintar();
+  };
+  q('#est-revisar')?.addEventListener('click', () => {
+    aqui.revisando = true;
+    aqui.cartao = 0;
+    repintar();
+  });
+  q('#est-foto').onclick = () => escolherFoto(prof, ctx);
+
+  for (const linha of el.querySelectorAll('[data-pasta]')) {
+    const id = linha.dataset.pasta;
+    linha.querySelector('[data-marcar]').onclick = () => {
+      if (aqui.fora.has(id)) aqui.fora.delete(id);
+      else aqui.fora.add(id);
+      repintar();
+    };
+    linha.querySelector('[data-abrir]').onclick = () => {
+      aqui.pastaAberta = aqui.pastaAberta === id ? null : id;
+      aqui.saidaAberta = null;
+      aqui.regiao = 'retrato';
+      repintar();
+    };
+  }
+
+  q('#est-nova-pasta').onclick = () => criarPasta(prof, ctx, q('.est-mat'));
+  q('[data-volta]')?.addEventListener('click', () => {
+    aqui.pastaAberta = null;
+    aqui.saidaAberta = null;
+    repintar();
+  });
+  q('#est-primeira-prova')?.addEventListener('click', () => criarPasta(prof, ctx, q('.est-mat')));
+
+  for (const b of el.querySelectorAll('[data-add]')) {
+    b.onclick = () => enviarArquivos(aqui.pastaAberta, b.dataset.add, ctx);
+  }
+  q('[data-ren]')?.addEventListener('click', () => {
+    const pasta = prof.pastas.find((p) => p.id === aqui.pastaAberta);
+    pedirNome(q('.est-cabeca-av'), {
+      valor: pasta.nome,
+      dica: t('Nome da pasta'),
+      aoConfirmar: async (nome) => {
+        await api(`/pastas/${pasta.id}`, { method: 'PATCH', body: { nome } });
+        repintar();
+      }
+    });
+  });
+  ligarApagar(q('[data-del]'), async () => {
+    await api(`/pastas/${aqui.pastaAberta}`, { method: 'DELETE' });
+    aqui.pastaAberta = null;
+    repintar();
+  });
+
+  for (const b of el.querySelectorAll('[data-saida]')) {
+    b.onclick = () => {
+      aqui.saidaAberta = aqui.saidaAberta === b.dataset.saida ? null : b.dataset.saida;
+      aqui.pastaAberta = null;
+      aqui.regiao = 'retrato';
+      repintar();
+    };
+  }
+  q('[data-fechar-saida]')?.addEventListener('click', () => {
+    aqui.saidaAberta = null;
+    repintar();
+  });
+  ligarApagar(q('[data-apagar-saida]'), async () => {
+    await api(`/saidas/${aqui.saidaAberta}`, { method: 'DELETE' });
+    aqui.saidaAberta = null;
+    repintar();
+  });
+
+  for (const b of el.querySelectorAll('[data-gerar]')) {
+    b.onclick = () => gerar(el, prof, b, q('#est-modelo').value, ctx);
+  }
+
+  // As saídas que têm vida própria.
+  const saida = saidas.find((s) => s.id === aqui.saidaAberta);
+  if (saida) {
+    ligarPodcast(el, saida.json);
+    ligarQuiz(el, saida.json);
+    ligarSlides(el, saida.json);
+    q('[data-act=revisar]')?.addEventListener('click', async (ev) => {
+      ev.currentTarget.disabled = true;
+      try {
+        const { entraram } = await api(`/saidas/${saida.id}/cartoes`, { method: 'POST' });
+        toast(
+          entraram
+            ? plural(entraram, '1 cartão entrou na revisão', '{n} cartões entraram na revisão')
+            : t('todos esses cartões já estavam na revisão'),
+          entraram ? 'ok' : ''
+        );
+        repintar();
+      } catch (err) {
+        toast(err.message || t('não deu pra mandar pra revisão'), 'err');
+      }
+    });
+  }
+}
+
+/** Apagar em dois toques, com o botão dizendo o que vai acontecer. */
+function ligarApagar(botao, aoConfirmar) {
+  if (!botao) return;
+  let armado = 0;
+  const original = botao.innerHTML;
+  botao.onclick = async () => {
+    if (!armado) {
+      armado = window.setTimeout(() => {
+        armado = 0;
+        botao.classList.remove('armado');
+        botao.innerHTML = original;
+      }, 4000);
+      botao.classList.add('armado');
+      botao.innerHTML = `${icon('trash', 16)} <span>${t('apagar mesmo?')}</span>`;
+      return;
+    }
+    window.clearTimeout(armado);
+    await aoConfirmar();
+  };
+}
+
+async function gerar(el, prof, botao, ref, ctx) {
+  const tipo = botao.dataset.gerar;
+  if (!ref) return toast(t('escolha uma IA pra gerar'), 'err');
+  const rotulo = botao.querySelector('.nm');
+  const antes = rotulo?.textContent;
+  botao.classList.add('ocupado');
+  botao.disabled = true;
+  if (rotulo) rotulo.textContent = t('gerando…');
+
+  const pastas = prof.pastas.filter((p) => !aqui.fora.has(p.id)).map((p) => p.id);
+  try {
+    await stream(`/professores/${prof.id}/gerar`, { tipo, model: ref, pastas }, (ev) => {
+      if (ev.type === 'repetindo' && rotulo) rotulo.textContent = t('de novo…');
+      if (ev.type === 'pronto') aqui.saidaAberta = ev.saida.id;
+      if (ev.type === 'error') throw new Error(ev.message);
+    });
+    toast(t('pronto'), 'ok');
+  } catch (err) {
+    toast(err.message || t('não deu pra gerar'), 'err');
+  } finally {
+    botao.classList.remove('ocupado');
+    botao.disabled = false;
+    if (rotulo && antes) rotulo.textContent = antes;
+    ctx.switchView('estudos');
+  }
+}
+
+// -------------------------------------------------------- as saídas abertas
+
+function desenharSaida(saida) {
+  const j = saida.json || {};
+  const l = acharLadrilho(saida.tipo);
+  const desenhar = {
+    simulado: () => desenharSimulado(j),
+    guia: () => desenharGuia(j),
+    flashcards: () => desenharCartoes(j),
+    resumo: () => desenharResumo(j),
+    mapa: () => desenharMapa(j),
+    linha: () => desenharLinha(j),
+    podcast: () => desenharPodcast(j),
+    quiz: () => desenharQuiz(j),
+    infografico: () => desenharInfografico(j),
+    slides: () => desenharSlides(j)
+  }[saida.tipo];
+
+  return `
+    <button class="est-volta" data-fechar-saida>${icon('chevron', 17)} ${t('Retrato do professor')}</button>
+    <header class="est-cabeca-av">
+      <h2>${escapeHtml(saida.titulo)}</h2>
+      <div class="sub">${escapeHtml(
+        [
+          l ? l.nome() : saida.tipo,
+          formatarData(saida.created_at, { day: '2-digit', month: 'short' }),
+          saida.modelo ? modelLabel(saida.modelo) : ''
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      )}</div>
+      <div class="acoes">
+        <button class="icon danger" data-apagar-saida title="${t('apagar')}"
+          aria-label="${t('apagar')}">${icon('trash', 18)}</button>
+      </div>
+    </header>
+    <div class="est-saida">
+      ${desenhar ? desenhar() : ''}
+      ${faltouEmHtml(j.faltou)}
+    </div>`;
+}
+
+// ----------------------------------------------------------- pequenas ações
+
+function criarPasta(prof, ctx, host) {
   pedirNome(host, {
-    dica: tipo === 'prova' ? t('A1 do 1º trimestre') : t('Nome da pasta'),
+    dica: t('A1 do 1º trimestre'),
     aoConfirmar: async (nome) => {
       const pasta = await api(`/professores/${prof.id}/pastas`, {
         method: 'POST',
-        body: { nome, tipo }
+        body: { nome, tipo: 'prova' }
       });
-      aqui.pastaId = pasta.id;
+      aqui.pastaAberta = pasta.id;
       ctx.switchView('estudos');
     }
   });
 }
 
-/**
- * O miolo: os arquivos da pasta aberta, separados pelo papel que exercem.
- *
- * Numa pasta de prova as três caixas aparecem, e as duas primeiras são as que
- * importam. Numa pasta de aula só existe material, e mostrar as outras duas
- * vazias só convidaria a jogar prova no lugar errado.
- */
-async function corpoDaPasta(host, prof, pasta, ctx) {
-  if (!pasta) {
-    host.innerHTML = `<div class="cd-vazio">
-      <span class="ico">${icon('folder', 30)}</span>
-      <b>${t('Nenhuma pasta ainda')}</b>
-      <span>${t('Crie a primeira avaliação dele aqui do lado.')}</span>
-    </div>`;
-    return paintIcons(host);
-  }
-
-  const papeis = pasta.tipo === 'prova' ? PAPEIS : PAPEIS.filter((p) => p.id === 'material');
-
-  host.innerHTML = `
-    <div class="row est-cabeca">
-      <h3 class="grow">${escapeHtml(pasta.nome)}</h3>
-      <button data-act="ren" class="icon" type="button" title="${t('renomear')}"
-        aria-label="${t('renomear a pasta')}"><span data-icon="edit" data-size="18"></span></button>
-      <button data-act="del" class="icon danger" type="button" title="${t('apagar')}"
-        aria-label="${t('apagar a pasta')}"><span data-icon="trash" data-size="18"></span></button>
-    </div>
-    <div class="est-caixas"></div>`;
-
-  const caixas = host.querySelector('.est-caixas');
-  for (const papel of papeis) {
-    const dela = pasta.anexos.filter((a) => a.papel === papel.id);
-    const caixa = document.createElement('div');
-    caixa.className = 'card est-caixa';
-    caixa.innerHTML = `
-      <h4>${icon(papel.ico, 17)} ${escapeHtml(papel.nome())}
-        <span class="tag">${dela.length ? formatarNumero(dela.length) : t('vazio')}</span>
-      </h4>
-      <p class="meta">${escapeHtml(papel.dica())}</p>
-      <div class="est-arquivos"></div>
-      <div class="row">
-        <button data-add="${papel.id}" class="ghost" type="button">
-          <span data-icon="plus" data-size="16"></span> ${t('Adicionar arquivo')}
-        </button>
-      </div>`;
-
-    const lista = caixa.querySelector('.est-arquivos');
-    for (const anexo of dela) {
-      const linha = document.createElement('div');
-      linha.className = `est-arquivo${anexo.status === 'ok' ? '' : ' ruim'}`;
-      linha.innerHTML = `<span class="ico">${icon('file', 16)}</span>
-        <span class="grow">${escapeHtml(anexo.name)}</span>
-        <span class="meta">${
-          anexo.status === 'ok'
-            ? plural(anexo.chunks || 0, '1 trecho', '{n} trechos')
-            : escapeHtml(anexo.note || t('não deu pra ler'))
-        }</span>
-        <button data-del="${anexo.id}" class="icon" type="button" title="${t('apagar')}"
-          aria-label="${t('apagar {nome}', { nome: escapeHtml(anexo.name) })}">
-          <span data-icon="trash" data-size="16"></span></button>`;
-      linha.querySelector('[data-del]').onclick = async () => {
-        await api(`/attachments/${anexo.id}`, { method: 'DELETE' });
-        ctx.switchView('estudos');
-      };
-      lista.appendChild(linha);
-    }
-    if (!dela.length) lista.innerHTML = `<p class="meta">${t('nada aqui ainda')}</p>`;
-
-    caixa.querySelector('[data-add]').onclick = () => escolherArquivos(pasta.id, papel.id, ctx);
-    caixas.appendChild(caixa);
-  }
-
-  const cabeca = host.querySelector('.est-cabeca');
-  host.querySelector('[data-act=ren]').onclick = () => {
-    pedirNome(cabeca, {
-      valor: pasta.nome,
-      dica: t('Nome da pasta'),
-      aoConfirmar: async (nome) => {
-        await api(`/pastas/${pasta.id}`, { method: 'PATCH', body: { nome } });
-        ctx.switchView('estudos');
-      }
-    });
-  };
-
-  // Apagar pede confirmação no próprio botão, em dois toques. Some sozinho se a
-  // pessoa não confirmar: um botão vermelho armado pra sempre é armadilha.
-  const apagar = host.querySelector('[data-act=del]');
-  let armado = 0;
-  apagar.onclick = async () => {
-    if (!armado) {
-      armado = window.setTimeout(() => {
-        armado = 0;
-        apagar.classList.remove('armado');
-        apagar.innerHTML = icon('trash', 18);
-      }, 4000);
-      apagar.classList.add('armado');
-      apagar.innerHTML = `${icon('trash', 16)} <span>${t('apagar mesmo?')}</span>`;
-      return;
-    }
-    window.clearTimeout(armado);
-    await api(`/pastas/${pasta.id}`, { method: 'DELETE' });
-    aqui.pastaId = null;
-    ctx.switchView('estudos');
-  };
-
-  paintIcons(host);
-}
-
-/** Abre o seletor de arquivos e sobe um por um, dizendo o papel de cada. */
-function escolherArquivos(pastaId, papel, ctx) {
+function enviarArquivos(pastaId, papel, ctx) {
+  if (!pastaId) return;
   const campo = document.createElement('input');
   campo.type = 'file';
   campo.multiple = true;
@@ -599,470 +937,26 @@ function escolherArquivos(pastaId, papel, ctx) {
   campo.click();
 }
 
-// -------------------------------------------------------- o retrato na tela
-
-/** Como cada nível de Bloom se chama pra quem lê, e o que ele quer dizer. */
-const ROTULO_DO_NIVEL = {
-  lembrar: () => t('lembrar'),
-  entender: () => t('entender'),
-  aplicar: () => t('aplicar'),
-  analisar: () => t('analisar'),
-  avaliar: () => t('avaliar'),
-  criar: () => t('criar')
-};
-
-/**
- * O quanto dá pra confiar, dito na cara.
- *
- * Com uma prova só o retrato é a descrição daquela prova. Chamar isso de padrão
- * do professor é o erro que os preditores de prova comerciais cometem, e é o que
- * transforma uma ferramenta útil numa que engana.
- */
-const ROTULO_DA_CONFIANCA = {
-  palpite: () => t('ainda é palpite — só uma prova'),
-  indicio: () => t('indício — duas provas'),
-  media: () => t('razoável — falta o material de aula'),
-  boa: () => t('boa — provas e aula batendo')
-};
-
-const porcento = (fracao) => `${formatarNumero(Math.round((Number(fracao) || 0) * 100))}%`;
-
-/** Uma barra e um número: peso se lê melhor visto do que lido. */
-function linhaDePeso(rotulo, peso, citacao, extra = '') {
-  return `<div class="ret-linha">
-    <div class="ret-rot"><b>${escapeHtml(rotulo)}</b>${extra}</div>
-    <div class="progress"><span style="width:${Math.min(Math.round((Number(peso) || 0) * 100), 100)}%"></span></div>
-    <span class="ret-num">${porcento(peso)}</span>
-    ${citacao ? `<p class="ret-cita">${escapeHtml(citacao)}</p>` : ''}
-  </div>`;
-}
-
-function telaDoRetrato(host, prof, ctx) {
-  const retrato = prof.retrato;
-  const podeGerar = prof.material.provas > 0;
-
-  if (!retrato) {
-    host.innerHTML = `<div class="cd-vazio">
-      <span class="ico">${icon('sparkle', 32)}</span>
-      <b>${t('Ainda não há retrato dele')}</b>
-      <span>${
-        podeGerar
-          ? t(
-              'O Nuvo vai ler as provas que você anexou, uma por uma, e depois comparar com o material de aula. O que sai é o que ele cobra, em que formato e em que nível — com o trecho da prova do lado de cada achado.'
-            )
-          : t('Anexe pelo menos uma prova dele. Sem prova não há o que retratar.')
-      }</span>
-      <div id="ret-acao" class="row"></div>
-      <div id="ret-andar" class="ret-andar" role="status"></div>
-    </div>`;
-    if (podeGerar) botaoDeGerar(host.querySelector('#ret-acao'), prof, ctx);
-    return paintIcons(host);
-  }
-
-  const conf = retrato.confianca || {};
-  host.innerHTML = `
-    <div class="row ret-topo">
-      <span class="tag ret-conf ${escapeHtml(conf.nota || '')}">
-        ${escapeHtml((ROTULO_DA_CONFIANCA[conf.nota] || (() => t('sem nota de confiança')))())}
-      </span>
-      <span class="grow"></span>
-      <span class="meta">${escapeHtml(prof.retrato_modelo ? modelLabel(prof.retrato_modelo) : '')}</span>
-      <span id="ret-acao"></span>
-    </div>
-    <div id="ret-andar" class="ret-andar" role="status"></div>
-
-    ${secao('file', t('Como a prova dele é'), formatoEmHtml(retrato.formato))}
-    ${secao(
-      'book',
-      t('O que ele cobra'),
-      retrato.conteudo
-        .map((c) =>
-          linhaDePeso(
-            c.tema,
-            c.peso,
-            c.citacao,
-            c.apareceu_em?.length
-              ? `<span class="meta">${escapeHtml(c.apareceu_em.join(' · '))}</span>`
-              : ''
-          )
-        )
-        .join('')
-    )}
-    ${secao(
-      'brain',
-      t('O que ele pede de você'),
-      retrato.cognitivo
-        .map((c) => linhaDePeso((ROTULO_DO_NIVEL[c.nivel] || (() => c.nivel))(), c.peso))
-        .join('')
-    )}
-    ${
-      retrato.verbos.length
-        ? secao(
-            'edit',
-            t('Como ele manda fazer'),
-            `<div class="ret-verbos">${retrato.verbos
-              .map(
-                (v) =>
-                  `<span class="tag" title="${escapeHtml(v.exemplo || '')}">${escapeHtml(
-                    v.verbo
-                  )} <b>${formatarNumero(v.vezes)}</b></span>`
-              )
-              .join('')}</div>`
-          )
-        : ''
-    }
-    ${
-      retrato.pegadinhas.length
-        ? secao(
-            'alert',
-            t('Onde ele derruba quem decorou'),
-            retrato.pegadinhas
-              .map(
-                (p) =>
-                  `<div class="ret-linha"><div class="ret-rot"><b>${escapeHtml(p.padrao)}</b></div>
-                   ${p.exemplo ? `<p class="ret-cita">${escapeHtml(p.exemplo)}</p>` : ''}</div>`
-              )
-              .join('')
-          )
-        : ''
-    }
-    ${
-      retrato.manias.length
-        ? secao('spark', t('Manias dele'), `<ul class="ret-lista">${retrato.manias
-            .map((m) => `<li>${escapeHtml(m)}</li>`)
-            .join('')}</ul>`)
-        : ''
-    }
-    ${
-      retrato.so_na_aula.length
-        ? secao(
-            'filter',
-            t('Ensina e nunca cobrou'),
-            `<p class="meta">${t(
-              'Está no material de aula e não apareceu em nenhuma prova. É o primeiro lugar onde economizar tempo.'
-            )}</p>
-             <ul class="ret-lista">${retrato.so_na_aula
-               .map((s) => `<li>${escapeHtml(s)}</li>`)
-               .join('')}</ul>`
-          )
-        : ''
-    }
-    <p class="meta ret-rodape">${t(
-      'Isto é leitura de máquina sobre as provas que você deu a ela. Confira antes de estudar por aqui: o que estiver errado, apague.'
-    )}</p>`;
-
-  botaoDeGerar(host.querySelector('#ret-acao'), prof, ctx, { refazer: true });
-  paintIcons(host);
-}
-
-function secao(ico, titulo, dentro) {
-  if (!dentro) return '';
-  return `<section class="card ret-secao">
-    <h3>${icon(ico, 17)} ${escapeHtml(titulo)}</h3>
-    ${dentro}
-  </section>`;
-}
-
-function formatoEmHtml(formato) {
-  if (!formato) return '';
-  const partes = [];
-  if (formato.n_questoes) {
-    partes.push(`<span class="tag">${plural(formato.n_questoes, '1 questão', '{n} questões')}</span>`);
-  }
-  for (const tipo of formato.tipos || []) {
-    partes.push(`<span class="tag">${escapeHtml(tipo.tipo)} <b>${porcento(tipo.peso)}</b></span>`);
-  }
-  if (!partes.length && !formato.pontuacao) return '';
-  return `<div class="ret-verbos">${partes.join('')}</div>
-    ${formato.pontuacao ? `<p class="meta">${escapeHtml(formato.pontuacao)}</p>` : ''}`;
-}
-
-/** O botão que manda montar, com a escolha da IA do lado. */
-function botaoDeGerar(host, prof, ctx, { refazer = false } = {}) {
-  if (!host) return;
-  host.innerHTML = `
-    <select id="ret-modelo" aria-label="${t('IA que monta o retrato')}">${modelOptions(
-      state.model
-    )}</select>
-    <button id="ret-gerar" class="primary" type="button">
-      <span data-icon="sparkle"></span> ${refazer ? t('Refazer o retrato') : t('Montar o retrato')}
-    </button>`;
-
-  const botao = host.querySelector('#ret-gerar');
-  const andar = host.closest('#est-retrato')?.querySelector('#ret-andar');
-  botao.onclick = async () => {
-    const ref = host.querySelector('#ret-modelo').value;
-    if (!ref) return toast(t('escolha uma IA pra montar o retrato'), 'err');
-    botao.disabled = true;
-    const passos = [];
-    const contar = (linha) => {
-      passos.push(linha);
-      if (andar) andar.textContent = passos.slice(-1)[0];
-    };
+function escolherFoto(prof, ctx) {
+  const campo = document.createElement('input');
+  campo.type = 'file';
+  campo.accept = 'image/png,image/jpeg,image/webp';
+  campo.onchange = async () => {
+    const arquivo = campo.files?.[0];
+    if (!arquivo) return;
     try {
-      await stream(`/professores/${prof.id}/retrato`, { model: ref }, (ev) => {
-        if (ev.type === 'start') {
-          contar(
-            t('lendo {provas} e {materiais}', {
-              provas: plural(ev.provas, '1 prova', '{n} provas'),
-              materiais: plural(ev.materiais, '1 material', '{n} materiais')
-            })
-          );
-        }
-        if (ev.type === 'lendo') contar(t('lendo {nome}…', { nome: ev.nome }));
-        if (ev.type === 'lida') {
-          contar(t('{nome}: {questoes}', { nome: ev.nome, questoes: plural(ev.questoes, '1 questão', '{n} questões') }));
-        }
-        if (ev.type === 'pulada') contar(t('{nome} ficou de fora — {porque}', { nome: ev.nome, porque: ev.porque }));
-        if (ev.type === 'sintetizando') contar(t('juntando tudo…'));
-        if (ev.type === 'repetindo') contar(t('a resposta veio torta, pedindo de novo…'));
-        if (ev.type === 'error') throw new Error(ev.message);
+      await api(`/professores/${prof.id}/foto`, {
+        method: 'POST',
+        body: await arquivo.arrayBuffer(),
+        raw: true
       });
-      toast(t('retrato pronto'), 'ok');
-    } catch (err) {
-      toast(err.message || t('não deu pra montar o retrato'), 'err');
-    } finally {
-      botao.disabled = false;
       ctx.switchView('estudos');
-    }
-  };
-  paintIcons(host);
-}
-
-// ------------------------------------------------------------------ estudar
-
-/** O que dá pra pedir, e o que cada coisa serve. Ordem: o que mais vale prova. */
-const FORMATOS = [
-  {
-    id: 'simulado',
-    ico: 'file',
-    nome: () => t('Simulado'),
-    dica: () => t('Uma prova nova no jeito dele, com o gabarito e o motivo de cada questão.'),
-    precisaRetrato: true
-  },
-  {
-    id: 'guia',
-    ico: 'book',
-    nome: () => t('Guia de estudo'),
-    dica: () => t('O que estudar, na ordem do que mais cai — e o que dá pra pular.'),
-    precisaRetrato: true
-  },
-  {
-    id: 'flashcards',
-    ico: 'layers',
-    nome: () => t('Cartões'),
-    dica: () => t('Pergunta e resposta, pra treinar de olho fechado.'),
-    precisaRetrato: false
-  },
-  {
-    id: 'resumo',
-    ico: 'edit',
-    nome: () => t('Resumo'),
-    dica: () => t('O material inteiro em pontos, com os termos definidos.'),
-    precisaRetrato: false
-  },
-  {
-    id: 'mapa',
-    ico: 'layers',
-    nome: () => t('Mapa mental'),
-    dica: () => t('A matéria inteira num desenho só, pra ver como as partes se ligam.'),
-    precisaRetrato: false
-  },
-  {
-    id: 'linha',
-    ico: 'activity',
-    nome: () => t('Linha do tempo'),
-    dica: () => t('A ordem das coisas — datas, ou as etapas de um processo.'),
-    precisaRetrato: false
-  },
-  {
-    id: 'podcast',
-    ico: 'speaker',
-    nome: () => t('Conversa em áudio'),
-    dica: () => t('Duas vozes explicando a matéria, pra ouvir no caminho da escola.'),
-    precisaRetrato: true
-  },
-  {
-    id: 'quiz',
-    ico: 'check',
-    nome: () => t('Quiz'),
-    dica: () => t('Múltipla escolha corrigida na hora, com o porquê de cada erro.'),
-    precisaRetrato: false
-  },
-  {
-    id: 'infografico',
-    ico: 'activity',
-    nome: () => t('Infográfico'),
-    dica: () => t('A matéria numa página só, do jeito que cabe num cartaz.'),
-    precisaRetrato: true
-  },
-  {
-    id: 'slides',
-    ico: 'file',
-    nome: () => t('Slides'),
-    dica: () => t('Pra revisar passando de tela em tela, e imprimir em PDF.'),
-    precisaRetrato: true
-  }
-];
-
-const PROBABILIDADE = {
-  alta: () => t('cai bastante'),
-  media: () => t('pode cair'),
-  baixa: () => t('cai pouco')
-};
-
-async function telaDeEstudar(host, prof, ctx) {
-  const saidas = await api(`/professores/${prof.id}/saidas`);
-  const temRetrato = !!prof.retrato;
-
-  host.innerHTML = `
-    <div class="est-formatos"></div>
-    <div id="est-andar" class="ret-andar" role="status"></div>
-    <div class="grupo-rot">${t('O que já foi feito')}</div>
-    <div id="est-saidas" class="grupo"></div>
-    <div id="est-aberto"></div>`;
-
-  const caixa = host.querySelector('.est-formatos');
-  for (const formato of FORMATOS) {
-    const trancado = formato.precisaRetrato && !temRetrato;
-    const card = document.createElement('div');
-    card.className = `card est-formato${trancado ? ' trancado' : ''}`;
-    card.innerHTML = `
-      <h4>${icon(formato.ico, 17)} ${escapeHtml(formato.nome())}</h4>
-      <p class="meta">${escapeHtml(formato.dica())}</p>
-      ${
-        trancado
-          ? `<p class="meta aviso warn">${t('precisa do retrato do professor antes')}</p>`
-          : `<div class="row">
-               <select data-modelo aria-label="${t('IA que gera')}">${modelOptions(state.model)}</select>
-               <button data-gerar="${formato.id}" class="primary" type="button">
-                 <span data-icon="sparkle" data-size="16"></span> ${t('Gerar')}
-               </button>
-             </div>`
-      }`;
-    const botao = card.querySelector('[data-gerar]');
-    if (botao) {
-      botao.onclick = () =>
-        gerar(host, prof, formato.id, card.querySelector('[data-modelo]').value, ctx);
-    }
-    caixa.appendChild(card);
-  }
-
-  const listaSaidas = host.querySelector('#est-saidas');
-  if (!saidas.length) {
-    listaSaidas.innerHTML = `<p class="meta" style="padding:14px 18px">${t(
-      'nada gerado ainda'
-    )}</p>`;
-  }
-  for (const saida of saidas) {
-    const linha = document.createElement('button');
-    linha.type = 'button';
-    linha.className = 'linha';
-    linha.innerHTML = `<span class="ico">${icon(
-      FORMATOS.find((f) => f.id === saida.tipo)?.ico || 'file',
-      18
-    )}</span>
-      <span class="grow">${escapeHtml(saida.titulo)}</span>
-      <span class="meta">${escapeHtml(formatarData(saida.created_at, { day: '2-digit', month: 'short' }) || '')}</span>`;
-    linha.onclick = () => abrirSaida(host.querySelector('#est-aberto'), saida, ctx);
-    listaSaidas.appendChild(linha);
-  }
-
-  paintIcons(host);
-}
-
-async function gerar(host, prof, tipo, ref, ctx) {
-  if (!ref) return toast(t('escolha uma IA pra gerar'), 'err');
-  const andar = host.querySelector('#est-andar');
-  const dizer = (frase) => {
-    if (andar) andar.textContent = frase;
-  };
-  for (const b of host.querySelectorAll('[data-gerar]')) b.disabled = true;
-  try {
-    await stream(`/professores/${prof.id}/gerar`, { tipo, model: ref }, (ev) => {
-      if (ev.type === 'start') {
-        dizer(
-          t('lendo {arquivos}…', { arquivos: plural(ev.arquivos, '1 arquivo', '{n} arquivos') })
-        );
-      }
-      if (ev.type === 'repetindo') dizer(t('a resposta veio torta, pedindo de novo…'));
-      if (ev.type === 'pronto') dizer('');
-      if (ev.type === 'error') throw new Error(ev.message);
-    });
-    toast(t('pronto'), 'ok');
-  } catch (err) {
-    toast(err.message || t('não deu pra gerar'), 'err');
-  } finally {
-    ctx.switchView('estudos');
-  }
-}
-
-function abrirSaida(host, saida, ctx) {
-  if (host.dataset.aberta === saida.id) {
-    host.innerHTML = '';
-    host.dataset.aberta = '';
-    return;
-  }
-  host.dataset.aberta = saida.id;
-  const j = saida.json || {};
-  const desenhar = {
-    simulado: () => desenharSimulado(j),
-    guia: () => desenharGuia(j),
-    flashcards: () => desenharCartoes(j),
-    resumo: () => desenharResumo(j),
-    mapa: () => desenharMapa(j),
-    linha: () => desenharLinha(j),
-    podcast: () => desenharPodcast(j),
-    quiz: () => desenharQuiz(j),
-    infografico: () => desenharInfografico(j),
-    slides: () => desenharSlides(j)
-  }[saida.tipo];
-
-  host.innerHTML = `<section class="card est-saida">
-      <div class="row est-cabeca">
-        <h3 class="grow">${escapeHtml(saida.titulo)}</h3>
-        <button data-act="fechar" class="icon" type="button" title="${t('fechar')}"
-          aria-label="${t('fechar')}"><span data-icon="close" data-size="18"></span></button>
-        <button data-act="apagar" class="icon danger" type="button" title="${t('apagar')}"
-          aria-label="${t('apagar')}"><span data-icon="trash" data-size="18"></span></button>
-      </div>
-      ${desenhar ? desenhar() : ''}
-      ${faltouEmHtml(j.faltou)}
-    </section>`;
-
-  host.querySelector('[data-act=fechar]').onclick = () => {
-    host.innerHTML = '';
-    host.dataset.aberta = '';
-  };
-  host.querySelector('[data-act=apagar]').onclick = async () => {
-    await api(`/saidas/${saida.id}`, { method: 'DELETE' });
-    ctx.switchView('estudos');
-  };
-  host.querySelector('[data-act=revisar]')?.addEventListener('click', async (ev) => {
-    ev.currentTarget.disabled = true;
-    try {
-      const { entraram, repetidos } = await api(`/saidas/${saida.id}/cartoes`, { method: 'POST' });
-      toast(
-        entraram
-          ? plural(entraram, '1 cartão entrou na revisão', '{n} cartões entraram na revisão')
-          : t('todos esses cartões já estavam na revisão'),
-        entraram ? 'ok' : ''
-      );
-      if (entraram || repetidos) {
-        aqui.aba = 'revisar';
-        ctx.switchView('estudos');
-      }
     } catch (err) {
-      toast(err.message || t('não deu pra mandar pra revisão'), 'err');
+      toast(err.message || t('não deu pra guardar a foto'), 'err');
     }
-  });
-  ligarPodcast(host, j);
-  ligarQuiz(host, j);
-  ligarSlides(host, j);
-  host.scrollIntoView({ block: 'nearest' });
-  paintIcons(host);
+  };
+  campo.click();
 }
-
 /**
  * O que o retrato pedia e o material não tinha.
  *
@@ -1185,138 +1079,6 @@ function desenharResumo(j) {
         : ''
     }`;
 }
-
-// ------------------------------------------------------------------ revisar
-
-/** As quatro notas, na ordem em que aparecem, com a tecla que dispara cada uma. */
-const NOTAS = [
-  { id: 'denovo', valor: 1, nome: () => t('De novo'), classe: 'danger', tecla: '1' },
-  { id: 'dificil', valor: 2, nome: () => t('Difícil'), classe: 'ghost', tecla: '2' },
-  { id: 'bom', valor: 3, nome: () => t('Bom'), classe: 'primary', tecla: '3' },
-  { id: 'facil', valor: 4, nome: () => t('Fácil'), classe: 'ghost', tecla: '4' }
-];
-
-/** "1 dia", "15 dias", "3 meses" — mês só quando passa de dois, senão fica pedante. */
-function emDias(dias) {
-  const n = Math.max(1, Math.round(Number(dias) || 1));
-  if (n < 60) return plural(n, '1 dia', '{n} dias');
-  return plural(Math.round(n / 30), '1 mês', '{n} meses');
-}
-
-async function telaDeRevisar(host, prof, ctx) {
-  const { contagem, cartoes } = await api(`/professores/${prof.id}/cartoes`);
-
-  if (!contagem.total) {
-    host.innerHTML = `<div class="cd-vazio">
-      <span class="ico">${icon('layers', 32)}</span>
-      <b>${t('Nenhum cartão ainda')}</b>
-      <span>${t(
-        'Gere os cartões na aba Estudar e mande pra revisão. Daí em diante o Nuvo escolhe o que mostrar em cada dia, pra você lembrar com o menor número de revisões.'
-      )}</span>
-    </div>`;
-    return paintIcons(host);
-  }
-
-  if (!cartoes.length) {
-    host.innerHTML = `<div class="cd-vazio">
-      <span class="ico">${icon('check', 32)}</span>
-      <b>${t('Por hoje acabou')}</b>
-      <span>${t('Você já revisou tudo que vencia. Volte amanhã — é assim que a conta funciona.')}</span>
-      <span class="meta">${plural(contagem.total, '1 cartão no total', '{n} cartões no total')}</span>
-    </div>`;
-    return paintIcons(host);
-  }
-
-  host.innerHTML = `
-    <div class="row rev-topo">
-      <span id="rev-faltam" class="tag"></span>
-      <span class="grow"></span>
-      <span class="meta">${plural(contagem.novos, '1 novo', '{n} novos')}</span>
-    </div>
-    <div id="rev-cartao"></div>`;
-
-  const caixa = host.querySelector('#rev-cartao');
-  let indice = 0;
-
-  const contador = host.querySelector('#rev-faltam');
-
-  const desenhar = () => {
-    const cartao = cartoes[indice];
-    // O contador desce a cada resposta. Um número parado em "faltam 25" enquanto
-    // a pilha anda é pequeno e é mentira, e é o tipo de coisa que faz duvidar do
-    // resto da tela.
-    if (contador) contador.textContent = t('faltam {n}', { n: formatarNumero(cartoes.length - indice) });
-    if (!cartao) {
-      // A fila desta rodada acabou. Recarregar traz o que voltou pra hoje (o
-      // que a pessoa respondeu "de novo" volta na mesma sessão).
-      ctx.switchView('estudos');
-      return;
-    }
-    caixa.innerHTML = `
-      <article class="card rev-cartao">
-        ${cartao.tema ? `<span class="tag">${escapeHtml(cartao.tema)}</span>` : ''}
-        <p class="rev-frente">${escapeHtml(cartao.frente)}</p>
-        <div class="rev-verso" hidden>
-          <p>${escapeHtml(cartao.verso)}</p>
-          ${cartao.fonte ? `<p class="ret-cita">${escapeHtml(cartao.fonte)}</p>` : ''}
-        </div>
-        <div class="row rev-acoes">
-          <button data-mostrar class="primary block" type="button">${t('Mostrar a resposta')}</button>
-        </div>
-      </article>`;
-
-    const verso = caixa.querySelector('.rev-verso');
-    const acoes = caixa.querySelector('.rev-acoes');
-
-    const responder = async (nota) => {
-      for (const b of acoes.querySelectorAll('button')) b.disabled = true;
-      try {
-        await api(`/cartoes/${cartao.id}/responder`, { method: 'POST', body: { nota } });
-      } catch (err) {
-        toast(err.message || t('não deu pra gravar a revisão'), 'err');
-      }
-      indice += 1;
-      desenhar();
-    };
-
-    const mostrar = () => {
-      verso.hidden = false;
-      acoes.innerHTML = NOTAS.map(
-        (n) => `<button data-nota="${n.valor}" class="${n.classe}" type="button">
-          ${escapeHtml(n.nome())}
-          <span class="rev-quando">${escapeHtml(emDias(cartao.previsao?.[n.id]))}</span>
-        </button>`
-      ).join('');
-      for (const btn of acoes.querySelectorAll('[data-nota]')) {
-        btn.onclick = () => responder(Number(btn.dataset.nota));
-      }
-      acoes.querySelector('[data-nota="3"]')?.focus();
-    };
-
-    caixa.querySelector('[data-mostrar]').onclick = mostrar;
-    caixa.querySelector('[data-mostrar]').focus();
-
-    // Espaço mostra, número responde. Quem revisa cem cartões não quer o mouse.
-    caixa.onkeydown = (ev) => {
-      if (ev.key === ' ' && verso.hidden) {
-        ev.preventDefault();
-        return mostrar();
-      }
-      if (verso.hidden) return;
-      const nota = NOTAS.find((n) => n.tecla === ev.key);
-      if (nota) {
-        ev.preventDefault();
-        responder(nota.valor);
-      }
-    };
-    paintIcons(caixa);
-  };
-
-  desenhar();
-  paintIcons(host);
-}
-
-// ------------------------------------------------- mapa, linha do tempo, voz
 
 /**
  * O mapa mental, desenhado em SVG aqui mesmo.
@@ -1513,8 +1275,6 @@ function ligarPodcast(host, j) {
   };
   parar.onclick = limpar;
 }
-
-// ------------------------------------------------ quiz, infográfico, slides
 
 /**
  * Quiz de múltipla escolha, corrigido no clique.
@@ -1715,4 +1475,117 @@ function ligarSlides(host, j) {
     print();
   };
   mostrar(0);
+}
+
+/**
+ * Nome novo escrito no lugar onde a coisa vai ficar, e não numa caixa por cima.
+ *
+ * Diálogo de navegador trava a janela e, num app sem barra de endereço, parece
+ * defeito do sistema. Aqui o campo nasce na lista, com o nome sugerido já
+ * selecionado: Enter confirma, Esc desiste, e quem só queria ver a lista não
+ * precisou fechar nada.
+ */
+function pedirNome(host, { valor = '', dica = '', aoConfirmar }) {
+  const linha = document.createElement('div');
+  linha.className = 'est-batismo';
+  linha.innerHTML = `<input type="text" aria-label="${dica || t('nome')}" placeholder="${escapeHtml(
+    dica
+  )}" />`;
+  host.appendChild(linha);
+  const campo = linha.querySelector('input');
+  campo.value = valor;
+  campo.focus();
+  campo.select();
+
+  let fechado = false;
+  const sair = () => {
+    if (fechado) return;
+    fechado = true;
+    linha.remove();
+  };
+  campo.onkeydown = (ev) => {
+    if (ev.key === 'Escape') {
+      ev.stopPropagation();
+      return sair();
+    }
+    if (ev.key !== 'Enter') return;
+    const nome = campo.value.trim();
+    sair();
+    if (nome) aoConfirmar(nome);
+  };
+  // Clicar fora é desistir, não confirmar: confirmar o que a pessoa não terminou
+  // de escrever cria pasta com nome pela metade.
+  campo.onblur = sair;
+  return linha;
+}
+
+/**
+ * O formulário do professor novo, com a escolha da organização.
+ *
+ * A escolha aparece aqui e não nos Ajustes porque ela é por professor: a escola
+ * dele pode ser de trimestre e o curso de fora, de módulo.
+ */
+function formularioDeProfessor(host, ctx) {
+  if (host.dataset.aberto === '1') {
+    host.innerHTML = '';
+    host.dataset.aberto = '0';
+    return;
+  }
+  host.dataset.aberto = '1';
+  host.innerHTML = `
+    <div class="card">
+      <h3>${t('Professor novo')}</h3>
+      <label class="field">${t('Nome')} <input id="pf-nome" placeholder="${t('Marcos')}" /></label>
+      <label class="field">${t('Matéria')} <input id="pf-materia" placeholder="${t('Biologia')}" /></label>
+      <label class="field">${t('Cor')}<div id="pf-cor"></div></label>
+      <div class="grupo-rot">${t('Como você quer organizar as provas dele')}</div>
+      <div id="pf-org" class="org-lista"></div>
+      <div class="row">
+        <button id="pf-criar" class="primary" type="button">
+          <span data-icon="check"></span> ${t('Criar professor')}
+        </button>
+      </div>
+    </div>`;
+
+  const escolhida = { id: 'pastas' };
+  const lista = host.querySelector('#pf-org');
+  const pintarOrg = () => {
+    lista.innerHTML = ORGANIZACOES.map(
+      (o) => `<button type="button" class="org-op${o.id === escolhida.id ? ' sel' : ''}"
+        data-org="${o.id}" aria-pressed="${o.id === escolhida.id}">
+        <b>${escapeHtml(o.nome())}</b><span class="meta">${escapeHtml(o.dica())}</span>
+      </button>`
+    ).join('');
+    for (const btn of lista.querySelectorAll('[data-org]')) {
+      btn.onclick = () => {
+        escolhida.id = btn.dataset.org;
+        pintarOrg();
+      };
+    }
+  };
+  pintarOrg();
+
+  const cor = iconPicker(host.querySelector('#pf-cor'), { icon: 'book', color: 'indigo' });
+
+  host.querySelector('#pf-criar').onclick = async () => {
+    const nome = host.querySelector('#pf-nome').value.trim();
+    if (!nome) return toast(t('o professor precisa de um nome'), 'err');
+    const org = acharOrganizacao(escolhida.id);
+    const novo = await api('/professores', {
+      method: 'POST',
+      body: {
+        nome,
+        materia: host.querySelector('#pf-materia').value.trim() || null,
+        cor: cor.color,
+        organizacao: org.id,
+        pastas: org.semear()
+      }
+    });
+    aqui.professorId = novo.id;
+    aqui.pastaId = novo.pastas[0]?.id || null;
+    ctx.switchView('estudos');
+    toast(t('professor criado'), 'ok');
+  };
+
+  paintIcons(host);
 }

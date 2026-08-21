@@ -2125,339 +2125,511 @@ button.icon { position: relative; }
   .loja-item a { justify-self: start; }
 }
 
-/* ------------------------------------------------------------------ Estudos
-   A tela é uma coluna de caixas à esquerda e o miolo à direita, igual à gaveta
-   do app: quem estuda passa o tempo dentro de uma pasta, não escolhendo pasta.
-   No celular a coluna vira uma faixa que rola de lado, porque duas colunas em
-   360px deixam as duas ilegíveis. */
-.prof-cara {
+
+/* ===================================================================
+   Estudos: um professor por vez. O retrato é a primeira coisa que se vê,
+   porque é o que nenhum concorrente tem. Sem abas, sem pilha de cartões:
+   material à esquerda, trabalho no meio, estúdio à direita.
+   =================================================================== */
+
+#view-estudos { padding: 0; overflow: hidden; }
+.est { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+/* --- o professor: uma coisa grande, nada competindo --- */
+.est-topo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 24px 18px;
   flex: 0 0 auto;
+}
+.est-foto {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #000;
+  background: var(--t, var(--indigo));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.est-quem { min-width: 0; flex: 1; }
+.est-quem h2 { margin: 0; font-size: 27px; font-weight: 650; letter-spacing: -0.032em; line-height: 1.1; }
+.est-quem .sub { font-size: 15px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.est-quem .sub b { color: var(--text-2); font-weight: 500; }
+.est-topo .acoes { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.est-rev {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--tint, var(--indigo));
-  color: #fff;
-  font-weight: 600;
-  font-size: 18px;
-  letter-spacing: -0.01em;
-}
-.prof-cara img { width: 100%; height: 100%; object-fit: cover; }
-.prof-card h3 { align-items: center; }
-
-.org-lista { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.org-op {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: flex-start;
-  text-align: left;
-  padding: 12px 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--glass-line);
-  background: var(--glass);
-  min-height: var(--toque);
-}
-.org-op.sel { border-color: var(--accent); background: var(--accent-soft); }
-.org-op b { font-size: 15.5px; font-weight: 600; }
-
-.est-topo { align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-.est-topo .volta { transform: rotate(90deg); }
-
-.est-grade { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 26px; align-items: start; }
-.est-pastas { min-width: 0; }
-.est-pastas .grupo-rot:first-child { padding-top: 6px; }
-/* A regra genérica de botão centraliza; aqui é lista, e lista lê da esquerda.
-   Sem isto os nomes das avaliações saíam centralizados e a coluna virava sopa. */
-.est-pastas .chat-item {
-  width: 100%;
-  justify-content: flex-start;
-  text-align: left;
-}
-.est-corpo { min-width: 0; }
-.est-cabeca { align-items: center; gap: 8px; position: relative; }
-.est-cabeca h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-
-.est-caixas { display: flex; flex-direction: column; gap: 18px; margin-top: 14px; }
-.est-caixa h4 {
-  margin: 0 0 4px;
-  font-size: 16.5px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
   gap: 9px;
-  flex-wrap: wrap;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: var(--pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 15.5px;
+  font-weight: 600;
+  border: 0;
 }
-.est-arquivos { display: flex; flex-direction: column; gap: 2px; margin: 10px 0 4px; }
-.est-arquivo {
+.est-rev b { font-weight: 600; opacity: 0.72; }
+
+/* --- as três regiões --- */
+.est-abas { display: flex; padding: 0 24px 14px; flex: 0 0 auto; }
+.est-cols { flex: 1; display: grid; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); min-height: 0; }
+.est-cols > * { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.est-mat, .est-lado { padding: 4px 20px 40px; }
+.est-mid { padding: 4px 26px 60px; container-type: inline-size; overflow-x: hidden; }
+
+@media (min-width: 1200px) {
+  .est-abas { display: none; }
+  .est-cols { grid-template-columns: 240px minmax(0, 1fr) 260px; }
+  .est-mat { box-shadow: inset -1px 0 0 var(--line-soft); }
+  .est-lado { box-shadow: inset 1px 0 0 var(--line-soft); }
+  .est-mid { padding: 4px 32px 60px; }
+}
+/* abaixo de 1200 o segmentado manda: uma região por vez */
+@media (max-width: 1199px) {
+  .est-cols[data-aba='material'] .est-mid, .est-cols[data-aba='material'] .est-lado,
+  .est-cols[data-aba='retrato'] .est-mat, .est-cols[data-aba='retrato'] .est-lado,
+  .est-cols[data-aba='estudio'] .est-mat, .est-cols[data-aba='estudio'] .est-mid { display: none; }
+}
+
+/* --- rótulo de coluna --- */
+.est-rot {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--muted);
+  padding: 18px 4px 8px;
+  letter-spacing: 0.02em;
+}
+.est-rot .n { font-variant-numeric: tabular-nums; }
+
+/* --- material: avaliação e arquivo, com o interruptor de entrar na resposta --- */
+.est-fonte {
   display: flex;
   align-items: center;
   gap: 11px;
-  min-height: var(--toque);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  font-size: 15.5px;
-}
-.est-arquivo:hover { background: var(--panel-2); }
-.est-arquivo .ico { color: var(--muted); display: flex; }
-.est-arquivo .meta { flex: 0 0 auto; font-size: 14px; }
-/* Arquivo que não deu pra ler não some da lista: some o texto dele, e a nota do
-   servidor toma o lugar da contagem de trechos. */
-.est-arquivo.ruim .ico { color: var(--warn); }
-.est-arquivo.ruim .meta { color: var(--warn); }
-
-/* O campo que nasce no lugar do nome, em vez de um diálogo por cima da tela. */
-.est-batismo { padding: 6px 10px; }
-.est-batismo input {
   width: 100%;
-  min-height: var(--toque);
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--accent);
-  background: var(--panel);
+  min-height: 52px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
   color: var(--text);
+  text-align: left;
   font: inherit;
-  font-size: 15.5px;
+  transition: background var(--d1) var(--ease);
 }
-/* Apagar em dois toques: o botão diz o que vai acontecer antes de acontecer. */
-.icon.armado {
-  width: auto;
-  padding: 0 14px;
-  gap: 7px;
-  background: var(--danger);
-  color: #fff;
-  font-size: 14.5px;
-  font-weight: 600;
+.est-fonte:active { background: var(--panel-2); }
+.est-fonte.sel { background: var(--accent-soft); }
+.est-fonte .rot { flex: 1; min-width: 0; font-size: 15.5px; line-height: 1.35; }
+.est-fonte .rot small { display: block; font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.est-fonte .cx {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  background: var(--panel-3);
+  display: grid;
+  place-items: center;
+  color: transparent;
+  transition: background var(--d1) var(--ease), color var(--d1) var(--ease);
 }
+.est-fonte.on .cx { background: var(--accent); color: var(--on-accent); }
+.est-fonte .ico { color: var(--muted); flex: 0 0 auto; }
 
-@media (max-width: 760px) {
-  .est-grade { grid-template-columns: 1fr; gap: 14px; }
-  .est-pastas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-  .est-pastas .grupo-rot { padding: 0 4px; align-self: center; white-space: nowrap; }
-  /* `flex: 0 0 auto` porque a caixa tem `overflow: hidden`, e caixa com overflow
-     escondido encolhe até zero dentro de um flex sem ninguém reclamar: as pastas
-     ficavam com 2px de largura e sumiam da faixa. */
-  .est-pastas .grupo { display: flex; gap: 6px; flex: 0 0 auto; }
-  .est-pastas .chat-item { width: auto; white-space: nowrap; }
-  .est-pastas .link-btn { white-space: nowrap; align-self: center; }
-}
-
-/* O retrato: peso se lê melhor visto do que lido, e toda afirmação vem com a
-   frase da prova que a sustenta logo abaixo. */
-.est-abas { margin-bottom: 16px; }
-.ret-topo { align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-.ret-topo select { max-width: 220px; }
-.ret-conf.palpite { color: var(--warn); }
-.ret-conf.boa { color: var(--ok); }
-.ret-andar { min-height: 20px; font-size: 14.5px; color: var(--muted); }
-.ret-secao h3 { display: flex; align-items: center; gap: 9px; font-size: 17px; }
-.ret-linha { margin: 12px 0; }
-.ret-rot { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 15.5px; }
-.ret-rot b { font-weight: 600; }
-.ret-linha .progress { margin: 5px 0 2px; }
-.ret-num { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
-/* A citação é o que separa isto de um chute: fica em itálico, recuada, com a
-   barra do lado — do jeito que citação de texto se marca em qualquer lugar. */
-.ret-cita {
-  margin: 6px 0 0;
-  padding-left: 12px;
-  border-left: 2px solid var(--glass-line);
-  color: var(--muted);
-  font-size: 14.5px;
-  font-style: italic;
-}
-.ret-verbos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.ret-lista { margin: 8px 0 0; padding-left: 20px; font-size: 15.5px; }
-.ret-lista li { margin: 4px 0; }
-.ret-rodape { margin-top: 20px; }
-
-/* O que o Estudos produz. Os quatro cartões em grade, e o resultado aberto
-   embaixo — em vez de numa tela nova, porque comparar o simulado com o guia é
-   o uso normal e trocar de tela pra isso é atrito. */
-.est-formatos { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
-.est-formato h4 { margin: 0 0 4px; font-size: 16.5px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
-.est-formato .row { margin-top: 10px; align-items: center; }
-.est-formato select { min-width: 0; flex: 1 1 120px; }
-.est-formato.trancado { opacity: 0.65; }
-.est-saida { margin-top: 20px; }
-.est-instrucoes {
-  white-space: pre-wrap;
-  font: inherit;
-  font-size: 15px;
-  color: var(--muted);
-  margin: 0 0 16px;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  background: var(--panel-2);
-}
-.est-questao { padding: 14px 0; border-top: 1px solid var(--line-soft); }
-.est-q-topo { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 14px; }
-.est-enunciado { margin: 8px 0; font-size: 16px; line-height: 1.55; }
-.est-alts { margin: 6px 0 0; padding-left: 20px; font-size: 15.5px; }
-.est-alts li { margin: 3px 0; }
-/* Probabilidade colorida: o aluno decide onde gastar o tempo pela cor, antes de ler. */
-.tag.prob-alta { color: var(--ok); }
-.tag.prob-baixa { color: var(--muted); }
-.est-gabarito { margin-top: 8px; }
-.est-gabarito summary { cursor: pointer; font-size: 15px; color: var(--accent); min-height: var(--toque); display: flex; align-items: center; }
-.est-gabarito p { margin: 6px 0; font-size: 15.5px; }
-.est-cartoes { display: flex; flex-direction: column; gap: 2px; }
-.est-cartao { border-radius: var(--radius); padding: 4px 12px; }
-.est-cartao:hover { background: var(--panel-2); }
-.est-cartao summary { cursor: pointer; min-height: var(--toque); display: flex; align-items: center; font-size: 15.5px; }
-.est-cartao p { margin: 2px 0 10px; font-size: 15.5px; color: var(--muted); }
-.est-abertura { font-size: 16px; line-height: 1.6; white-space: pre-wrap; }
-.est-secao h4 { margin: 16px 0 4px; font-size: 16.5px; font-weight: 600; }
-.est-termos { margin: 8px 0 0; font-size: 15.5px; }
-.est-termos dt { font-weight: 600; margin-top: 8px; }
-.est-termos dd { margin: 2px 0 0; color: var(--muted); }
-.est-faltou, .est-pule { margin-top: 18px; }
-.est-faltou b, .est-pule b { display: block; margin-bottom: 4px; }
-
-/* Revisar: um cartão por vez, no meio da tela, sem mais nada em volta. Estudar
-   com repetição espaçada é uma sequência longa de decisões pequenas — tudo que
-   não é o cartão atrapalha. */
-.rev-topo { align-items: center; margin-bottom: 12px; }
-.rev-cartao { max-width: 620px; margin: 0 auto; text-align: center; }
-.rev-frente { font-size: 21px; line-height: 1.45; margin: 14px 0; letter-spacing: -0.01em; }
-.rev-verso { border-top: 1px solid var(--line-soft); padding-top: 14px; margin-top: 14px; }
-.rev-verso p { font-size: 17px; line-height: 1.55; }
-.rev-verso .ret-cita { text-align: left; }
-.rev-acoes { justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-.rev-acoes button { flex-direction: column; gap: 2px; min-width: 96px; padding: 10px 14px; }
-/* O preço de cada botão fica embaixo do nome: apertar "bom" pra fila diminuir
-   fica caro quando dá pra ver que isso empurra o cartão pra três meses. */
-.rev-quando { font-size: 12.5px; opacity: 0.75; font-weight: 400; }
-.rev-acoes button.block { flex-direction: row; width: 100%; }
-
-/* Mapa mental, linha do tempo e a conversa em áudio. */
-.est-mapa { overflow-x: auto; margin-top: 10px; }
-.est-mapa svg { width: 100%; min-width: 720px; height: auto; }
-.mapa-traco { fill: none; stroke-width: 2; opacity: 0.55; }
-.mapa-centro { fill: var(--accent); }
-.mapa-centro-txt { fill: #fff; font-size: 15px; font-weight: 600; }
-.mapa-ramo { fill: var(--text); font-size: 14.5px; font-weight: 600; }
-.mapa-folha { fill: var(--muted); font-size: 13px; }
-
-.est-linha { list-style: none; margin: 10px 0 0; padding: 0; }
-.est-linha li { display: flex; gap: 16px; padding: 12px 0; border-left: 2px solid var(--glass-line); padding-left: 18px; margin-left: 6px; position: relative; }
-/* O ponto na régua: é ele que faz a lista virar linha do tempo. */
-.est-linha li::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 18px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.est-quando { flex: 0 0 110px; color: var(--accent); font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.est-linha b { font-size: 15.5px; font-weight: 600; }
-
-.est-falas { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
-.est-fala { margin: 0; padding: 10px 14px; border-radius: var(--radius); font-size: 15.5px; line-height: 1.55; max-width: 82%; }
-.est-fala.quem-a { background: var(--panel-2); align-self: flex-start; }
-.est-fala.quem-b { background: var(--accent-soft); align-self: flex-end; }
-/* Quem está falando agora fica marcado: dá pra acompanhar lendo enquanto ouve. */
-.est-fala.falando { outline: 2px solid var(--accent); }
-
-@media (max-width: 560px) {
-  .est-linha li { flex-direction: column; gap: 4px; }
-  .est-quando { flex: none; }
-  .est-fala { max-width: 100%; }
-}
-
-/* Botões do menu: a mesma lista da gaveta, com o que aparece e onde. */
-.menu-linha { gap: 10px; flex-wrap: wrap; }
-.menu-linha .check { flex: 0 0 auto; font-size: 14px; }
-.menu-linha .icon { width: 34px; height: 34px; }
-/* A seta de descer é a de subir virada: um caminho de SVG a menos. */
-.menu-linha .icon.vira svg { transform: rotate(180deg); }
-
-/* A foto do professor é o botão que a troca: não precisa de um botão ao lado. */
-.prof-troca { padding: 0; border-radius: 50%; background: none; }
-.prof-troca:hover { outline: 2px solid var(--accent); }
-
-/* Quiz: a alternativa escolhida se pinta, e a explicação aparece por baixo. */
-.est-quiz .est-questao:first-child { border-top: 0; }
-.quiz-alts { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
-.quiz-alt {
+.est-add {
   display: flex;
   align-items: center;
-  gap: 12px;
-  text-align: left;
-  justify-content: flex-start;
-  padding: 11px 14px;
-  border-radius: var(--radius);
-  border: 1px solid var(--glass-line);
-  background: var(--glass);
-  min-height: var(--toque);
+  gap: 9px;
+  width: 100%;
+  min-height: 46px;
+  margin-top: 10px;
+  padding: 0 12px;
+  border-radius: var(--pill);
+  border: 1px dashed var(--panel-3);
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+}
+.est-add:active { background: var(--panel); color: var(--text); }
+
+/* --- o retrato --- */
+.est-mid .veredito {
+  font-size: 25px;
+  font-weight: 550;
+  line-height: 1.28;
+  letter-spacing: -0.025em;
+  text-wrap: pretty;
+  margin: 14px 0 0;
+  max-width: 22em;
+}
+.est-conf {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 14.5px;
+  color: var(--muted);
+  margin-top: 12px;
+}
+.est-conf .pt { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); align-self: center; }
+.est-conf.alta .pt { background: var(--ok); }
+.est-conf b { color: var(--text-2); font-weight: 600; }
+
+.est-sec { margin-top: 34px; }
+.est-sec > h3 {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* números da prova: três fatos, sem caixa */
+.est-fatos { display: flex; flex-wrap: wrap; gap: 34px; }
+.est-fatos div { display: flex; flex-direction: column; gap: 3px; }
+.est-fatos .v { font-size: 27px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.est-fatos .r { font-size: 14.5px; color: var(--muted); }
+
+/* peso: UMA barra, não oito barrinhas */
+.est-barra {
+  display: flex;
+  height: 14px;
+  border-radius: 99px;
+  overflow: hidden;
+  gap: 2px;
+  background: var(--panel);
+}
+.est-barra i { background: var(--t); transition: width var(--d4) var(--ease); }
+.est-leg { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 2px; }
+.est-leg li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
   font-size: 15.5px;
 }
-.quiz-alt:hover:not(:disabled) { border-color: var(--accent); }
-.quiz-letra {
-  flex: 0 0 auto;
-  width: 24px; height: 24px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  background: var(--panel-2);
-  font-size: 13px; font-weight: 600;
+.est-leg .pt { width: 9px; height: 9px; border-radius: 3px; background: var(--t); flex: 0 0 auto; }
+.est-leg .nm { flex: 1; min-width: 0; }
+.est-leg b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.est-leg small { color: var(--muted); font-size: 14px; }
+
+/* verbos de comando */
+.est-verbos { display: flex; flex-wrap: wrap; gap: 8px; }
+.est-verbo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: var(--pill);
+  background: var(--panel);
+  font-size: 15px;
 }
-.quiz-alt.certa { border-color: var(--ok); color: var(--ok); }
-.quiz-alt.certa .quiz-letra { background: var(--ok); color: #fff; }
-.quiz-alt.errada { border-color: var(--danger); color: var(--danger); }
-.quiz-alt.errada .quiz-letra { background: var(--danger); color: #fff; }
-.quiz-alt:disabled { opacity: 1; }
-.quiz-porque p { margin: 6px 0; font-size: 15.5px; }
-#quiz-placar.ok { color: var(--ok); }
-#quiz-placar.warn { color: var(--warn); }
+.est-verbo b { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 14px; }
 
-/* Infográfico: uma página só. Colunas que cabem, e nada que precise rolar. */
-.est-info h2 { margin: 6px 0 2px; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
-.info-fina { margin: 0 0 18px; font-size: 17px; color: var(--muted); }
-.info-numeros { display: flex; flex-wrap: wrap; gap: 26px; margin-bottom: 22px; }
-.info-numeros div { display: flex; flex-direction: column; }
-.info-numeros b { font-size: 32px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-.info-numeros span { font-size: 14px; color: var(--muted); }
-.info-blocos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
-.info-bloco h3 { margin: 0 0 4px; font-size: 16.5px; font-weight: 600; }
-.info-bloco p { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
-.info-seq { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 22px 0; font-size: 15px; }
-.info-seq span { padding: 7px 13px; border-radius: 999px; background: var(--panel-2); }
-.info-seq i { color: var(--muted); font-style: normal; }
-.info-lembre { margin-top: 8px; }
+/* achado com o trecho literal do lado: é a prova do que o app afirma */
+.est-achado {
+  display: grid;
+  gap: 12px 24px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.est-achado:last-child { border-bottom: 1px solid var(--line-soft); }
+.est-achado h4 { margin: 0 0 5px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.est-achado p { margin: 0; font-size: 16px; line-height: 1.55; color: var(--text-2); text-wrap: pretty; }
+.est-achado blockquote {
+  margin: 0;
+  padding-left: 14px;
+  box-shadow: inset 2px 0 0 var(--panel-3);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+  font-style: italic;
+}
+.est-achado cite {
+  display: block;
+  margin-top: 7px;
+  font-style: normal;
+  font-size: 13.5px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+@container (min-width: 700px) { .est-achado { grid-template-columns: 1fr 300px; } }
 
-/* Slides: um por vez na tela, um por página no papel. */
-.est-slides-topo { align-items: center; gap: 8px; margin-bottom: 12px; }
-.est-slides { outline: none; }
-.est-slide {
-  min-height: 300px;
-  padding: 30px 34px;
+/* o que ensina e nunca cobrou: a diferença é o produto */
+.est-nunca { display: flex; flex-wrap: wrap; gap: 8px; }
+.est-nunca span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--pill);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14.5px;
+}
+
+/* --- avaliação aberta: as três caixas, e a diferença entre elas --- */
+.est-volta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin: 10px 0 4px;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-radius: var(--pill);
+  background: var(--panel);
+  color: var(--text-2);
+  font-size: 15px;
+}
+.est-volta .ico { transform: rotate(90deg); }
+.est-tri { display: grid; gap: 14px; margin-top: 18px; }
+@container (min-width: 760px) { .est-tri { grid-template-columns: repeat(3, 1fr); } }
+.est-caixa {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: inset 0 2px 0 var(--t);
+}
+.est-caixa .papel { font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--t); }
+.est-caixa h4 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.015em; }
+.est-caixa .exp { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+.est-caixa ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 7px; }
+.est-caixa li { font-size: 15px; line-height: 1.4; display: flex; gap: 9px; align-items: baseline; }
+.est-caixa li .pes { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 14px; margin-left: auto; }
+.est-caixa li.fora { color: var(--muted); }
+.est-caixa button { align-self: flex-start; margin-top: auto; }
+.est-gap {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.est-gap b { color: var(--text); font-weight: 600; }
+
+/* --- estúdio: ladrilhos compactos e tintados, dois por linha --- */
+.est-quem-gera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--panel);
+  font-size: 14.5px;
+  color: var(--muted);
+}
+.est-quem-gera select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 0;
+}
+.est-lads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.est-lad {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 82px;
+  padding: 12px;
+  border: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--t) 13%, transparent);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  transition: background var(--d1) var(--ease), transform var(--d1) var(--ease);
+}
+.est-lad:active { transform: scale(0.97); background: color-mix(in srgb, var(--t) 22%, transparent); }
+.est-lad .ico { color: var(--t); }
+.est-lad .nm { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.est-lad.ocupado { opacity: 0.6; }
+
+.est-feito {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  transition: background var(--d1) var(--ease);
+}
+.est-feito:active { background: var(--panel-2); }
+.est-feito .ico { color: var(--t, var(--muted)); flex: 0 0 auto; }
+.est-feito .rot { flex: 1; min-width: 0; font-size: 15px; }
+.est-feito .rot small { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
+
+/* --- saída aberta: simulado --- */
+.est-saida { max-width: 720px; }
+.est-saida > header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 16px 0 6px; }
+.est-saida > header h3 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: -0.03em; }
+.est-saida > header .de { font-size: 14.5px; color: var(--muted); }
+.est-q { padding: 22px 0; border-top: 1px solid var(--line-soft); }
+.est-q .num { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.est-q .enun { margin: 6px 0 0; font-size: 17.5px; line-height: 1.6; text-wrap: pretty; }
+.est-q .porque {
+  margin-top: 10px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  padding-left: 13px;
+  box-shadow: inset 2px 0 0 var(--panel-3);
+}
+.est-q details { margin-top: 14px; }
+.est-q summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--pill);
+  background: var(--panel);
+  font-size: 14.5px;
+  color: var(--muted);
+}
+.est-q summary::-webkit-details-marker { display: none; }
+.est-q details[open] summary { color: var(--text-2); }
+.est-q .gab { margin-top: 12px; font-size: 16.5px; line-height: 1.6; color: var(--text-2); }
+.est-q .gab b { color: var(--text); font-weight: 600; }
+
+/* --- saída aberta: mapa mental em SVG desenhado por nós --- */
+.est-mapa { margin-top: 20px; border-radius: var(--radius); background: var(--panel); padding: 10px; }
+.est-mapa svg { display: block; width: 100%; height: auto; }
+.est-mapa text { font-family: inherit; }
+
+/* --- revisar: um cartão por vez, centralizado --- */
+.est-revisar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  padding: 24px;
+  text-align: center;
+  min-height: 0;
+}
+.est-cartao {
+  width: 100%;
+  max-width: 560px;
+  min-height: 232px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 34px 28px;
   border-radius: var(--radius-lg);
   background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-luz);
+  animation: sobe var(--d3) var(--ease) both;
 }
-.est-slide h3 { margin: 0 0 18px; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
-.est-slide ul { margin: 0; padding-left: 22px; font-size: 17px; line-height: 1.7; }
-.est-slide .slide-nota { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.est-cartao .frente { font-size: 23px; font-weight: 550; line-height: 1.35; letter-spacing: -0.02em; text-wrap: pretty; }
+.est-cartao .verso { font-size: 17.5px; line-height: 1.6; color: var(--text-2); text-wrap: pretty; }
+.est-cartao .fonte { font-size: 13.5px; color: var(--muted); }
+.est-notas { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.est-nota {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 104px;
+  min-height: 56px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+}
+.est-nota small { font-size: 13px; font-weight: 400; color: var(--muted); }
+.est-nota:active { background: var(--panel-2); }
+.est-nota.dura { color: var(--danger); }
+.est-nota.facil { color: var(--ok); }
+.est-passo { font-size: 14.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-@media print {
-  /* Só os slides vão pro papel, um por página, em preto no branco. */
-  body.imprimindo-slides #sidebar,
-  body.imprimindo-slides #topbar,
-  body.imprimindo-slides .est-slides-topo,
-  body.imprimindo-slides .est-formatos,
-  body.imprimindo-slides #est-saidas,
-  body.imprimindo-slides .grupo-rot,
-  body.imprimindo-slides .est-cabeca { display: none !important; }
-  body.imprimindo-slides .est-slide {
-    break-after: page;
-    border: 0;
-    background: none;
-    color: #000;
-    min-height: auto;
-  }
-  body.imprimindo-slides .est-slide:last-child { break-after: auto; }
+/* --- lista de professores (quando nenhum está aberto) --- */
+.est-profs { display: grid; gap: 10px; max-width: 620px; margin-top: 16px; }
+.est-prof {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 76px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  transition: background var(--d1) var(--ease), transform var(--d1) var(--ease);
 }
+.est-prof:active { transform: scale(0.99); background: var(--panel-2); }
+.est-prof .est-foto { width: 46px; height: 46px; font-size: 18px; }
+.est-prof .rot { flex: 1; min-width: 0; }
+.est-prof .rot b { display: block; font-size: 17.5px; font-weight: 600; letter-spacing: -0.015em; }
+.est-prof .rot small { display: block; font-size: 14px; color: var(--muted); margin-top: 3px; }
+.est-prof .est-selo {
+  flex: 0 0 auto;
+  font-size: 13.5px;
+  color: var(--ok);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.est-prof .est-selo.sem { color: var(--muted); }
+
+/* A foto é o botão que a troca: sem casca de botão em volta, senão o círculo
+   do professor ganha um anel escuro que não quer dizer nada. */
+.est-foto-btn { padding: 0; border: 0; background: none; border-radius: 50%; flex: 0 0 auto; line-height: 0; }
+.est-foto-btn:hover { outline: 2px solid var(--accent); outline-offset: 2px; }
+.est-foto img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+/* Ladrilho que precisa do retrato fica visivelmente fora de alcance, não some. */
+.est-lad.trancado { opacity: 0.45; }
+/* Frase de apoio nas colunas: pequena, cinza, sem virar parágrafo. */
+.est-nada { font-size: 13.5px; color: var(--muted); padding: 8px 4px 0; line-height: 1.5; margin: 0; }
+.est-explica { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 46em; text-wrap: pretty; }
+.est-achado blockquote.sem { opacity: 0.6; }
+.est-cabeca-av { margin: 10px 0 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.est-cabeca-av h2 { margin: 0; font-size: 25px; font-weight: 650; letter-spacing: -0.03em; }
+.est-cabeca-av .sub { font-size: 15px; color: var(--muted); }
+.est-cabeca-av .acoes { margin-left: auto; display: flex; gap: 6px; }
+.est-saida { margin-top: 18px; }

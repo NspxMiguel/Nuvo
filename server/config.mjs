@@ -75,6 +75,11 @@ const DEFAULTS = {
     embeddingModel: null, // ex.: { provider: 'lmstudio', model: 'text-embedding-nomic-embed-text-v1.5' }
     extractorModel: null // ex.: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' }
   },
+  // A IA que lê imagem. `null` = ninguém escolheu, e aí o app tenta a primeira
+  // que enxerga entre as ligadas. Foto de prova é o jeito como o material chega
+  // pra quem estuda, então isto não é enfeite: sem uma IA aqui, metade do que a
+  // pessoa sobe fica ilegível.
+  visao: { modelo: null, automatico: true },
   // Quais botões aparecem na gaveta, em que ordem, e quais ficam dentro do
   // "Mais". `null` = ninguém mexeu ainda, e vale a ordem que o HTML traz.
   //

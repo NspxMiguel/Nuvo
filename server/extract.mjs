@@ -6,6 +6,7 @@
 // que conseguiu e diz o que faltou, em vez de fingir que leu.
 
 import { inflateSync, inflateRawSync } from 'node:zlib';
+import { ehHeic, tipoDaImagem } from './visao.mjs';
 import { extname } from 'node:path';
 
 const TEXT_EXT = new Set([
@@ -1149,6 +1150,19 @@ export function extractText(buffer, filename = '', mime = '') {
 
   if (TEXT_EXT.has(ext) || (mime || '').startsWith('text/') || looksLikeText(buffer)) {
     return { ...comRede('arquivo', () => decodeText(buffer)), kind: 'texto' };
+  }
+
+  // Imagem não tem texto pra extrair: tem pixel. Quem lê é um modelo que
+  // enxerga, e isso acontece uma camada acima — aqui só se reconhece e se diz.
+  const imagem = tipoDaImagem(buffer);
+  if (imagem) return { text: '', note: null, kind: 'imagem', mime: imagem, precisaVisao: true };
+  if (ehHeic(buffer)) {
+    return {
+      text: '',
+      note: 'foto em HEIC: o iPhone salva assim e nenhuma IA lê — exporte como JPG',
+      kind: 'imagem',
+      precisaVisao: false
+    };
   }
 
   return {

@@ -64,6 +64,7 @@ import {
   acharSaida,
   apagarSaida
 } from './estudos.mjs';
+import { modelosQueEnxergam } from './visao.mjs';
 import { montarRetrato, limparRetrato } from './retrato.mjs';
 import { gerarFormato, TIPOS as TIPOS_DE_SAIDA } from './estudos-formatos.mjs';
 import {
@@ -265,6 +266,11 @@ function settingsView(req) {
     embeddingAvailable: embeddingAvailable(),
     idioma: cfg.idioma || null,
     menu: cfg.menu || null,
+    // A IA que lê imagem, e quais existem pra escolher. A tela precisa das duas
+    // coisas: sem a lista ela não sabe se dá pra ligar, e sem saber disso ela
+    // manda "configure" pra quem não tem o que configurar.
+    visao: cfg.visao || { modelo: null, automatico: true },
+    modelosQueEnxergam: modelosQueEnxergam(listProviders().map(providerView)),
     idiomas: IDIOMAS,
     // A tela precisa saber se a escolha de navegador já foi feita: é ela quem
     // pergunta, na primeira vez que alguém liga o modo agente.
@@ -832,7 +838,7 @@ export async function handleApi(req, res, url) {
         professorId: seg[1],
         tipo: TIPOS_DE_SAIDA.includes(b.tipo) ? b.tipo : '',
         ref: b.model,
-        pastaId: b.pasta || null,
+        pastas: Array.isArray(b.pastas) ? b.pastas : b.pasta ? [b.pasta] : null,
         signal: stream.signal
       })
     );
@@ -1271,6 +1277,12 @@ export async function handleApi(req, res, url) {
     // Menu: só nomes de tela que existem entram, e Conversas nunca sai da lista
     // — esconder tudo deixaria a gaveta vazia sem caminho de volta.
     if (b.menu !== undefined) patch.menu = limparMenu(b.menu);
+    if (b.visao !== undefined) {
+      patch.visao = {
+        modelo: b.visao?.modelo || null,
+        automatico: b.visao?.automatico !== false
+      };
+    }
 
     const antes = loadConfig().requireToken;
     if (b.requireToken !== undefined) patch.requireToken = !!b.requireToken;

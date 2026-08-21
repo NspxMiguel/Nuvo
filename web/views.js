@@ -1284,7 +1284,24 @@ const CFG_SECOES = {
       : ''}
     ${cfgLin(t('Guardar o que eu mudei aqui'), '', `<button id="btn-save-settings" class="primary" type="button">${t('Salvar')}</button>`)}`,
 
-  ias: () => `<h3>${t('IAs ligadas')}</h3>
+  ias: (settings) => `<h3>${t('IAs ligadas')}</h3>
+    ${cfgLin(
+      t('Quem lê foto'),
+      t('Prova fotografada só vira texto se uma IA olhar pra ela. Programa de terminal não enxerga.'),
+      settings.modelosQueEnxergam?.length
+        ? `<select id="s-visao">
+             <option value="">${t('a primeira que estiver ligada')}</option>
+             ${settings.modelosQueEnxergam
+               .map(
+                 (m) =>
+                   `<option value="${escapeHtml(m.ref)}"${
+                     m.ref === settings.visao?.modelo ? ' selected' : ''
+                   }>${escapeHtml(m.label)}</option>`
+               )
+               .join('')}
+           </select>`
+        : `<span class="tag warn"><span class="pt"></span>${t('nenhuma que enxergue')}</span>`
+    )}
     ${state.providers
       .map((p) =>
         cfgLin(
@@ -1661,6 +1678,19 @@ views.settings = async function renderSettings(el, { switchView, applyTheme, apl
       aplicarMenu?.();
       switchView('settings');
       toast(t('menu de volta ao padrão'), 'ok');
+    };
+  }
+
+  const selVisao = q('#s-visao');
+  if (selVisao) {
+    selVisao.onchange = async () => {
+      // Vazio quer dizer "escolha por mim", e não "desligado": quem subiu a foto
+      // quer o texto, não uma tela de ajustes.
+      await api('/settings', {
+        method: 'PATCH',
+        body: { visao: { modelo: selVisao.value || null, automatico: true } }
+      });
+      toast(t('pronto'), 'ok');
     };
   }
 

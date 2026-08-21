@@ -412,9 +412,15 @@ ${REGRAS_DE_FONTE}`,
 
 export const TIPOS = Object.keys(FORMATOS);
 
-/** Junta o material dos papéis que este formato usa, com o nome do arquivo por cima. */
-function material(professorId, papeis, pastaId) {
-  const pastas = pastasDo(professorId).filter((p) => !pastaId || p.id === pastaId);
+/**
+ * Junta o material dos papéis que este formato usa, com o nome do arquivo por cima.
+ *
+ * `escolhidas` é a seleção que a tela faz nas caixinhas da coluna da esquerda:
+ * o que está desmarcado não entra no que for gerado. Sem lista, entra tudo.
+ */
+function material(professorId, papeis, escolhidas) {
+  const so = Array.isArray(escolhidas) && escolhidas.length ? new Set(escolhidas) : null;
+  const pastas = pastasDo(professorId).filter((p) => !so || so.has(p.id));
   const anexos = pastas
     .flatMap((p) => listAttachments({ pastaId: p.id }))
     .filter((a) => a.status === 'ok' && papeis.includes(a.papel));
@@ -442,7 +448,7 @@ function material(professorId, papeis, pastaId) {
  *
  * @param {{professorId: string, tipo: string, ref: string, pastaId?: string|null, signal?: AbortSignal}} entrada
  */
-export async function* gerarFormato({ professorId, tipo, ref, pastaId = null, signal }) {
+export async function* gerarFormato({ professorId, tipo, ref, pastas = null, signal }) {
   const formato = FORMATOS[tipo];
   if (!formato) throw erroHttp(400, 'não sei gerar isso');
   if (!ref) throw erroHttp(400, 'escolha uma IA pra gerar');
@@ -452,7 +458,7 @@ export async function* gerarFormato({ professorId, tipo, ref, pastaId = null, si
     throw erroHttp(400, 'monte o retrato do professor primeiro — é ele que recorta o que sai daqui');
   }
 
-  const fonte = material(professorId, formato.papeis, pastaId);
+  const fonte = material(professorId, formato.papeis, pastas);
   if (!fonte.texto) {
     throw erroHttp(400, 'não há material pra ler — anexe o conteúdo da matéria antes');
   }
@@ -485,7 +491,7 @@ export async function* gerarFormato({ professorId, tipo, ref, pastaId = null, si
 
   const salvo = guardarSaida({
     professorId,
-    pastaId,
+    pastaId: Array.isArray(pastas) && pastas.length === 1 ? pastas[0] : null,
     tipo,
     titulo: formato.titulo(professor),
     json: pronto,

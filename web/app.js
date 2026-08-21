@@ -14,7 +14,7 @@ import {
 } from './i18n.js';
 import { views } from './views.js';
 import { renderCode } from './view-code.js';
-import { renderEstudos } from './view-estudos.js';
+import { renderEstudos, sairDeEstudos } from './view-estudos.js';
 import {
   lerRequisitos, faltaAlgo, cartaoRequisitos, ligarRequisitos,
   faltaEscolherNavegador, perguntarNavegador
@@ -1625,6 +1625,8 @@ function aplicarMenu() {
 function switchView(view) {
   // O anônimo vale pra conversa em que foi ligado, e só pra ela.
   if ($('#app').classList.contains('anon')) toggleAnon();
+  // Estudos recolhe a gaveta pra caber as três colunas; sair devolve.
+  if (state.view === 'estudos' && view !== 'estudos') sairDeEstudos();
   state.view = view;
   for (const el of $$('.view')) {
     el.hidden = true;

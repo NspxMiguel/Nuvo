@@ -7,8 +7,11 @@
 import { writeFileSync, unlinkSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { all, one, run, tx, uid, now } from './db.mjs';
-import { UPLOAD_DIR } from './config.mjs';
+import { UPLOAD_DIR, loadConfig } from './config.mjs';
 import { extractText } from './extract.mjs';
+import { modelosQueEnxergam, transcreverImagem } from './visao.mjs';
+import { listProviders } from './providers/index.mjs';
+import { textoTraduzivel } from './erro-traduzivel.mjs';
 import { toBlob, fromBlob, cosine, embedTexts, embeddingModelRef, ftsQuery } from './vectors.mjs';
 
 const CHUNK_CHARS = 1400;
@@ -63,6 +66,24 @@ function chunkText(text) {
 }
 
 /** Salva o arquivo, extrai o texto e indexa. */
+/**
+ * A IA que vai ler a imagem: a escolhida, ou a primeira que enxerga.
+ *
+ * Escolher sozinho é melhor do que recusar o arquivo e mandar a pessoa
+ * configurar: quem subiu a foto quer o texto, não uma tela de ajustes.
+ */
+function quemEnxerga() {
+  const cfg = loadConfig().visao || {};
+  if (cfg.modelo) return cfg.modelo;
+  if (cfg.automatico === false) return null;
+  return modelosQueEnxergam(listProviders().map(comModelos))[0]?.ref || null;
+}
+
+const comModelos = (p) => ({
+  ...p,
+  models: all('SELECT model_id, label, kind FROM models WHERE provider_id = ?', p.id)
+});
+
 export async function addAttachment({
   buffer,
   name,
@@ -76,7 +97,26 @@ export async function addAttachment({
   papel = 'material'
 }) {
   const id = uid();
-  const { text, note, kind } = extractText(buffer, name, mime);
+  let { text, note, kind } = extractText(buffer, name, mime);
+
+  // Imagem: o texto vem de uma IA que enxerga, não do extrator.
+  if (kind === 'imagem' && !text) {
+    const ref = quemEnxerga();
+    if (!ref) {
+      note = textoTraduzivel(
+        'note',
+        'ligue uma IA que enxerga (Ollama, Anthropic, OpenAI ou Google) pra eu ler foto'
+      ).note;
+    } else {
+      try {
+        const lido = await transcreverImagem(ref, { buffer });
+        text = lido.text;
+        note = null;
+      } catch (err) {
+        note = err.message;
+      }
+    }
+  }
 
   let path = null;
   try {
