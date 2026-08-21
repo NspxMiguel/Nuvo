@@ -68,6 +68,25 @@ function falhaLegivel(err) {
   return cru || t('não deu pra falar com o servidor');
 }
 
+// Abrir o "Mais" tem que mostrar o que ele abriu.
+//
+// O menu rola dentro de uma faixa de ~250px pra sobrar lista de conversas
+// embaixo. Sem esta rolagem, clicar em "Mais" revelava os itens fora da parte
+// visível: a gaveta ficava igual, e o clique parecia não ter feito nada.
+const navDaGaveta = $('#sidebar nav');
+const blocoMais = $('#nav-mais');
+blocoMais.addEventListener('toggle', () => {
+  if (!blocoMais.open) return;
+  // Vai até o fim do menu, sem medir distância e sem animar.
+  //
+  // O "Mais" é o último bloco da lista, então o fim é onde estão os itens que
+  // ele acabou de revelar; um alvo grande demais o navegador apara no máximo.
+  // A rolagem é seca de propósito: com `behavior: 'smooth'` a animação era
+  // cortada logo no começo e a gaveta andava 17px dos 157 que precisava — o
+  // clique em "Mais" continuava parecendo que não tinha feito nada.
+  navDaGaveta.scrollTo({ top: navDaGaveta.scrollHeight });
+});
+
 // -------------------------------------------------------------------- boot
 
 // Trocar idioma redesenha tudo que está na tela: o dicionário só vale pro
@@ -378,7 +397,10 @@ function renderTopbar() {
     state.projectId,
     t('sem projeto')
   );
-  const chat = state.chats.find((c) => c.id === state.chatId);
+  // O nome da conversa é da conversa, e a barra de cima é de todas as telas:
+  // sem esta condição ele ficava escrito em Programar, Projetos e Ajustes até
+  // alguém recarregar a página.
+  const chat = state.view === 'chat' ? state.chats.find((c) => c.id === state.chatId) : null;
   const title = $('#chat-title');
   title.textContent = chat ? chat.title : '';
   title.title = chat ? t('clique duas vezes pra renomear') : '';
@@ -1434,6 +1456,7 @@ function switchView(view) {
     void alvo.offsetWidth;
     alvo.classList.add('entra');
   };
+  renderTopbar();
   const pintado = renderView();
   entrar();
   // Painel que busca dados reescreve a própria classe quando a resposta chega:

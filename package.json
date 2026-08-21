@@ -1,6 +1,6 @@
 {
   "name": "nuvo",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Nuvo — um servidor de casa que junta IAs locais, de API e de CLI numa interface só, com memória compartilhada entre todas elas.",
   "type": "module",
   "bin": {

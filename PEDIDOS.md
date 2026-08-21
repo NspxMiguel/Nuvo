@@ -11,13 +11,44 @@ estiver entregue e conferido.
 > app, funçao por função, usando claude computer use, clique em tudo, teste
 > tudo, veja os erros, e arrumeos"
 
-- [ ] **passar em cada tela do app clicando de verdade**, não só conferir se
-      renderiza. A varredura anterior olhou se a tela aparece e se o console
-      reclama; ele está falando de *usar* — mandar mensagem, criar projeto,
-      anexar, salvar ajuste — que é outra coisa.
-- [ ] **anotar cada defeito encontrado** com o que foi clicado, o que era
-      esperado e o que aconteceu.
-- [ ] **corrigir** e provar a correção repetindo o mesmo clique.
+- [x] **passar em cada tela do app clicando de verdade** — feito pelo Chrome
+      dele, tela por tela, botão por botão. Sete defeitos, todos corrigidos e
+      reconferidos com o mesmo clique que os revelou:
+
+      1. **Não existia onde trocar o idioma.** `trocarIdioma()` e a tabela de
+         nomes estavam exportadas em `web/i18n.js` e **nunca eram chamadas**:
+         os 839 termos de inglês e espanhol só apareciam se o navegador ou o
+         lugar já casassem. Agora tem seletor em Ajustes → Geral (e uma linha
+         que gira entre os três no celular). De quebra, `formatarData` estava
+         no mesmo estado, e a lista de cópias mostrava data em ISO cru.
+      2. **A lista de conversas ficava com 54px** quando o "Mais" estava
+         aberto, sem rolagem em canto nenhum: dava pra ver o título de um
+         resultado de busca e nunca alcançar o resultado. Agora o menu cede
+         espaço primeiro e rola sozinho (251px), e a lista tem piso de 212px.
+         Abrir o "Mais" rola o menu até os itens que ele revelou.
+      3. **Os três modos do "Perguntar pra várias" não faziam nada.** O
+         segmentado ficava *embaixo* do resultado, parecendo aba de resultado,
+         mas só valia pra pergunta seguinte — clicar em "Lado a lado" deixava
+         a mesma resposta costurada na tela. Subiu pro formulário, junto da
+         pergunta. Medido depois: "Lado a lado" agora entrega dois cartões
+         lado a lado ("Verde." do Claude Code, "azul" do Codex).
+      4. **O anexo sumia da árvore logo depois de anexado.** O servidor abre
+         exceção pra `.nuvo` justamente pra mostrar o anexo, mas a tela só
+         abria pasta de primeiro andar: aparecia `.nuvo` → `anexos` e nada
+         dentro. Agora o caminho da pasta de anexos nasce aberto.
+      5. **O nome da conversa ficava preso no topo** de todas as outras telas
+         até recarregar a página.
+      6. **"Trocar chave" aparecia em IA de terminal**, que não tem chave —
+         abria dois pedidos de nome e valor de uma variável que ninguém leria.
+      7. **A busca dos Ajustes sem resultado** deixava dois títulos de grupo
+         soltos e nenhuma linha dizendo que não achou. E **"Personalizar"**
+         nunca tinha sido traduzido: estava escrito solto numa tabela, fora do
+         alcance da varredura de idioma. Os rótulos da trilha agora passam
+         pelo `t()` de um jeito que a varredura enxerga.
+
+      Guardas novas em `test/tela-viva.test.mjs` pra nenhum desses voltar
+      calado — inclusive uma que reprova qualquer função de idioma exportada e
+      nunca chamada.
 
 ## 20/08/2026 — o aviso da Apple ao abrir o app
 

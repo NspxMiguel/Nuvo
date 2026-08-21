@@ -7,7 +7,9 @@ import {
 import { icon } from './icons.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { roseta } from './glow.js';
-import { t, plural, formatarNumero } from './i18n.js';
+import {
+  t, plural, formatarNumero, formatarData, NOMES as IDIOMAS, idioma, trocarIdioma
+} from './i18n.js';
 import {
   lerRequisitos, cartaoRequisitos, ligarRequisitos, perguntarNavegador
 } from './requisitos.js';
@@ -331,7 +333,14 @@ views.providers = async function renderProviders(el, { switchView }) {
       }</div>
       <div class="row">
         <button data-act="refresh" type="button"><span data-icon="refresh"></span> ${t('Atualizar modelos')}</button>
-        <button data-act="key" type="button"><span data-icon="key"></span> ${t('Trocar chave')}</button>
+        ${
+          // IA de terminal entra pelo login do próprio programa: não há chave
+          // guardada aqui pra trocar. O botão abria dois pedidos de nome e valor
+          // de uma variável que nunca seria lida.
+          p.kind === 'cli'
+            ? ''
+            : `<button data-act="key" type="button"><span data-icon="key"></span> ${t('Trocar chave')}</button>`
+        }
         <button data-act="toggle" type="button">${p.enabled ? t('Desligar') : t('Ligar')}</button>
         ${p.manageable ? `<button data-act="manage" type="button"><span data-icon="download"></span> ${t('Modelos')}</button>` : ''}
         <button data-act="del" class="danger" type="button"><span data-icon="trash"></span> ${t('Remover')}</button>
@@ -351,7 +360,8 @@ views.providers = async function renderProviders(el, { switchView }) {
         toast(err.message, 'err');
       }
     };
-    card.querySelector('[data-act=key]').onclick = async () => {
+    const botaoChave = card.querySelector('[data-act=key]');
+    if (botaoChave) botaoChave.onclick = async () => {
       const name = p.secret_name || prompt(t('Nome da variável da chave:'), 'API_KEY');
       if (!name) return;
       const value = prompt(t('Valor de {nome}:', { nome: name }));
@@ -1064,19 +1074,24 @@ views.memory = async function renderMemory(el, { switchView }) {
 // direto, senão os mesmos ids existiriam duas vezes no DOM.
 let cfgSecao = 'geral';
 
+// Cada rótulo é uma função com o `t()` dentro, e não um texto solto na tabela.
+// A varredura do test/idiomas-cobertura.test.mjs só enxerga a frase escrita
+// dentro do t() no código: com o texto cru aqui e um t(rot) na hora de desenhar,
+// "Personalizar" ficou fora dos dois dicionários e aparecia em português no
+// meio da tela em inglês, sem nenhum teste reclamar.
 const CFG_TRILHA = [
-  ['Ajustes', [
-    ['geral', 'settings', 'Geral'],
-    ['memoria', 'brain', 'Memória'],
-    ['ias', 'plug', 'IAs ligadas'],
-    ['acesso', 'key', 'Acesso'],
-    ['dados', 'folder', 'Seus dados']
+  [() => t('Ajustes'), [
+    ['geral', 'settings', () => t('Geral')],
+    ['memoria', 'brain', () => t('Memória')],
+    ['ias', 'plug', () => t('IAs ligadas')],
+    ['acesso', 'key', () => t('Acesso')],
+    ['dados', 'folder', () => t('Seus dados')]
   ]],
-  ['Personalizar', [
-    ['perfis', 'sparkle', 'Perfis'],
-    ['terminal', 'code', 'Programas do terminal'],
-    ['agente', 'globe', 'Modo agente'],
-    ['atalhos', 'command', 'Atalhos de teclado']
+  [() => t('Personalizar'), [
+    ['perfis', 'sparkle', () => t('Perfis')],
+    ['terminal', 'code', () => t('Programas do terminal')],
+    ['agente', 'globe', () => t('Modo agente')],
+    ['atalhos', 'command', () => t('Atalhos de teclado')]
   ]]
 ];
 
@@ -1093,6 +1108,10 @@ const cfgChave = (id, on) =>
 
 const CFG_SECOES = {
   geral: () => `<h3>${t('Geral')}</h3>
+    ${cfgLin(t('Idioma'), t('Vale pra tela e pras mensagens do servidor. Sem escolher, ele segue o lugar onde você está.'),
+      `<select id="s-idioma">${Object.entries(IDIOMAS)
+        .map(([codigo, nome]) => `<option value="${escapeHtml(codigo)}"${codigo === idioma() ? ' selected' : ''}>${escapeHtml(nome)}</option>`)
+        .join('')}</select>`)}
     ${cfgLin(t('Qual IA responde por padrão'), t('Vale pra conversa nova; dá pra trocar dentro de cada uma.'),
       `<select id="s-modelo-padrao">${modelOptions(state.model)}</select>`)}
     ${cfgLin(t('Perfil que abre junto'), t('O jeito salvo de responder que já vem escolhido.'),
@@ -1269,6 +1288,7 @@ function cfgMobile(s, pendente) {
     <div class="grupo-rot" style="padding-top:12px">${t('Aparência')}</div>
     <div class="grupo">
       ${lin('moon', t('Tema'), val(document.documentElement.dataset.theme === 'light' ? t('claro') : t('escuro')), ' data-mob="tema"')}
+      ${lin('globe', t('Idioma'), val(escapeHtml(IDIOMAS[idioma()] || idioma())), ' data-mob="idioma"')}
     </div>
 
     <div class="grupo-rot">${t('Memória')}</div>
@@ -1395,11 +1415,11 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
         <div class="busca">${icon('search', 18)}<input type="search" placeholder="${t('Procurar nos ajustes')}" /></div>
         ${CFG_TRILHA.map(
           ([rot, itens]) =>
-            `<div class="cfg-rot">${t(rot)}</div>` +
+            `<div class="cfg-rot">${rot()}</div>` +
             itens
               .map(
                 ([k, ic, nome]) =>
-                  `<button class="cfg-item${k === secao ? ' sel' : ''}" type="button" data-secao="${k}"><span class="ico">${icon(ic, 19)}</span> ${t(nome)}</button>`
+                  `<button class="cfg-item${k === secao ? ' sel' : ''}" type="button" data-secao="${k}"><span class="ico">${icon(ic, 19)}</span> ${nome()}</button>`
               )
               .join('')
         ).join('')}
@@ -1416,14 +1436,40 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
 
   const q = (sel) => el.querySelector(sel);
 
+  // Trocar o idioma redesenha a tela inteira (o ouvinte de `aoTrocarIdioma`
+  // mora no app.js), então não há nada pra fazer depois de chamar.
+  const selIdioma = q('#s-idioma');
+  if (selIdioma) selIdioma.onchange = () => trocarIdioma(selIdioma.value);
+
   // A trilha procura na lista de seções pelo nome — sem sair da tela.
+  //
+  // O título do grupo some junto com os itens dele, e a busca que não acha nada
+  // diz isso: sem as duas coisas, procurar por uma palavra que não existe
+  // deixava só "Ajustes" e "Personalizar" soltos, sem uma linha explicando.
   const busca = el.querySelector('.cfg-rail .busca input');
   if (busca) {
+    const trilha = el.querySelector('.cfg-rail');
+    const vazio = document.createElement('div');
+    vazio.className = 'cfg-rot';
+    vazio.hidden = true;
+    trilha.appendChild(vazio);
     busca.oninput = () => {
       const alvo = busca.value.trim().toLowerCase();
+      let achou = 0;
       for (const b of el.querySelectorAll('.cfg-item')) {
         b.hidden = !!alvo && !b.textContent.toLowerCase().includes(alvo);
+        if (!b.hidden) achou += 1;
       }
+      for (const rot of el.querySelectorAll('.cfg-rail .cfg-rot')) {
+        if (rot === vazio) continue;
+        let visivel = false;
+        for (let n = rot.nextElementSibling; n && !n.classList.contains('cfg-rot'); n = n.nextElementSibling) {
+          if (n.classList.contains('cfg-item') && !n.hidden) visivel = true;
+        }
+        rot.hidden = !!alvo && !visivel;
+      }
+      vazio.hidden = !alvo || achou > 0;
+      vazio.textContent = t('nada encontrado');
     };
   }
 
@@ -1637,8 +1683,15 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
           return;
         }
         const tamanho = (b) => (b >= 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} kB`);
+        // A data sai no formato do idioma escolhido. Antes era o ISO cru
+        // fatiado, que num app em inglês ou espanhol aparecia como 2026-08-20.
+        const quando = (at) => {
+          const dia = formatarData(at, { day: '2-digit', month: 'short', year: 'numeric' });
+          const hora = String(at).slice(11, 16);
+          return dia ? `${dia} ${hora}` : String(at).replace('T', ' ').slice(0, 16);
+        };
         alvo.innerHTML = lista
-          .map((b) => `${escapeHtml(b.at.replace('T', ' ').slice(0, 16))} — ${tamanho(b.bytes)}`)
+          .map((b) => `${escapeHtml(quando(b.at))} — ${tamanho(b.bytes)}`)
           .join('<br />');
       })
       .catch(() => {
@@ -1677,6 +1730,12 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
     b.onclick = async () => {
       if (acao === 'tema') {
         return applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+      }
+      // Gira entre os idiomas, como a linha do tema gira entre claro e escuro:
+      // são três, e uma tela inteira de escolha pra três itens é grande demais.
+      if (acao === 'idioma') {
+        const codigos = Object.keys(IDIOMAS);
+        return trocarIdioma(codigos[(codigos.indexOf(idioma()) + 1) % codigos.length]);
       }
       // A mesma pergunta da primeira vez: no celular ela é a tela inteira, e
       // troca a escolha sem precisar da trilha de ajustes, que é do desktop.
@@ -1760,6 +1819,13 @@ views.council = function renderCouncil(el, { switchView }) {
              <option value="compare">${t('Lado a lado')}</option>
              <option value="vote">${t('Elas votam')}</option>
            </select>
+           <label class="field">${t('Como você quer ver')}
+             <div class="segmentado" id="c-modos">
+               <button type="button" data-modo="council" class="sel">${t('Uma resposta só')}</button>
+               <button type="button" data-modo="compare">${t('Lado a lado')}</button>
+               <button type="button" data-modo="vote">${t('Elas votam')}</button>
+             </div>
+           </label>
            <div class="row">
              <button id="c-go" class="primary" type="button">${t('Perguntar pra todas')}</button>
              <button id="c-stop" class="danger" type="button" hidden>${icon('stop', 18)} ${t('Parar')}</button>
@@ -1772,11 +1838,6 @@ views.council = function renderCouncil(el, { switchView }) {
              <span class="col-state" id="c-status"></span>
              <span class="grow"></span>
              <button id="c-replay" class="icon" type="button" title="${t('perguntar de novo')}" aria-label="${t('perguntar de novo')}" hidden>${icon('refresh', 18)}</button>
-           </div>
-           <div class="segmentado" id="c-modos">
-             <button type="button" data-modo="council" class="sel">${t('Uma resposta só')}</button>
-             <button type="button" data-modo="compare">${t('Lado a lado')}</button>
-             <button type="button" data-modo="vote">${t('Elas votam')}</button>
            </div>
          </div>
          <div id="c-out"></div>`
@@ -1797,8 +1858,10 @@ views.council = function renderCouncil(el, { switchView }) {
     )
     .join('');
 
-  // O segmentado é a cara do <select id="c-mode">, que continua sendo quem
-  // manda o modo pro servidor.
+  // O segmentado é a cara do <select id="c-mode">, que continua sendo quem manda
+  // o modo pro servidor. Ele vive no formulário, junto da pergunta: embaixo do
+  // resultado ele parecia aba de resultado, e clicar não mudava resposta
+  // nenhuma — o modo vale pra pergunta seguinte, não pra que já foi feita.
   const modos = inner.querySelector('#c-modos');
   const modeSel = inner.querySelector('#c-mode');
   const judgeField = inner.querySelector('#c-judge-campo');
@@ -1941,9 +2004,11 @@ views.council = function renderCouncil(el, { switchView }) {
               maximumFractionDigits: 1
             })} s`;
             col.querySelector('.body').innerHTML = renderMarkdown(ev.text);
-            col.querySelector('footer .col-state').textContent = t('{n} palavras', {
-              n: ev.text.trim().split(/\s+/).length
-            });
+            col.querySelector('footer .col-state').textContent = plural(
+              ev.text.trim().split(/\s+/).length,
+              '1 palavra',
+              '{n} palavras'
+            );
             col.querySelector('[data-copiar]').onclick = () =>
               navigator.clipboard.writeText(ev.text).then(() => toast(t('resposta copiada')));
             wireCodeCopy(col);

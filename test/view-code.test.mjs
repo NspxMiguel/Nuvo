@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { traduzirEvento, pastasDaLista } from '../web/view-code.js';
+import { traduzirEvento, pastasDaLista, htmlDaPasta } from '../web/view-code.js';
 
 test('o evento de trabalho é reconhecido dentro de `evento`', () => {
   const ev = traduzirEvento({
@@ -56,4 +56,34 @@ test('caminho torto não derruba a árvore', () => {
   assert.deepEqual([...raiz.pastas.keys()], ['web']);
   assert.equal(raiz.pastas.get('web').arquivos.length, 1);
   assert.equal(raiz.arquivos.length, 2, 'o que não tem caminho fica na raiz, e não some');
+});
+
+test('a pasta de anexos nasce aberta, e só ela', () => {
+  // O servidor abre exceção pra `.nuvo` na varredura exatamente pra que o
+  // arquivo recém-anexado apareça. Fechada no segundo andar, a árvore mostrava
+  // `.nuvo` → `anexos` e mais nada — o anexo ficava invisível logo depois de
+  // anexado, que é o único momento em que alguém procura por ele.
+  const html = htmlDaPasta(
+    pastasDaLista([
+      { caminho: '.nuvo/anexos/contrato.txt', bytes: 18 },
+      { caminho: 'src/fundo/util.mjs', bytes: 40 }
+    ])
+  );
+  const abertas = [...html.matchAll(/<details class="cd-pasta"( open)?>[\s\S]*?<span class="cd-nome">([^<]+)</g)]
+    .filter((m) => m[1])
+    .map((m) => m[2]);
+  assert.ok(abertas.includes('anexos'), 'a pasta de anexos abre sozinha');
+  assert.ok(abertas.includes('.nuvo'), 'e o caminho até ela também');
+  assert.ok(!abertas.includes('fundo'), 'pasta funda de projeto continua fechada');
+  assert.ok(html.includes('contrato.txt'), 'o anexo está desenhado na árvore');
+});
+
+test('árvore comum continua abrindo só o primeiro andar', () => {
+  const html = htmlDaPasta(pastasDaLista([{ caminho: 'web/idiomas/en.json', bytes: 20 }]));
+  assert.match(html, /<details class="cd-pasta" open>[\s\S]*?web/, 'a pasta da raiz abre');
+  assert.ok(
+    html.split('idiomas')[0].lastIndexOf('<details class="cd-pasta">') >
+      html.split('idiomas')[0].lastIndexOf('<details class="cd-pasta" open>'),
+    'a pasta de dentro fica fechada'
+  );
 });

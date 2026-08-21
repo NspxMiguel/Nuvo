@@ -128,21 +128,31 @@ export function pastasDaLista(arquivos) {
   return raiz;
 }
 
-function htmlDaPasta(no, nivel = 0) {
+// Onde o clipe da tela põe o arquivo anexado. Igual ao `PASTA_DE_ANEXOS` do
+// servidor — o caminho que ele devolve começa por aqui.
+const PASTA_DE_ANEXOS = '.nuvo/anexos';
+
+export function htmlDaPasta(no, nivel = 0, caminho = '') {
   const pastas = [...no.pastas.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   const arquivos = [...no.arquivos].sort((a, b) => String(a.caminho).localeCompare(String(b.caminho)));
   // Só o primeiro andar abre sozinho: um projeto de verdade tem centenas de
   // arquivos, e abrir tudo faz a aba nascer com uma rolagem de dez telas.
+  //
+  // A exceção é o caminho da pasta de anexos. Ela é o único motivo de o
+  // servidor deixar uma pasta com ponto na frente entrar na árvore, e fechada
+  // no segundo andar ela escondia justamente o arquivo que a pessoa acabou de
+  // anexar: a árvore mostrava `.nuvo` → `anexos` e mais nada.
   const pastasHtml = pastas
-    .map(
-      ([nome, filho]) =>
-        `<details class="cd-pasta"${nivel === 0 ? ' open' : ''}>
+    .map(([nome, filho]) => {
+      const dentro = caminho ? `${caminho}/${nome}` : nome;
+      const doAnexo = PASTA_DE_ANEXOS === dentro || PASTA_DE_ANEXOS.startsWith(`${dentro}/`);
+      return `<details class="cd-pasta"${nivel === 0 || doAnexo ? ' open' : ''}>
            <summary><span class="ico">${icon('folder', 16)}</span><span class="cd-nome">${escapeHtml(
              nome
            )}</span></summary>
-           <div class="cd-dentro">${htmlDaPasta(filho, nivel + 1)}</div>
-         </details>`
-    )
+           <div class="cd-dentro">${htmlDaPasta(filho, nivel + 1, dentro)}</div>
+         </details>`;
+    })
     .join('');
   const arquivosHtml = arquivos
     .map(
@@ -464,6 +474,8 @@ export async function renderCode(el, { switchView }) {
         cancelado: () => t('a consulta foi cancelada'),
         falhou: () => t('não consegui perguntar ao git o que mudou aqui')
       };
+      // Quando não há git, o motivo já explica a lista vazia — juntar "nada
+      // mudou por enquanto" na frente dele dizia duas coisas que não combinam.
       const semGit = dado.git
         ? ''
         : `<p class="cd-meta">${(POR_QUE[dado.motivo] || POR_QUE.falhou)()}</p>`;
@@ -480,7 +492,9 @@ export async function renderCode(el, { switchView }) {
                    </button>`
               )
               .join('')}</div>`
-          : `<p class="cd-meta">${t('nada mudou por enquanto')}</p>`);
+          : dado.git
+            ? `<p class="cd-meta">${t('nada mudou por enquanto')}</p>`
+            : '');
       for (const btn of conteudo.querySelectorAll('.cd-mud')) {
         // Arquivo apagado não abre: o conteúdo dele não existe mais no disco.
         if (btn.classList.contains('apagado')) continue;
