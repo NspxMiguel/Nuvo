@@ -25,13 +25,33 @@ estiver entregue e conferido.
 
 > "ainda n resolveu oq te falei de ui grande pra krl"
 
-- [ ] **dizer, em todo lugar, o que é conteúdo de prova e o que não é**
-- [ ] **varredura geral do que confunde**, deixar tudo fácil de entender
-- [ ] **NotebookLM por padrão**, as outras IAs só pra dar o toque do professor
-- [ ] **botões que não funcionam direito** — achar quais e consertar
-- [ ] **interface no espírito do NotebookLM**, com professor e prova no lugar
-      de notebook
-- [ ] **a interface ainda está grande demais**
+- [x] **dizer, em todo lugar, o que é conteúdo de prova e o que não é** — os
+      três papéis (Prova · Caiu · Aula) viraram uma etiqueta só, com a mesma
+      palavra e a mesma cor na coluna da esquerda, dentro da pasta aberta e nas
+      caixas do meio. A pasta fechada diz quantos de cada; aberta, lista os
+      arquivos com o papel em cada linha.
+- [x] **varredura geral do que confunde** — clicando em todos os 176 botões das
+      onze telas. Achados e consertados: dois botões que saíam calados com o
+      campo vazio (Guardar da memória, baixar modelo pelo nome), a busca e a
+      ordem da loja que ficavam sem ouvinte quando o GitHub não respondia, e as
+      três caixas da avaliação que tinham nome duplicado e dois parágrafos cada.
+- [x] **NotebookLM por padrão**, as outras IAs só pra dar o toque do professor —
+      duas mãos: ele lê o material e rascunha, a IA escolhida reescreve com o
+      retrato por cima. Nenhuma das duas é ponto único de falha, e falha dele
+      fica lembrada por meia hora pra não cobrar vinte segundos toda vez.
+- [x] **botões que não funcionam direito** — o maior era o próprio NotebookLM:
+      gerar por ele nunca funcionou, porque quem chamava lia o gerador com
+      `for await`, que não enxerga o `return`. Mais cinco dos dez ladrilhos do
+      estúdio, que nasciam desabilitados num professor novo.
+- [x] **interface no espírito do NotebookLM** — fonte à esquerda com marcação,
+      trabalho no meio, estúdio à direita; o estúdio virou lista em vez de
+      mosaico; e o meio, que era um vazio, passou a dizer em três passos o que
+      entra, o que o app faz e o que sai.
+- [x] **a interface ainda está grande demais** — a causa era uma regra só:
+      `input, select, button` com 44 px de altura, 16 px de texto e 18 px de
+      folga, valendo em qualquer tela. 44 px é a régua do dedo. Com mouse são
+      32/14,5/14; no celular a régua do dedo continua. A linha de pasta do
+      Estudos caiu de 107 px pra 74, a gaveta de 300 px pra 248.
 
 ---
 
