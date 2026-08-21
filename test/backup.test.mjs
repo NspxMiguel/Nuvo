@@ -264,8 +264,12 @@ test('banco quebrado dentro de zip íntegro não toma o lugar do que funciona', 
   // responde — e responde com o arquivo ainda de lado.
   const arquivos = backup.unzip(backup.createBackup().buffer);
   const banco = Buffer.from(arquivos.get('data.db'));
-  const alvo = Math.floor(banco.length / 2);
-  for (let i = alvo; i < alvo + 600 && i < banco.length; i++) banco[i] ^= 0xa5;
+  // Logo depois dos 100 bytes de cabeçalho começa a página 1, que guarda o
+  // esquema. Corromper ali sempre quebra o `integrity_check` e deixa o
+  // "SQLite format 3" no lugar, que é o ponto do teste. Mirar no meio do arquivo
+  // dependia do tamanho do banco: com tabelas novas o meio caiu numa página
+  // vazia e o arquivo continuou íntegro.
+  for (let i = 100; i < 700 && i < banco.length; i++) banco[i] ^= 0xa5;
 
   const refeito = backup.zip([
     { name: 'manifest.json', data: arquivos.get('manifest.json') },

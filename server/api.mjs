@@ -66,6 +66,15 @@ import {
 } from './estudos.mjs';
 import { montarRetrato, limparRetrato } from './retrato.mjs';
 import { gerarFormato, TIPOS as TIPOS_DE_SAIDA } from './estudos-formatos.mjs';
+import {
+  semearCartoes,
+  fila as filaDeCartoes,
+  contagem as contagemDeCartoes,
+  responder as responderCartao,
+  previsao as previsaoDoCartao,
+  apagarCartao,
+  suspenderCartao
+} from './cartoes.mjs';
 import { runResearch } from './research.mjs';
 import { runCouncil } from './council.mjs';
 import { ftsQuery } from './vectors.mjs';
@@ -803,6 +812,30 @@ export async function handleApi(req, res, url) {
       })
     );
     return;
+  }
+  // --- cartões e a fila de revisão -----------------------------------------
+  if (seg[0] === 'professores' && seg[1] && seg[2] === 'cartoes' && method === 'GET') {
+    // A fila já vem com a previsão de cada nota: a tela mostra o preço nos
+    // quatro botões, e sem isso ela teria que perguntar um por um.
+    const cartoes = filaDeCartoes(seg[1], { limite: Number(url.searchParams.get('limite')) || 40 });
+    return json(res, {
+      contagem: contagemDeCartoes(seg[1]),
+      cartoes: cartoes.map((c) => ({ ...c, previsao: previsaoDoCartao(c) }))
+    });
+  }
+  if (seg[0] === 'saidas' && seg[1] && seg[2] === 'cartoes' && method === 'POST') {
+    return json(res, semearCartoes(seg[1]));
+  }
+  if (seg[0] === 'cartoes' && seg[1]) {
+    if (method === 'POST' && seg[2] === 'responder') {
+      const b = await readJSON(req);
+      return json(res, responderCartao(seg[1], b.nota));
+    }
+    if (method === 'PATCH') {
+      const b = await readJSON(req);
+      return json(res, suspenderCartao(seg[1], b.suspenso !== false));
+    }
+    if (method === 'DELETE') return json(res, apagarCartao(seg[1]));
   }
   if (seg[0] === 'professores' && seg[1] && seg[2] === 'saidas' && method === 'GET') {
     return json(res, listarSaidas(seg[1], { tipo: url.searchParams.get('tipo') }));

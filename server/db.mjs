@@ -239,6 +239,38 @@ CREATE TABLE IF NOT EXISTS estudo_saidas (
   created_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_saidas_prof ON estudo_saidas(professor_id, tipo);
+
+-- Os cartões e o histórico de revisão. Separados de propósito: o cartão guarda
+-- onde a memória está agora, e as revisões guardam como ela chegou lá. É o
+-- histórico que um dia permite afinar os pesos do FSRS pra esta pessoa; sem ele
+-- só dá pra usar o padrão pra sempre.
+CREATE TABLE IF NOT EXISTS cartoes (
+  id            TEXT PRIMARY KEY,
+  professor_id  TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+  saida_id      TEXT REFERENCES estudo_saidas(id) ON DELETE SET NULL,
+  frente        TEXT NOT NULL,
+  verso         TEXT NOT NULL,
+  tema          TEXT,
+  fonte         TEXT,
+  dificuldade   REAL,
+  estabilidade  REAL,
+  estado        TEXT NOT NULL DEFAULT 'novo',   -- novo | aprendendo | revisando | suspenso
+  revisado_em   TEXT,
+  volta_em      TEXT,
+  lapsos        INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cartoes_fila ON cartoes(professor_id, estado, volta_em);
+
+CREATE TABLE IF NOT EXISTS revisoes (
+  id          TEXT PRIMARY KEY,
+  cartao_id   TEXT NOT NULL REFERENCES cartoes(id) ON DELETE CASCADE,
+  nota        INTEGER NOT NULL,
+  intervalo   REAL,
+  estabilidade REAL,
+  revisado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_revisoes_cartao ON revisoes(cartao_id, revisado_em);
 `);
 
 export const now = () => new Date().toISOString();
