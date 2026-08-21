@@ -81,6 +81,13 @@ const DEFAULTS = {
     // Quantas idas ao modelo o agente pode gastar num turno. Cada passo é uma
     // chamada inteira: oito já resolve quase tudo e não custa uma conversa.
     passos: 8,
+    // `null` na navegação é automático: prefere uma IA local, Groq ou DeepSeek
+    // que já esteja ligada. Se não houver nenhuma, usa a IA da conversa e o
+    // agente continua funcionando como antes.
+    modeloNavegar: null,
+    // `null` na resposta preserva a IA escolhida na conversa. Quem quiser pode
+    // fixar aqui a IA boa que recebe as páginas e escreve só a síntese final.
+    modeloResponder: null,
     // Com janela, dá pra ver o que ele faz — e é como se faz um login que o
     // perfil vai guardar. Sem janela é o padrão porque a janela rouba o foco.
     janela: false,

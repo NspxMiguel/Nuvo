@@ -1063,11 +1063,19 @@ async function consumeTurn(path, body, ganchos = {}) {
                 'globe'
               );
             }
-            trilhaEl.querySelector('.trilha').insertAdjacentHTML(
-              'beforeend',
-              `<div class="passo${ev.erro ? ' ruim' : ''}">${escapeHtml(ev.descricao || ev.acao)}` +
-                `${ev.motivo ? `<span class="porque">${escapeHtml(ev.motivo)}</span>` : ''}</div>`
-            );
+            {
+              const descricao = ev.papel === 'responder'
+                ? t('montando a resposta')
+                : escapeHtml(ev.descricao || ev.acao);
+              const modelo = ev.modelo
+                ? `<span class="porque">${escapeHtml(t('IA: {modelo}', { modelo: ev.modelo }))}</span>`
+                : '';
+              trilhaEl.querySelector('.trilha').insertAdjacentHTML(
+                'beforeend',
+                `<div class="passo${ev.erro ? ' ruim' : ''}">${descricao}` +
+                  `${ev.motivo ? `<span class="porque">${escapeHtml(ev.motivo)}</span>` : ''}${modelo}</div>`
+              );
+            }
             scrollDown();
             break;
           case 'agent-page':

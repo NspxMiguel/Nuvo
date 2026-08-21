@@ -65,6 +65,17 @@ test('o atalho aponta pro localhost, nunca pro endereço de rede', () => {
   assert.match(desktop.appUrl(), /^http:\/\/localhost:\d+\//);
 });
 
+test('a janela do app nasce num perfil próprio e sem restaurar a New Tab', () => {
+  const args = desktop.argumentosDaJanela('http://localhost:4747/');
+  const perfil = args.find((arg) => arg.startsWith('--user-data-dir='));
+  assert.match(perfil, /janela-app$/, 'o perfil antigo carrega a sessão comum que abria por cima');
+  assert.ok(!perfil.endsWith('/navegador'), 'a janela do app não pode reutilizar o perfil contaminado');
+  for (const flag of ['--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble']) {
+    assert.ok(args.includes(flag), `faltou ${flag}`);
+  }
+  assert.deepEqual(args.filter((arg) => arg.startsWith('--app=')), ['--app=http://localhost:4747/']);
+});
+
 test('o estado do atalho responde mesmo sem nada instalado', () => {
   const estado = desktop.desktopStatus();
   assert.equal(typeof estado.supported, 'boolean');

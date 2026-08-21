@@ -82,6 +82,23 @@ function portaLivre() {
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Espera o processo soltar o perfil; o prazo impede um Chrome travado de prender o servidor. */
+function esperarSaida(proc, limite = 3000) {
+  if (proc.exitCode !== null || proc.signalCode) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const saiu = () => {
+      clearTimeout(relogio);
+      resolve(true);
+    };
+    const relogio = setTimeout(() => {
+      proc.removeListener('exit', saiu);
+      resolve(false);
+    }, limite);
+    relogio.unref?.();
+    proc.once('exit', saiu);
+  });
+}
+
 /**
  * O Chrome abre a porta bem depois de o processo existir — em máquina fria
  * passou de 2,5 s aqui. Perguntar uma vez e desistir dá "conexão recusada" num
@@ -179,7 +196,7 @@ export async function abrirNavegador({ janela = false, signal } = {}) {
   if (!binario) throw new Error('nenhum Chrome, Chromium, Edge ou Brave encontrado nesta máquina');
 
   const porta = await portaLivre();
-  // Perfil só do agente. O `navegador` puro é o da janela do app
+  // Perfil só do agente. O `janela-app` é o da janela do app
   // (server/desktop.mjs), e o Chrome recusa dois processos no mesmo
   // `--user-data-dir`: com o ícone do app aberto, o agente morria depois de 20s
   // esperando uma porta que nunca ia abrir.
@@ -206,15 +223,23 @@ export async function abrirNavegador({ janela = false, signal } = {}) {
   });
 
   let sessao = null;
+  let encerrando = null;
   const encerrar = () => {
-    sessao?.fechar();
-    if (!morto) {
+    if (encerrando) return encerrando;
+    encerrando = (async () => {
+      sessao?.fechar();
+      if (morto) return;
       try {
         proc.kill();
+        if (!(await esperarSaida(proc)) && !morto) {
+          proc.kill('SIGKILL');
+          await esperarSaida(proc, 1000);
+        }
       } catch {
         /* já morreu */
       }
-    }
+    })();
+    return encerrando;
   };
 
   try {
@@ -243,7 +268,7 @@ export async function abrirNavegador({ janela = false, signal } = {}) {
     }
     return { sessao, encerrar, porta, binario, perfil };
   } catch (err) {
-    encerrar();
+    await encerrar();
     throw err;
   }
 }

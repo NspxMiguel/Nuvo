@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { useTempHome } from './helpers.mjs';
 
 const home = useTempHome();
-const { lerAcao } = await import('../server/agente-web.mjs');
+const { escolherModelosDoAgente, lerAcao } = await import('../server/agente-web.mjs');
 const { acharNavegador, abrirNavegador, lerPagina, executar } = await import('../server/navegador.mjs');
 
 after(() => home.cleanup());
@@ -47,6 +47,38 @@ test('pronto encerra, com qualquer um dos nomes', () => {
   }
 });
 
+test('o automático põe IA econômica nos passos e guarda a boa pra resposta', () => {
+  const modelos = [
+    { ref: 'cara:claude', nome: 'Anthropic', kind: 'anthropic', baseUrl: 'https://api.anthropic.com' },
+    { ref: 'groq:llama', nome: 'Groq', kind: 'openai', baseUrl: 'https://api.groq.com/openai/v1' },
+    { ref: 'local:qwen', nome: 'Ollama', kind: 'ollama', baseUrl: 'http://127.0.0.1:11434' }
+  ];
+  assert.deepEqual(
+    escolherModelosDoAgente({ atual: 'cara:claude', modelos }),
+    { navegar: 'local:qwen', responder: 'cara:claude', automatico: 'local:qwen' }
+  );
+
+  // Gastar mais continua possível, mas só quando a pessoa escolhe na mão.
+  assert.deepEqual(
+    escolherModelosDoAgente({
+      atual: 'cara:claude', navegar: 'cara:claude', responder: 'groq:llama', modelos
+    }),
+    { navegar: 'cara:claude', responder: 'groq:llama', automatico: null }
+  );
+});
+
+test('sem IA econômica ou com escolha apagada o agente não quebra', () => {
+  const modelos = [
+    { ref: 'atual:boa', nome: 'IA atual', kind: 'anthropic', baseUrl: 'https://exemplo.invalid' }
+  ];
+  assert.deepEqual(
+    escolherModelosDoAgente({
+      atual: 'atual:boa', navegar: 'apagada:modelo', responder: 'desligada:modelo', modelos
+    }),
+    { navegar: 'atual:boa', responder: 'atual:boa', automatico: null }
+  );
+});
+
 // Daqui pra baixo precisa de navegador instalado. Em contêiner sem Chrome o
 // bloco inteiro é pulado — é justamente a máquina onde o globo cai na busca
 // simples, então não há o que testar.
@@ -62,7 +94,10 @@ async function servir(paginas) {
     res.end(corpo || 'nada');
   });
   await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
-  return { base: `http://127.0.0.1:${servidor.address().port}`, fechar: () => servidor.close() };
+  return {
+    base: `http://127.0.0.1:${servidor.address().port}`,
+    fechar: () => new Promise((resolve) => servidor.close(resolve))
+  };
 }
 
 test('o navegador lê a página e clica no que existe', { skip: !temChrome }, async () => {
@@ -74,8 +109,10 @@ test('o navegador lê a página e clica no que existe', { skip: !temChrome }, as
   };
   const { base, fechar } = await servir(paginas);
 
-  const { sessao, encerrar } = await abrirNavegador();
+  let aberto = null;
   try {
+    aberto = await abrirNavegador();
+    const { sessao } = aberto;
     await executar(sessao, { acao: 'navegar', alvo: base });
     const p = await lerPagina(sessao);
     assert.equal(p.titulo, 'Início');
@@ -94,13 +131,13 @@ test('o navegador lê a página e clica no que existe', { skip: !temChrome }, as
     await executar(sessao, { acao: 'voltar' });
     assert.equal((await lerPagina(sessao)).titulo, 'Início');
   } finally {
-    encerrar();
-    fechar();
+    await aberto?.encerrar();
+    await fechar();
   }
 });
 
 test('o agente sobe mesmo com a janela do app aberta', { skip: !temChrome }, async () => {
-  // Os dois usavam `~/.nuvo/navegador`, e o Chrome recusa dois processos no
+  // Os dois usavam o mesmo perfil, e o Chrome recusa dois processos no
   // mesmo perfil: com o ícone do app aberto, o agente esperava 20s e desistia.
   const { DATA_DIR } = await import('../server/config.mjs');
   const { join } = await import('node:path');
@@ -108,27 +145,31 @@ test('o agente sobe mesmo com a janela do app aberta', { skip: !temChrome }, asy
   const janela = spawn(acharNavegador(), [
     '--headless=new',
     '--app=data:text/html,<title>app</title>',
-    `--user-data-dir=${join(DATA_DIR, 'navegador')}`
+    `--user-data-dir=${join(DATA_DIR, 'janela-app')}`
   ], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 2500));
   try {
     const { sessao, encerrar } = await abrirNavegador();
     assert.ok(sessao, 'o agente tinha que subir com a janela do app aberta');
-    encerrar();
+    await encerrar();
   } finally {
+    const saiu = new Promise((resolve) => janela.once('exit', resolve));
     janela.kill();
+    await Promise.race([saiu, new Promise((resolve) => setTimeout(resolve, 3000))]);
   }
 });
 
 test('clicar num número que não existe é erro, não silêncio', { skip: !temChrome }, async () => {
   const { base, fechar } = await servir({ '/': '<title>Vazio</title><body><p>vazio</p></body>' });
-  const { sessao, encerrar } = await abrirNavegador();
+  let aberto = null;
   try {
+    aberto = await abrirNavegador();
+    const { sessao } = aberto;
     await executar(sessao, { acao: 'navegar', alvo: base });
     await assert.rejects(() => executar(sessao, { acao: 'clicar', alvo: 99 }), /não existe elemento 99/);
   } finally {
-    encerrar();
-    fechar();
+    await aberto?.encerrar();
+    await fechar();
   }
 });
 
@@ -136,8 +177,10 @@ test('o agente não digita em campo de senha', { skip: !temChrome }, async () =>
   const { base, fechar } = await servir({
     '/': '<title>Entrar</title><body><input type="password"><input type="text"></body>'
   });
-  const { sessao, encerrar } = await abrirNavegador();
+  let aberto = null;
   try {
+    aberto = await abrirNavegador();
+    const { sessao } = aberto;
     await executar(sessao, { acao: 'navegar', alvo: base });
     const p = await lerPagina(sessao);
     const senha = p.elementos[0];
@@ -151,8 +194,8 @@ test('o agente não digita em campo de senha', { skip: !temChrome }, async () =>
       /escrevi "oi"/
     );
   } finally {
-    encerrar();
-    fechar();
+    await aberto?.encerrar();
+    await fechar();
   }
 });
 

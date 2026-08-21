@@ -1040,5 +1040,16 @@
   "— do zero —": "— desde cero —",
   "— nenhum —": "— ninguno —",
   "— sem chamar IA, só a regra local —": "— sin llamar a ninguna IA, solo la regla local —",
-  "— sem indexar, só busca por palavra —": "— sin indexar, solo búsqueda por palabra —"
+  "— sem indexar, só busca por palavra —": "— sin indexar, solo búsqueda por palabra —",
+  "A IA escolhida na conversa": "La IA elegida en la conversación",
+  "Automático — economiza quando pode": "Automático — ahorra cuando puede",
+  "Cada passo manda a página inteira. No automático, ele prefere uma IA local, Groq ou DeepSeek.": "Cada paso envía la página entera. En automático, prefiere una IA local, Groq o DeepSeek.",
+  "econômica": "económica",
+  "IA que dá os passos": "IA que da los pasos",
+  "IA que escreve a resposta": "IA que escribe la respuesta",
+  "IA: {modelo}": "IA: {modelo}",
+  "montando a resposta": "preparando la respuesta",
+  "Nenhuma IA econômica está ligada.": "No hay ninguna IA económica conectada.",
+  "Os passos usam a IA da conversa por enquanto. Ligue Ollama, Groq ou DeepSeek para economizar.": "Por ahora, los pasos usan la IA de la conversación. Conecta Ollama, Groq o DeepSeek para ahorrar.",
+  "Só ela recebe o resultado da navegação e escreve a resposta final que você lê.": "Solo ella recibe el resultado de la navegación y escribe la respuesta final que lees."
 }

@@ -17,6 +17,8 @@ test('primeira leitura cria token de acesso e grava no disco', () => {
   assert.ok(cfg.accessToken, 'sem token o app não trancaria nada');
   assert.ok(cfg.accessToken.length >= 20, `token curto demais: ${cfg.accessToken.length} caracteres`);
   assert.equal(cfg.requireToken, true, 'o padrão tem que ser exigir token');
+  assert.equal(cfg.navegador.modeloNavegar, null, 'sem escolha, a navegação tem que procurar uma IA econômica');
+  assert.equal(cfg.navegador.modeloResponder, null, 'sem escolha, a resposta continua na IA da conversa');
 
   const salvo = JSON.parse(readFileSync(config.CONFIG_PATH, 'utf8'));
   assert.equal(salvo.accessToken, cfg.accessToken, 'o token tem que sobreviver ao reinício');

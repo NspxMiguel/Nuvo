@@ -121,6 +121,8 @@ aberta na New Tab do Google.
 - [ ] **dois modelos no agente**: um barato pra cada passo de navegação, um bom
       só pro que decide de verdade. Barato é o padrão; gastar mais é escolha
       explícita de quem usa.
+- [ ] **depois, reaproveitar a separação de custo** no extrator de memória e no
+      título automático da conversa, sem misturar isso à mudança do navegador.
 
 ## 21/08/2026 — um segundo programador na equipe
 
