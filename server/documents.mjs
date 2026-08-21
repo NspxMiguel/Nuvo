@@ -347,6 +347,23 @@ export async function recallChunks(
 }
 
 /**
+ * O documento inteiro de um anexo.
+ *
+ * Arquivo curto tem o texto guardado na própria linha. O longo não tem, e aí a
+ * volta é emendar os trechos — que se sobrepõem de propósito em 200 caracteres,
+ * então a emenda repete um pedaço de cada junta. É o que existe pra anexo
+ * gravado antes da coluna `text`, e é melhor do que devolver vazio.
+ */
+export function textoDoAnexo(id) {
+  return (
+    one('SELECT text FROM attachments WHERE id = ?', id)?.text ??
+    all('SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord', id)
+      .map((c) => c.text)
+      .join('\n\n')
+  );
+}
+
+/**
  * Bloco de documentos pro system prompt. Arquivo curto entra inteiro; o resto
  * entra pelos trechos recuperados.
  */
@@ -377,11 +394,7 @@ export async function renderDocuments(query, { chatId, projectId }) {
     // carrega o documento inteiro — quem precisa dele é só o prompt. Emendar os
     // trechos repetia a sobreposição de 200 caracteres que existe entre eles de
     // propósito; anexo de antes desta coluna cai na emenda, que é o que havia.
-    const text =
-      one('SELECT text FROM attachments WHERE id = ?', att.id)?.text ??
-      all('SELECT text FROM chunks WHERE attachment_id = ? ORDER BY ord', att.id)
-        .map((c) => c.text)
-        .join('\n\n');
+    const text = textoDoAnexo(att.id);
     if (text.length > orcamento) {
       rebaixados.add(att.name);
       continue;

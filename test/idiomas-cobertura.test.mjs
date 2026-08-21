@@ -173,6 +173,13 @@ function frasesDoServidor() {
     /throw new Error\(\s*'((?:\\.|[^'])+)'\s*\)/g,
     /\berror:\s*'((?:\\.|[^'])+)'/g,
     /erroTraduzivel\(\s*'((?:\\.|[^'])+)'/g,
+    // `erroHttp(404, 'frase')`: o código vem antes, então o molde é o segundo
+    // argumento. Sem esta linha as frases dele saíam do dicionário caladas.
+    /erroHttp\(\s*\d+,\s*'((?:\\.|[^'])+)'/g,
+    // `exigir(condicao, 'frase')` e `exigirExiste(linha, 'frase')`: os atalhos do
+    // `estudos.mjs` pra levantar 400 e 404. A frase mora no segundo argumento e
+    // some da varredura se não for procurada aqui.
+    /\bexigir(?:Existe)?\([^,)]+,\s*'((?:\\.|[^'])+)'/g,
     /textoTraduzivel\(\s*'\w+',\s*'((?:\\.|[^'])+)'/g,
     /^\s*molde:\s*\n?\s*'((?:\\.|[^'])+)'/gm
   ];

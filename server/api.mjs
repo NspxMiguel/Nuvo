@@ -64,6 +64,7 @@ import {
   acharSaida,
   apagarSaida
 } from './estudos.mjs';
+import { montarRetrato, limparRetrato } from './retrato.mjs';
 import { runResearch } from './research.mjs';
 import { runCouncil } from './council.mjs';
 import { ftsQuery } from './vectors.mjs';
@@ -745,6 +746,30 @@ export async function handleApi(req, res, url) {
     if (method === 'GET') return json(res, verProfessor(seg[1]));
     if (method === 'PATCH') return json(res, atualizarProfessor(seg[1], await readJSON(req)));
     if (method === 'DELETE') return json(res, apagarProfessor(seg[1]));
+  }
+  if (seg[0] === 'professores' && seg[1] && seg[2] === 'retrato') {
+    if (method === 'POST') {
+      const b = await readJSON(req);
+      const stream = openStream(req, res);
+      await pump(stream, montarRetrato({ professorId: seg[1], ref: b.model, signal: stream.signal }));
+      return;
+    }
+    // A correção feita à mão entra por cima e fica: quem regerar o retrato
+    // depois recebe as correções de volta, senão a pessoa conserta o mesmo
+    // achado toda vez que anexa uma prova nova.
+    if (method === 'PATCH') {
+      const b = await readJSON(req);
+      const atual = verProfessor(seg[1]).retrato;
+      if (!atual) return json(res, corpoDoErro(erroTraduzivel('ainda não existe retrato pra corrigir')), 400);
+      const junto = limparRetrato({ ...atual, ...(b.retrato || {}) });
+      if (!junto) return json(res, corpoDoErro(erroTraduzivel('a correção deixou o retrato sem forma')), 400);
+      junto.confianca = atual.confianca;
+      junto.fontes = atual.fontes;
+      junto.gerado_em = atual.gerado_em;
+      junto.correcoes = Array.isArray(b.correcoes) ? b.correcoes : atual.correcoes || [];
+      run('UPDATE professores SET retrato = ?, updated_at = ? WHERE id = ?', JSON.stringify(junto), now(), seg[1]);
+      return json(res, verProfessor(seg[1]));
+    }
   }
   if (seg[0] === 'professores' && seg[1] && seg[2] === 'foto') {
     if (method === 'POST') return json(res, guardarFoto(seg[1], await readBuffer(req, 8 * 1024 * 1024)));

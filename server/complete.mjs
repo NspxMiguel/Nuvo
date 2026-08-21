@@ -46,6 +46,45 @@ export function describeModel(ref) {
   }
 }
 
+/**
+ * Extrai o primeiro objeto JSON de uma resposta que veio com conversa em volta.
+ *
+ * A varredura fecha chaves em vez de casar a primeira com a última: modelo que
+ * escreve `{...}` e emenda um parágrafo com outra chave depois entregava um
+ * pedaço maior do que o objeto, e o JSON.parse morria.
+ */
+export function parseJsonObject(text) {
+  const bruto = String(text);
+  const inicio = bruto.indexOf('{');
+  if (inicio < 0) return null;
+  let nivel = 0;
+  let dentroDeTexto = false;
+  let escapado = false;
+  for (let i = inicio; i < bruto.length; i += 1) {
+    const c = bruto[i];
+    if (dentroDeTexto) {
+      if (escapado) escapado = false;
+      else if (c === '\\') escapado = true;
+      else if (c === '"') dentroDeTexto = false;
+      continue;
+    }
+    if (c === '"') dentroDeTexto = true;
+    else if (c === '{') nivel += 1;
+    else if (c === '}') {
+      nivel -= 1;
+      if (nivel === 0) {
+        try {
+          const lido = JSON.parse(bruto.slice(inicio, i + 1));
+          return lido && typeof lido === 'object' && !Array.isArray(lido) ? lido : null;
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /** Extrai o primeiro array JSON de uma resposta que veio com conversa em volta. */
 export function parseJsonArray(text) {
   const match = String(text).match(/\[[\s\S]*\]/);
