@@ -103,7 +103,12 @@ E, quando perguntado o que fazer primeiro:
 Mandou a captura: dentro da janela do Nuvo, uma janela do Chrome por cima,
 aberta na New Tab do Google.
 
-- [ ] **abrir o Nuvo não pode abrir janela de navegador nenhuma além da dele.**
+- [x] **abrir o Nuvo não pode abrir janela de navegador nenhuma além da dele.**
+      A causa não era o agente: a janela do app usava o MESMO perfil de Chrome do
+      agente de navegador, e esse perfil tinha uma sessão antiga guardada — o
+      Chrome restaurava a janela comum na New Tab junto com a do app. Agora a
+      janela do app tem perfil próprio (`~/.nuvo/janela-app`) e sobe com as flags
+      que impedem restaurar sessão e mostrar tela de boas-vindas.
 
 ## 21/08/2026 — o modo navegador e o custo do modelo
 
@@ -117,10 +122,14 @@ aberta na New Tab do Google.
 > questoes e perguntas (no caso do usuario colocar ele pra responder um
 > formulario)"
 
-- [ ] **o modo navegador não abre o Chrome da máquina dele.**
-- [ ] **dois modelos no agente**: um barato pra cada passo de navegação, um bom
-      só pro que decide de verdade. Barato é o padrão; gastar mais é escolha
-      explícita de quem usa.
+- [x] **o modo navegador não abre o Chrome da máquina dele** — o perfil do
+      agente já era separado do pessoal, e agora é separado também do da janela
+      do app.
+- [x] **dois modelos no agente**: navegar e responder viraram papéis separados.
+      O padrão é "automático", que prioriza Ollama local, Groq e DeepSeek pra
+      navegar e guarda a IA boa pra resposta final. Sem nenhuma opção econômica
+      ligada, cai no modelo atual sem falhar, e os Ajustes dizem que dá pra
+      economizar. Cada passo informa qual modelo respondeu.
 - [ ] **depois, reaproveitar a separação de custo** no extrator de memória e no
       título automático da conversa, sem misturar isso à mudança do navegador.
 
