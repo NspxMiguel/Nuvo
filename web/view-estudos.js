@@ -270,6 +270,10 @@ async function telaDoProfessor(el, ctx) {
     'book',
     escapeHtml(prof.materia || t('sem matéria')),
     `<div class="row est-topo">
+       <button id="est-foto" class="prof-troca" type="button" title="${t('trocar a foto')}"
+         aria-label="${t('trocar a foto de {nome}', { nome: escapeHtml(prof.nome) })}">
+         ${retratoDoProfessor(prof, 38)}
+       </button>
        <button id="est-voltar" class="ghost" type="button">
          <span data-icon="chevron" class="volta"></span> ${t('Todos os professores')}
        </button>
@@ -362,6 +366,30 @@ async function telaDoProfessor(el, ctx) {
   }
   for (const pasta of provas) caixaProvas.appendChild(linhaDaPasta(pasta));
   for (const pasta of materiais) caixaMateriais.appendChild(linhaDaPasta(pasta));
+
+  // A foto entra pelo mesmo caminho de qualquer arquivo, e o servidor decide se
+  // é imagem pelos primeiros bytes — não pela extensão nem pelo que o navegador
+  // disse que era.
+  inner.querySelector('#est-foto').onclick = () => {
+    const campo = document.createElement('input');
+    campo.type = 'file';
+    campo.accept = 'image/png,image/jpeg,image/webp';
+    campo.onchange = async () => {
+      const arquivo = campo.files?.[0];
+      if (!arquivo) return;
+      try {
+        await api(`/professores/${prof.id}/foto`, {
+          method: 'POST',
+          body: await arquivo.arrayBuffer(),
+          raw: true
+        });
+        ctx.switchView('estudos');
+      } catch (err) {
+        toast(err.message || t('não deu pra guardar a foto'), 'err');
+      }
+    };
+    campo.click();
+  };
 
   inner.querySelector('#est-voltar').onclick = () => {
     aqui.professorId = null;

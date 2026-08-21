@@ -2375,3 +2375,7 @@ button.icon { position: relative; }
 .menu-linha .icon { width: 34px; height: 34px; }
 /* A seta de descer é a de subir virada: um caminho de SVG a menos. */
 .menu-linha .icon.vira svg { transform: rotate(180deg); }
+
+/* A foto do professor é o botão que a troca: não precisa de um botão ao lado. */
+.prof-troca { padding: 0; border-radius: 50%; background: none; }
+.prof-troca:hover { outline: 2px solid var(--accent); }
