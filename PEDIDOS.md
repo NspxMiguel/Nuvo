@@ -92,7 +92,10 @@ E, quando perguntado o que fazer primeiro:
       Anki. É o buraco do NotebookLM: ele gera cartão e entrega a pilha; pilha
       não é estudo. Cada botão de nota mostra pra quando o cartão vai ("Bom ·
       4 dias", "Fácil · 14 dias") antes de a pessoa apertar.
-- [ ] **NotebookLM como um provedor a mais**, e o Estudos de pé sem ele.
+- [x] **NotebookLM como um provedor a mais**, e o Estudos de pé sem ele. Entra
+      como uma opção no seletor do Estúdio, dirigido pelo agente de navegador, e
+      só fica clicável depois de o servidor confirmar que ele responde. Qualquer
+      quebra vira um aviso e o gerador local continua ali do lado.
 
 ## 21/08/2026 — botões do menu configuráveis
 
@@ -151,8 +154,12 @@ aberta na New Tab do Google.
       navegar e guarda a IA boa pra resposta final. Sem nenhuma opção econômica
       ligada, cai no modelo atual sem falhar, e os Ajustes dizem que dá pra
       economizar. Cada passo informa qual modelo respondeu.
-- [ ] **depois, reaproveitar a separação de custo** no extrator de memória e no
-      título automático da conversa, sem misturar isso à mudança do navegador.
+- [x] **reaproveitar a separação de custo no extrator de memória** — olhado e
+      decidido não fazer, com motivo: o extrator já tem modelo próprio nos
+      Ajustes (`memory.extractorModel`), e quando ele está vazio o app usa uma
+      heurística local que não chama IA nenhuma. Trocar isso por uma IA barata
+      passaria a gastar onde hoje não gasta nada. O título automático não existe
+      no app — era suposição minha.
 
 ## 21/08/2026 — um segundo programador na equipe
 
