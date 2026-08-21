@@ -3,6 +3,7 @@
 import './mudanca.js';
 import { icon, COLORS } from './icons.js';
 import { t } from './i18n.js';
+import { perguntar } from './dialogo.js';
 
 // ------------------------------------------------------------------- token
 
@@ -94,7 +95,10 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
     body: raw ? body : body !== undefined ? JSON.stringify(body) : undefined
   });
   if (res.status === 401) {
-    const token = prompt(t('Senha de acesso (aparece no terminal onde o servidor subiu):'));
+    const token = await perguntar({
+      titulo: t('Acesso'),
+      rotulo: t('Senha de acesso (aparece no terminal onde o servidor subiu):')
+    });
     if (token) {
       localStorage.setItem('nuvo.token', token);
       location.reload();

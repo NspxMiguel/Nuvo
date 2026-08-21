@@ -5,6 +5,7 @@ import {
   escapeHtml, badge, toast, iconPicker, paintIcons, TOKEN, origemDoFato, escopoDoFato
 } from './core.js';
 import { icon } from './icons.js';
+import { avisar, confirmar, perguntar } from './dialogo.js';
 import { renderMarkdown, wireCodeCopy } from './md.js';
 import { roseta } from './glow.js';
 import {
@@ -162,7 +163,16 @@ function ligarRecomendados(inner, maquina, switchView) {
     if (apagar) {
       apagar.onclick = async () => {
         if (!local) return semLocal();
-        if (!confirm(t('Apagar {nome} do disco?', { nome }))) return;
+        if (
+          !(await confirmar({
+            titulo: t('Apagar'),
+            texto: t('Apagar {nome} do disco?', { nome }),
+            acao: t('Apagar'),
+            perigo: true
+          }))
+        ) {
+          return;
+        }
         try {
           await api(`/providers/${local.id}/models/${encodeURIComponent(m.id)}`, { method: 'DELETE' });
           toast(t('{nome} apagada', { nome }), 'ok');
@@ -362,9 +372,18 @@ views.providers = async function renderProviders(el, { switchView }) {
     };
     const botaoChave = card.querySelector('[data-act=key]');
     if (botaoChave) botaoChave.onclick = async () => {
-      const name = p.secret_name || prompt(t('Nome da variável da chave:'), 'API_KEY');
+      const name =
+        p.secret_name ||
+        (await perguntar({
+          titulo: t('Trocar chave'),
+          rotulo: t('Nome da variável da chave:'),
+          valor: 'API_KEY'
+        }));
       if (!name) return;
-      const value = prompt(t('Valor de {nome}:', { nome: name }));
+      const value = await perguntar({
+        titulo: t('Trocar chave'),
+        rotulo: t('Valor de {nome}:', { nome: name })
+      });
       if (value === null) return;
       await api(`/providers/${p.id}`, {
         method: 'PATCH',
@@ -378,7 +397,16 @@ views.providers = async function renderProviders(el, { switchView }) {
       await reload();
     };
     card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(t('Remover {nome}?', { nome: p.name }))) return;
+      if (
+        !(await confirmar({
+          titulo: t('Remover'),
+          texto: t('Remover {nome}?', { nome: p.name }),
+          acao: t('Remover'),
+          perigo: true
+        }))
+      ) {
+        return;
+      }
       await api(`/providers/${p.id}`, { method: 'DELETE' });
       await reload();
     };
@@ -533,7 +561,16 @@ function renderOllamaManager(host, provider, reload) {
   for (const btn of installed.querySelectorAll('[data-del]')) {
     btn.onclick = async () => {
       const model = btn.dataset.del;
-      if (!confirm(t('Apagar {nome} do disco?', { nome: model }))) return;
+      if (
+        !(await confirmar({
+          titulo: t('Apagar'),
+          texto: t('Apagar {nome} do disco?', { nome: model }),
+          acao: t('Apagar'),
+          perigo: true
+        }))
+      ) {
+        return;
+      }
       try {
         await api(`/providers/${provider.id}/models/${encodeURIComponent(model)}`, { method: 'DELETE' });
         toast(t('{nome} apagado', { nome: model }), 'ok');
@@ -675,7 +712,16 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
       switchView('gems');
     };
     card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(t('Apagar o perfil {nome}?', { nome: g.name }))) return;
+      if (
+        !(await confirmar({
+          titulo: t('Apagar'),
+          texto: t('Apagar o perfil {nome}?', { nome: g.name }),
+          acao: t('Apagar'),
+          perigo: true
+        }))
+      ) {
+        return;
+      }
       await api(`/gems/${g.id}`, { method: 'DELETE' });
       await refreshState();
       switchView('gems');
@@ -814,7 +860,16 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
     card.querySelector('[data-act=files]').onclick = () =>
       renderProjectFiles(card.querySelector(`#files-${p.id}`), p);
     card.querySelector('[data-act=del]').onclick = async () => {
-      if (!confirm(t('Apagar o projeto {nome}?', { nome: p.name }))) return;
+      if (
+        !(await confirmar({
+          titulo: t('Apagar'),
+          texto: t('Apagar o projeto {nome}?', { nome: p.name }),
+          acao: t('Apagar'),
+          perigo: true
+        }))
+      ) {
+        return;
+      }
       await api(`/projects/${p.id}`, { method: 'DELETE' });
       await refreshState();
       switchView('projects');
@@ -982,7 +1037,12 @@ views.memory = async function renderMemory(el, { switchView }) {
     mudar.title = t('mudar');
     mudar.setAttribute('aria-label', t('mudar o que está guardado'));
     mudar.onclick = async () => {
-      const novo = prompt(t('Mudar o que está guardado:'), m.text);
+      const novo = await perguntar({
+        titulo: t('Mudar'),
+        rotulo: t('Mudar o que está guardado:'),
+        valor: m.text,
+        multilinha: true
+      });
       if (novo == null || !novo.trim() || novo.trim() === m.text) return;
       await api(`/memories/${m.id}`, { method: 'PATCH', body: { text: novo.trim() } });
       switchView('memory');
@@ -995,7 +1055,16 @@ views.memory = async function renderMemory(el, { switchView }) {
     esquecer.title = t('esquecer');
     esquecer.setAttribute('aria-label', t('esquecer este fato'));
     esquecer.onclick = async () => {
-      if (!confirm(t('Esquecer isto?\n\n"{texto}"', { texto: m.text }))) return;
+      if (
+        !(await confirmar({
+          titulo: t('Apagar'),
+          texto: t('Esquecer isto?\n\n"{texto}"', { texto: m.text }),
+          acao: t('Apagar'),
+          perigo: true
+        }))
+      ) {
+        return;
+      }
       await api(`/memories/${m.id}`, { method: 'DELETE' });
       switchView('memory');
     };
@@ -1360,11 +1429,14 @@ function baixarCopia() {
 async function aplicarRestauracao(file) {
   if (!file) return;
   if (
-    !confirm(
-      t('Restaurar de "{nome}"?\n\nO que está aqui agora é substituído. O banco atual fica guardado como cópia antes de trocar.', {
+    !(await confirmar({
+      titulo: t('Restaurar de um arquivo'),
+      texto: t('Restaurar de "{nome}"?\n\nO que está aqui agora é substituído. O banco atual fica guardado como cópia antes de trocar.', {
         nome: file.name
-      })
-    )
+      }),
+      acao: t('Restaurar'),
+      perigo: true
+    }))
   ) {
     return;
   }
@@ -1374,9 +1446,10 @@ async function aplicarRestauracao(file) {
     const lido = done.config
       ? plural(done.uploads, 'Cópia lida: banco, ajustes e 1 anexo.', 'Cópia lida: banco, ajustes e {n} anexos.')
       : plural(done.uploads, 'Cópia lida: banco e 1 anexo.', 'Cópia lida: banco e {n} anexos.');
-    alert(
-      `${lido}\n\n${t('O banco entra no lugar na próxima vez que o servidor subir — trocar agora não valeria, porque este processo ainda está com o banco antigo aberto. Reinicie para concluir.')}`
-    );
+    await avisar({
+      titulo: t('Restaurar de um arquivo'),
+      texto: `${lido}\n\n${t('O banco entra no lugar na próxima vez que o servidor subir — trocar agora não valeria, porque este processo ainda está com o banco antigo aberto. Reinicie para concluir.')}`
+    });
   } catch (err) {
     toast(err.message, 'err');
   }
@@ -1619,9 +1692,12 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
   const trocarSenha = async (marcado, desfazer) => {
     if (
       !marcado &&
-      !confirm(
-        t('Desligar a senha?\n\nQualquer aparelho na sua rede vai poder abrir este app, ler suas conversas e usar suas chaves de API.')
-      )
+      !(await confirmar({
+        titulo: t('Desligar'),
+        texto: t('Desligar a senha?\n\nQualquer aparelho na sua rede vai poder abrir este app, ler suas conversas e usar suas chaves de API.'),
+        acao: t('Desligar'),
+        perigo: true
+      }))
     ) {
       desfazer();
       return;
@@ -1645,9 +1721,9 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
 
   const campoSenha = q('#s-token');
   if (campoSenha) {
-    campoSenha.onchange = (ev) => {
+    campoSenha.onchange = async (ev) => {
       const marcado = ev.target.checked;
-      trocarSenha(marcado, () => {
+      await trocarSenha(marcado, () => {
         ev.target.checked = !marcado;
         const chave = el.querySelector('[data-chave="s-token"]');
         if (chave) {
@@ -1764,9 +1840,12 @@ views.settings = async function renderSettings(el, { switchView, applyTheme }) {
         const total = state.chats.length;
         if (!total) return toast(t('não há conversa pra apagar'));
         if (
-          !confirm(
-            `${plural(total, 'Apagar 1 conversa?', 'Apagar {n} conversas?')}\n\n${t('Isso não volta.')}`
-          )
+          !(await confirmar({
+            titulo: t('Apagar todas as conversas'),
+            texto: `${plural(total, 'Apagar 1 conversa?', 'Apagar {n} conversas?')}\n\n${t('Isso não volta.')}`,
+            acao: t('Apagar'),
+            perigo: true
+          }))
         ) {
           return;
         }
