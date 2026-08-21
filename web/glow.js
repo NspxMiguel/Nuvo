@@ -38,6 +38,12 @@ function suave(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
+/** Entre 0 e 1, com as pontas suavizadas — pra borda apagar sem degrau. */
+const aparar = (v) => {
+  const x = Math.max(0, Math.min(1, v));
+  return x * x * (3 - 2 * x);
+};
+
 export function ligarBrilho(canvas) {
   const ctx = canvas.getContext('2d');
   const parado = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -68,6 +74,14 @@ export function ligarBrilho(canvas) {
         const d = Math.sqrt(dx * dx + dy * dy);
         let t = 1 - d / raio;
         if (t <= 0) continue;
+        // Desvanecer nas bordas do canvas, e não só em volta do foco.
+        //
+        // O raio sai de `max(w, h)`, então numa janela larga quem manda é a
+        // largura: a queda radial nem começou quando a malha chega no topo e nas
+        // laterais, e ela era cortada num retângulo visível. A borda de baixo é
+        // a única que sangra de propósito — é de lá que o brilho nasce.
+        const px = x + off;
+        t *= aparar(Math.min(px, w - px) / (w * 0.2)) * aparar(y / (h * 0.62));
         t = Math.pow(t, 1.9) * amp;
         if (t < 0.012) continue;
         const r = 0.45 + t * 2.4;

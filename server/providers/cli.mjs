@@ -13,8 +13,10 @@
 // passo do trabalho (leu, escreveu, rodou) em vez de texto solto.
 
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { ARGS_ESTRUTURADO, nomeDoComando, traduzirLinha } from '../eventos-cli.mjs';
 import { erroTraduzivel } from '../erro-traduzivel.mjs';
+import { TRABALHO_DIR } from '../config.mjs';
 
 export const kind = 'cli';
 
@@ -145,7 +147,16 @@ export async function* stream(ctx, req) {
   // A mesma pasta serve pra rodar o comando e pra encurtar o caminho dos
   // arquivos que ele tocar: o painel mostra "web/app.js", não o caminho inteiro
   // da máquina.
-  const pasta = req.workdir || cfg.cwd || '';
+  // Sem projeto, o comando roda numa pasta vazia que o app é dono — nunca no
+  // diretório herdado do servidor, que é a raiz do disco quando o app foi aberto
+  // pelo Finder. Criada aqui e não só na subida: `spawn` num cwd que não existe
+  // falha com ENOENT, e a mensagem que sai fala do comando, não da pasta.
+  let pasta = req.workdir || cfg.cwd || TRABALHO_DIR;
+  try {
+    mkdirSync(pasta, { recursive: true });
+  } catch {
+    pasta = undefined; // pasta do projeto que sumiu: melhor herdar do que não rodar
+  }
 
   // Grupo próprio de processos: `claude` e `codex` chamam outros binários, e
   // matar só o filho direto deixaria o neto rodando com o modelo pago aberto.
@@ -153,7 +164,7 @@ export async function* stream(ctx, req) {
   const emGrupo = process.platform !== 'win32';
 
   const child = spawn(command, args.filter((a) => a !== ''), {
-    cwd: pasta || undefined,
+    cwd: pasta,
     env: { ...process.env, ...(cfg.env || {}) },
     stdio: ['pipe', 'pipe', 'pipe'],
     detached: emGrupo

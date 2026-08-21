@@ -47,6 +47,16 @@ export const DATA_DIR = casaDoUsuario();
 export const DB_PATH = join(DATA_DIR, 'data.db');
 export const CONFIG_PATH = join(DATA_DIR, 'config.json');
 export const UPLOAD_DIR = join(DATA_DIR, 'uploads');
+/**
+ * Onde um programa de terminal roda quando a conversa não tem projeto.
+ *
+ * Sem isto ele herdava o diretório do servidor, que num app de macOS aberto pelo
+ * Finder é a RAIZ do disco. O `claude` e o `codex` varrem a pasta em que rodam
+ * pra se situar; a partir de `/` isso encosta em `/home`, que no macOS é um
+ * automount — e o sistema abre a caixa "Nuvo would like to access files on a
+ * network volume" a cada mensagem enviada.
+ */
+export const TRABALHO_DIR = join(DATA_DIR, 'trabalho');
 
 const DEFAULTS = {
   port: Number(process.env.PORT || 4747),
@@ -129,6 +139,7 @@ function ensureDirs() {
     /* windows não tem modo posix */
   }
   mkdirSync(UPLOAD_DIR, { recursive: true });
+  mkdirSync(TRABALHO_DIR, { recursive: true });
   // Mesmo motivo do `config.json`: a pasta 700 protege enquanto ela for 700.
   // O `--home` aceita qualquer caminho — pendrive, pasta sincronizada, volume
   // de rede — e sistema de arquivos que não guarda modo posix devolve tudo

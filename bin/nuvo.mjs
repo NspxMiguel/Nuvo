@@ -24,7 +24,14 @@ if (flag('home')) process.env.NUVO_HOME = resolve(flag('home'));
 // texto da ajuda, que é um template literal.
 async function main() {
 
-const { loadConfig, patchConfig, DATA_DIR } = await import('../server/config.mjs');
+const { loadConfig, patchConfig, DATA_DIR, TRABALHO_DIR } = await import('../server/config.mjs');
+
+// App aberto pelo Finder herda a RAIZ do disco como diretório de trabalho, e
+// tudo que ele lançar herda junto. Caminho relativo resolvido a partir de `/` é
+// erro esperando pra acontecer, e no macOS uma varredura ali esbarra no
+// automount de `/home` e faz o sistema pedir acesso a volume de rede. Quem sobe
+// pelo terminal tem um diretório de verdade e não é tocado.
+if (process.cwd() === '/') process.chdir(TRABALHO_DIR);
 
 function mostrarAjuda() {
   console.log(`Nuvo — servidor de IA da sua casa
