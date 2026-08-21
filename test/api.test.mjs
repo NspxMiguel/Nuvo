@@ -383,6 +383,24 @@ test('salvar memória não desliga a exigência de token', async () => {
   assert.equal(depois.data.memory.enabled, true, 'o resto da configuração tem que sobreviver');
 });
 
+test('os dois modelos do navegador saem pelos ajustes e sobrevivem ao patch', async () => {
+  const alterado = await app.api('/settings', {
+    method: 'PATCH',
+    body: { navegador: { modeloNavegar: fakeRef, modeloResponder: fakeRef } }
+  });
+  assert.equal(alterado.data.navegador.modeloNavegar, fakeRef);
+  assert.equal(alterado.data.navegador.modeloResponder, fakeRef);
+
+  const lido = await app.api('/settings');
+  assert.equal(lido.data.navegador.modeloNavegar, fakeRef);
+  assert.equal(lido.data.navegador.modeloResponder, fakeRef);
+
+  await app.api('/settings', {
+    method: 'PATCH',
+    body: { navegador: { modeloNavegar: null, modeloResponder: null } }
+  });
+});
+
 test('rota inexistente devolve 404 com mensagem', async () => {
   const res = await app.api('/nao/existe');
   assert.equal(res.status, 404);

@@ -1037,5 +1037,16 @@
   "— do zero —": "— from scratch —",
   "— nenhum —": "— none —",
   "— sem chamar IA, só a regra local —": "— without calling an AI, just the local rule —",
-  "— sem indexar, só busca por palavra —": "— no indexing, keyword search only —"
+  "— sem indexar, só busca por palavra —": "— no indexing, keyword search only —",
+  "A IA escolhida na conversa": "The AI selected in the conversation",
+  "Automático — economiza quando pode": "Automatic — saves money whenever possible",
+  "Cada passo manda a página inteira. No automático, ele prefere uma IA local, Groq ou DeepSeek.": "Each step sends the entire page. In automatic mode, it prefers a local AI, Groq, or DeepSeek.",
+  "econômica": "low-cost",
+  "IA que dá os passos": "AI that takes the steps",
+  "IA que escreve a resposta": "AI that writes the answer",
+  "IA: {modelo}": "AI: {modelo}",
+  "montando a resposta": "building the answer",
+  "Nenhuma IA econômica está ligada.": "No low-cost AI is connected.",
+  "Os passos usam a IA da conversa por enquanto. Ligue Ollama, Groq ou DeepSeek para economizar.": "For now, the steps use the conversation's AI. Connect Ollama, Groq, or DeepSeek to save money.",
+  "Só ela recebe o resultado da navegação e escreve a resposta final que você lê.": "Only this AI receives the browsing result and writes the final answer you read."
 }

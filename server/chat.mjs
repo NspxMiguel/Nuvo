@@ -10,8 +10,9 @@ import { loadConfig } from './config.mjs';
 import { recall, renderForPrompt, learnFromExchange } from './memory.mjs';
 import { renderDocuments } from './documents.mjs';
 import { searchAndRead, renderWebBlock } from './web.mjs';
-import { navegarComAgente } from './agente-web.mjs';
+import { escolherModelosDoAgente, navegarComAgente } from './agente-web.mjs';
 import { acharNavegador } from './navegador.mjs';
+import { describeModel } from './complete.mjs';
 import { explainProviderError } from './errors.mjs';
 import { corpoDoErro, textoTraduzivel } from './erro-traduzivel.mjs';
 
@@ -36,6 +37,21 @@ export function listMessages(chatId) {
   // Desempate por rowid: pergunta e resposta podem cair no mesmo milissegundo,
   // e aí só a ordem de inserção diz qual veio antes.
   return all('SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at, rowid', chatId);
+}
+
+/** Catálogo enxuto usado só pra escolher os dois papéis do navegador. */
+function modelosDisponiveisParaOAgente() {
+  return all(
+    `SELECT p.id AS provider_id, p.name, p.kind, p.base_url, m.model_id
+       FROM providers p JOIN models m ON m.provider_id = p.id
+      WHERE p.enabled = 1 AND m.kind = 'chat'
+      ORDER BY p.created_at, m.model_id`
+  ).map((modelo) => ({
+    ref: `${modelo.provider_id}:${modelo.model_id}`,
+    nome: modelo.name,
+    kind: modelo.kind,
+    baseUrl: modelo.base_url
+  }));
 }
 
 export function createChat({ title, projectId = null, gemId = null, mode = 'chat', model = null }) {
@@ -179,6 +195,7 @@ export async function* runTurn({
 
   const ref = modelRef || chat.model || gem?.model;
   if (!ref) throw new Error('nenhum modelo escolhido');
+  let refDaResposta = ref;
   if (!anon && ref !== chat.model) run('UPDATE chats SET model = ? WHERE id = ?', ref, chatId);
 
   // No "regenerar" a mensagem do usuário já está gravada e não deve duplicar.
@@ -227,10 +244,17 @@ export async function* runTurn({
     const podeAgente = cfgNav.agente !== false && Boolean(acharNavegador());
 
     if (podeAgente) {
+      const papeis = escolherModelosDoAgente({
+        atual: ref,
+        navegar: cfgNav.modeloNavegar,
+        responder: cfgNav.modeloResponder,
+        modelos: modelosDisponiveisParaOAgente()
+      });
+      refDaResposta = papeis.responder;
       try {
         const passeio = navegarComAgente({
           pergunta: userContent,
-          modelRef: ref,
+          modelRef: papeis.navegar,
           passos: cfgNav.passos || undefined,
           janela: Boolean(cfgNav.janela),
           signal
@@ -253,6 +277,16 @@ export async function* runTurn({
           ...textoTraduzivel('text', 'o agente de navegador parou: {causa}', { causa: err.message })
         };
       }
+      // A síntese é outro papel e outra chamada. A mesma trilha deixa explícito
+      // onde terminam os passos baratos e qual IA escreve o que a pessoa lê.
+      yield {
+        type: 'agent-step',
+        acao: 'responder',
+        papel: 'responder',
+        descricao: 'montando a resposta',
+        modelo: describeModel(refDaResposta),
+        modeloRef: refDaResposta
+      };
     } else {
       yield { type: 'phase', text: 'buscando na web' };
       try {
@@ -313,7 +347,7 @@ export async function* runTurn({
     };
   }
 
-  const { providerId, modelId } = parseRef(ref);
+  const { providerId, modelId } = parseRef(refDaResposta);
   const provider = getProvider(providerId);
   if (!provider) throw new Error('o provedor desse modelo foi removido');
   const adapter = adapterFor(provider.kind);
@@ -385,8 +419,8 @@ export async function* runTurn({
   } catch (err) {
     if (answer) {
       const partial = anon
-        ? { id: null, role: 'assistant', content: answer, model: ref, interrupted: true }
-        : addMessage(chatId, 'assistant', answer, ref, {
+        ? { id: null, role: 'assistant', content: answer, model: refDaResposta, interrupted: true }
+        : addMessage(chatId, 'assistant', answer, refDaResposta, {
             interrupted: true,
             trabalho: trabalho.length ? trabalho : undefined,
             provider: provider.name
@@ -423,8 +457,8 @@ export async function* runTurn({
     // de que os arquivos tinham sido mexidos.
     if (trabalho.length) {
       const soTrabalho = anon
-        ? { id: null, role: 'assistant', content: '', model: ref, stats, trabalho }
-        : addMessage(chatId, 'assistant', '', ref, {
+        ? { id: null, role: 'assistant', content: '', model: refDaResposta, stats, trabalho }
+        : addMessage(chatId, 'assistant', '', refDaResposta, {
             stats,
             reasoning: reasoning || undefined,
             trabalho,
@@ -445,8 +479,8 @@ export async function* runTurn({
   }
 
   const assistantMessage = anon
-    ? { id: null, role: 'assistant', content: answer, model: ref, stats }
-    : addMessage(chatId, 'assistant', answer, ref, {
+    ? { id: null, role: 'assistant', content: answer, model: refDaResposta, stats }
+    : addMessage(chatId, 'assistant', answer, refDaResposta, {
         usage,
         stats,
         reasoning: reasoning || undefined,

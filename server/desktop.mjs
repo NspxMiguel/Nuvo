@@ -78,6 +78,23 @@ export function appUrl() {
   return cfg.requireToken ? `${base}?token=${cfg.accessToken}` : base;
 }
 
+// A janela do app não divide perfil nem com o Chrome pessoal, nem com o agente.
+// O caminho antigo (`navegador`) já foi usado pelos dois e pode guardar uma
+// sessão comum com New Tab; ao reaproveitá-lo, o Chrome restaura essa janela por
+// cima do app. Um perfil novo e exclusivo deixa o `--app` como única janela.
+const PERFIL_DA_JANELA = join(DATA_DIR, 'janela-app');
+
+/** Argumentos iguais na abertura direta e nos atalhos instalados. */
+export function argumentosDaJanela(url = appUrl()) {
+  return [
+    `--app=${url}`,
+    `--user-data-dir=${PERFIL_DA_JANELA}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--hide-crash-restore-bubble'
+  ];
+}
+
 /**
  * Quem está atendendo nesta porta é um Nuvo?
  *
@@ -113,7 +130,7 @@ export function abrirJanela() {
   if (browser) {
     const filho = spawn(
       browser.path,
-      [`--app=${url}`, `--user-data-dir=${join(DATA_DIR, 'navegador')}`],
+      argumentosDaJanela(url),
       { detached: true, stdio: 'ignore' }
     );
     filho.unref();
@@ -147,7 +164,7 @@ function launcherSh() {
   const browser = findBrowser();
   const url = appUrl();
   const abrir = browser
-    ? `"${browser.path}" --app="${url}" --user-data-dir="${join(DATA_DIR, 'navegador')}" >/dev/null 2>&1 &`
+    ? `"${browser.path}" ${argumentosDaJanela(url).map((arg) => `"${arg}"`).join(' ')} >/dev/null 2>&1 &`
     : platform() === 'darwin'
       ? `open "${url}"`
       : `xdg-open "${url}"`;
@@ -343,7 +360,7 @@ function winInstall() {
   const browser = findBrowser();
   const url = appUrl();
   const abrir = browser
-    ? `start "" "${browser.path}" --app="${url}" --user-data-dir="${join(DATA_DIR, 'navegador')}"`
+    ? `start "" "${browser.path}" ${argumentosDaJanela(url).map((arg) => `"${arg}"`).join(' ')}`
     : `start "" "${url}"`;
 
   // Mesma checagem por identidade do lado do Unix: `findstr` procura a marca

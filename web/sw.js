@@ -3,7 +3,7 @@
 // Guarda a casca (HTML, CSS, JS, ícones) e nunca toca em /api — resposta de
 // API com token e stream de conversa não podem sair de cache.
 
-const CACHE = 'nuvo-v9';
+const CACHE = 'nuvo-v10';
 // Módulo que o app importa e não está aqui só falta quando a rede cai — que é
 // exatamente quando o cache tinha que servir. O test/sw.test.mjs compara esta
 // lista com os arquivos de web/ pra não ficar pra trás de novo.

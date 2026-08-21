@@ -1327,7 +1327,48 @@ const CFG_SECOES = {
   agente: (s) => {
     const nav = s.navegador || {};
     const nome = nav.binario ? nav.binario.split(/[\\/]/).pop() : '';
+    const economicos = new Set(
+      state.providers
+        .filter(
+          (p) =>
+            p.enabled &&
+            (p.kind === 'ollama' || ehLocal(p) || /groq|deepseek/i.test(`${p.name || ''} ${p.base_url || ''}`))
+        )
+        .flatMap((p) => p.models.filter((m) => m.kind === 'chat').map((m) => m.ref))
+    );
+    const modelos = chatModels().sort(
+      (a, b) => Number(!economicos.has(a.ref)) - Number(!economicos.has(b.ref))
+    );
+    const opcoesDeModelo = (selecionado) =>
+      modelos
+        .map(
+          (m) =>
+            `<option value="${escapeHtml(m.ref)}"${m.ref === selecionado ? ' selected' : ''}>${
+              economicos.has(m.ref) ? `${t('econômica')} · ` : ''
+            }${escapeHtml(m.label)}</option>`
+        )
+        .join('');
     return `<h3>${t('Modo agente')}</h3>
+    ${cfgLin(
+      t('IA que dá os passos'),
+      t('Cada passo manda a página inteira. No automático, ele prefere uma IA local, Groq ou DeepSeek.'),
+      `<select id="s-nav-modelo">
+         <option value="">${t('Automático — economiza quando pode')}</option>
+         ${opcoesDeModelo(nav.modeloNavegar)}
+       </select>`
+    )}
+    ${economicos.size
+      ? ''
+      : `<div class="aviso"><div><b>${t('Nenhuma IA econômica está ligada.')}</b>
+           ${t('Os passos usam a IA da conversa por enquanto. Ligue Ollama, Groq ou DeepSeek para economizar.')}</div></div>`}
+    ${cfgLin(
+      t('IA que escreve a resposta'),
+      t('Só ela recebe o resultado da navegação e escreve a resposta final que você lê.'),
+      `<select id="s-nav-resposta">
+         <option value="">${t('A IA escolhida na conversa')}</option>
+         ${opcoesDeModelo(nav.modeloResponder)}
+       </select>`
+    )}
     ${cfgLin(
       t('Qual navegador ele dirige'),
       t('Sempre numa janela separada: ele não usa suas abas nem seus logins.'),
@@ -1767,7 +1808,9 @@ views.settings = async function renderSettings(el, { switchView, applyTheme, apl
           navegador: {
             fonte,
             janela: q('#s-nav-janela').checked,
-            passos: Math.min(30, Math.max(1, Number(q('#s-nav-passos').value) || 8))
+            passos: Math.min(30, Math.max(1, Number(q('#s-nav-passos').value) || 8)),
+            modeloNavegar: q('#s-nav-modelo').value || null,
+            modeloResponder: q('#s-nav-resposta').value || null
           }
         }
       });

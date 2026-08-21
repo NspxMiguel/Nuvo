@@ -13,9 +13,41 @@
 // troca funciona igual em todo modelo que o app suporta, inclusive local.
 
 import { abrirNavegador, lerPagina, executar, acharNavegador } from './navegador.mjs';
-import { complete } from './complete.mjs';
+import { complete, describeModel } from './complete.mjs';
 
 export const PASSOS_PADRAO = 8;
+
+const ENDERECO_LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(?=[:/]|$)/i;
+
+/** Menor é melhor: primeiro custo zero, depois APIs conhecidas por serem baratas. */
+function faixaEconomica(modelo) {
+  if (modelo.kind === 'ollama' || ENDERECO_LOCAL.test(modelo.baseUrl || '')) return 0;
+  const identidade = `${modelo.nome || ''} ${modelo.baseUrl || ''}`.toLowerCase();
+  if (/groq|api\.groq\.com/.test(identidade)) return 1;
+  if (/deepseek|api\.deepseek\.com/.test(identidade)) return 2;
+  return 99;
+}
+
+/**
+ * Resolve os dois papéis sem deixar configuração velha derrubar o turno.
+ *
+ * `modelos` só traz modelos de conversa ligados. Uma escolha apagada ou de IA
+ * desligada cai no automático; sem alternativa econômica, cai na IA atual.
+ */
+export function escolherModelosDoAgente({ atual, navegar, responder, modelos = [] }) {
+  const disponivel = (ref) => Boolean(ref && modelos.some((modelo) => modelo.ref === ref));
+  const modeloResponder = disponivel(responder) ? responder : atual;
+  const automatico = modelos
+    .map((modelo, ordem) => ({ modelo, ordem, faixa: faixaEconomica(modelo) }))
+    .filter((item) => item.faixa < 99)
+    .sort((a, b) => a.faixa - b.faixa || a.ordem - b.ordem)[0]?.modelo;
+  const modeloNavegar = disponivel(navegar) ? navegar : automatico?.ref || modeloResponder;
+  return {
+    navegar: modeloNavegar,
+    responder: modeloResponder,
+    automatico: navegar ? null : automatico?.ref || null
+  };
+}
 
 /** A página do buscador é caminho, não fonte. */
 const ehBuscador = (url) => /^https?:\/\/(duckduckgo|www\.google|bing)\./.test(String(url || ''));
@@ -127,6 +159,7 @@ export async function* navegarComAgente({
   const visitadas = [];
   const anotacoes = [];
   const conversa = [];
+  const nomeDoModelo = describeModel(modelRef);
 
   try {
     // O primeiro passo é sempre uma busca pela pergunta: começar em `about:blank`
@@ -158,7 +191,10 @@ export async function* navegarComAgente({
 
       const decisao = lerAcao(text);
       if (!decisao || decisao.acao === 'pronto') {
-        yield { type: 'agent-step', n: passo, acao: 'pronto', descricao: 'já tenho o que precisava' };
+        yield {
+          type: 'agent-step', n: passo, acao: 'pronto', descricao: 'já tenho o que precisava',
+          modelo: nomeDoModelo, modeloRef: modelRef
+        };
         break;
       }
 
@@ -172,18 +208,27 @@ export async function* navegarComAgente({
       const bloqueio = decisao.acao === 'navegar' ? enderecoProibido(decisao.alvo) : null;
       if (bloqueio) {
         conversa.push({ role: 'user', content: `Não fiz: ${bloqueio}.` });
-        yield { type: 'agent-step', n: passo, acao: decisao.acao, descricao: bloqueio, erro: true };
+        yield {
+          type: 'agent-step', n: passo, acao: decisao.acao, descricao: bloqueio, erro: true,
+          modelo: nomeDoModelo, modeloRef: modelRef
+        };
         continue;
       }
 
       try {
         ultimo = await executar(sessao, decisao);
-        yield { type: 'agent-step', n: passo, acao: decisao.acao, descricao: ultimo, motivo };
+        yield {
+          type: 'agent-step', n: passo, acao: decisao.acao, descricao: ultimo, motivo,
+          modelo: nomeDoModelo, modeloRef: modelRef
+        };
       } catch (err) {
         // Erro de passo não derruba a ida inteira: o modelo recebe o motivo e
         // tenta outro caminho, que é o que uma pessoa faria.
         conversa.push({ role: 'user', content: `Esse passo falhou: ${err.message}. Tente outro caminho.` });
-        yield { type: 'agent-step', n: passo, acao: decisao.acao, descricao: err.message, erro: true };
+        yield {
+          type: 'agent-step', n: passo, acao: decisao.acao, descricao: err.message, erro: true,
+          modelo: nomeDoModelo, modeloRef: modelRef
+        };
       }
 
       // Só as últimas rodadas vão pro modelo: página inteira é cara, e o
@@ -191,7 +236,7 @@ export async function* navegarComAgente({
       if (conversa.length > 8) conversa.splice(0, conversa.length - 8);
     }
   } finally {
-    encerrar();
+    await encerrar();
   }
 
   // A página do buscador é o caminho, não a fonte: dela sai menu, rodapé e
