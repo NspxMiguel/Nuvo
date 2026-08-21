@@ -5,6 +5,36 @@ estiver entregue e conferido.
 
 ---
 
+## 21/08/2026 — a varrida geral, o NotebookLM por padrão e a UI grande
+
+> "e tbm n da pra saber, qual é conteudo de prova, e qual n é"
+
+> "bem confusinho, da uma varrida geral, pra ver se nao tem mais coisas
+> confusas, deixa tudo facil de entender"
+
+> "oq eu acho melhor, vc pega, e por padrao usa notebook lm, tu usa as outras
+> ias, so pra finalizar com o toque dro professor. tipo por padrao notebook lm
+> faz os videos, slides e etc. mas simulado, passa pro claude dar o toque do
+> professor, e meio q dumpar a personalidade dele e deixar o simulado parecido
+> com oq ele faria na prova."
+
+> "e pq tem botoes ali no geral q nao estao funcionando corretamente?"
+
+> "da uma copiada no notebook lm na interface, la é bem direto e nao confunde
+> ninguem, mas ao invez de notebooks usamos professores e provas."
+
+> "ainda n resolveu oq te falei de ui grande pra krl"
+
+- [ ] **dizer, em todo lugar, o que é conteúdo de prova e o que não é**
+- [ ] **varredura geral do que confunde**, deixar tudo fácil de entender
+- [ ] **NotebookLM por padrão**, as outras IAs só pra dar o toque do professor
+- [ ] **botões que não funcionam direito** — achar quais e consertar
+- [ ] **interface no espírito do NotebookLM**, com professor e prova no lugar
+      de notebook
+- [ ] **a interface ainda está grande demais**
+
+---
+
 ## 21/08/2026 — o app está confuso
 
 > "o app ta bem confuso, a a2 ja foi ou nao? como recebo resumo? testa tudo ai e
