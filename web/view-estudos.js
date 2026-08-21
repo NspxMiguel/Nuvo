@@ -881,6 +881,27 @@ const FORMATOS = [
     nome: () => t('Conversa em áudio'),
     dica: () => t('Duas vozes explicando a matéria, pra ouvir no caminho da escola.'),
     precisaRetrato: true
+  },
+  {
+    id: 'quiz',
+    ico: 'check',
+    nome: () => t('Quiz'),
+    dica: () => t('Múltipla escolha corrigida na hora, com o porquê de cada erro.'),
+    precisaRetrato: false
+  },
+  {
+    id: 'infografico',
+    ico: 'activity',
+    nome: () => t('Infográfico'),
+    dica: () => t('A matéria numa página só, do jeito que cabe num cartaz.'),
+    precisaRetrato: true
+  },
+  {
+    id: 'slides',
+    ico: 'file',
+    nome: () => t('Slides'),
+    dica: () => t('Pra revisar passando de tela em tela, e imprimir em PDF.'),
+    precisaRetrato: true
   }
 ];
 
@@ -991,7 +1012,10 @@ function abrirSaida(host, saida, ctx) {
     resumo: () => desenharResumo(j),
     mapa: () => desenharMapa(j),
     linha: () => desenharLinha(j),
-    podcast: () => desenharPodcast(j)
+    podcast: () => desenharPodcast(j),
+    quiz: () => desenharQuiz(j),
+    infografico: () => desenharInfografico(j),
+    slides: () => desenharSlides(j)
   }[saida.tipo];
 
   host.innerHTML = `<section class="card est-saida">
@@ -1033,6 +1057,8 @@ function abrirSaida(host, saida, ctx) {
     }
   });
   ligarPodcast(host, j);
+  ligarQuiz(host, j);
+  ligarSlides(host, j);
   host.scrollIntoView({ block: 'nearest' });
   paintIcons(host);
 }
@@ -1486,4 +1512,207 @@ function ligarPodcast(host, j) {
     limpar();
   };
   parar.onclick = limpar;
+}
+
+// ------------------------------------------------ quiz, infográfico, slides
+
+/**
+ * Quiz de múltipla escolha, corrigido no clique.
+ *
+ * O gabarito sozinho não ensina: o que ensina é saber por que a errada que você
+ * escolheu parecia certa. Por isso cada questão traz também o erro comum.
+ */
+function desenharQuiz(j) {
+  const questoes = j.questoes || [];
+  return `<div class="row">
+      <span class="meta">${plural(questoes.length, '1 questão', '{n} questões')}</span>
+      <span class="grow"></span>
+      <span id="quiz-placar" class="tag"></span>
+    </div>
+    <div class="est-quiz">${questoes
+      .map(
+        (q, i) => `<div class="est-questao" data-quiz="${i}" data-certa="${q.certa}">
+          <div class="est-q-topo"><b>${formatarNumero(i + 1)}.</b>
+            ${q.tema ? `<span class="meta">${escapeHtml(q.tema)}</span>` : ''}
+          </div>
+          <p class="est-enunciado">${escapeHtml(q.enunciado)}</p>
+          <div class="quiz-alts">${q.alternativas
+            .map(
+              (alt, k) =>
+                `<button type="button" class="quiz-alt" data-alt="${k}">
+                  <span class="quiz-letra">${String.fromCharCode(97 + k)}</span>
+                  <span>${escapeHtml(alt)}</span>
+                </button>`
+            )
+            .join('')}</div>
+          <div class="quiz-porque" hidden>
+            ${q.porque ? `<p>${escapeHtml(q.porque)}</p>` : ''}
+            ${q.erro_comum ? `<p class="meta">${escapeHtml(q.erro_comum)}</p>` : ''}
+            ${q.fonte ? `<p class="ret-cita">${escapeHtml(q.fonte)}</p>` : ''}
+          </div>
+        </div>`
+      )
+      .join('')}</div>`;
+}
+
+function ligarQuiz(host, j) {
+  const bloco = host.querySelector('.est-quiz');
+  if (!bloco) return;
+  const placar = host.querySelector('#quiz-placar');
+  const total = (j.questoes || []).length;
+  let respondidas = 0;
+  let acertos = 0;
+
+  for (const caixa of bloco.querySelectorAll('[data-quiz]')) {
+    const certa = Number(caixa.dataset.certa);
+    for (const botao of caixa.querySelectorAll('.quiz-alt')) {
+      botao.onclick = () => {
+        // Responde uma vez: poder trocar depois de ver a resposta transforma o
+        // quiz num gabarito com passos a mais.
+        if (caixa.dataset.feito) return;
+        caixa.dataset.feito = '1';
+        const escolha = Number(botao.dataset.alt);
+        respondidas += 1;
+        if (escolha === certa) acertos += 1;
+        for (const b of caixa.querySelectorAll('.quiz-alt')) {
+          const k = Number(b.dataset.alt);
+          if (k === certa) b.classList.add('certa');
+          else if (k === escolha) b.classList.add('errada');
+          b.disabled = true;
+        }
+        caixa.querySelector('.quiz-porque').hidden = false;
+        placar.textContent = t('{acertos} de {respondidas}', {
+          acertos: formatarNumero(acertos),
+          respondidas: formatarNumero(respondidas)
+        });
+        if (respondidas === total) {
+          placar.classList.add(acertos / total >= 0.7 ? 'ok' : 'warn');
+        }
+      };
+    }
+  }
+}
+
+/** O infográfico: uma página só, desenhada com o que já existe no CSS. */
+function desenharInfografico(j) {
+  return `<div class="est-info">
+    <h2>${escapeHtml(j.titulo || '')}</h2>
+    ${j.linha_fina ? `<p class="info-fina">${escapeHtml(j.linha_fina)}</p>` : ''}
+    ${
+      j.numeros?.length
+        ? `<div class="info-numeros">${j.numeros
+            .map(
+              (n) =>
+                `<div><b>${escapeHtml(n.valor)}</b><span>${escapeHtml(n.rotulo)}</span></div>`
+            )
+            .join('')}</div>`
+        : ''
+    }
+    <div class="info-blocos">${(j.blocos || [])
+      .map(
+        (b) => `<div class="info-bloco">
+          <h3>${escapeHtml(b.titulo)}</h3>
+          <p>${escapeHtml(b.texto)}</p>
+          <div class="progress"><span style="width:${Math.min(
+            Math.round((b.peso || 0) * 100),
+            100
+          )}%"></span></div>
+        </div>`
+      )
+      .join('')}</div>
+    ${
+      j.sequencia?.length
+        ? `<div class="info-seq">${j.sequencia
+            .map((x) => `<span>${escapeHtml(x)}</span>`)
+            .join('<i aria-hidden="true">→</i>')}</div>`
+        : ''
+    }
+    ${
+      j.lembre?.length
+        ? `<div class="aviso warn info-lembre"><b>${t('Não esqueça')}</b>
+             <ul class="ret-lista">${j.lembre
+               .map((x) => `<li>${escapeHtml(x)}</li>`)
+               .join('')}</ul></div>`
+        : ''
+    }
+  </div>`;
+}
+
+/**
+ * Slides: um por vez, com as setas do teclado.
+ *
+ * Imprimir sai pelo próprio navegador — o CSS de impressão põe um slide por
+ * página. Exportar pra PowerPoint exigiria montar um zip OOXML na mão, e o PDF
+ * resolve o que ele quer fazer com isso (abrir no celular e revisar).
+ */
+function desenharSlides(j) {
+  const slides = j.slides || [];
+  return `<div class="row est-slides-topo">
+      <button data-slide="-1" class="icon" type="button" title="${t('slide anterior')}"
+        aria-label="${t('slide anterior')}"><span data-icon="chevron" data-size="18"></span></button>
+      <span id="slide-conta" class="tag"></span>
+      <button data-slide="1" class="icon vira" type="button" title="${t('próximo slide')}"
+        aria-label="${t('próximo slide')}"><span data-icon="chevron" data-size="18"></span></button>
+      <span class="grow"></span>
+      <button data-act="imprimir" class="ghost" type="button">
+        <span data-icon="download" data-size="16"></span> ${t('Imprimir em PDF')}
+      </button>
+    </div>
+    <div class="est-slides">${slides
+      .map(
+        (s, i) => `<article class="est-slide" data-i="${i}"${i ? ' hidden' : ''}>
+          <h3>${escapeHtml(s.titulo)}</h3>
+          <ul>${(s.pontos || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul>
+          ${s.nota ? `<p class="meta slide-nota">${escapeHtml(s.nota)}</p>` : ''}
+          ${s.fonte ? `<p class="ret-cita">${escapeHtml(s.fonte)}</p>` : ''}
+        </article>`
+      )
+      .join('')}</div>`;
+}
+
+function ligarSlides(host, j) {
+  const caixa = host.querySelector('.est-slides');
+  if (!caixa) return;
+  const slides = [...caixa.querySelectorAll('.est-slide')];
+  const conta = host.querySelector('#slide-conta');
+  let atual = 0;
+
+  const mostrar = (i) => {
+    atual = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => {
+      s.hidden = k !== atual;
+    });
+    conta.textContent = t('{n} de {total}', {
+      n: formatarNumero(atual + 1),
+      total: formatarNumero(slides.length)
+    });
+    for (const b of host.querySelectorAll('[data-slide]')) {
+      b.disabled = Number(b.dataset.slide) < 0 ? atual === 0 : atual === slides.length - 1;
+    }
+  };
+
+  for (const botao of host.querySelectorAll('[data-slide]')) {
+    botao.onclick = () => mostrar(atual + Number(botao.dataset.slide));
+  }
+  caixa.tabIndex = 0;
+  caixa.onkeydown = (ev) => {
+    if (ev.key === 'ArrowRight') mostrar(atual + 1);
+    if (ev.key === 'ArrowLeft') mostrar(atual - 1);
+  };
+  host.querySelector('[data-act=imprimir]').onclick = () => {
+    // Todos visíveis só durante a impressão: o CSS de impressão quebra a página
+    // entre um e outro, e depois a tela volta a mostrar um por vez.
+    document.body.classList.add('imprimindo-slides');
+    slides.forEach((s) => {
+      s.hidden = false;
+    });
+    const voltar = () => {
+      document.body.classList.remove('imprimindo-slides');
+      mostrar(atual);
+      removeEventListener('afterprint', voltar);
+    };
+    addEventListener('afterprint', voltar);
+    print();
+  };
+  mostrar(0);
 }

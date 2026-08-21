@@ -2379,3 +2379,85 @@ button.icon { position: relative; }
 /* A foto do professor é o botão que a troca: não precisa de um botão ao lado. */
 .prof-troca { padding: 0; border-radius: 50%; background: none; }
 .prof-troca:hover { outline: 2px solid var(--accent); }
+
+/* Quiz: a alternativa escolhida se pinta, e a explicação aparece por baixo. */
+.est-quiz .est-questao:first-child { border-top: 0; }
+.quiz-alts { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.quiz-alt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  justify-content: flex-start;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  min-height: var(--toque);
+  font-size: 15.5px;
+}
+.quiz-alt:hover:not(:disabled) { border-color: var(--accent); }
+.quiz-letra {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--panel-2);
+  font-size: 13px; font-weight: 600;
+}
+.quiz-alt.certa { border-color: var(--ok); color: var(--ok); }
+.quiz-alt.certa .quiz-letra { background: var(--ok); color: #fff; }
+.quiz-alt.errada { border-color: var(--danger); color: var(--danger); }
+.quiz-alt.errada .quiz-letra { background: var(--danger); color: #fff; }
+.quiz-alt:disabled { opacity: 1; }
+.quiz-porque p { margin: 6px 0; font-size: 15.5px; }
+#quiz-placar.ok { color: var(--ok); }
+#quiz-placar.warn { color: var(--warn); }
+
+/* Infográfico: uma página só. Colunas que cabem, e nada que precise rolar. */
+.est-info h2 { margin: 6px 0 2px; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+.info-fina { margin: 0 0 18px; font-size: 17px; color: var(--muted); }
+.info-numeros { display: flex; flex-wrap: wrap; gap: 26px; margin-bottom: 22px; }
+.info-numeros div { display: flex; flex-direction: column; }
+.info-numeros b { font-size: 32px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.info-numeros span { font-size: 14px; color: var(--muted); }
+.info-blocos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+.info-bloco h3 { margin: 0 0 4px; font-size: 16.5px; font-weight: 600; }
+.info-bloco p { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
+.info-seq { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 22px 0; font-size: 15px; }
+.info-seq span { padding: 7px 13px; border-radius: 999px; background: var(--panel-2); }
+.info-seq i { color: var(--muted); font-style: normal; }
+.info-lembre { margin-top: 8px; }
+
+/* Slides: um por vez na tela, um por página no papel. */
+.est-slides-topo { align-items: center; gap: 8px; margin-bottom: 12px; }
+.est-slides { outline: none; }
+.est-slide {
+  min-height: 300px;
+  padding: 30px 34px;
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+}
+.est-slide h3 { margin: 0 0 18px; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.est-slide ul { margin: 0; padding-left: 22px; font-size: 17px; line-height: 1.7; }
+.est-slide .slide-nota { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+
+@media print {
+  /* Só os slides vão pro papel, um por página, em preto no branco. */
+  body.imprimindo-slides #sidebar,
+  body.imprimindo-slides #topbar,
+  body.imprimindo-slides .est-slides-topo,
+  body.imprimindo-slides .est-formatos,
+  body.imprimindo-slides #est-saidas,
+  body.imprimindo-slides .grupo-rot,
+  body.imprimindo-slides .est-cabeca { display: none !important; }
+  body.imprimindo-slides .est-slide {
+    break-after: page;
+    border: 0;
+    background: none;
+    color: #000;
+    min-height: auto;
+  }
+  body.imprimindo-slides .est-slide:last-child { break-after: auto; }
+}

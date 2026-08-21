@@ -119,7 +119,21 @@ test('nenhuma tradução é o próprio português copiado', () => {
   // Copiar a frase em português pro dicionário passa neste teste de cobertura e
   // não traduz nada. As exceções são as que já são iguais nas duas línguas —
   // unidade, nome próprio e as poucas palavras idênticas em espanhol.
-  const iguais = (dic) => Object.entries(dic).filter(([k, v]) => k === v).map(([k]) => k);
+  // Frase que é só molde e unidade — "{n} kB", "{nome}: {questoes}" — sai igual
+  // em toda língua porque não tem palavra nenhuma pra traduzir. Contá-la como
+  // "não traduzida" gasta o orçamento do teste com o que nunca vai mudar, e
+  // esconde a frase de verdade que alguém copiou do português.
+  const soMolde = (frase) =>
+    !frase
+      .replace(/\{\w+\}/g, ' ')
+      .replace(/[^\p{L}]+/gu, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter((p) => p.length > 2).length;
+  const iguais = (dic) =>
+    Object.entries(dic)
+      .filter(([k, v]) => k === v && !soMolde(k))
+      .map(([k]) => k);
   // O inglês não compartilha palavra com o português quase nunca: cinco é
   // folga pra unidade ("{n} kB") e nome de produto.
   assert.ok(iguais(en).length < 12, `inglês com ${iguais(en).length} frases não traduzidas`);

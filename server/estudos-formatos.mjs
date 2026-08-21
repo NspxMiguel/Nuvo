@@ -301,6 +301,112 @@ ${REGRAS_DE_FONTE}`,
         .filter((f) => f.texto);
       return falas.length >= 4 ? { titulo: texto(bruto.titulo, 160), falas } : null;
     }
+  },
+  quiz: {
+    papeis: ['conteudo', 'material'],
+    precisaRetrato: false,
+    titulo: (prof) => `Quiz de ${prof.materia || prof.nome}`,
+    prompt: `Você escreve um quiz de múltipla escolha pra alguém treinar rápido.
+
+Devolva SOMENTE um objeto JSON:
+{"questoes": [{"enunciado": "...", "alternativas": ["...", "...", "...", "..."],
+  "certa": 0, "porque": "por que a certa é certa, uma frase",
+  "erro_comum": "qual alternativa errada engana mais, e por quê",
+  "tema": "...", "fonte": "trecho literal do material"}]}
+
+Regras:
+- Quatro alternativas, exatamente uma certa. "certa" é o índice, começando em 0.
+- As erradas têm que ser plausíveis: alternativa absurda não ensina nada.
+- Entre 8 e 20 questões.
+${REGRAS_DE_FONTE}`,
+    conferir: (bruto) => {
+      const questoes = lista(bruto?.questoes)
+        .map((q) => {
+          const alternativas = lista(q.alternativas).map((a) => texto(a, 400)).filter(Boolean);
+          const certa = Number(q.certa);
+          return {
+            enunciado: texto(q.enunciado, 900),
+            alternativas,
+            certa: Number.isInteger(certa) && certa >= 0 && certa < alternativas.length ? certa : -1,
+            porque: texto(q.porque, 500),
+            erro_comum: texto(q.erro_comum, 500),
+            tema: texto(q.tema, 120),
+            fonte: texto(q.fonte, 600)
+          };
+        })
+        // Questão sem gabarito válido é pior que questão nenhuma: ela ensina errado.
+        .filter((q) => q.enunciado && q.alternativas.length >= 2 && q.certa >= 0);
+      return questoes.length ? { questoes } : null;
+    }
+  },
+
+  infografico: {
+    papeis: ['conteudo', 'material'],
+    precisaRetrato: true,
+    titulo: (prof) => `Infográfico de ${prof.materia || prof.nome}`,
+    prompt: `Você resume a matéria numa página só, do jeito que cabe num cartaz.
+
+Devolva SOMENTE um objeto JSON:
+{"titulo": "...", "linha_fina": "uma frase que resume tudo",
+ "numeros": [{"valor": "8", "rotulo": "questões por prova"}],
+ "blocos": [{"titulo": "...", "texto": "duas frases no máximo", "peso": 0.0}],
+ "sequencia": ["etapa", "etapa", "etapa"],
+ "lembre": ["a coisa que não pode esquecer na hora da prova"]}
+
+Regras:
+- Três a seis blocos. Isto é um cartaz, não um capítulo.
+- "numeros" são os dados que se olha e entende na hora: quantidade, peso, ordem.
+- "sequencia" só existe se a matéria tiver uma; senão, lista vazia.
+${REGRAS_DE_FONTE}`,
+    conferir: (bruto) => {
+      const blocos = lista(bruto?.blocos)
+        .map((b) => ({
+          titulo: texto(b.titulo, 80),
+          texto: texto(b.texto, 400),
+          peso: Number(b.peso) > 1 ? Number(b.peso) / 100 : Number(b.peso) || 0
+        }))
+        .filter((b) => b.titulo)
+        .slice(0, 6);
+      if (!blocos.length) return null;
+      return {
+        titulo: texto(bruto.titulo, 120),
+        linha_fina: texto(bruto.linha_fina, 300),
+        numeros: lista(bruto.numeros)
+          .map((n) => ({ valor: texto(n.valor, 12), rotulo: texto(n.rotulo, 60) }))
+          .filter((n) => n.valor)
+          .slice(0, 4),
+        blocos,
+        sequencia: lista(bruto.sequencia).map((x) => texto(x, 60)).filter(Boolean).slice(0, 7),
+        lembre: lista(bruto.lembre).map((x) => texto(x, 200)).filter(Boolean).slice(0, 5)
+      };
+    }
+  },
+
+  slides: {
+    papeis: ['conteudo', 'material'],
+    precisaRetrato: true,
+    titulo: (prof) => `Slides de ${prof.materia || prof.nome}`,
+    prompt: `Você monta uma sequência de slides pra revisar a matéria.
+
+Devolva SOMENTE um objeto JSON:
+{"slides": [{"titulo": "...", "pontos": ["frase curta"], "nota": "o que dizer neste slide", "fonte": "trecho literal"}]}
+
+Regras:
+- Entre 8 e 16 slides, na ordem do que mais cai pro que menos cai.
+- No máximo 5 pontos por slide, e ponto é frase curta, não parágrafo.
+- O primeiro slide é o assunto e o que vai ser coberto; o último é o que revisar na véspera.
+${REGRAS_DE_FONTE}`,
+    conferir: (bruto) => {
+      const slides = lista(bruto?.slides)
+        .map((s) => ({
+          titulo: texto(s.titulo, 120),
+          pontos: lista(s.pontos).map((x) => texto(x, 300)).filter(Boolean).slice(0, 6),
+          nota: texto(s.nota, 600),
+          fonte: texto(s.fonte, 600)
+        }))
+        .filter((s) => s.titulo);
+      return slides.length ? { slides } : null;
+    }
   }
 };
 
