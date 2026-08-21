@@ -282,6 +282,7 @@ async function telaDoProfessor(el, ctx) {
        <button type="button" role="tab" data-aba="material">${t('Material')}</button>
        <button type="button" role="tab" data-aba="retrato">${t('Retrato do professor')}</button>
        <button type="button" role="tab" data-aba="estudar">${t('Estudar')}</button>
+       <button type="button" role="tab" data-aba="revisar">${t('Revisar')}<span id="est-vence" class="badge-n"></span></button>
      </div>
      <div class="est-grade" data-painel="material">
        <aside class="est-pastas">
@@ -299,7 +300,8 @@ async function telaDoProfessor(el, ctx) {
        <section id="est-corpo" class="est-corpo"></section>
      </div>
      <div id="est-retrato" data-painel="retrato" hidden></div>
-     <div id="est-estudar" data-painel="estudar" hidden></div>`
+     <div id="est-estudar" data-painel="estudar" hidden></div>
+     <div id="est-revisar" data-painel="revisar" hidden></div>`
   );
 
   for (const btn of inner.querySelectorAll('.est-abas [data-aba]')) {
@@ -324,6 +326,20 @@ async function telaDoProfessor(el, ctx) {
     paintIcons(el);
     return;
   }
+  if (aqui.aba === 'revisar') {
+    await telaDeRevisar(inner.querySelector('#est-revisar'), prof, ctx);
+    paintIcons(el);
+    return;
+  }
+
+  // O contador do que vence hoje aparece na aba, em qualquer aba: é o que faz a
+  // pessoa lembrar de revisar sem precisar procurar.
+  api(`/professores/${prof.id}/cartoes?limite=1`)
+    .then(({ contagem }) => {
+      const alvo = inner.querySelector('#est-vence');
+      if (alvo) alvo.textContent = contagem.hoje ? formatarNumero(contagem.hoje) : '';
+    })
+    .catch(() => {});
 
   const linhaDaPasta = (pasta) => {
     const btn = document.createElement('button');
@@ -946,6 +962,24 @@ function abrirSaida(host, saida, ctx) {
     await api(`/saidas/${saida.id}`, { method: 'DELETE' });
     ctx.switchView('estudos');
   };
+  host.querySelector('[data-act=revisar]')?.addEventListener('click', async (ev) => {
+    ev.currentTarget.disabled = true;
+    try {
+      const { entraram, repetidos } = await api(`/saidas/${saida.id}/cartoes`, { method: 'POST' });
+      toast(
+        entraram
+          ? plural(entraram, '1 cartão entrou na revisão', '{n} cartões entraram na revisão')
+          : t('todos esses cartões já estavam na revisão'),
+        entraram ? 'ok' : ''
+      );
+      if (entraram || repetidos) {
+        aqui.aba = 'revisar';
+        ctx.switchView('estudos');
+      }
+    } catch (err) {
+      toast(err.message || t('não deu pra mandar pra revisão'), 'err');
+    }
+  });
   host.scrollIntoView({ block: 'nearest' });
   paintIcons(host);
 }
@@ -1033,7 +1067,12 @@ function desenharGuia(j) {
 }
 
 function desenharCartoes(j) {
-  return `<p class="meta">${plural((j.cartoes || []).length, '1 cartão', '{n} cartões')}</p>
+  return `<div class="row">
+      <button data-act="revisar" class="primary" type="button">
+        <span data-icon="play" data-size="16"></span> ${t('Mandar pra revisão')}
+      </button>
+      <span class="meta">${plural((j.cartoes || []).length, '1 cartão', '{n} cartões')}</span>
+    </div>
     <div class="est-cartoes">${(j.cartoes || [])
       .map(
         (c) => `<details class="est-cartao">
@@ -1066,4 +1105,134 @@ function desenharResumo(j) {
              .join('')}</dl>`
         : ''
     }`;
+}
+
+// ------------------------------------------------------------------ revisar
+
+/** As quatro notas, na ordem em que aparecem, com a tecla que dispara cada uma. */
+const NOTAS = [
+  { id: 'denovo', valor: 1, nome: () => t('De novo'), classe: 'danger', tecla: '1' },
+  { id: 'dificil', valor: 2, nome: () => t('Difícil'), classe: 'ghost', tecla: '2' },
+  { id: 'bom', valor: 3, nome: () => t('Bom'), classe: 'primary', tecla: '3' },
+  { id: 'facil', valor: 4, nome: () => t('Fácil'), classe: 'ghost', tecla: '4' }
+];
+
+/** "1 dia", "15 dias", "3 meses" — mês só quando passa de dois, senão fica pedante. */
+function emDias(dias) {
+  const n = Math.max(1, Math.round(Number(dias) || 1));
+  if (n < 60) return plural(n, '1 dia', '{n} dias');
+  return plural(Math.round(n / 30), '1 mês', '{n} meses');
+}
+
+async function telaDeRevisar(host, prof, ctx) {
+  const { contagem, cartoes } = await api(`/professores/${prof.id}/cartoes`);
+
+  if (!contagem.total) {
+    host.innerHTML = `<div class="cd-vazio">
+      <span class="ico">${icon('layers', 32)}</span>
+      <b>${t('Nenhum cartão ainda')}</b>
+      <span>${t(
+        'Gere os cartões na aba Estudar e mande pra revisão. Daí em diante o Nuvo escolhe o que mostrar em cada dia, pra você lembrar com o menor número de revisões.'
+      )}</span>
+    </div>`;
+    return paintIcons(host);
+  }
+
+  if (!cartoes.length) {
+    host.innerHTML = `<div class="cd-vazio">
+      <span class="ico">${icon('check', 32)}</span>
+      <b>${t('Por hoje acabou')}</b>
+      <span>${t('Você já revisou tudo que vencia. Volte amanhã — é assim que a conta funciona.')}</span>
+      <span class="meta">${plural(contagem.total, '1 cartão no total', '{n} cartões no total')}</span>
+    </div>`;
+    return paintIcons(host);
+  }
+
+  host.innerHTML = `
+    <div class="row rev-topo">
+      <span id="rev-faltam" class="tag"></span>
+      <span class="grow"></span>
+      <span class="meta">${plural(contagem.novos, '1 novo', '{n} novos')}</span>
+    </div>
+    <div id="rev-cartao"></div>`;
+
+  const caixa = host.querySelector('#rev-cartao');
+  let indice = 0;
+
+  const contador = host.querySelector('#rev-faltam');
+
+  const desenhar = () => {
+    const cartao = cartoes[indice];
+    // O contador desce a cada resposta. Um número parado em "faltam 25" enquanto
+    // a pilha anda é pequeno e é mentira, e é o tipo de coisa que faz duvidar do
+    // resto da tela.
+    if (contador) contador.textContent = t('faltam {n}', { n: formatarNumero(cartoes.length - indice) });
+    if (!cartao) {
+      // A fila desta rodada acabou. Recarregar traz o que voltou pra hoje (o
+      // que a pessoa respondeu "de novo" volta na mesma sessão).
+      ctx.switchView('estudos');
+      return;
+    }
+    caixa.innerHTML = `
+      <article class="card rev-cartao">
+        ${cartao.tema ? `<span class="tag">${escapeHtml(cartao.tema)}</span>` : ''}
+        <p class="rev-frente">${escapeHtml(cartao.frente)}</p>
+        <div class="rev-verso" hidden>
+          <p>${escapeHtml(cartao.verso)}</p>
+          ${cartao.fonte ? `<p class="ret-cita">${escapeHtml(cartao.fonte)}</p>` : ''}
+        </div>
+        <div class="row rev-acoes">
+          <button data-mostrar class="primary block" type="button">${t('Mostrar a resposta')}</button>
+        </div>
+      </article>`;
+
+    const verso = caixa.querySelector('.rev-verso');
+    const acoes = caixa.querySelector('.rev-acoes');
+
+    const responder = async (nota) => {
+      for (const b of acoes.querySelectorAll('button')) b.disabled = true;
+      try {
+        await api(`/cartoes/${cartao.id}/responder`, { method: 'POST', body: { nota } });
+      } catch (err) {
+        toast(err.message || t('não deu pra gravar a revisão'), 'err');
+      }
+      indice += 1;
+      desenhar();
+    };
+
+    const mostrar = () => {
+      verso.hidden = false;
+      acoes.innerHTML = NOTAS.map(
+        (n) => `<button data-nota="${n.valor}" class="${n.classe}" type="button">
+          ${escapeHtml(n.nome())}
+          <span class="rev-quando">${escapeHtml(emDias(cartao.previsao?.[n.id]))}</span>
+        </button>`
+      ).join('');
+      for (const btn of acoes.querySelectorAll('[data-nota]')) {
+        btn.onclick = () => responder(Number(btn.dataset.nota));
+      }
+      acoes.querySelector('[data-nota="3"]')?.focus();
+    };
+
+    caixa.querySelector('[data-mostrar]').onclick = mostrar;
+    caixa.querySelector('[data-mostrar]').focus();
+
+    // Espaço mostra, número responde. Quem revisa cem cartões não quer o mouse.
+    caixa.onkeydown = (ev) => {
+      if (ev.key === ' ' && verso.hidden) {
+        ev.preventDefault();
+        return mostrar();
+      }
+      if (verso.hidden) return;
+      const nota = NOTAS.find((n) => n.tecla === ev.key);
+      if (nota) {
+        ev.preventDefault();
+        responder(nota.valor);
+      }
+    };
+    paintIcons(caixa);
+  };
+
+  desenhar();
+  paintIcons(host);
 }

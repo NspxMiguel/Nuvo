@@ -2309,3 +2309,19 @@ button.icon { position: relative; }
 .est-termos dd { margin: 2px 0 0; color: var(--muted); }
 .est-faltou, .est-pule { margin-top: 18px; }
 .est-faltou b, .est-pule b { display: block; margin-bottom: 4px; }
+
+/* Revisar: um cartão por vez, no meio da tela, sem mais nada em volta. Estudar
+   com repetição espaçada é uma sequência longa de decisões pequenas — tudo que
+   não é o cartão atrapalha. */
+.rev-topo { align-items: center; margin-bottom: 12px; }
+.rev-cartao { max-width: 620px; margin: 0 auto; text-align: center; }
+.rev-frente { font-size: 21px; line-height: 1.45; margin: 14px 0; letter-spacing: -0.01em; }
+.rev-verso { border-top: 1px solid var(--line-soft); padding-top: 14px; margin-top: 14px; }
+.rev-verso p { font-size: 17px; line-height: 1.55; }
+.rev-verso .ret-cita { text-align: left; }
+.rev-acoes { justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.rev-acoes button { flex-direction: column; gap: 2px; min-width: 96px; padding: 10px 14px; }
+/* O preço de cada botão fica embaixo do nome: apertar "bom" pra fila diminuir
+   fica caro quando dá pra ver que isso empurra o cartão pra três meses. */
+.rev-quando { font-size: 12.5px; opacity: 0.75; font-weight: 400; }
+.rev-acoes button.block { flex-direction: row; width: 100%; }
