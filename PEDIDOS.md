@@ -5,6 +5,26 @@ estiver entregue e conferido.
 
 ---
 
+## 21/08/2026 — o que ele viu de errado na 0.3.0
+
+> "faltando varias coisas ne? ainda pedindo um monte de permissao toda vez,
+> retao ali o efeito q pegamos ideia com gemini... chieo de bug, faltando
+> bastante coisa q pedi..."
+
+Mandou a captura: a caixa do macOS "Nuvo would like to access files on a network
+volume" por cima da conversa, e o retângulo do brilho cortado no canto.
+
+- [x] **a caixa de permissão a cada mensagem.** App aberto pelo Finder herda a
+      RAIZ do disco como diretório de trabalho, e o CLI que ele chama herda
+      junto — daí o `claude` varria `/`, esbarrava no automount de `/home` e o
+      macOS pedia acesso a volume de rede. Conversa sem projeto agora roda numa
+      pasta vazia do próprio app.
+- [x] **o "retão" do brilho.** O raio da queda saía de `max(largura, altura)`,
+      então em janela larga a malha chegava viva no topo e nas laterais e era
+      cortada num retângulo. Medido em três tamanhos: as bordas iam de 0,13–0,18
+      de opacidade pra 0, e o centro continua em 0,33.
+- [x] **quiz, infográfico e slides**, que eu tinha deixado de fora.
+
 ## 21/08/2026 — modo Estudos: clonar o pensamento do professor
 
 > "pensei tbm em adicionar um botao Estudos. basicamente, vc taca todo o
@@ -65,8 +85,9 @@ E, quando perguntado o que fazer primeiro:
       diz a probabilidade de cada questão e qual regra do retrato a gerou — e
       diz também o que **ficou de fora por falta de material**, em vez de calar.
 
-      Faltam infográfico e slides (dá pra imprimir o guia e o resumo em PDF pelo
-      próprio navegador por enquanto).
+      Na 0.3.1 entraram também o quiz de múltipla escolha (corrigido no clique,
+      com o porquê de cada erro), o infográfico de uma página e os slides, que
+      imprimem em PDF pelo próprio navegador.
 - [x] **repetição espaçada** por cima dos flashcards, com o FSRS — o mesmo do
       Anki. É o buraco do NotebookLM: ele gera cartão e entrega a pilha; pilha
       não é estudo. Cada botão de nota mostra pra quando o cartão vai ("Bom ·
