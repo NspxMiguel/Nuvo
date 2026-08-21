@@ -437,8 +437,77 @@ function messageEl(role, text, meta = {}) {
   else body.innerHTML = renderMarkdown(text);
 
   $('#messages').appendChild(el);
+  manterEsperaNoFim();
   scrollDown();
   return el;
+}
+
+// ------------------------------------------------- o lugar da resposta vazio
+
+/**
+ * A bolha da resposta nasce no envio, ainda vazia, com a roseta girando e o
+ * relógio andando.
+ *
+ * Sem ela, entre apertar enviar e o primeiro pedaço de texto a tela não muda
+ * nada: a fala fica sozinha à direita e o resto é preto. Numa IA de terminal
+ * essa espera passa de seis segundos com frequência, e o único sinal de vida
+ * era o botão de parar no canto do campo de escrever — longe de onde a pessoa
+ * está olhando, e do tamanho de uma unha.
+ */
+let bolhaDeEspera = null;
+
+function abrirEspera() {
+  const el = messageEl('assistant', '');
+  el.classList.add('esperando');
+  el.querySelector('.body').innerHTML =
+    `<div class="pensando" role="status">${roseta(20, 'pensa')}` +
+    `<span class="rot">${t('pensando…')}</span>` +
+    `<span class="quanto" aria-hidden="true"></span></div>`;
+  const quanto = el.querySelector('.quanto');
+  const inicio = Date.now();
+  // Os dois primeiros segundos ficam sem número: modelo local responde antes
+  // disso, e um "1 s" que pisca e some é ruído, não informação.
+  el.dataset.relogio = String(
+    setInterval(() => {
+      const seg = Math.round((Date.now() - inicio) / 1000);
+      if (seg >= 2) quanto.textContent = `${formatarNumero(seg)} s`;
+    }, 1000)
+  );
+  bolhaDeEspera = el;
+  // `messageEl` já desceu a conversa, mas naquele momento a bolha estava vazia:
+  // a roseta e o texto entram depois e empurram o fim pra baixo da dobra.
+  scrollDown();
+  return el;
+}
+
+/**
+ * Tira a espera de cena: ou porque a resposta começou a chegar (e a bolha vira
+ * a resposta), ou porque o turno acabou sem uma linha sequer (e ela some).
+ *
+ * Sai calada quando a bolha já deixou de esperar — senão a segunda chamada,
+ * lá no `finally`, apagaria a resposta que acabou de ser escrita nela.
+ */
+function fecharEspera(el, { apagar = false } = {}) {
+  if (!el || !el.classList.contains('esperando')) return;
+  clearInterval(Number(el.dataset.relogio));
+  delete el.dataset.relogio;
+  if (bolhaDeEspera === el) bolhaDeEspera = null;
+  if (apagar) return el.remove();
+  el.classList.remove('esperando');
+  el.querySelector('.body').innerHTML = '';
+}
+
+/**
+ * A espera é sempre a última coisa da conversa.
+ *
+ * A fala do usuário e os avisos do turno (memória, web, passos do agente)
+ * chegam depois de ela existir e entram pelo fim da lista — sem esta correção
+ * a resposta pendente ficaria acima da pergunta que a gerou.
+ */
+function manterEsperaNoFim() {
+  if (!bolhaDeEspera || !bolhaDeEspera.parentElement) return;
+  $('#messages').appendChild(bolhaDeEspera);
+  scrollDown();
 }
 
 function wireActions(el, { id, role, text }) {
@@ -485,6 +554,7 @@ function addNote(text, cls = '', iconName = 'brain') {
   el.className = `note ${cls}`;
   el.innerHTML = `<span class="ico">${icon(iconName, 17)}</span><span>${text}</span>`;
   $('#messages').appendChild(el);
+  manterEsperaNoFim();
   scrollDown();
   return el;
 }
@@ -514,9 +584,48 @@ function memFoot(items) {
   </details>`;
 }
 
+/**
+ * Desce a conversa até o fim, sem animação.
+ *
+ * `#messages` tem `scroll-behavior: smooth` no CSS — bom para o `scrollIntoView`
+ * de quando se abre uma mensagem específica, péssimo aqui: enquanto a resposta
+ * chega isto roda a cada pedaço de texto, e a animação vive sendo cortada antes
+ * de terminar. A conversa parava no meio (38px de 310 medidos) e a bolha de
+ * espera nascia abaixo da dobra. `behavior: 'instant'` ignora o CSS.
+ */
+let grudadoNoFim = true;
+
 function scrollDown() {
   const box = $('#messages');
-  box.scrollTop = box.scrollHeight;
+  grudadoNoFim = true;
+  // `behavior: 'instant'` de propósito: `#messages` tem `scroll-behavior: smooth`
+  // no CSS, bom pro `scrollIntoView` de quando se abre uma mensagem específica e
+  // péssimo aqui — enquanto a resposta chega isto roda a cada pedaço de texto e a
+  // animação vive sendo cortada. A conversa parava a 38px de 310 do fim.
+  box.scrollTo({ top: box.scrollHeight, behavior: 'instant' });
+}
+
+/**
+ * Encostado no fim, continua encostado.
+ *
+ * Metade do que compõe uma mensagem ganha altura *depois* de a gente já ter
+ * rolado: os botões de copiar/refazer, a linha de números, uma imagem que
+ * terminou de carregar. Eram 43px que jogavam a bolha de espera pra baixo da
+ * dobra logo depois de ela nascer. Quem saiu do fim de propósito não é puxado
+ * de volta — só quem já estava lá.
+ */
+function vigiarOFim() {
+  const box = $('#messages');
+  box.addEventListener(
+    'scroll',
+    () => {
+      grudadoNoFim = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+    },
+    { passive: true }
+  );
+  new MutationObserver(() => {
+    if (grudadoNoFim) box.scrollTo({ top: box.scrollHeight, behavior: 'instant' });
+  }).observe(box, { childList: true, subtree: true, characterData: true });
 }
 
 function renderMessages(focusId) {
@@ -855,6 +964,10 @@ async function consumeTurn(path, body, ganchos = {}) {
   $('#btn-stop').hidden = false;
   $('#btn-send').hidden = true;
 
+  // O lugar da resposta já fica ocupado, com a roseta girando: é onde a pessoa
+  // está olhando depois de apertar enviar.
+  const espera = abrirEspera();
+
   let el = null;
   let bodyEl = null;
   let thinkEl = null;
@@ -874,6 +987,10 @@ async function consumeTurn(path, body, ganchos = {}) {
         switch (ev.type) {
           case 'reset':
             for (const node of $$('#messages .msg, #messages .note')) {
+              // A espera é deste turno, não do histórico que o reset apaga.
+              // Apagada aqui, o "refazer" ficava sem lugar pra escrever e a
+              // resposta nova não aparecia em canto nenhum.
+              if (node.classList.contains('esperando')) continue;
               if (node.dataset.id && ev.keep.includes(node.dataset.id)) continue;
               if (node.classList.contains('note')) node.remove();
               else if (!ev.keep.includes(node.dataset.id)) node.remove();
@@ -959,7 +1076,10 @@ async function consumeTurn(path, body, ganchos = {}) {
             addNote(escapeHtml(ev.text), '', 'alert');
             break;
           case 'reasoning':
-            if (!el) el = messageEl('assistant', '', { label: modelLabel(state.model) });
+            if (!el) {
+              el = espera;
+              fecharEspera(espera);
+            }
             if (!thinkEl) {
               thinkEl = prependReasoning(el, '');
               pensouEm = Date.now();
@@ -969,7 +1089,10 @@ async function consumeTurn(path, body, ganchos = {}) {
             thinkEl.scrollTop = thinkEl.scrollHeight;
             break;
           case 'delta':
-            if (!el) el = messageEl('assistant', '', { label: modelLabel(state.model) });
+            if (!el) {
+              el = espera;
+              fecharEspera(espera);
+            }
             if (pensouEm) {
               endReasoning(el, (Date.now() - pensouEm) / 1000);
               pensouEm = 0;
@@ -1033,6 +1156,9 @@ async function consumeTurn(path, body, ganchos = {}) {
   } catch (err) {
     if (err.name !== 'AbortError') addNote(escapeHtml(err.message), 'err', 'alert');
   } finally {
+    // Turno que morreu antes da primeira palavra — erro, parada ou resposta
+    // vazia — não deixa uma bolha girando pra sempre no fim da conversa.
+    fecharEspera(espera, { apagar: !el });
     state.streaming = null;
     $('#btn-stop').hidden = true;
     $('#btn-send').hidden = false;
@@ -1881,6 +2007,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 
 $('#brand-marca').innerHTML = roseta(26, 'fixa');
 paintIcons();
+vigiarOFim();
 // Primeiro dos três momentos do brilho: a chegada.
 brilho.pulsar();
 load()

@@ -13,8 +13,35 @@ Mandou a captura da conversa: ele escreveu "de boa?" e a tela ficou parada —
 a bolha dele à direita e nada embaixo. O único sinal de que algo acontece é o
 botão de parar lá no canto do campo de escrever.
 
-- [ ] **mostrar que a resposta está vindo**, no lugar onde a resposta vai
-      aparecer, desde o instante em que ele aperta enviar.
+- [x] **mostrar que a resposta está vindo**, no lugar onde a resposta vai
+      aparecer, desde o instante em que ele aperta enviar. No segundo em que
+      ele envia nasce a bolha da resposta com a roseta girando, "pensando…" e,
+      a partir de dois segundos, o relógio correndo ("pensando… 9 s"). Quando
+      a primeira palavra chega a mesma bolha vira a resposta — não pisca nem
+      troca de lugar. Se o turno morre antes disso (parar, erro, resposta
+      vazia) a bolha some junto com o relógio.
+
+      Dois defeitos de rolagem apareceram na conferência e foram junto:
+
+      1. **A conversa parava antes do fim.** `#messages` tem
+         `scroll-behavior: smooth` no CSS, e `scrollDown()` roda a cada pedaço
+         de texto que chega — a animação vivia sendo cortada e recomeçada.
+         Medido: a conversa ficava em 38px de 310 possíveis, com a bolha de
+         espera nascendo abaixo da dobra. Agora desce com
+         `behavior: 'instant'`, que ignora o CSS sem tirar a suavidade de
+         quando se abre uma mensagem específica;
+      2. **Metade da mensagem ganha altura depois da rolagem** — os botões de
+         copiar/refazer, a linha de números, uma imagem que terminou de
+         carregar. Eram 43px que empurravam o fim pra fora da tela logo depois
+         de já ter rolado. `vigiarOFim()` observa a conversa e reencosta no
+         fim quando ela cresce, mas só pra quem já estava lá: quem rolou pra
+         cima de propósito continua onde parou.
+
+      Conferido no navegador dele, com número: três turnos seguidos na mesma
+      conversa, bolha visível dentro da caixa nos três (folga de 0, -0,5 e -1px
+      pro fim), relógio andando até 9 s, e no fim do turno nada de `.esperando`
+      sobrando e nenhum `setInterval` vivo. Parar antes da primeira palavra:
+      bolha presente durante, ausente depois, zero relógios.
 
 ## 20/08/2026 — testar função por função, clicando em tudo
 

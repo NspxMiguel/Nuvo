@@ -63,3 +63,35 @@ test('IA de terminal não ganha botão de chave', () => {
   const trecho = views.slice(views.indexOf('data-act="refresh"'), views.indexOf('data-act="toggle"'));
   assert.match(trecho, /p\.kind === 'cli'/, 'o botão de chave olha o tipo da IA antes de aparecer');
 });
+
+test('a resposta pendente ocupa o lugar dela na tela', () => {
+  // A tela ficava parada entre o enviar e a primeira palavra: a bolha da pessoa
+  // à direita e nada embaixo. O único sinal de vida era o botão de parar.
+  const app = ler('web/app.js');
+  assert.match(app, /function abrirEspera\(/, 'existe a bolha de espera');
+  assert.match(app, /function fecharEspera\(/, 'e ela sabe sair');
+  assert.match(app, /const espera = abrirEspera\(\)/, 'o turno abre a espera ao começar');
+  assert.match(
+    app,
+    /fecharEspera\(espera, \{ apagar: !el \}\)/,
+    'turno que morre antes da primeira palavra não deixa roseta girando'
+  );
+  const css = ler('web/styles.css');
+  assert.match(css, /\.msg\.esperando \.stats/, 'a espera não mostra números que ainda não existem');
+  assert.match(css, /@keyframes respira/, 'e o texto respira em vez de ficar morto');
+});
+
+test('descer a conversa não pega carona no scroll suave do CSS', () => {
+  // `#messages` tem `scroll-behavior: smooth` — bom pro `scrollIntoView` de abrir
+  // uma mensagem, péssimo enquanto a resposta chega: a animação era cortada a
+  // cada pedaço de texto e a conversa parava a 38px de 310 do fim, com a bolha de
+  // espera nascendo abaixo da dobra. E metade de uma mensagem ganha altura depois
+  // da rolagem (botões, linha de números, imagem que carregou): daí o vigia.
+  const css = ler('web/styles.css');
+  assert.match(css, /#messages[\s\S]{0,300}?scroll-behavior: smooth/, 'o CSS ainda é suave');
+  const app = ler('web/app.js');
+  const corpo = app.slice(app.indexOf('function scrollDown('), app.indexOf('function vigiarOFim('));
+  assert.match(corpo, /behavior: 'instant'/, 'descer ao fim é seco');
+  assert.match(app, /function vigiarOFim\(/, 'alguém segura o fim quando o conteúdo cresce depois');
+  assert.match(app, /^vigiarOFim\(\);$/m, 'e o vigia é ligado no boot');
+});

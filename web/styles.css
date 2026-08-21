@@ -468,6 +468,31 @@ input.rename {
 .stats { font-size: 14px; color: var(--muted); margin-top: 10px; font-variant-numeric: tabular-nums; }
 .stats.oculta { display: none; }
 
+/* a resposta que ainda não veio: a roseta gira e o relógio anda.
+ *
+ * Mora no lugar exato onde o texto vai nascer, e não numa barra de canto: o
+ * que a pessoa olha depois de apertar enviar é o vazio abaixo da própria fala.
+ * O rodapé e os botões da mensagem ficam escondidos até haver o que copiar. */
+.msg.esperando .stats, .msg.esperando .actions { display: none; }
+.pensando {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  font-size: 15.5px;
+  color: var(--muted);
+}
+.pensando .rot { animation: respira 1.8s var(--ease-io) infinite; }
+.pensando .quanto { font-variant-numeric: tabular-nums; opacity: 0.6; }
+@keyframes respira { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+/* Sem movimento nenhum, o texto ainda tem que dizer que algo acontece: a
+   opacidade fica no meio do caminho, parada, em vez de sumir pela metade. */
+@media (prefers-reduced-motion: reduce) {
+  .pensando .rot { animation: none; opacity: 0.8; }
+  .pensando .roseta .lobos circle { animation: none; }
+}
+
 /* raciocínio: uma linha discreta. aberto, teto baixo e desbotando no fim. */
 .reasoning { margin: 0 0 14px; }
 .reasoning summary {
