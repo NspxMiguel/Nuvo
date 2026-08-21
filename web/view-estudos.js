@@ -48,13 +48,13 @@ const aqui = {
  */
 const LADRILHOS = [
   { id: 'simulado', ico: 'file', cor: 'amber', nome: () => t('Simulado'), toque: true },
-  { id: 'guia', ico: 'book', cor: 'teal', nome: () => t('Guia de estudo'), toque: true },
+  { id: 'guia', ico: 'book', cor: 'teal', nome: () => t('Guia'), toque: true },
   { id: 'flashcards', ico: 'layers', cor: 'indigo', nome: () => t('Cartões'), toque: true },
   { id: 'quiz', ico: 'check', cor: 'teal', nome: () => t('Quiz'), toque: true },
   { id: 'resumo', ico: 'edit', cor: 'sky', nome: () => t('Resumo'), toque: false },
   { id: 'mapa', ico: 'spark', cor: 'violet', nome: () => t('Mapa mental'), toque: false },
   { id: 'linha', ico: 'activity', cor: 'lime', nome: () => t('Linha do tempo'), toque: false },
-  { id: 'podcast', ico: 'speaker', cor: 'rose', nome: () => t('Conversa em áudio'), toque: false },
+  { id: 'podcast', ico: 'speaker', cor: 'rose', nome: () => t('Áudio'), toque: false },
   { id: 'infografico', ico: 'cpu', cor: 'amber', nome: () => t('Infográfico'), toque: false },
   { id: 'slides', ico: 'file', cor: 'slate', nome: () => t('Slides'), toque: false }
 ];
@@ -710,14 +710,23 @@ function avaliacaoAberta(prof, pasta) {
   const r = prof.retrato;
   const nunca = r?.so_na_aula?.length || 0;
 
-  const caixa = (cor, papel, titulo, explica, itens, papelDoAdd) => `
-    <div class="est-caixa" style="--t:var(--${cor})">
-      <span class="papel">${escapeHtml(papel)}</span>
-      <h4>${escapeHtml(titulo)}</h4>
+  // Uma caixa por papel, e nada além do que ela precisa dizer. A versão de antes
+  // tinha sobrenome ("o documento") em cima do nome ("A prova") e dois
+  // parágrafos de explicação: três caixas passavam de 800 px e quem abria uma
+  // prova de três arquivos rolava a tela pra ver o terceiro.
+  const caixa = (papel, titulo, explica, itens) => `
+    <div class="est-caixa" style="--t:var(--${papelDe(papel).cor})">
+      <div class="cab">
+        ${selo(papel)}
+        <h4>${escapeHtml(titulo)}</h4>
+        <span class="quantos">${
+          itens.length ? plural(itens.length, '1 arquivo', '{n} arquivos') : t('vazio')
+        }</span>
+      </div>
       <p class="exp">${escapeHtml(explica)}</p>
-      <ul>${
+      ${
         itens.length
-          ? itens
+          ? `<ul>${itens
               .map(
                 (a) =>
                   `<li>${escapeHtml(a.name)} <span class="pes">${
@@ -726,10 +735,10 @@ function avaliacaoAberta(prof, pasta) {
                       : escapeHtml(a.note || t('não deu pra ler'))
                   }</span></li>`
               )
-              .join('')
-          : `<li class="fora">${t('vazio')}</li>`
-      }</ul>
-      <button class="ghost" data-add="${papelDoAdd}">${icon('plus', 17)} ${t('Adicionar arquivo')}</button>
+              .join('')}</ul>`
+          : ''
+      }
+      <button class="ghost" data-add="${papel}">${icon('plus', 15)} ${t('Adicionar')}</button>
     </div>`;
 
   return `
@@ -755,17 +764,17 @@ function avaliacaoAberta(prof, pasta) {
     <div class="est-tri">
       ${
         pasta.tipo === 'prova'
-          ? caixa('amber', t('o documento'), t('A prova'),
-              t('O arquivo como ele entregou. Serve de prova do que o app afirma: todo achado aponta pra uma linha daqui.'),
-              provas, 'prova') +
-            caixa('teal', t('a amostra'), t('O conteúdo que caiu'),
-              t('Só o que esta prova cobrou de verdade. É a amostra do jeito dele.'),
-              conteudos, 'conteudo')
+          ? caixa('prova', t('A prova'),
+              t('O arquivo como ele entregou. Todo achado do retrato aponta pra uma linha daqui.'),
+              provas) +
+            caixa('conteudo', t('O que esta prova cobrou'),
+              t('Só o que caiu de verdade. É a amostra do jeito dele.'),
+              conteudos)
           : ''
       }
-      ${caixa('slate', t('o universo'), t('Material de aula'),
-        t('Tudo o que ele ensinou no período. Bem maior do que o que ele cobra — e é isso que dá a previsão.'),
-        aulas, 'material')}
+      ${caixa('material', t('Dado em aula'),
+        t('O que ele ensinou no período. É maior do que o que ele cobra, e essa diferença é a previsão.'),
+        aulas)}
     </div>
 
     ${

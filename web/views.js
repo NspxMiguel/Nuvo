@@ -602,8 +602,12 @@ function renderOllamaManager(host, provider, reload) {
   const fill = bar.querySelector('span');
 
   host.querySelector('#pull-go').onclick = async () => {
-    const model = host.querySelector('#pull-name').value.trim();
-    if (!model) return;
+    const campo = host.querySelector('#pull-name');
+    const model = campo.value.trim();
+    if (!model) {
+      campo.focus();
+      return toast(t('escreva o nome do modelo que você quer baixar'), 'err');
+    }
     bar.hidden = false;
     status.textContent = t('começando…');
     try {
@@ -1104,8 +1108,14 @@ views.memory = async function renderMemory(el, { switchView }) {
   }
 
   inner.querySelector('#btn-add-mem').onclick = async () => {
-    const text = inner.querySelector('#m-text').value.trim();
-    if (!text) return;
+    const campo = inner.querySelector('#m-text');
+    const text = campo.value.trim();
+    // Sair calado é o que faz o botão parecer quebrado: quem clica com o campo
+    // vazio não descobre que o campo é o problema.
+    if (!text) {
+      campo.focus();
+      return toast(t('escreva o que você quer que ele guarde'), 'err');
+    }
     await api('/memories', {
       method: 'POST',
       body: { text, pinned: inner.querySelector('#m-pin').checked }
