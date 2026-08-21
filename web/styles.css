@@ -914,11 +914,13 @@ dialog.dialogo::backdrop {
 }
 .dialogo-texto {
   margin: 16px 0 0;
-  color: var(--text-2);
+  color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .dialogo .dialogo-field { margin: 18px 0 0; }
+.dialogo-field input,
+.dialogo-field textarea { background: var(--bg); }
 .dialogo-field textarea { min-height: 132px; }
 .dialogo .dialogo-acoes { justify-content: flex-end; margin-top: 24px; }
 .dialogo .dialogo-acao.danger {
@@ -933,7 +935,7 @@ dialog.dialogo::backdrop {
   dialog.dialogo { width: calc(100vw - 24px); }
   .dialogo .dialogo-card { padding: 20px; }
   .dialogo .dialogo-acoes { display: grid; grid-template-columns: 1fr 1fr; }
-  .dialogo .dialogo-acoes button:only-child { grid-column: 1 / -1; }
+  .dialogo [data-dialogo-cancelar][hidden] + .dialogo-acao { grid-column: 1 / -1; }
 }
 
 /* ---------------------------------------------------------------- painéis */
