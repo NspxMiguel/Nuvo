@@ -5,6 +5,113 @@ estiver entregue e conferido.
 
 ---
 
+## 21/08/2026 — modo Estudos: clonar o pensamento do professor
+
+> "pensei tbm em adicionar um botao Estudos. basicamente, vc taca todo o
+> conteudo da sua prova, e ele faz resumos e etc. parecido com o notebook lm
+> (inclusive, pra economizar, dava pra tentar usar ele como base, para produzir
+> conhecimento)... mas com uma funcionalidade a mais... Cada professor, tem um
+> jeito de fazer as provas, entao imagina, se conseguicemos meio q reproduzir o
+> pensamento do professor. isso q iremos fazer. Ao clicar em estudos, tem a
+> opção de voce escolher o professor (aparece nome, imagem tanto faz, user
+> escolhe) ai vai ter tipo chats, onde vc adiciona as suas provas, tipo na minha
+> escola tem a1 e a2, 2 provas a cada trimestre, ent separado tipo isso, mas o
+> usuario pode escolher a organizacao, ai pras provas normal ne, coloca tudo la.
+> soq dai, no menu dentro dos professores, tem a opção de adicionar materiais
+> nao relacionados com provas, ai q começa a brincadeira, q tentamos 'clonar' o
+> pensamento do professor, estilo das questoes e etc. antes de começar com o
+> modo estudos, procure por plataformas que fazem parecido, notebooklm, gammaapp
+> e etc, tenta fazer tudo oq eles fazem e +"
+
+E, na mensagem seguinte:
+
+> "e tbm, obvio, pegar tbm os conteudos de prova tbm, digo so pra vc n acabar
+> relacionando as provas com conteudo nao de prova. mas para gerar conhecimento
+> sobre cada professor, e ser ridiculamente mais facil de estudar"
+
+Respostas dele a perguntas diretas, no mesmo dia:
+
+- **motor**: "Os dois: local por padrão, NotebookLM como um provedor a mais";
+- **formatos**: "quero um assistente completo de estudos, professor e etc" —
+  resumo/guia/linha do tempo, flashcards/quiz/repetição espaçada, mapa
+  mental/infográfico, áudio tipo podcast e slides;
+- **organização dentro do professor**: "usuario escolhe na primeira vez q usar".
+
+E, quando perguntado o que fazer primeiro:
+
+> "pode ir fazendo o modo estudos, dps q terminar vc mexe noq falei do navegador"
+
+- [ ] **tela Estudos com professores dentro**, cada um com as provas organizadas
+      do jeito que ele escolher na primeira vez.
+- [ ] **três caixas de material por professor, e não duas**: a prova em si, o
+      conteúdo que caiu naquela prova, e o material solto que não é de prova.
+      As três entram no retrato por caminhos diferentes — misturar conteúdo de
+      prova com material solto é justamente o erro que ele mandou evitar.
+- [ ] **o retrato do professor**: o que ele cobra, em que formato, em que nível,
+      com que manias — extraído das provas passadas, com a citação do lado e
+      corrigível na mão.
+- [ ] **o que o Estudos produz**: simulado, guia por tema, flashcards, quiz,
+      resumo, glossário, linha do tempo, mapa mental, infográfico, slides e
+      áudio.
+- [ ] **repetição espaçada** por cima dos flashcards.
+- [ ] **NotebookLM como um provedor a mais**, e o Estudos de pé sem ele.
+
+## 21/08/2026 — botões do menu configuráveis
+
+> "la nas config, botao de configurar botoes no menu"
+
+- [ ] **escolher quais botões aparecem no menu, em que ordem e quais ficam
+      dentro do "Mais"**, pela tela de Ajustes.
+
+## 21/08/2026 — arrumar o que sobrou
+
+> "arruma tudo oq tem pra arrumar entao"
+
+- [ ] **os 15 diálogos nativos do navegador** (`prompt`, `confirm`, `alert`) que
+      travam a janela e parecem coisa de navegador dentro de um app de desktop —
+      o primeiro deles é a própria senha de acesso.
+- [ ] **duas funções exportadas e nunca chamadas**: `iconEl` (`web/icons.js`) e
+      `reconvergir` (`web/glow.js`).
+- [ ] **as quatro capturas da landing com o nome antigo** (item que já estava
+      aberto: `tela-varias`, `tela-cli`, `tela-programar`, `tela-agente`).
+
+## 21/08/2026 — o Nuvo abre uma janela do Chrome sozinho
+
+> "acho q é bug, ao abrir o nuvo, ele abre uma janela do chrome... n é pra abrir
+> n po"
+
+Mandou a captura: dentro da janela do Nuvo, uma janela do Chrome por cima,
+aberta na New Tab do Google.
+
+- [ ] **abrir o Nuvo não pode abrir janela de navegador nenhuma além da dele.**
+
+## 21/08/2026 — o modo navegador e o custo do modelo
+
+> "esse modo navegador, é pra ser tipo um claude in chrome, n pra abrir o chrome
+> no meu pc. e outra coisa, pra navegar, vc coloca uma ia barata, e pra realmente
+> responder coisas complexas, q realmente precisa de uma ia melhor. por padrao
+> obvio, se usuario quiser gastar mais ele q se exploda. Mas tipo, gasta mt toda
+> hora mandar primpt (q é como funciona esses modelo de ia) pra uma ia cara como
+> o claude, ai melhor manda sla, pra um groq da vida, deepseek local e etc. e
+> coisas realmente importantes ai sim usa a cara, como sla, bugtest, responder
+> questoes e perguntas (no caso do usuario colocar ele pra responder um
+> formulario)"
+
+- [ ] **o modo navegador não abre o Chrome da máquina dele.**
+- [ ] **dois modelos no agente**: um barato pra cada passo de navegação, um bom
+      só pro que decide de verdade. Barato é o padrão; gastar mais é escolha
+      explícita de quem usa.
+
+## 21/08/2026 — um segundo programador na equipe
+
+> "vou introduzir um novo programador na sua equipe, o codex, outro app de
+> vibecoding, caso queira ajuda dele para algo, pode falar com ele. pra agilizar
+> o processo e os 2 fazerem coisas ao mesmo tempo. pega o computer use e manda
+> msg direto pra ele, chatgpt o app, no modo work."
+
+- [ ] **falar com o Codex pelo app do ChatGPT (modo work), por computer use**,
+      quando houver trabalho que dê pra tocar em paralelo.
+
 ## 20/08/2026 — falta sinal de que a IA está pensando
 
 > "tem nenhum feedback q ele ta pensando/escrevendo, coloca garai"
