@@ -67,13 +67,5 @@ export function icon(name, size = 18) {
     aria-hidden="true">${shapes}</svg>`;
 }
 
-/** Ícone como elemento, pra quando o destino não aceita HTML solto. */
-export function iconEl(name, size = 18) {
-  const span = document.createElement('span');
-  span.className = 'ico';
-  span.innerHTML = icon(name, size);
-  return span;
-}
-
 // Paleta usada por gems e projetos. O nome vira uma variável CSS.
 export const COLORS = ['indigo', 'teal', 'amber', 'rose', 'violet', 'sky', 'lime', 'slate'];

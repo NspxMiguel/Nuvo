@@ -220,10 +220,18 @@ test('backup com um byte trocado é recusado, não restaurado', () => {
   }
   const bom = backup.createBackup().buffer;
 
+  // A varredura para onde os dados param. Depois deles vem o diretório central
+  // do zip, que tem campos que todo leitor ignora por definição (versão de quem
+  // gravou, campos extras) — trocar um byte ali não é corrupção que a soma
+  // devesse pegar, e mirar lá deixava o teste passando ou falhando por sorte,
+  // conforme o tamanho do banco mudava a posição sorteada.
+  const fimDosDados = bom.lastIndexOf(Buffer.from('PK\x01\x02', 'latin1'));
+  assert.ok(fimDosDados > 1000, 'não achei onde o diretório central começa');
+
   let aceitos = 0;
   for (let tentativa = 0; tentativa < 20; tentativa++) {
     const estragado = Buffer.from(bom);
-    estragado[400 + Math.floor(((estragado.length - 900) * tentativa) / 20)] ^= 0xff;
+    estragado[400 + Math.floor(((fimDosDados - 400) * tentativa) / 20)] ^= 0xff;
     try {
       backup.restoreBackup(estragado);
       aceitos += 1;

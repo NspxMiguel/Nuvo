@@ -41,37 +41,57 @@ E, quando perguntado o que fazer primeiro:
 
 > "pode ir fazendo o modo estudos, dps q terminar vc mexe noq falei do navegador"
 
-- [ ] **tela Estudos com professores dentro**, cada um com as provas organizadas
-      do jeito que ele escolher na primeira vez.
-- [ ] **três caixas de material por professor, e não duas**: a prova em si, o
+- [x] **tela Estudos com professores dentro**, cada um com as provas organizadas
+      do jeito que ele escolher na criação do professor: pastas que ele nomeia,
+      trimestre com A1 e A2 já montado, ou tudo junto com etiquetas.
+- [x] **três caixas de material por professor, e não duas**: a prova em si, o
       conteúdo que caiu naquela prova, e o material solto que não é de prova.
-      As três entram no retrato por caminhos diferentes — misturar conteúdo de
-      prova com material solto é justamente o erro que ele mandou evitar.
-- [ ] **o retrato do professor**: o que ele cobra, em que formato, em que nível,
-      com que manias — extraído das provas passadas, com a citação do lado e
-      corrigível na mão.
-- [ ] **o que o Estudos produz**: simulado, guia por tema, flashcards, quiz,
-      resumo, glossário, linha do tempo, mapa mental, infográfico, slides e
-      áudio.
-- [ ] **repetição espaçada** por cima dos flashcards.
+      Cada arquivo carrega o papel que exerce (`attachments.papel`), e a busca
+      sabe filtrar por papel — dá pra pedir "só as provas" sem arrastar o
+      conteúdo junto.
+- [x] **o retrato do professor**. Conferido com três provas de biologia de
+      mentira: achou que toda prova dele tem 8 questões somando 10,0; que a
+      última sempre começa com "Cite duas..."; que 58% é discursiva; o peso de
+      cada tema (respiração 33%, membrana 17%, genética 17%); o nível de Bloom
+      de cada uma; os verbos ("justifique" 6 vezes, "compare" 3); e as duas
+      pegadinhas dele. E, o que mais importa, o que ele **ensina e nunca
+      cobrou**: fotossíntese, Hardy-Weinberg, quimiossíntese, mutação e câncer —
+      que é onde dá pra economizar tempo. Cada achado vem com o trecho literal
+      da prova do lado, e a tela diz a confiança na cara ("ainda é palpite — só
+      uma prova").
+- [x] **o que o Estudos produz**: simulado, guia por tema, flashcards, resumo
+      com glossário, mapa mental, linha do tempo e conversa em áudio de duas
+      vozes. Tudo recortado pelo retrato, e tudo com a fonte do lado. O simulado
+      diz a probabilidade de cada questão e qual regra do retrato a gerou — e
+      diz também o que **ficou de fora por falta de material**, em vez de calar.
+
+      Faltam infográfico e slides (dá pra imprimir o guia e o resumo em PDF pelo
+      próprio navegador por enquanto).
+- [x] **repetição espaçada** por cima dos flashcards, com o FSRS — o mesmo do
+      Anki. É o buraco do NotebookLM: ele gera cartão e entrega a pilha; pilha
+      não é estudo. Cada botão de nota mostra pra quando o cartão vai ("Bom ·
+      4 dias", "Fácil · 14 dias") antes de a pessoa apertar.
 - [ ] **NotebookLM como um provedor a mais**, e o Estudos de pé sem ele.
 
 ## 21/08/2026 — botões do menu configuráveis
 
 > "la nas config, botao de configurar botoes no menu"
 
-- [ ] **escolher quais botões aparecem no menu, em que ordem e quais ficam
-      dentro do "Mais"**, pela tela de Ajustes.
+- [x] **escolher quais botões aparecem no menu, em que ordem e quais ficam
+      dentro do "Mais"**, em Ajustes → Personalizar → Botões do menu. A escolha
+      fica no servidor, então vale no computador e no celular.
 
 ## 21/08/2026 — arrumar o que sobrou
 
 > "arruma tudo oq tem pra arrumar entao"
 
-- [ ] **os 15 diálogos nativos do navegador** (`prompt`, `confirm`, `alert`) que
-      travam a janela e parecem coisa de navegador dentro de um app de desktop —
-      o primeiro deles é a própria senha de acesso.
-- [ ] **duas funções exportadas e nunca chamadas**: `iconEl` (`web/icons.js`) e
-      `reconvergir` (`web/glow.js`).
+- [x] **os 15 diálogos nativos do navegador** (`prompt`, `confirm`, `alert`).
+      Feito pelo Codex, em `web/dialogo.js`, com um teste que impede que nasça
+      um novo.
+- [x] **duas funções exportadas e nunca chamadas**: `iconEl` (`web/icons.js`) e
+      `reconvergir` (`web/glow.js`) — apagadas. As outras doze que um
+      levantamento automático tinha acusado têm chamador; foram conferidas uma a
+      uma antes de mexer.
 - [ ] **as quatro capturas da landing com o nome antigo** (item que já estava
       aberto: `tela-varias`, `tela-cli`, `tela-programar`, `tela-agente`).
 
@@ -109,8 +129,10 @@ aberta na New Tab do Google.
 > o processo e os 2 fazerem coisas ao mesmo tempo. pega o computer use e manda
 > msg direto pra ele, chatgpt o app, no modo work."
 
-- [ ] **falar com o Codex pelo app do ChatGPT (modo work), por computer use**,
-      quando houver trabalho que dê pra tocar em paralelo.
+- [x] **falar com o Codex pelo app do ChatGPT (modo work), por computer use**.
+      Ele trabalha num worktree separado (`Projetos/nuvo-dialogos`) pra não
+      brigar pelo mesmo checkout, e já entregou os diálogos nativos. Está agora
+      no bug da janela do Chrome e nos dois modelos do agente.
 
 ## 20/08/2026 — falta sinal de que a IA está pensando
 

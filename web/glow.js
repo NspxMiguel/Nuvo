@@ -143,10 +143,3 @@ export function roseta(tamanho = 44, modo = 'fixa') {
       <g fill="url(#b${id})" style="mix-blend-mode:screen"><circle cx="12" cy="12" r="10.6"/></g>
     </svg></span>`;
 }
-
-export function reconvergir(el) {
-  if (!el) return;
-  const novo = el.cloneNode(true);
-  el.replaceWith(novo);
-  return novo;
-}
