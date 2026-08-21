@@ -9,7 +9,7 @@
 // responde a partir do que foi subido, e sem fonte nenhuma responderia como uma
 // IA comum — o que seria pior do que recusar, porque pareceria que funcionou.
 
-import { perguntarNoNotebookLM } from '../notebooklm.mjs';
+import { disponivel, perguntarNoNotebookLM } from '../notebooklm.mjs';
 import { erroHttp } from '../erro-traduzivel.mjs';
 
 export const kind = 'notebooklm';
@@ -20,6 +20,19 @@ export const kind = 'notebooklm';
  */
 export async function listModels() {
   return [{ model_id: 'notebook', label: 'NotebookLM', kind: 'chat' }];
+}
+
+/**
+ * O teste do botão "testar": abre a tela e vê se a sessão serve.
+ *
+ * Separado de `listModels` de propósito. Listar precisa funcionar antes de a
+ * pessoa ter logado, senão não daria nem pra adicionar o NotebookLM; testar
+ * precisa dizer a verdade, senão diria "ok" com a conta deslogada.
+ */
+export async function check() {
+  const { ok, porque } = await disponivel({});
+  if (!ok) throw erroHttp(503, porque || 'o NotebookLM não respondeu');
+  return await listModels();
 }
 
 /**

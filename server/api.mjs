@@ -256,6 +256,15 @@ export function limparMenu(bruto) {
   };
 }
 
+/** O modelo escolhido pertence a um provedor NotebookLM? */
+function ehNotebookLM(ref) {
+  try {
+    return getProvider(parseRef(ref).providerId)?.kind === 'notebooklm';
+  } catch {
+    return false;
+  }
+}
+
 function settingsView(req) {
   const cfg = loadConfig();
   return {
@@ -789,8 +798,6 @@ export async function handleApi(req, res, url) {
     if (method === 'PATCH') return json(res, atualizarProfessor(seg[1], await readJSON(req)));
     if (method === 'DELETE') return json(res, apagarProfessor(seg[1]));
   }
-  // A tela pergunta antes de oferecer: um motor que não está logado vira uma
-  // opção que só falha quando alguém clica.
   if (method === 'GET' && path === '/notebooklm') {
     try {
       return json(res, await notebookLMDisponivel({}));
@@ -844,9 +851,10 @@ export async function handleApi(req, res, url) {
     const stream = openStream(req, res);
     await pump(
       stream,
-      // `model: 'notebooklm'` é a escolha de motor, não um modelo: quem gera é a
-      // tela do Google, dirigida pelo navegador.
-      (b.model === 'notebooklm' ? gerarPeloNotebookLM : gerarFormato)({
+      // Quem gera sai do TIPO do provedor escolhido, não de uma string mágica: o
+      // NotebookLM é uma IA da lista como as outras, e escolher ele no seletor
+      // já quer dizer "gere por ele".
+      (ehNotebookLM(b.model) ? gerarPeloNotebookLM : gerarFormato)({
         professorId: seg[1],
         tipo: TIPOS_DE_SAIDA.includes(b.tipo) ? b.tipo : '',
         ref: b.model,
