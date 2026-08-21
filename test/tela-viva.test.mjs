@@ -124,3 +124,19 @@ test('esconder uma tela não pode deixar a gaveta sem saída', async () => {
   assert.deepEqual(fora.noMais, ['gems']);
   assert.equal(limparMenu(null), null, 'sem configuração, vale o padrão');
 });
+
+test('conversa aberta não fica acesa fora da tela de conversa', () => {
+  // Ele abriu Estudos e a conversa "teste" continuava azul na lista: duas
+  // coisas selecionadas ao mesmo tempo, e nenhuma delas dizendo onde ele está.
+  const app = ler('web/app.js');
+  assert.match(
+    app,
+    /chat\.id === state\.chatId && state\.view === 'chat'/,
+    'a linha só nasce acesa quando a tela é a conversa'
+  );
+  assert.match(
+    app,
+    /view === 'chat' && linha\.dataset\.id === state\.chatId/,
+    'e apaga ao trocar de tela, sem precisar redesenhar a lista'
+  );
+});

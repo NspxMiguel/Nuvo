@@ -197,7 +197,11 @@ function toggleAnon() {
  */
 function chatRow(chat) {
   const item = document.createElement('div');
-  item.className = `chat-item${chat.id === state.chatId ? ' active' : ''}`;
+  item.dataset.id = chat.id;
+  // Aberta é uma coisa, estar olhando pra ela é outra: fora da tela de conversa
+  // a linha não pode continuar acesa, senão duas coisas parecem selecionadas ao
+  // mesmo tempo — a conversa na lista e a tela em que a pessoa está.
+  item.className = `chat-item${chat.id === state.chatId && state.view === 'chat' ? ' active' : ''}`;
   item.innerHTML = `
     <span class="label">${escapeHtml(chat.title)}</span>
     <span class="row-actions">
@@ -1629,6 +1633,9 @@ function switchView(view) {
   const alvo = $(`#view-${view}`);
   alvo.hidden = false;
   for (const btn of $$('.nav-item')) btn.classList.toggle('active', btn.dataset.view === view);
+  for (const linha of $$('#chat-list .chat-item')) {
+    linha.classList.toggle('active', view === 'chat' && linha.dataset.id === state.chatId);
+  }
   // O "Mais" abre sozinho quando a tela ativa está dentro dele.
   if (menuAtual().noMais.includes(view)) $('#nav-mais').open = true;
   // A malha do rodapé é da conversa: fora dela some, ao voltar renasce.
