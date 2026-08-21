@@ -2235,7 +2235,10 @@ button.icon { position: relative; }
   .est-grade { grid-template-columns: 1fr; gap: 14px; }
   .est-pastas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
   .est-pastas .grupo-rot { padding: 0 4px; align-self: center; white-space: nowrap; }
-  .est-pastas .grupo { display: flex; gap: 6px; }
+  /* `flex: 0 0 auto` porque a caixa tem `overflow: hidden`, e caixa com overflow
+     escondido encolhe até zero dentro de um flex sem ninguém reclamar: as pastas
+     ficavam com 2px de largura e sumiam da faixa. */
+  .est-pastas .grupo { display: flex; gap: 6px; flex: 0 0 auto; }
   .est-pastas .chat-item { width: auto; white-space: nowrap; }
   .est-pastas .link-btn { white-space: nowrap; align-self: center; }
 }
