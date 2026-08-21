@@ -10,7 +10,9 @@
 // A organização é escolhida uma vez, na criação do professor, porque escola não
 // é toda igual: trimestre com A1 e A2, bimestre, semestre, ou nada disso.
 
-import { api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions } from './core.js';
+import {
+  api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel
+} from './core.js';
 import { icon } from './icons.js';
 import { t, plural, formatarNumero } from './i18n.js';
 
@@ -613,7 +615,7 @@ function telaDoRetrato(host, prof, ctx) {
         ${escapeHtml((ROTULO_DA_CONFIANCA[conf.nota] || (() => t('sem nota de confiança')))())}
       </span>
       <span class="grow"></span>
-      <span class="meta">${escapeHtml(prof.retrato_modelo || '')}</span>
+      <span class="meta">${escapeHtml(prof.retrato_modelo ? modelLabel(prof.retrato_modelo) : '')}</span>
       <span id="ret-acao"></span>
     </div>
     <div id="ret-andar" class="ret-andar" role="status"></div>

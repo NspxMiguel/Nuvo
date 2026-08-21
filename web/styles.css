@@ -2166,7 +2166,13 @@ button.icon { position: relative; }
 .est-grade { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 26px; align-items: start; }
 .est-pastas { min-width: 0; }
 .est-pastas .grupo-rot:first-child { padding-top: 6px; }
-.est-pastas .chat-item { width: 100%; }
+/* A regra genérica de botão centraliza; aqui é lista, e lista lê da esquerda.
+   Sem isto os nomes das avaliações saíam centralizados e a coluna virava sopa. */
+.est-pastas .chat-item {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
 .est-corpo { min-width: 0; }
 .est-cabeca { align-items: center; gap: 8px; position: relative; }
 .est-cabeca h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
