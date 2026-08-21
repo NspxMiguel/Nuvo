@@ -24,7 +24,10 @@ const CANDIDATES = [
 const CLI_CANDIDATES = [
   { name: 'Claude Code (CLI)', command: 'claude', args: ['-p'] },
   { name: 'Codex (CLI)', command: 'codex', args: ['exec', '--skip-git-repo-check', '-'] },
-  { name: 'Gemini (CLI)', command: 'gemini', args: ['-p'] },
+  // O `-p` do Gemini quer o prompt como ARGUMENTO, não pelo stdin: com `-p`
+  // sozinho ele responde "Not enough arguments following: p" e mostra o --help,
+  // o que na tela virava "essa IA não respondeu" com o texto da ajuda dentro.
+  { name: 'Gemini (CLI)', command: 'gemini', args: ['-p', '{{prompt}}'] },
   { name: 'opencode (CLI)', command: 'opencode', args: ['run'] }
 ];
 

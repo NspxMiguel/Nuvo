@@ -394,6 +394,15 @@ function migrate() {
     }
   }
 
+  // Gemini cadastrado antes do conserto ficou com `args: ['-p']`, e com isso ele
+  // respondia o próprio --help em vez da resposta. Reescrever só o caso exato
+  // deixa quem editou o comando na mão em paz.
+  for (const linha of all("SELECT id, config FROM providers WHERE kind = 'cli'")) {
+    const cfg = parseJSON(linha.config, {});
+    if (JSON.stringify(cfg.args) !== '["-p"]' || !/gemini/i.test(cfg.command || '')) continue;
+    run('UPDATE providers SET config = ? WHERE id = ?', JSON.stringify({ ...cfg, args: ['-p', '{{prompt}}'] }), linha.id);
+  }
+
   // Chave de desduplicação da memória.
   if (addColumn('memories', 'norm', 'TEXT')) {
     for (const row of all('SELECT id, text FROM memories')) {
