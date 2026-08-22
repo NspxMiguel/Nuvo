@@ -5,6 +5,18 @@ estiver entregue e conferido.
 
 ---
 
+## 21/08/2026 — fazer tudo funcionar, com prova de verdade
+
+> "faz tudo funcionar. testa tudo tudo tudo, coloca provas achadas na internet e
+> etc, pra tudo funcionar bem"
+
+- [ ] **provas de verdade, achadas na internet**, dentro do app
+- [ ] **exercitar o fluxo inteiro** — anexar, montar retrato, gerar os dez
+      formatos, revisar cartões — com IA de verdade, não com dado semeado
+- [ ] **consertar tudo o que quebrar no caminho**
+
+---
+
 ## 21/08/2026 — a varrida geral, o NotebookLM por padrão e a UI grande
 
 > "e tbm n da pra saber, qual é conteudo de prova, e qual n é"
