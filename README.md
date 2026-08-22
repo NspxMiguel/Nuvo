@@ -225,8 +225,111 @@ sem restrição e, no Gemini, envia `safetySettings: BLOCK_NONE`. Em modelo loca
 isso remove o filtro de fato. Em API hospedada, o provedor continua aplicando a
 política dele — o sinalizador não muda isso.
 
+## Estudos
+
+Um professor por vez. Dentro dele, as avaliações passadas e o material de aula —
+e a diferença entre os dois é o produto.
+
+Cada arquivo tem um papel, e a tela diz qual em todo lugar em que ele aparece:
+
+| Papel | O que é |
+| --- | --- |
+| prova | o documento como o professor entregou |
+| conteúdo | o que aquela prova cobrou de verdade |
+| aula | o que ele ensinou no período |
+
+**O retrato do professor** sai das provas passadas em duas passadas: uma leitura
+por prova, depois uma síntese sobre todas. O esqueleto não foi inventado — é a
+tabela de especificações que se usa pra montar prova de verdade: conteúdo ×
+nível cognitivo (Bloom) × formato de questão × peso. Ela é verificável, o que
+"estilo do professor" não é: cada achado vem com o trecho literal da prova que o
+sustenta, e a tela mostra esse trecho do lado.
+
+Prova é amostra; material de aula é o universo. A distância entre os dois é o que
+o retrato chama de "ensina e nunca cobrou".
+
+A leitura de cada prova fica guardada com a impressão digital dos arquivos e do
+modelo: ler cinco provas leva minutos, e uma falha na síntese não pode jogar isso
+fora. Trocar de modelo ou anexar outra prova muda a impressão digital, então a
+leitura é refeita.
+
+**O estúdio** gera dez formatos: simulado, guia de estudo, cartões, quiz, resumo,
+mapa mental, linha do tempo, conversa em áudio, infográfico e slides. A geração
+tem duas mãos: o NotebookLM lê o material e rascunha, e a IA escolhida reescreve
+o rascunho com o retrato por cima — é esse segundo passo que transforma "um
+simulado de biologia" em "a prova que este professor faria". Nenhuma das duas é
+ponto único de falha: sem NotebookLM ligado, a segunda mão lê os arquivos direto;
+escolhendo o NotebookLM no seletor, não há segunda mão.
+
+**A revisão** usa FSRS-4.5 — dificuldade, estabilidade e recuperabilidade por
+cartão. É o que o NotebookLM e os concorrentes não têm: eles geram material e
+param ali.
+
 ## Estrutura
 
+```
+bin/nuvo.mjs      entrada de linha de comando
+server/
+  index.mjs            HTTP: estáticos, autenticação por token, roteamento
+  api.mjs              rotas /api
+  config.mjs           ~/.nuvo, segredos, token
+  db.mjs               esquema SQLite + FTS5 e migrações
+  pending-restore.mjs  troca do banco na abertura, quando há restauração pendente
+
+  chat.mjs             uma rodada de conversa, como gerador assíncrono
+  complete.mjs         chamada avulsa a um modelo, com recuo em erro de cota
+  council.mjs          conselho de IAs e votação cega
+  memory.mjs           recuperação híbrida, extração, escrita
+  vectors.mjs          embeddings, cosseno e consulta FTS
+  documents.mjs        anexo, chunking, recuperação por trecho
+  extract.mjs          texto de PDF, DOCX, PPTX, EPUB e código
+  visao.mjs            imagem lida por modelo que enxerga
+  texto-do-modelo.mjs  tira a marcação que o modelo inventa
+
+  estudos.mjs          professor, pastas, saídas e a leitura guardada de cada prova
+  retrato.mjs          o retrato do professor: tabela de especificações a partir das provas
+  estudos-formatos.mjs os dez formatos do estúdio, em duas mãos
+  cartoes.mjs          cartões e a fila de revisão
+  fsrs.mjs             FSRS-4.5, função pura
+
+  web.mjs              busca e leitura de página
+  research.mjs         pesquisa profunda com relatório
+  navegador.mjs        Chrome dirigido por CDP, com perfil próprio
+  agente-web.mjs       o agente que navega: IA barata pra andar, boa pra responder
+  notebooklm.mjs       o NotebookLM dirigido pela tela dele
+  chromium.mjs         baixar o Chrome for Testing quando não há navegador
+
+  loja.mjs             vitrine de MCPs e skills, puxada do GitHub
+  catalogo-hf.mjs      catálogo de modelos locais do Hugging Face
+  machine.mjs          o que a máquina aguenta rodar
+  discovery.mjs        varredura de portas e binários
+  importers.mjs        leitura de export do ChatGPT/Claude/Gemini
+  backup.mjs           zip escrito à mão, cópia e restauração
+  service.mjs          launchd, systemd e Agendador de Tarefas
+  desktop.mjs          atalho com ícone, em janela de aplicativo
+  instalar.mjs         instalação do Ollama e companhia
+  errors.mjs           erro do provedor traduzido em instrução
+  erro-traduzivel.mjs  erro que chega na tela no idioma dela
+  idioma.mjs           idioma do servidor
+  projeto-arquivos.mjs árvore de arquivos e anexo dentro do projeto
+  eventos-cli.mjs      passo a passo lido do stream de uma IA de terminal
+  empacotado.mjs       o que muda quando é executável único
+  providers/           um adaptador por tipo de provedor
+web/
+  index.html           casca
+  app.js               chat, barra lateral, paleta, atalhos
+  core.js              estado, API, SSE, peças de interface
+  views.js             painéis
+  view-estudos.js      a tela de Estudos e as dez saídas
+  view-code.js         a tela Programar e o painel de trabalho
+  view-loja.js         a loja
+  dialogo.js           diálogo próprio, sobre <dialog>
+  i18n.js              tradução da tela
+  lugar.js             de onde a pessoa está, pelo fuso
+  md.js                Markdown e destaque de código
+  icons.js             ícones SVG
+  glow.js              o sinal de convergência
+  sw.js                service worker
 ```
 bin/nuvo.mjs      entrada de linha de comando
 server/
