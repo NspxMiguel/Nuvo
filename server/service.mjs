@@ -27,6 +27,19 @@ const { programa: NODE, argumentos: ARGS } = comandoDoServidor(import.meta.url);
 const ENTRY = ARGS[0] || NODE;
 const COMANDO = [NODE, ...ARGS];
 
+/**
+ * Um pedaço do comando como o systemd lê.
+ *
+ * `ExecStart` separa por espaço em branco. Sem aspas, um caminho com espaço no
+ * nome — `/home/eu/My Project/` — virava dois argumentos e o serviço não subia.
+ * O launchd e o Agendador de Tarefas já citavam; só o systemd não.
+ */
+function paraSystemd(pedaco) {
+  return /^[\w@%+=:,./-]+$/.test(pedaco)
+    ? pedaco
+    : `"${pedaco.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
 const LAUNCH_AGENT = join(homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
 const LAUNCH_AGENT_ANTIGO = join(homedir(), 'Library', 'LaunchAgents', `${LABEL_ANTIGO}.plist`);
 const SYSTEMD_UNIT = join(homedir(), '.config', 'systemd', 'user', 'nuvo.service');
@@ -153,7 +166,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${COMANDO.join(' ')}
+ExecStart=${COMANDO.map(paraSystemd).join(' ')}
 Environment=IAUNIFIER_HOME=${DATA_DIR}
 Restart=always
 RestartSec=5

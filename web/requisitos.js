@@ -181,6 +181,14 @@ export const faltaEscolherNavegador = (settings) => settings?.navegador?.fonte =
  */
 export async function perguntarNavegador() {
   const req = await lerRequisitos();
+  // Sem resposta do servidor não dá pra dizer nada sobre navegador: seguir
+  // adiante com tudo `null` desenhava a mesma tela de "não tem navegador
+  // nenhum" que aparece quando de fato não tem, e mandava a pessoa baixar um
+  // Chrome que ela talvez já tenha.
+  if (!req) {
+    toast(t('não deu pra conferir o navegador agora — tente de novo'), 'err');
+    return null;
+  }
   const instalado = req?.navegador?.instalado || null;
   const proprio = req?.navegador?.proprio || null;
   const podeBaixar = Boolean(req?.navegador?.plataforma);

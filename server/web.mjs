@@ -113,7 +113,12 @@ export async function readPage(url, { maxChars = 12000, signal } = {}) {
   const type = res.headers.get('content-type') || '';
   const body = await res.text();
 
-  if (!type.includes('html')) {
+  // O cabeçalho é o primeiro palpite, não a palavra final. Servidor mal
+  // configurado, bucket estático e página de erro mandam HTML dizendo
+  // `text/plain`, e acreditar nele entregava a página com as tags todas pro
+  // modelo — exatamente o que a limpeza aqui existe pra evitar.
+  const pareceHtml = type.includes('html') || /^\s*<(!doctype\s+html|html)\b/i.test(body);
+  if (!pareceHtml) {
     return { url, title: url, text: body.slice(0, maxChars) };
   }
 

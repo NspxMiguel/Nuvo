@@ -124,7 +124,9 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
       batch.map(async (hit) => {
         try {
           const page = await readPage(hit.url, { maxChars: 7000, signal });
-          return { ...hit, text: page.text, title: page.title || hit.title };
+          // A explicação de "monta o conteúdo por JavaScript" vinha e era
+          // jogada fora aqui: a tela dizia "0 caracteres" sem dizer por quê.
+          return { ...hit, text: page.text, title: page.title || hit.title, error: page.note || null };
         } catch (err) {
           return { ...hit, text: '', ...corpoDoErro(err) };
         }
@@ -144,7 +146,16 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
 
   const usable = pages.filter((p) => p.text.length > 200);
   if (!usable.length) {
-    yield { type: 'error', message: 'as páginas não abriram ou vieram vazias — sem fonte não escrevo relatório' };
+    // Dois motivos diferentes davam a mesma frase. Página que abriu com texto
+    // curto — o "404" que responde 200, por exemplo — não é página que não
+    // abriu, e dizer que não abriu manda procurar o problema no lugar errado.
+    const abriuAlguma = pages.some((p) => !p.error && p.text.length);
+    yield {
+      type: 'error',
+      message: abriuAlguma
+        ? 'as páginas abriram, mas trouxeram texto de menos — sem fonte não escrevo relatório'
+        : 'as páginas não abriram ou vieram vazias — sem fonte não escrevo relatório'
+    };
     return;
   }
 

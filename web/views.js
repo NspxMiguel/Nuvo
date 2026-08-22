@@ -2367,7 +2367,10 @@ views.council = function renderCouncil(el, { switchView }) {
             );
             wireCodeCopy(out);
           } else if (ev.type === 'votes') {
-            const vencedor = ev.ranked[0]?.average != null ? ev.ranked[0].ref : null;
+            // Empatado no topo não há vencedor: coroar o primeiro do array é
+            // dizer que ele ganhou quando quem escolheu foi a ordem da lista.
+            const vencedor =
+              ev.ranked[0]?.average != null && !ev.empate ? ev.ranked[0].ref : null;
             const tira = recolher(vencedor);
             const falharam = [...cols.values()]
               .filter((c) => c.classList.contains('fail'))
@@ -2411,8 +2414,16 @@ views.council = function renderCouncil(el, { switchView }) {
                    ev.anuladas
                      ? `<div class="placar-nota">${icon('alert', 16)} <span>${plural(
                          ev.anuladas,
-                         '1 voto anulado: a nota veio fora da escala de 0 a 10.',
-                         '{n} votos anulados: a nota veio fora da escala de 0 a 10.'
+                         '1 voto anulado: a nota veio fora da escala de 0 a 10, ou faltando.',
+                         '{n} votos anulados: a nota veio fora da escala de 0 a 10, ou faltando.'
+                       )}</span></div>`
+                     : ''
+                 }
+                 ${
+                   ev.empate
+                     ? `<div class="placar-nota">${icon('alert', 16)} <span>${t(
+                         '{n} respostas empataram na frente — não houve vencedora.',
+                         { n: formatarNumero(ev.empate) }
                        )}</span></div>`
                      : ''
                  }

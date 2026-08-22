@@ -91,6 +91,9 @@ function recuperar() {
   }
 }
 
+/** Redesenha as abas com a contagem de agora. Trocada a cada render da tela. */
+let pintarAbas = () => {};
+
 /** A lista depois de categoria, busca e ordem. */
 function visiveis() {
   const busca = estado.busca.trim().toLowerCase();
@@ -223,21 +226,34 @@ export async function viewLoja(el) {
   estado.quando = dados?.quando || null;
   estado.erro = dados?.erro || null;
 
-  const conta = (id) => estado.itens.filter((i) => id === 'tudo' || i.categoria === id).length;
+  // A contagem da aba tem que valer pra lista que a aba vai mostrar. Ignorando a
+  // busca, "MCP 180" ficava escrito ao lado de uma lista de três itens.
+  const conta = (id) => {
+    const busca = estado.busca.trim().toLowerCase();
+    return estado.itens.filter((i) => {
+      if (id !== 'tudo' && i.categoria !== id) return false;
+      if (!busca) return true;
+      return `${i.id} ${i.descricao} ${i.topicos.join(' ')}`.toLowerCase().includes(busca);
+    }).length;
+  };
   const todas = [{ id: 'tudo', rotulo: 'Tudo' }, ...estado.categorias];
   // Categoria guardada que sumiu do servidor deixaria a tela vazia sem dizer
   // por quê — voltar pra "Tudo" é o único jeito que mostra alguma coisa.
   if (!todas.some((c) => c.id === estado.categoria)) estado.categoria = 'tudo';
 
-  abas.innerHTML = todas
-    .map(
-      (c) => `<button type="button" role="tab" data-cat="${escapeHtml(c.id)}"
+  // Guardada porque a busca precisa dela: o número da aba muda a cada tecla.
+  pintarAbas = () => {
+    abas.innerHTML = todas
+      .map(
+        (c) => `<button type="button" role="tab" data-cat="${escapeHtml(c.id)}"
         aria-selected="${c.id === estado.categoria}"
         class="loja-aba${c.id === estado.categoria ? ' ativa' : ''}">
         ${escapeHtml(ROTULOS[c.id]?.() ?? c.rotulo)} <small>${formatarNumero(conta(c.id))}</small>
       </button>`
-    )
-    .join('');
+      )
+      .join('');
+  };
+  pintarAbas();
 
   el.querySelector('#loja-fonte').textContent = procedencia();
   pintarLista(el);
@@ -250,11 +266,7 @@ function ligarControles(el, abas, ordem, q) {
     if (!btn) return;
     estado.categoria = btn.dataset.cat;
     estado.mostrando = PAGINA;
-    for (const b of abas.querySelectorAll('[data-cat]')) {
-      const ativa = b.dataset.cat === estado.categoria;
-      b.classList.toggle('ativa', ativa);
-      b.setAttribute('aria-selected', String(ativa));
-    }
+    pintarAbas();
     guardar();
     pintarLista(el);
   };
@@ -275,6 +287,7 @@ function ligarControles(el, abas, ordem, q) {
     atraso = setTimeout(() => {
       estado.busca = q.value;
       estado.mostrando = PAGINA;
+      pintarAbas();
       pintarLista(el);
     }, 120);
   };

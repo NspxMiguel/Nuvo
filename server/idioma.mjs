@@ -39,8 +39,13 @@ export function lerAceitos(cabecalho) {
         .find(Boolean);
       // `q` que não dá pra ler vale 1, como se não estivesse lá: o idioma
       // continua sendo um que a pessoa configurou.
-      const peso = q ? Number(q[1]) : 1;
-      return { etiqueta: etiqueta.trim(), peso: Number.isFinite(peso) ? peso : 1, ordem };
+      //
+      // O RFC 7231 fecha a escala em 0 a 1. Fora dela, o número é aparado em
+      // vez de aceito: `q=9` valia nove e furava a fila de um idioma escolhido
+      // com `q=1`, e `q=-1` continua fora, que é o que `q=0` já quer dizer.
+      const bruto = q ? Number(q[1]) : 1;
+      const peso = Number.isFinite(bruto) ? Math.min(1, Math.max(0, bruto)) : 1;
+      return { etiqueta: etiqueta.trim(), peso, ordem };
     })
     .filter((x) => x.etiqueta && x.peso > 0)
     .sort((a, b) => b.peso - a.peso || a.ordem - b.ordem)

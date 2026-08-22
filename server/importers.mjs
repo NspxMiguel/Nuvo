@@ -93,12 +93,12 @@ export function parseExport(raw, filename = '') {
   if (Array.isArray(data) && data.some((c) => c && c.chat_messages)) {
     return data.map((conv) => ({
       title: conv.name || 'conversa',
-      turns: (conv.chat_messages || [])
+      turns: (Array.isArray(conv.chat_messages) ? conv.chat_messages : [])
         .map((m) => ({
           role: m.sender === 'assistant' ? 'assistant' : 'user',
           text:
             m.text ||
-            (m.content || [])
+            (Array.isArray(m.content) ? m.content : [])
               .map((c) => c?.text || '')
               .join('\n')
               .trim()

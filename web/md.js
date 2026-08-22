@@ -177,10 +177,13 @@ export function renderMarkdown(source) {
       const rows = [];
       while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(tableRow(lines[i++]));
       out.push(
+        // A linha segue o cabeçalho, não a si mesma. Modelo escreve tabela com
+        // uma célula a mais numa linha e a menos noutra o tempo todo; sem isso,
+        // a coluna extra empurrava o resto e a tabela saía torta.
         `<div class="table-wrap"><table><thead><tr>${head
           .map((c) => `<th>${inline(c)}</th>`)
           .join('')}</tr></thead><tbody>${rows
-          .map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`)
+          .map((r) => `<tr>${head.map((_, n) => `<td>${inline(r[n] ?? '')}</td>`).join('')}</tr>`)
           .join('')}</tbody></table></div>`
       );
       continue;

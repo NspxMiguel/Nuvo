@@ -106,7 +106,10 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
     for (const round of rounds) {
       const dentroDaEscala = round.order.every((_, position) => {
         const grade = Number(round.parsed[position]?.nota);
-        return !Number.isFinite(grade) || (grade >= 0 && grade <= 10);
+        // Nota faltando anula a cédula junto com nota fora da escala. Aceitar a
+        // ausência deixava um jurado votar em uma candidata só: as outras
+        // ficavam com um voto a menos e a média saía enviesada, sem ninguém ver.
+        return Number.isFinite(grade) && grade >= 0 && grade <= 10;
       });
       if (!dentroDaEscala) {
         anuladas++;
@@ -129,7 +132,11 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
       })
       .sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
 
-    yield { type: 'votes', ranked, anuladas };
+    // Empate na primeira colocação é informação, não detalhe: sem dizer, a tela
+    // aponta um vencedor escolhido pela ordem do array e quem lê acha que ele
+    // ganhou de verdade.
+    const empate = ranked.filter((r) => r.average != null && r.average === ranked[0]?.average);
+    yield { type: 'votes', ranked, anuladas, empate: empate.length > 1 ? empate.length : 0 };
 
     const winner = ranked[0];
     if (winner?.average != null) {
