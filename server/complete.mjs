@@ -124,7 +124,48 @@ export function parseJsonObject(text) {
       }
     }
   }
-  return null;
+  // Chegou ao fim com chave aberta: a resposta foi cortada no meio. Trinta e
+  // sete cartões viravam zero por causa do último, que veio pela metade.
+  return remendarCortado(bruto.slice(inicio));
+}
+
+/**
+ * Fecha um JSON que o modelo deixou pela metade.
+ *
+ * Corta no último item completo — a última vírgula ou o último `}` fora de
+ * texto — e fecha o que ficou aberto. Vale a pena porque o corte quase sempre
+ * cai no fim de uma lista longa: o que veio antes está inteiro e é a maior
+ * parte do trabalho.
+ */
+function remendarCortado(corpo) {
+  const pilha = [];
+  let ultimoBom = -1;
+  let dentroDeTexto = false;
+  let escapado = false;
+  for (let i = 0; i < corpo.length; i += 1) {
+    const c = corpo[i];
+    if (dentroDeTexto) {
+      if (escapado) escapado = false;
+      else if (c === '\\') escapado = true;
+      else if (c === '"') dentroDeTexto = false;
+      continue;
+    }
+    if (c === '"') dentroDeTexto = true;
+    else if (c === '{' || c === '[') pilha.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') {
+      pilha.pop();
+      // Item de lista fechado com a lista ainda aberta: daqui dá pra cortar.
+      if (pilha.length) ultimoBom = i;
+    } else if (c === ',' && pilha.length) ultimoBom = i - 1;
+  }
+  if (ultimoBom < 0 || !pilha.length) return null;
+  const remendado = corpo.slice(0, ultimoBom + 1) + pilha.reverse().join('');
+  try {
+    const lido = JSON.parse(remendado);
+    return lido && typeof lido === 'object' && !Array.isArray(lido) ? lido : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Extrai o primeiro array JSON de uma resposta que veio com conversa em volta. */

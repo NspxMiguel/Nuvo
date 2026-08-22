@@ -1,7 +1,7 @@
 // Adaptador OpenAI-compatível. Cobre a maior parte do mundo: OpenAI, Groq,
 // DeepSeek, OpenRouter, xAI, Mistral, LM Studio, llama.cpp, vLLM, LocalAI.
 
-import { sseData, ensureOk, trimUrl } from './util.mjs';
+import { sseData, ensureOk, separarPensamento, trimUrl } from './util.mjs';
 
 export const kind = 'openai';
 
@@ -42,6 +42,9 @@ export async function* stream(ctx, req) {
   });
   await ensureOk(res, 'chat');
 
+  // Estado da separação do `<think>`: a marca pode chegar partida entre dois
+  // pedaços do stream, então ela atravessa as voltas do laço.
+  let pensando = { dentro: false, sobra: '' };
   for await (const payload of sseData(res)) {
     let json;
     try {
@@ -51,11 +54,16 @@ export async function* stream(ctx, req) {
     }
     if (json.error) throw new Error(json.error.message || 'erro do provedor');
     const choice = json.choices?.[0];
-    const delta = choice?.delta?.content ?? choice?.text;
+    const bruto = choice?.delta?.content ?? choice?.text;
     // Modelos de raciocínio locais mandam o pensamento num campo separado.
     const think = choice?.delta?.reasoning_content ?? choice?.delta?.reasoning;
     if (think) yield { reasoning: think };
-    if (delta) yield { delta };
+    if (bruto) {
+      const partido = separarPensamento(bruto, pensando);
+      pensando = partido.estado;
+      if (partido.reasoning) yield { reasoning: partido.reasoning };
+      if (partido.delta) yield { delta: partido.delta };
+    }
     if (json.usage) {
       yield {
         usage: {

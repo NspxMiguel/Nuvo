@@ -87,3 +87,26 @@ test('a frase vai com o molde, pra tela poder traduzir', () => {
   // tem que passá-lo pelo dicionário em vez de deixá-lo em português.
   assert.deepEqual(err.i18n.traduzir, ['cru']);
 });
+
+test('resposta cortada no meio não vira zero — o que veio inteiro é aproveitado', async () => {
+  // Resposta longa cortada pelo teto de saída do modelo: trinta e sete cartões
+  // viravam nenhum por causa do trigésimo oitavo, que veio pela metade.
+  const { parseJsonObject } = await import('../server/complete.mjs');
+
+  assert.deepEqual(
+    parseJsonObject('{"cartoes":[{"frente":"a","verso":"b"},{"frente":"c","verso":"d"},{"frente":"e","ver'),
+    { cartoes: [{ frente: 'a', verso: 'b' }, { frente: 'c', verso: 'd' }, { frente: 'e' }] }
+  );
+  assert.deepEqual(parseJsonObject('{"cartoes":[{"frente":"a","verso":"b"},'), {
+    cartoes: [{ frente: 'a', verso: 'b' }]
+  });
+  assert.deepEqual(parseJsonObject('{"questoes":[{"n":1}],"faltou":["a","b'), {
+    questoes: [{ n: 1 }],
+    faltou: ['a']
+  });
+
+  // O que já era inteiro continua igual, e o que não dá pra salvar continua nulo.
+  assert.deepEqual(parseJsonObject('```json\n{"a":[1,2,3]}\n```'), { a: [1, 2, 3] });
+  assert.equal(parseJsonObject('não é json nenhum'), null);
+  assert.equal(parseJsonObject('{"cartoes":[{"frente":"a'), null, 'sem um item inteiro, não há o que salvar');
+});

@@ -12,6 +12,7 @@ const google = await import('../server/providers/google.mjs');
 const ollama = await import('../server/providers/ollama.mjs');
 const cli = await import('../server/providers/cli.mjs');
 const { parseRef, refOf } = await import('../server/providers/index.mjs');
+const { separarPensamento } = await import('../server/providers/util.mjs');
 
 after(() => home.cleanup());
 
@@ -574,4 +575,39 @@ test('corpo da resposta é fechado quando o stream acaba antes do fim', async ()
     stub.restore();
   }
   assert.equal(resposta.cancelado.vezes, 1, 'o corpo tinha que ter sido fechado');
+});
+
+test('o pensamento em <think> vai pro canal de raciocínio, não pra resposta', () => {
+  // Qwen, DeepSeek e vários modelos abertos não usam `reasoning_content`:
+  // escrevem `<think>…</think>` dentro do texto. O app mostrava o rascunho da
+  // IA pensando em voz alta como se fosse a resposta.
+  const passar = (pedacos) => {
+    let estado = { dentro: false, sobra: '' };
+    let delta = '';
+    let reasoning = '';
+    for (const p of pedacos) {
+      const s = separarPensamento(p, estado);
+      estado = s.estado;
+      delta += s.delta;
+      reasoning += s.reasoning;
+    }
+    return { delta, reasoning, estado };
+  };
+
+  assert.deepEqual(passar(['<think>penso</think>resposta']), {
+    delta: 'resposta',
+    reasoning: 'penso',
+    estado: { dentro: false, sobra: '' }
+  });
+
+  // A marca chega partida entre dois pedaços do stream — é o caso que quebra
+  // qualquer solução que olhe um pedaço por vez.
+  const partido = passar(['<thi', 'nk>penso', ' mais</thi', 'nk>fim']);
+  assert.equal(partido.delta, 'fim');
+  assert.equal(partido.reasoning, 'penso mais');
+
+  // Sem pensamento nenhum, nada muda — e um `<` solto não some do texto.
+  assert.equal(passar(['só a resposta']).delta, 'só a resposta');
+  assert.equal(passar(['a < b e c > d']).delta, 'a < b e c > d');
+  assert.equal(passar(['antes <think>meio</think> depois']).delta, 'antes  depois');
 });

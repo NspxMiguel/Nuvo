@@ -19,6 +19,7 @@
 import { complete, describeModel, parseJsonObject } from './complete.mjs';
 import { listAttachments, textoDoAnexo } from './documents.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
+import { semMarcacao } from './texto-do-modelo.mjs';
 import { acharProfessor, guardarLeitura, leituraGuardada, pastasDo } from './estudos.mjs';
 import { now, run } from './db.mjs';
 import { createHash } from 'node:crypto';
@@ -38,6 +39,17 @@ const TETO_POR_PROVA = 18_000;
  * muda a chave. Reaproveitar a leitura de um modelo com o nome de outro seria
  * mentira no campo "modelo" do retrato.
  */
+/**
+ * O erro é de tamanho do pedido?
+ *
+ * Cada provedor escreve de um jeito: 413, "request too large", "context length
+ * exceeded", "maximum context". Encolher e tentar de novo só faz sentido nesses.
+ */
+function naoCoube(err) {
+  if (err?.httpStatus === 413) return true;
+  return /too large|context length|maximum context|reduce your message/i.test(String(err?.message || ''));
+}
+
 function impressao(provas, ref) {
   const fonte = provas
     .map((a) => `${a.id}:${a.chunks || 0}:${a.updated_at || a.created_at || ''}`)
@@ -104,7 +116,7 @@ function fracao(valor) {
   return n > 1 ? n / 100 : Math.max(n, 0);
 }
 
-const texto = (v, limite = 300) => String(v ?? '').trim().slice(0, limite);
+const texto = (v, limite = 300) => semMarcacao(v).trim().slice(0, limite);
 const lista = (v) => (Array.isArray(v) ? v : []);
 
 /**
@@ -246,17 +258,31 @@ export async function* montarRetrato({ professorId, ref, signal }) {
       yield { type: 'lida', nome: pasta.nome, questoes: lista(lido.questoes).length, cortado, guardada: true };
       continue;
     }
-    try {
-      const saida = await complete(ref, {
-        system: PROMPT_PROVA,
-        prompt: `Prova: ${pasta.nome}\n\n${corpo}`,
-        temperature: 0,
-        signal
-      });
-      lido = parseJsonObject(saida.text);
-    } catch (err) {
+    // Duas tentativas, como na síntese: modelo pequeno erra o formato na
+    // primeira e acerta quando o pedido vira ordem. Sem isto, uma prova densa
+    // saía como "a IA não devolveu a estrutura" na primeira topada.
+    let erro = null;
+    for (let tentativa = 0; tentativa < 2 && !lido?.questoes?.length; tentativa += 1) {
       if (signal?.aborted) return;
-      yield { type: 'pulada', nome: pasta.nome, porque: err?.message || String(err) };
+      try {
+        const saida = await complete(ref, {
+          system: PROMPT_PROVA,
+          prompt:
+            tentativa === 0
+              ? `Prova: ${pasta.nome}\n\n${corpo}`
+              : `Prova: ${pasta.nome}\n\n${corpo}\n\nDevolva SOMENTE o objeto JSON, começando em { e terminando em }. Nada antes, nada depois.`,
+          temperature: 0,
+          signal
+        });
+        lido = parseJsonObject(saida.text);
+      } catch (err) {
+        if (signal?.aborted) return;
+        erro = err;
+        break;
+      }
+    }
+    if (erro) {
+      yield { type: 'pulada', nome: pasta.nome, porque: erro?.message || String(erro) };
       continue;
     }
     if (!lido || !lista(lido.questoes).length) {
@@ -279,31 +305,54 @@ export async function* montarRetrato({ professorId, ref, signal }) {
 
   // --- passada 2: a síntese ------------------------------------------------
   yield { type: 'sintetizando' };
-  const universo = bloco(materiais, TETO_DO_UNIVERSO);
-  const entrada = [
-    `Professor: ${professor.nome}${professor.materia ? ` (${professor.materia})` : ''}`,
-    `\n# Leitura das provas\n${JSON.stringify(leituras, null, 1)}`,
-    universo.texto
-      ? `\n# O que ele ensina em aula\n${universo.texto}`
-      : '\n# O que ele ensina em aula\n(nada foi anexado)'
-  ].join('\n');
 
+  const monta = (teto) => {
+    const universo = teto ? bloco(materiais, teto) : { texto: '' };
+    return [
+      `Professor: ${professor.nome}${professor.materia ? ` (${professor.materia})` : ''}`,
+      `\n# Leitura das provas\n${JSON.stringify(leituras, null, 1)}`,
+      universo.texto
+        ? `\n# O que ele ensina em aula\n${universo.texto}`
+        : '\n# O que ele ensina em aula\n(nada foi anexado)'
+    ].join('\n');
+  };
+
+  // O pedido encolhe quando não cabe. Modelo de cota apertada recusa 9 mil
+  // tokens com 413, e o pedaço grande do pedido é o material de aula — a
+  // leitura das provas é o que não pode faltar. Cortar o material dá um retrato
+  // com menos "ele ensina e nunca cobrou"; não cortar dá retrato nenhum.
+  const tetos = [TETO_DO_UNIVERSO, Math.round(TETO_DO_UNIVERSO / 3), 0];
   let retrato = null;
-  for (let tentativa = 0; tentativa < 2 && !retrato; tentativa += 1) {
-    if (signal?.aborted) return;
-    const saida = await complete(ref, {
-      system: PROMPT_SINTESE,
-      // A segunda tentativa é mais dura de propósito: modelo que já errou o
-      // formato uma vez costuma errar de novo com o mesmo pedido.
-      prompt: tentativa === 0 ? entrada : `${entrada}\n\nDevolva SOMENTE o objeto JSON. Nada antes, nada depois.`,
-      temperature: 0,
-      signal
-    });
-    retrato = limparRetrato(parseJsonObject(saida.text));
-    if (!retrato && tentativa === 0) yield { type: 'repetindo' };
+  let apertado = false;
+  for (const teto of tetos) {
+    const entrada = monta(teto);
+    for (let tentativa = 0; tentativa < 2 && !retrato; tentativa += 1) {
+      if (signal?.aborted) return;
+      let saida;
+      try {
+        saida = await complete(ref, {
+          system: PROMPT_SINTESE,
+          // A segunda tentativa é mais dura de propósito: modelo que já errou o
+          // formato uma vez costuma errar de novo com o mesmo pedido.
+          prompt: tentativa === 0 ? entrada : `${entrada}\n\nDevolva SOMENTE o objeto JSON. Nada antes, nada depois.`,
+          temperature: 0,
+          signal
+        });
+      } catch (err) {
+        if (signal?.aborted) return;
+        if (!naoCoube(err) || teto === 0) throw err;
+        apertado = true;
+        yield { type: 'apertando', teto };
+        break;
+      }
+      retrato = limparRetrato(parseJsonObject(saida.text));
+      if (!retrato && tentativa === 0) yield { type: 'repetindo' };
+    }
+    if (retrato) break;
   }
 
   if (!retrato) throw erroHttp(422, 'a IA não devolveu um retrato utilizável — tente com outro modelo');
+  if (apertado) retrato.apertado = true;
 
   retrato.confianca = confianca({ provas: leituras.length, materiais: materiais.length });
   retrato.fontes = leituras.map((l) => ({ prova: l.nome, questoes: lista(l.questoes).length }));

@@ -1101,6 +1101,12 @@ async function montarRetrato(el, prof, botao, ref, ctx) {
         dizer(foraDoRetrato[foraDoRetrato.length - 1]);
       }
       if (ev.type === 'sintetizando') dizer(t('juntando tudo…'));
+      // O pedido não coube no modelo: o material de aula sai primeiro, porque a
+      // leitura das provas é a parte que não pode faltar.
+      if (ev.type === 'apertando') {
+        foraDoRetrato.push(t('o modelo não aceitou o pedido inteiro — o material de aula entrou cortado'));
+        dizer(foraDoRetrato[foraDoRetrato.length - 1]);
+      }
       if (ev.type === 'repetindo') dizer(t('a resposta veio torta, pedindo de novo…'));
       if (ev.type === 'error') throw new Error(ev.message);
     });

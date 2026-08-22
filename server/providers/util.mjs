@@ -89,3 +89,55 @@ function quantoEsperar(cabecalho, corpo) {
 export function trimUrl(url) {
   return String(url || '').replace(/\/+$/, '');
 }
+
+/**
+ * Separa o pensamento que vem *dentro* do texto.
+ *
+ * Nem todo modelo de raciocínio usa o campo `reasoning_content`. Qwen, DeepSeek
+ * e vários modelos abertos escrevem `<think>…</think>` no meio da resposta, e o
+ * app mostrava isso como se fosse a resposta — a pessoa lia o rascunho da IA
+ * pensando em voz alta em vez do que ela respondeu.
+ *
+ * A marca pode chegar partida entre dois pedaços do stream (`<thi` e `nk>`), e
+ * por isso a função guarda o que sobrou e devolve estado, em vez de olhar cada
+ * pedaço sozinho.
+ *
+ * @returns {{delta: string, reasoning: string, estado: object}}
+ */
+export function separarPensamento(pedaco, estado = { dentro: false, sobra: '' }) {
+  const ABRE = '<think>';
+  const FECHA = '</think>';
+  let resto = estado.sobra + String(pedaco ?? '');
+  let dentro = estado.dentro;
+  let delta = '';
+  let reasoning = '';
+
+  while (resto) {
+    const marca = dentro ? FECHA : ABRE;
+    const onde = resto.indexOf(marca);
+    if (onde >= 0) {
+      const antes = resto.slice(0, onde);
+      if (dentro) reasoning += antes;
+      else delta += antes;
+      resto = resto.slice(onde + marca.length);
+      dentro = !dentro;
+      continue;
+    }
+    // Sem a marca inteira: segura o fim que ainda pode ser o começo dela.
+    const parcial = fimQuePodeSerMarca(resto, marca);
+    const corpo = parcial ? resto.slice(0, resto.length - parcial) : resto;
+    if (dentro) reasoning += corpo;
+    else delta += corpo;
+    return { delta, reasoning, estado: { dentro, sobra: parcial ? resto.slice(-parcial) : '' } };
+  }
+  return { delta, reasoning, estado: { dentro, sobra: '' } };
+}
+
+/** Tamanho do sufixo de `texto` que é um começo de `marca`. */
+function fimQuePodeSerMarca(texto, marca) {
+  const teto = Math.min(marca.length - 1, texto.length);
+  for (let n = teto; n > 0; n -= 1) {
+    if (texto.endsWith(marca.slice(0, n))) return n;
+  }
+  return 0;
+}
