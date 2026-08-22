@@ -27,6 +27,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -68,6 +69,11 @@ TELAS = {
     'tela-cli': {'view': None, 'espera': '.msg.assistant .body', 'roteiro': 'memoria'},
     'tela-programar': {'view': 'code', 'espera': '.cd-passo.fim, .cd-saida', 'roteiro': 'programar'},
     'tela-agente': {'view': None, 'espera': '.msg.assistant .body', 'roteiro': 'agente'},
+    # Estudos não precisa de IA pra fotografar: o que a foto mostra é a tela com
+    # o material dentro — as avaliações com o papel de cada arquivo à esquerda e
+    # os três passos no meio. O retrato exige uma sessão de modelo e ficaria
+    # diferente a cada captura.
+    'tela-estudos': {'view': 'estudos', 'espera': '.est-passos li', 'roteiro': 'estudos'},
 }
 
 # Títulos de conversa que aparecem na barra lateral. São de mentira, e é de
@@ -111,6 +117,35 @@ PERGUNTAS = {
         'en': 'What is the latest Node.js version? Open the official site and tell me, with the address.',
         'es': '¿Cuál es la última versión de Node.js? Abre el sitio oficial y dime, con la dirección.',
     },
+}
+
+# O professor da captura de Estudos. De mentira, e é de propósito: a alternativa
+# seria publicar a prova de uma escola de verdade.
+PROFESSOR = {
+    'pt-BR': ('Ricardo Alves', 'Biologia'),
+    'en': ('Richard Ellis', 'Biology'),
+    'es': ('Ricardo Álvarez', 'Biología'),
+}
+AVALIACOES = {
+    'pt-BR': [f'{t}º trimestre · {p}' for t in (1, 2, 3) for p in ('A1', 'A2')],
+    'en': [f'Term {t} · Test {p}' for t in (1, 2, 3) for p in (1, 2)],
+    'es': [f'{t}º trimestre · {p}' for t in (1, 2, 3) for p in ('A1', 'A2')],
+}
+MATERIAL = {'pt-BR': 'Material da aula', 'en': 'Class material', 'es': 'Material de clase'}
+PROVA = {
+    'pt-BR': 'PROVA — Biologia — 8 questões, 10,0 pontos\n1) Defina respiração celular e cite as três etapas.\n2) Explique a diferença entre fermentação e respiração aeróbica. Justifique.\n3) Analise o gráfico de consumo de oxigênio e explique o platô. Justifique.\n4) Cite duas doenças ligadas à disfunção mitocondrial.',
+    'en': 'TEST — Biology — 8 questions, 10 points\n1) Define cellular respiration and name its three stages.\n2) Explain the difference between fermentation and aerobic respiration. Justify.\n3) Analyse the oxygen consumption graph and explain the plateau. Justify.\n4) Name two diseases linked to mitochondrial dysfunction.',
+    'es': 'EXAMEN — Biología — 8 preguntas, 10 puntos\n1) Define la respiración celular y cita las tres etapas.\n2) Explica la diferencia entre fermentación y respiración aeróbica. Justifica.\n3) Analiza el gráfico de consumo de oxígeno y explica la meseta. Justifica.\n4) Cita dos enfermedades ligadas a la disfunción mitocondrial.',
+}
+CONTEUDO = {
+    'pt-BR': 'O que caiu nesta prova: respiração celular, fermentação, cadeia transportadora, mitocôndria.',
+    'en': 'What this test covered: cellular respiration, fermentation, electron transport chain, mitochondria.',
+    'es': 'Lo que cayó en este examen: respiración celular, fermentación, cadena transportadora, mitocondria.',
+}
+AULA = {
+    'pt-BR': 'Caderno de aula\nAula 1: metabolismo e enzimas.\nAula 2: glicólise.\nAula 3: ciclo de Krebs.\nAula 6: fotossíntese.\nAula 9: biotecnologia.\nAula 10: bioluminescência.\nAula 11: plantas C4.',
+    'en': 'Class notes\nLesson 1: metabolism and enzymes.\nLesson 2: glycolysis.\nLesson 3: Krebs cycle.\nLesson 6: photosynthesis.\nLesson 9: biotechnology.\nLesson 10: bioluminescence.\nLesson 11: C4 plants.',
+    'es': 'Cuaderno de clase\nClase 1: metabolismo y enzimas.\nClase 2: glucólisis.\nClase 3: ciclo de Krebs.\nClase 6: fotosíntesis.\nClase 9: biotecnología.\nClase 10: bioluminiscencia.\nClase 11: plantas C4.',
 }
 
 # O nome do projeto que aparece no seletor da tela Programar.
@@ -218,7 +253,35 @@ def roteiro_agente(idioma):
     return {'chat': conversa['id']}
 
 
+def roteiro_estudos(idioma):
+    """Um professor com prova e material de aula, sem chamar IA nenhuma."""
+    prof = api('/professores', {
+        'nome': PROFESSOR[idioma][0],
+        'materia': PROFESSOR[idioma][1],
+        'organizacao': 'periodo',
+        'pastas': [
+            *[{'nome': n, 'tipo': 'prova'} for n in AVALIACOES[idioma]],
+            {'nome': MATERIAL[idioma], 'tipo': 'material'},
+        ],
+    })
+    hoje = time.time()
+    quando = ['-40', '-8', '3', '25', '60', None]
+    provas = [p for p in prof['pastas'] if p['tipo'] == 'prova']
+    for i, pasta in enumerate(provas):
+        if quando[i] is not None:
+            dia = time.strftime('%Y-%m-%d', time.localtime(hoje + int(quando[i]) * 86400))
+            api(f"/pastas/{pasta['id']}", {'quando': dia}, metodo='PATCH')
+        if i < 3:
+            subir(f"prova-{i + 1}.txt", PROVA[idioma], f"pasta={pasta['id']}&papel=prova")
+            subir(f"conteudo-{i + 1}.txt", CONTEUDO[idioma], f"pasta={pasta['id']}&papel=conteudo")
+    aula = next(p for p in prof['pastas'] if p['tipo'] == 'material')
+    subir('caderno.txt', AULA[idioma], f"pasta={aula['id']}&papel=material")
+    subir('slides.txt', AULA[idioma], f"pasta={aula['id']}&papel=material")
+    return {'professor': prof['id']}
+
+
 ROTEIROS = {
+    'estudos': roteiro_estudos,
     'conselho': roteiro_conselho,
     'memoria': roteiro_memoria,
     'programar': roteiro_programar,
@@ -226,15 +289,27 @@ ROTEIROS = {
 }
 
 
-def api(caminho, corpo=None):
+def api(caminho, corpo=None, metodo=None):
     dados = json.dumps(corpo).encode() if corpo is not None else None
     pedido = urllib.request.Request(
         f'http://127.0.0.1:{PORTA}/api{caminho}',
         data=dados,
         headers={'content-type': 'application/json'},
-        method='POST' if dados else 'GET',
+        method=metodo or ('POST' if dados else 'GET'),
     )
     with urllib.request.urlopen(pedido, timeout=20) as resposta:
+        return json.loads(resposta.read() or b'null')
+
+
+def subir(nome, texto, query):
+    """Um anexo de texto, do jeito que a tela sobe: pelo corpo do pedido."""
+    pedido = urllib.request.Request(
+        f'http://127.0.0.1:{PORTA}/api/attachments?name={urllib.parse.quote(nome)}&{query}',
+        data=texto.encode(),
+        headers={'content-type': 'text/plain'},
+        method='POST',
+    )
+    with urllib.request.urlopen(pedido, timeout=60) as resposta:
         return json.loads(resposta.read() or b'null')
 
 
@@ -361,6 +436,11 @@ def capturar(quais):
                             pg.click('#c-go')
                         # Resposta de IA de verdade demora: o prazo aqui é o da
                         # sessão, não o de uma tela que só precisa pintar.
+                        if tela.get('roteiro') == 'estudos':
+                            # A lista de professores abre primeiro; a foto é a de
+                            # dentro de um professor, que é onde o material está.
+                            pg.wait_for_selector('.est-prof, [data-prof]', timeout=20_000)
+                            pg.click('.est-prof, [data-prof]')
                         if tela.get('roteiro') == 'programar':
                             # O passo a passo mora na aba Trabalho, que não é a
                             # que abre por padrão.

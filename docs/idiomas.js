@@ -40,6 +40,9 @@ window.IDIOMAS = {
     'lp/tela-cli.jpg': 'lp/tela-cli-en.jpg',
     'lp/tela-programar.jpg': 'lp/tela-programar-en.jpg',
     'lp/tela-agente.jpg': 'lp/tela-agente-en.jpg',
+    'lp/tela-estudos.jpg': 'lp/tela-estudos-en.jpg',
+    'A tela de Estudos: as avaliações à esquerda, cada arquivo com o papel dele — prova, o que caiu, aula — e o estúdio com os dez formatos à direita':
+      'The Study screen: the assessments on the left, each file tagged with its role — the exam, what it asked for, class material — and the studio with its ten formats on the right',
 
     'Modo programar': 'Coding mode',
     Programar: 'Code',
@@ -190,6 +193,9 @@ window.IDIOMAS = {
     'lp/tela-cli.jpg': 'lp/tela-cli-es.jpg',
     'lp/tela-programar.jpg': 'lp/tela-programar-es.jpg',
     'lp/tela-agente.jpg': 'lp/tela-agente-es.jpg',
+    'lp/tela-estudos.jpg': 'lp/tela-estudos-es.jpg',
+    'A tela de Estudos: as avaliações à esquerda, cada arquivo com o papel dele — prova, o que caiu, aula — e o estúdio com os dez formatos à direita':
+      'La pantalla de Estudios: las evaluaciones a la izquierda, cada archivo con su papel — examen, lo que cayó, clase — y el estudio con sus diez formatos a la derecha',
 
     'Modo programar': 'Modo programar',
     Programar: 'Programar',
