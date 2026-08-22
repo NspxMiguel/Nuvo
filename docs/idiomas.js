@@ -14,6 +14,24 @@ window.IDIOMAS = {
   en: {
     '@nomes': ['Alex', 'Maya', 'Chris', 'Priya', 'Jordan', 'Amara', 'Noah'],
 
+    'Dez coisas saem daí:': 'Ten things come out of it:',
+    'simulado com cara de prova dele, guia de estudo pelo peso de cada tema, cartões, quiz, resumo, mapa mental, linha do tempo, conversa em áudio, infográfico e slides.': 'a practice exam that looks like theirs, a study guide ordered by the weight of each topic, flashcards, a quiz, a summary, a mind map, a timeline, an audio conversation, an infographic and slides.',
+    'E revisão espaçada.': 'And spaced repetition.',
+    'Os cartões entram numa fila FSRS — dificuldade, estabilidade e recuperabilidade por cartão. É o que os geradores de material não têm: eles produzem e param ali.': 'The cards go into an FSRS queue — difficulty, stability and retrievability per card. It is what material generators do not have: they produce and stop there.',
+    'Entrar continua sendo seu.': 'Signing in stays with you.',
+    'O app não digita senha, código nem nada em campo de login. Você entra uma vez no navegador dele e a sessão fica.': 'The app never types a password, a code or anything into a login field. You sign in once in its browser and the session stays.',
+    'Sem depender do desenho do site.': 'Independent of the site’s design.',
+    'A resposta não é lida da estrutura da página — ela vem entre marcas que o próprio modelo escreve. Site que muda de layout na terça continua funcionando na quarta.': 'The answer is not read from the page structure — it arrives between markers the model itself writes. A site that changes layout on Tuesday still works on Wednesday.',
+
+    'Estudos': 'Study',
+    'Ele lê as provas antigas do seu professor': 'It reads your teacher’s past exams',
+    'Prova passada é amostra do que ele cobra; material de aula é o universo do que ele ensina. A distância entre os dois é a previsão. O app lê as provas e monta o retrato do professor: o peso de cada tema, o nível que ele exige, os verbos que ele usa, e o que ele ensina e nunca cobrou.': 'A past exam is a sample of what they ask for; class material is the universe of what they teach. The distance between the two is the forecast. The app reads the exams and builds the teacher’s portrait: the weight of each topic, the level they demand, the verbs they use, and what they teach and never ask about.',
+    'O esqueleto não foi inventado: é a tabela de especificações que se usa pra montar prova de verdade — conteúdo × nível cognitivo × formato × peso. Cada achado vem com o trecho literal da prova que o sustenta, e a tela mostra esse trecho do lado.': 'The skeleton was not invented here: it is the table of specifications used to build real exams — content × cognitive level × item format × weight. Every finding comes with the literal passage from the exam that supports it, shown right beside it.',
+    'Sem chave de API': 'No API key',
+    'As IAs pelo site delas': 'The AIs through their own websites',
+    'Nem toda IA tem API, e a que tem cobra à parte da assinatura que você já paga. O que já está pago é a sua conta no site. O app usa a tela delas do mesmo jeito que você usa: abre, digita, espera e lê.': 'Not every AI has an API, and the ones that do charge separately from the subscription you already pay. What is already paid for is your account on the site. The app uses their screen the way you do: opens it, types, waits and reads.',
+    'ChatGPT, Claude, Gemini, DeepSeek, GLM, Kimi, Qwen, Grok, Le Chat, Copilot e Perplexity. Cada um vira uma opção no seletor, ao lado das IAs locais e das pagas por uso.': 'ChatGPT, Claude, Gemini, DeepSeek, GLM, Kimi, Qwen, Grok, Le Chat, Copilot and Perplexity. Each becomes an option in the picker, next to the local AIs and the pay-per-use ones.',
+
     // A captura é a do app na língua de quem está lendo: a landing em inglês
     // com a tela do app em português mostra um produto que não existe.
     'lp/tela-conversa.jpg': 'lp/tela-conversa-en.jpg',
@@ -146,6 +164,24 @@ window.IDIOMAS = {
 
   es: {
     '@nomes': ['Miguel', 'Lucía', 'Mateo', 'Sofía', 'Diego', 'Valentina', 'Camila'],
+
+    'Dez coisas saem daí:': 'De ahí salen diez cosas:',
+    'simulado com cara de prova dele, guia de estudo pelo peso de cada tema, cartões, quiz, resumo, mapa mental, linha do tempo, conversa em áudio, infográfico e slides.': 'un simulacro con cara de examen suyo, una guía de estudio por el peso de cada tema, tarjetas, test, resumen, mapa mental, línea de tiempo, conversación en audio, infografía y diapositivas.',
+    'E revisão espaçada.': 'Y repaso espaciado.',
+    'Os cartões entram numa fila FSRS — dificuldade, estabilidade e recuperabilidade por cartão. É o que os geradores de material não têm: eles produzem e param ali.': 'Las tarjetas entran en una cola FSRS — dificultad, estabilidad y recuperabilidad por tarjeta. Es lo que los generadores de material no tienen: producen y ahí paran.',
+    'Entrar continua sendo seu.': 'Entrar sigue siendo tuyo.',
+    'O app não digita senha, código nem nada em campo de login. Você entra uma vez no navegador dele e a sessão fica.': 'La app no escribe contraseñas, códigos ni nada en un campo de acceso. Entras una vez en su navegador y la sesión queda.',
+    'Sem depender do desenho do site.': 'Sin depender del diseño del sitio.',
+    'A resposta não é lida da estrutura da página — ela vem entre marcas que o próprio modelo escreve. Site que muda de layout na terça continua funcionando na quarta.': 'La respuesta no se lee de la estructura de la página — llega entre marcas que el propio modelo escribe. Un sitio que cambia de diseño el martes sigue funcionando el miércoles.',
+
+    'Estudos': 'Estudios',
+    'Ele lê as provas antigas do seu professor': 'Lee los exámenes anteriores de tu profesor',
+    'Prova passada é amostra do que ele cobra; material de aula é o universo do que ele ensina. A distância entre os dois é a previsão. O app lê as provas e monta o retrato do professor: o peso de cada tema, o nível que ele exige, os verbos que ele usa, e o que ele ensina e nunca cobrou.': 'Un examen anterior es la muestra de lo que exige; el material de clase es el universo de lo que enseña. La distancia entre ambos es la predicción. La app lee los exámenes y arma el retrato del profesor: el peso de cada tema, el nivel que exige, los verbos que usa, y lo que enseña y nunca preguntó.',
+    'O esqueleto não foi inventado: é a tabela de especificações que se usa pra montar prova de verdade — conteúdo × nível cognitivo × formato × peso. Cada achado vem com o trecho literal da prova que o sustenta, e a tela mostra esse trecho do lado.': 'El esqueleto no se inventó aquí: es la tabla de especificaciones que se usa para armar exámenes de verdad — contenido × nivel cognitivo × formato × peso. Cada hallazgo viene con el fragmento literal del examen que lo sostiene, mostrado al lado.',
+    'Sem chave de API': 'Sin clave de API',
+    'As IAs pelo site delas': 'Las IAs por su propio sitio',
+    'Nem toda IA tem API, e a que tem cobra à parte da assinatura que você já paga. O que já está pago é a sua conta no site. O app usa a tela delas do mesmo jeito que você usa: abre, digita, espera e lê.': 'No toda IA tiene API, y la que la tiene cobra aparte de la suscripción que ya pagas. Lo que ya está pagado es tu cuenta en el sitio. La app usa su pantalla igual que tú: abre, escribe, espera y lee.',
+    'ChatGPT, Claude, Gemini, DeepSeek, GLM, Kimi, Qwen, Grok, Le Chat, Copilot e Perplexity. Cada um vira uma opção no seletor, ao lado das IAs locais e das pagas por uso.': 'ChatGPT, Claude, Gemini, DeepSeek, GLM, Kimi, Qwen, Grok, Le Chat, Copilot y Perplexity. Cada uno se vuelve una opción del selector, junto a las IAs locales y las de pago por uso.',
 
     // A captura é a do app na língua de quem está lendo.
     'lp/tela-conversa.jpg': 'lp/tela-conversa-es.jpg',
