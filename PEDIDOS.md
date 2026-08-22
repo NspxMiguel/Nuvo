@@ -5,6 +5,16 @@ estiver entregue e conferido.
 
 ---
 
+## 22/08/2026 — continuar consertando
+
+> "continua, corrige tudo e faz tudo funcionar"
+
+- [ ] **varredura de defeito em todo o app**, não só no Estudos
+- [ ] **consertar o que for achado**
+- [ ] **as capturas da landing com o nome antigo** (pendência velha)
+
+---
+
 ## 21/08/2026 — fazer tudo funcionar, com prova de verdade
 
 > "faz tudo funcionar. testa tudo tudo tudo, coloca provas achadas na internet e
