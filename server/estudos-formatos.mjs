@@ -16,12 +16,12 @@ import { getProvider, parseRef } from './providers/index.mjs';
 import { caminhoNoDisco, listAttachments, textoDoAnexo } from './documents.mjs';
 import { gerarNoNotebookLM } from './notebooklm.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
-import { semMarcacao } from './texto-do-modelo.mjs';
+import { cortarNaPalavra, semMarcacao } from './texto-do-modelo.mjs';
 import { acharProfessor, guardarSaida, pastasDo } from './estudos.mjs';
 
 const TETO = 26_000;
 
-const texto = (v, limite = 600) => semMarcacao(v).trim().slice(0, limite);
+const texto = (v, limite = 600) => cortarNaPalavra(semMarcacao(v), limite);
 const lista = (v) => (Array.isArray(v) ? v : []);
 
 /** O retrato virado prompt: é assim que o professor entra na cabeça do modelo. */

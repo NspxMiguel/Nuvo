@@ -2921,19 +2921,35 @@ button.icon { position: relative; }
 .est-termos dt { font-size: 13.5px; font-weight: 600; }
 .est-termos dd { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
 
-/* --- guia de estudo --- */
-.ret-linha { padding: 12px 0; border-top: 1px solid var(--line-soft); }
+/* --- guia de estudo ---
+   Grade em vez de ordem: o tema e o peso dividem a primeira linha, e tudo o que
+   vem depois ocupa a largura toda. Em flexbox, o `margin-left: auto` do peso não
+   valia (ele não é filho de um flex) e o peso caía sozinho embaixo da barra,
+   enquanto o nome do tema espremia em quatro linhas. */
+.ret-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 3px 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
 .ret-linha:first-of-type { border-top: 0; }
-.ret-rot { display: flex; align-items: baseline; gap: 8px; }
-.ret-rot b { font-size: 14.5px; font-weight: 650; }
-.ret-rot .meta { font-size: 12px; color: var(--muted); }
+.ret-linha > * { grid-column: 1 / -1; }
+.ret-rot { grid-column: 1; grid-row: 1; display: grid; gap: 3px; min-width: 0; }
+.ret-rot b { font-size: 15px; font-weight: 650; letter-spacing: -0.015em; }
+.ret-rot .meta { font-size: 12.5px; line-height: 1.45; color: var(--muted); text-wrap: pretty; }
 .ret-num {
-  margin-left: auto;
-  font-size: 13px;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  font-size: 15px;
   font-weight: 650;
-  color: var(--muted);
+  color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+.ret-linha .progress { margin-top: 8px; height: 4px; }
+.ret-linha > p.meta { margin: 8px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
 
 /* --- cartões (a lista, antes de virar revisão) --- */
 .est-cartoes { margin-top: 14px; display: grid; gap: 3px; }

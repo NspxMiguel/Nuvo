@@ -1350,7 +1350,7 @@ function desenharGuia(j) {
           Math.round((tema.peso || 0) * 100),
           100
         )}%"></span></div>
-        <span class="ret-num">${porcento(tema.peso)}</span>
+        <span class="ret-num">${porcento(tema.peso)}%</span>
         ${tema.por_que_cai ? `<p class="meta">${escapeHtml(tema.por_que_cai)}</p>` : ''}
         <ul class="ret-lista">${(tema.o_que_saber || [])
           .map((x) => `<li>${escapeHtml(x)}</li>`)

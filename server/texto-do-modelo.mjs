@@ -36,3 +36,19 @@ export function semMarcacao(valor) {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n');
 }
+
+/**
+ * Corta no limite, mas na palavra inteira.
+ *
+ * Cortar no caractere exato deixa a citação terminando em "com a estrutura do
+ * c", que parece defeito de tela. Voltar até o último espaço e marcar com
+ * reticências diz o que aconteceu: tinha mais, e o resto não coube.
+ */
+export function cortarNaPalavra(valor, limite) {
+  const texto = String(valor ?? '').trim();
+  if (texto.length <= limite) return texto;
+  const pedaco = texto.slice(0, limite - 1);
+  const espaco = pedaco.lastIndexOf(' ');
+  // Palavra única maior que o limite (um endereço, uma fórmula): corta no seco.
+  return (espaco > limite * 0.6 ? pedaco.slice(0, espaco) : pedaco).trimEnd() + '…';
+}

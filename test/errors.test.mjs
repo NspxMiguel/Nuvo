@@ -110,3 +110,35 @@ test('resposta cortada no meio não vira zero — o que veio inteiro é aproveit
   assert.equal(parseJsonObject('não é json nenhum'), null);
   assert.equal(parseJsonObject('{"cartoes":[{"frente":"a'), null, 'sem um item inteiro, não há o que salvar');
 });
+
+test('erro de provedor sai em português também fora da conversa', async () => {
+  // A tradução existia e só valia no chat: quem montava um retrato ou gerava um
+  // simulado recebia `chat: HTTP 429 — {"error":{...}}` na cara.
+  const { createServer } = await import('node:http');
+  const { complete } = await import('../server/complete.mjs');
+  const { createProvider } = await import('../server/providers/index.mjs');
+
+  const srv = createServer((req, res) => {
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { message: 'This model is no longer available' } }));
+  });
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+  const p = createProvider({
+    name: 'Provedor de teste',
+    kind: 'openai',
+    baseUrl: `http://127.0.0.1:${srv.address().port}/v1`,
+    secretName: null,
+    config: { models: ['m'] },
+    auto: 0
+  });
+  try {
+    await assert.rejects(() => complete(`${p.id}:m`, { prompt: 'oi' }), (err) => {
+      assert.match(err.message, /esse modelo não existe mais/);
+      // O código continua no erro: quem chamou ainda pode decidir com ele.
+      assert.equal(err.httpStatus, 404);
+      return true;
+    });
+  } finally {
+    await new Promise((ok) => srv.close(ok));
+  }
+});

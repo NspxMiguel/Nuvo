@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { semMarcacao } from '../server/texto-do-modelo.mjs';
+import { cortarNaPalavra, semMarcacao } from '../server/texto-do-modelo.mjs';
 
 test('marca inventada pelo modelo sai; o texto fica', () => {
   assert.equal(
@@ -42,4 +42,17 @@ test('texto limpo passa intacto', () => {
   assert.equal(semMarcacao(''), '');
   assert.equal(semMarcacao(null), '');
   assert.equal(semMarcacao(undefined), '');
+});
+
+test('corte longo termina em palavra inteira, com reticências', () => {
+  // Citação cortada no caractere exato terminava em "com a estrutura do c", que
+  // a pessoa lê como defeito de tela em vez de "tinha mais".
+  assert.equal(
+    cortarNaPalavra('As provas apresentam questões que solicitam a integração dos conceitos', 40),
+    'As provas apresentam questões que…'
+  );
+  assert.equal(cortarNaPalavra('curto', 40), 'curto');
+  assert.equal(cortarNaPalavra('', 40), '');
+  // Palavra única maior que o limite não tem onde quebrar: corta no seco.
+  assert.equal(cortarNaPalavra('palavramuitolongasemespaco', 12), 'palavramuit…');
 });

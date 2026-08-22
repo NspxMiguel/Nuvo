@@ -6,6 +6,7 @@
 
 import { adapterFor, contextFor, getProvider, parseRef } from './providers/index.mjs';
 import { erroTraduzivel } from './erro-traduzivel.mjs';
+import { explainProviderError } from './errors.mjs';
 
 /**
  * Quanto tempo ainda vale esperar por uma cota que se renova sozinha.
@@ -62,10 +63,25 @@ export async function complete(ref, { system, messages, prompt, temperature, max
       // Cancelar é decisão de quem chamou, não falha de rede: sai na hora.
       if (signal?.aborted) throw err;
       const espera = quantoEsperar(err, tentativa);
-      if (tentativa >= TENTATIVAS || !espera) throw err;
+      if (tentativa >= TENTATIVAS || !espera) throw emPortugues(err, provider);
       await dormir(espera * 1000, signal);
     }
   }
+}
+
+/**
+ * O erro do provedor dito em português, sem perder o que a máquina precisa.
+ *
+ * A tradução já existia e só era usada na conversa: quem gerava um simulado ou
+ * montava um retrato recebia `chat: HTTP 429 — {"error":{...}}` na cara. O
+ * código HTTP viaja junto porque quem chamou pode querer decidir com ele.
+ */
+function emPortugues(err, provider) {
+  const claro = explainProviderError(err, provider);
+  if (err?.httpStatus) claro.httpStatus = err.httpStatus;
+  if (err?.retryAfter) claro.retryAfter = err.retryAfter;
+  if (err?.status) claro.status = err.status;
+  return claro;
 }
 
 /** Segundos até a próxima tentativa, ou 0 quando não vale tentar. */

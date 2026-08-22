@@ -19,7 +19,7 @@
 import { complete, describeModel, parseJsonObject } from './complete.mjs';
 import { listAttachments, textoDoAnexo } from './documents.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
-import { semMarcacao } from './texto-do-modelo.mjs';
+import { cortarNaPalavra, semMarcacao } from './texto-do-modelo.mjs';
 import { acharProfessor, guardarLeitura, leituraGuardada, pastasDo } from './estudos.mjs';
 import { now, run } from './db.mjs';
 import { createHash } from 'node:crypto';
@@ -116,7 +116,7 @@ function fracao(valor) {
   return n > 1 ? n / 100 : Math.max(n, 0);
 }
 
-const texto = (v, limite = 300) => semMarcacao(v).trim().slice(0, limite);
+const texto = (v, limite = 300) => cortarNaPalavra(semMarcacao(v), limite);
 const lista = (v) => (Array.isArray(v) ? v : []);
 
 /**
