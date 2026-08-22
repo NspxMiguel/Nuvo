@@ -561,6 +561,17 @@ function anotarTrabalho(lista, porId, evento) {
   if (evento.tipo === 'saida') {
     const passo = porId.get(evento.id);
     if (passo) passo.ok = evento.ok !== false;
+    return;
+  }
+  // A linha de fechamento — quanto demorou, quantas idas e voltas, quanto
+  // custou — também é passo do trabalho. Ela chegava só pelo stream, então
+  // sumia no primeiro recarregamento e o painel ficava sem o fim da história.
+  if (evento.tipo === 'fim') {
+    const conta = {};
+    if (Number.isFinite(evento.ms)) conta.ms = evento.ms;
+    if (Number.isFinite(evento.custo)) conta.custo = evento.custo;
+    if (Number.isFinite(evento.turnos)) conta.turnos = evento.turnos;
+    if (Object.keys(conta).length) lista.push({ tipo: 'fim', ...conta });
   }
 }
 

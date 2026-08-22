@@ -702,9 +702,11 @@ test('modo Programar manda o passo a passo pra tela e o deixa gravado na mensage
     const fim = eventos.find((e) => e.type === 'done');
     assert.equal(fim.message.content, 'os testes passam.');
     // Recarregar a página joga fora tudo que só existiu no stream: o painel de
-    // trabalho tem que se remontar a partir daqui.
+    // trabalho tem que se remontar a partir daqui — inclusive a linha de
+    // fechamento, que antes só existia no stream e sumia no primeiro F5.
     assert.deepEqual(JSON.parse(fim.message.meta).trabalho, [
-      { acao: 'rodar', titulo: 'rodou npm test', alvo: 'npm test', comando: 'npm test', ok: true }
+      { acao: 'rodar', titulo: 'rodou npm test', alvo: 'npm test', comando: 'npm test', ok: true },
+      { tipo: 'fim', ms: 1200, custo: 0.02, turnos: 1 }
     ]);
   } finally {
     falso.limpar();
@@ -784,7 +786,8 @@ if (!process.argv.includes('--output-format')) { process.stdout.write('texto'); 
     const fim = eventos.find((e) => e.type === 'done');
     assert.ok(fim, 'o turno tem que terminar em done');
     assert.deepEqual(JSON.parse(fim.message.meta).trabalho, [
-      { acao: 'rodar', titulo: 'rodou npm test', alvo: 'npm test', comando: 'npm test', ok: true }
+      { acao: 'rodar', titulo: 'rodou npm test', alvo: 'npm test', comando: 'npm test', ok: true },
+      { tipo: 'fim', ms: 10, custo: 0.01, turnos: 1 }
     ]);
   } finally {
     falso.limpar();

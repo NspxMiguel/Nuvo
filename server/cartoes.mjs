@@ -145,9 +145,31 @@ export function apagarCartao(id) {
   return { ok: true };
 }
 
+/**
+ * O estado que um cartão tinha antes de ser suspenso.
+ *
+ * Quem foi suspenso antes desta versão não guardou nada, então o estado é
+ * deduzido do próprio cartão: sem revisão nenhuma ele é novo de novo; com
+ * revisão, volta pra fila normal.
+ */
+function estadoDeVolta(cartao) {
+  if (cartao.estado_antes) return cartao.estado_antes;
+  return cartao.revisado_em ? 'revisando' : 'novo';
+}
+
 export function suspenderCartao(id, suspenso = true) {
   const cartao = one('SELECT * FROM cartoes WHERE id = ?', id);
   if (!cartao) throw erroHttp(404, 'cartão não encontrado');
-  run('UPDATE cartoes SET estado = ? WHERE id = ?', suspenso ? 'suspenso' : 'revisando', id);
+  if (suspenso) {
+    // Suspender duas vezes não pode gravar 'suspenso' como estado anterior.
+    const antes = cartao.estado === 'suspenso' ? cartao.estado_antes : cartao.estado;
+    run('UPDATE cartoes SET estado = ?, estado_antes = ? WHERE id = ?', 'suspenso', antes || null, id);
+  } else {
+    run(
+      'UPDATE cartoes SET estado = ?, estado_antes = NULL WHERE id = ?',
+      estadoDeVolta(cartao),
+      id
+    );
+  }
   return one('SELECT * FROM cartoes WHERE id = ?', id);
 }

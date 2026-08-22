@@ -628,20 +628,28 @@ export async function renderCode(el, { switchView }) {
       }
       // Só o do último turno: o painel é "o que ela fez agora", e empilhar as
       // respostas todas transformaria a aba num histórico que ninguém pediu.
-      estado.trabalho = (ultimoTrabalho || []).map((passo) => ({
-        tipo: 'ferramenta',
-        id: null,
-        acao: passo.acao || 'outro',
-        titulo: passo.titulo || '',
-        alvo: passo.alvo || '',
-        arquivo: passo.arquivo || '',
-        comando: passo.comando || '',
-        // A saída de cada passo não é gravada — ela é grande e envelhece rápido.
-        // O que volta é o passo e se ele deu certo.
-        texto: null,
-        ok: passo.ok ?? null,
-        aberto: false
-      }));
+      estado.trabalho = (ultimoTrabalho || []).map((passo) =>
+        // A linha de fechamento é gravada como `fim` e volta como `fim`. Forçar
+        // tudo a `ferramenta` transformava "terminou · 8,8 s · custou US$ 0,24"
+        // num passo de ferramenta chamado "terminou", e a conta da aba passava a
+        // incluir uma linha que não é trabalho nenhum.
+        passo.tipo === 'fim'
+          ? { tipo: 'fim', titulo: linhaDoFim(passo), texto: null }
+          : {
+              tipo: 'ferramenta',
+              id: null,
+              acao: passo.acao || 'outro',
+              titulo: passo.titulo || '',
+              alvo: passo.alvo || '',
+              arquivo: passo.arquivo || '',
+              comando: passo.comando || '',
+              // A saída de cada passo não é gravada — ela é grande e envelhece
+              // rápido. O que volta é o passo e se ele deu certo.
+              texto: null,
+              ok: passo.ok ?? null,
+              aberto: false
+            }
+      );
       marcarAbas();
       if (!msgs.children.length) vazio();
     } catch {

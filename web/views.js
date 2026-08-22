@@ -808,10 +808,17 @@ function editGem(card, gem, switchView) {
 
   form.querySelector('.e-cancel').onclick = () => form.remove();
   form.querySelector('.e-save').onclick = async () => {
+    // Perfil sem nome não é editável nem clicável depois: a lista mostra um
+    // cartão em branco. Melhor recusar aqui do que gravar e sumir.
+    const campo = form.querySelector('.e-name');
+    if (!campo.value.trim()) {
+      campo.focus();
+      return toast(t('o perfil precisa de um nome'), 'err');
+    }
     await api(`/gems/${gem.id}`, {
       method: 'PATCH',
       body: {
-        name: form.querySelector('.e-name').value,
+        name: campo.value.trim(),
         icon: picker.icon,
         color: picker.color,
         system_prompt: form.querySelector('.e-prompt').value,

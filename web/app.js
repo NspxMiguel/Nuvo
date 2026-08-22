@@ -377,10 +377,18 @@ async function renderSidebar(filter = '') {
   list.appendChild(toggle);
 }
 
+// Qual busca é a atual. Digitar rápido dispara várias, e a rede não devolve na
+// ordem em que foi chamada: a de "abc" podia chegar depois da de "abcd" e
+// repintar a lista com o resultado de uma palavra que já não está no campo.
+let buscaAtual = 0;
+
 /** Busca do servidor: procura dentro das mensagens e da memória, não só no título. */
 async function deepSearch(query) {
+  const minha = ++buscaAtual;
   if (query.trim().length < 3) return renderSidebar(query);
   const { chats, memories } = await api(`/search?q=${encodeURIComponent(query)}`);
+  // Chegou tarde: alguém digitou outra coisa enquanto isto voltava.
+  if (minha !== buscaAtual) return;
   const list = $('#chat-list');
   list.innerHTML = '';
 
@@ -1284,9 +1292,13 @@ async function consumeTurn(path, body, ganchos = {}) {
     // Turno que morreu antes da primeira palavra — erro, parada ou resposta
     // vazia — não deixa uma bolha girando pra sempre no fim da conversa.
     fecharEspera(espera, { apagar: !el });
-    state.streaming = null;
-    $('#btn-stop').hidden = true;
-    $('#btn-send').hidden = false;
+    // Só apaga o que este turno pôs: um turno mais novo já pode estar no ar, e
+    // devolver o botão de enviar aqui esconderia o parar dele.
+    if (state.streaming === controller) {
+      state.streaming = null;
+      $('#btn-stop').hidden = true;
+      $('#btn-send').hidden = false;
+    }
     // O título é gerado no servidor a partir da primeira frase.
     const fresh = await api('/chats');
     state.chats = fresh;
@@ -1298,6 +1310,14 @@ async function consumeTurn(path, body, ganchos = {}) {
 
 async function send(text, ganchos) {
   if (!text.trim()) return null;
+  // Um turno por vez. Sem esta trava, mandar de novo antes de a resposta acabar
+  // criava um segundo turno que sobrescrevia `state.streaming`: os dois
+  // escreviam na mesma conversa, o botão de parar passava a cancelar só o
+  // último, e o servidor ainda recusava o segundo com 409.
+  if (state.streaming) {
+    toast(t('espere a resposta terminar, ou toque em parar'), 'err');
+    return null;
+  }
   if (!state.model) {
     addNote(
       t('Nenhuma IA escolhida. Abra {onde} e ligue uma.', {

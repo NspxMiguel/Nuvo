@@ -328,3 +328,31 @@ test('nenhum teste escreve no ~/.nuvo de quem roda a suíte', () => {
     .sort();
   assert.deepEqual(soltos, [], 'teste que abre banco sem useTempHome()');
 });
+
+test('um turno por vez: mandar de novo antes de terminar não cria dois', () => {
+  // Sem a trava, o segundo turno sobrescrevia `state.streaming`: os dois
+  // escreviam na mesma conversa, o botão de parar cancelava só o último, e o
+  // servidor ainda recusava o segundo com 409.
+  const app = ler('web/app.js');
+  const send = app.slice(app.indexOf('async function send('), app.indexOf('async function send(') + 700);
+  assert.match(send, /if \(state\.streaming\) \{/, 'send recusa enquanto há turno no ar');
+  assert.match(app, /if \(state\.streaming === controller\) \{/, 'e o fim do turno só apaga o que ele pôs');
+});
+
+test('resposta de busca que chega atrasada não repinta a lista', () => {
+  // Digitar rápido dispara várias buscas, e a rede não devolve na ordem: a de
+  // "abc" podia chegar depois da de "abcd" e repintar com o resultado velho.
+  const app = ler('web/app.js');
+  assert.match(app, /let buscaAtual = 0;/, 'existe um número da busca atual');
+  assert.match(app, /const minha = \+\+buscaAtual;/, 'cada busca pega o seu');
+  assert.match(app, /if \(minha !== buscaAtual\) return;/, 'e a atrasada desiste');
+});
+
+test('perfil e projeto não aceitam ficar sem nome', () => {
+  // Nome em branco deixa um cartão que ninguém reconhece nem consegue abrir.
+  const views = ler('web/views.js');
+  assert.match(views, /t\('o perfil precisa de um nome'\)/, 'a tela recusa antes de mandar');
+  const api = ler('server/api.mjs');
+  assert.match(api, /function nomeOuOAtual\(novo, atual\)/, 'e o servidor não grava vazio');
+  assert.doesNotMatch(api, /b\.name \?\? cur\.name/, 'nenhum lugar aceita string vazia como nome');
+});

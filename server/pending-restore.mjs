@@ -9,7 +9,7 @@
 // Este módulo não pode importar `db.mjs`: é ele que roda primeiro.
 
 import { existsSync, renameSync, rmSync, copyFileSync } from 'node:fs';
-import { DB_PATH } from './config.mjs';
+import { DB_PATH, soDoDono } from './config.mjs';
 
 /** Banco restaurado esperando a troca. */
 export const STAGED_PATH = `${DB_PATH}.restaurar`;
@@ -30,6 +30,10 @@ export function applyPendingRestore() {
     // banco fechado ela sai consistente, sem depender do que o WAL tinha.
     rmSync(PREVIOUS_PATH, { force: true });
     copyFileSync(DB_PATH, PREVIOUS_PATH);
+    // `copyFileSync` copia a permissão junto. Se o banco tiver vindo de um lugar
+    // onde ele nasceu 644, a cópia — que é o banco inteiro, com chave de API e
+    // conversa — ficaria legível pros outros usuários da máquina.
+    soDoDono(PREVIOUS_PATH, 0o600);
     previous = PREVIOUS_PATH;
   }
 

@@ -165,8 +165,13 @@ export function guardarFoto(professorId, buffer) {
   mkdirSync(UPLOAD_DIR, { recursive: true });
   const nome = `prof-${professorId}.${mime.split('/')[1]}`;
   writeFileSync(join(UPLOAD_DIR, nome), buffer);
-  // A anterior pode ter outra extensão: sem apagar, sobra lixo no disco a cada troca.
   const antiga = one('SELECT foto FROM professores WHERE id = ?', professorId)?.foto;
+  // O banco é atualizado ANTES de a foto antiga sair do disco. Ao contrário, um
+  // erro no UPDATE deixava o professor apontando pra um arquivo que já não
+  // existe — foto quebrada pra sempre. Nesta ordem, o pior caso é um arquivo
+  // órfão em disco, que não estraga tela nenhuma.
+  run('UPDATE professores SET foto = ?, updated_at = ? WHERE id = ?', nome, now(), professorId);
+  // A anterior pode ter outra extensão: sem apagar, sobra lixo no disco a cada troca.
   if (antiga && antiga !== nome) {
     try {
       unlinkSync(join(UPLOAD_DIR, antiga));
@@ -174,7 +179,6 @@ export function guardarFoto(professorId, buffer) {
       /* já não estava lá */
     }
   }
-  run('UPDATE professores SET foto = ?, updated_at = ? WHERE id = ?', nome, now(), professorId);
   return verProfessor(professorId);
 }
 

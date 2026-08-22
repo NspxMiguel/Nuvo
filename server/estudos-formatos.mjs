@@ -474,7 +474,10 @@ export const TIPOS = Object.keys(FORMATOS);
  * o que está desmarcado não entra no que for gerado. Sem lista, entra tudo.
  */
 function material(professorId, papeis, escolhidas) {
-  const so = Array.isArray(escolhidas) && escolhidas.length ? new Set(escolhidas) : null;
+  // Lista vazia é "não escolhi nenhuma", não "não escolhi". Tratar `[]` como
+  // ausência fazia o oposto do pedido: quem desmarcava todas as pastas na
+  // coluna da esquerda recebia um simulado feito com TODAS elas.
+  const so = Array.isArray(escolhidas) ? new Set(escolhidas) : null;
   const pastas = pastasDo(professorId).filter((p) => !so || so.has(p.id));
   const anexos = pastas
     .flatMap((p) => listAttachments({ pastaId: p.id }))
@@ -512,7 +515,7 @@ function material(professorId, papeis, escolhidas) {
  * primeira mão nenhuma.
  */
 async function* rascunhoDoNotebookLM({ professorId, tipo, formato, pastas, signal, sessao }) {
-  const so = Array.isArray(pastas) && pastas.length ? new Set(pastas) : null;
+  const so = Array.isArray(pastas) ? new Set(pastas) : null;
   const arquivos = pastasDo(professorId)
     .filter((p) => !so || so.has(p.id))
     .flatMap((p) => listAttachments({ pastaId: p.id }))

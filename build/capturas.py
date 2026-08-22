@@ -66,14 +66,19 @@ TELAS = {
     # anunciar uma coisa que o app não fez.
     'tela-varias': {'view': 'council', 'espera': '#c-out .council-col:not(.run)', 'roteiro': 'conselho'},
     'tela-cli': {'view': None, 'espera': '.msg.assistant .body', 'roteiro': 'memoria'},
+    'tela-programar': {'view': 'code', 'espera': '.cd-passo.fim, .cd-saida', 'roteiro': 'programar'},
+    'tela-agente': {'view': None, 'espera': '.msg.assistant .body', 'roteiro': 'agente'},
 }
 
 # Títulos de conversa que aparecem na barra lateral. São de mentira, e é de
 # propósito: a alternativa seria publicar conversa de verdade de alguém.
 CONVERSAS = {
-    'pt-BR': ['O que você sabe de mim', 'Resumo do contrato de aluguel', 'Erro no backup do domingo'],
-    'en': ['What you know about me', 'Summary of the lease', 'Sunday backup error'],
-    'es': ['Qué sabes de mí', 'Resumen del contrato de alquiler', 'Error en la copia del domingo'],
+    'pt-BR': ['O que você sabe de mim', 'Resumo do contrato de aluguel',
+              'Erro no backup do domingo', 'Versão do Node.js'],
+    'en': ['What you know about me', 'Summary of the lease',
+           'Sunday backup error', 'Node.js version'],
+    'es': ['Qué sabes de mí', 'Resumen del contrato de alquiler',
+           'Error en la copia del domingo', 'Versión de Node.js'],
 }
 
 
@@ -93,7 +98,23 @@ PERGUNTAS = {
         'es': ('Mi dominio es nspx.dev y escribo en español.',
                '¿Cuál es mi dominio? Responde en una frase.'),
     },
+    'programar': {
+        'pt-BR': ('O soma.mjs está subtraindo em vez de somar. Conserta o arquivo e me diz '
+                  'em uma frase o que mudou. Não use git e não faça commit.'),
+        'en': ('soma.mjs is subtracting instead of adding. Fix the file and tell me in one '
+               'sentence what changed. Do not use git and do not commit.'),
+        'es': ('soma.mjs está restando en vez de sumar. Arregla el archivo y dime en una '
+               'frase qué cambió. No uses git y no hagas commit.'),
+    },
+    'agente': {
+        'pt-BR': 'Qual é a versão mais recente do Node.js? Abre o site oficial e me diz, com o endereço.',
+        'en': 'What is the latest Node.js version? Open the official site and tell me, with the address.',
+        'es': '¿Cuál es la última versión de Node.js? Abre el sitio oficial y dime, con la dirección.',
+    },
 }
+
+# O nome do projeto que aparece no seletor da tela Programar.
+PROJETOS = {'pt-BR': 'calculadora', 'en': 'calculator', 'es': 'calculadora'}
 
 
 def cli_disponivel(nome):
@@ -105,11 +126,15 @@ def cli_disponivel(nome):
     return None
 
 
-def falar(chat_id, texto, prazo=240):
-    """Manda uma mensagem e espera o turno fechar. Sem isto a foto pega o vazio."""
+def falar(chat_id, texto, prazo=240, **extras):
+    """Manda uma mensagem e espera o turno fechar. Sem isto a foto pega o vazio.
+
+    `extras` é o que o turno precisa saber além do texto: `programar=True` liga o
+    passo a passo com edição de arquivo, `web=True` solta o agente de navegador.
+    """
     pedido = urllib.request.Request(
         f'http://127.0.0.1:{PORTA}/api/chats/{chat_id}/stream',
-        data=json.dumps({'content': texto}).encode(),
+        data=json.dumps({'content': texto, **extras}).encode(),
         headers={'content-type': 'application/json'},
         method='POST',
     )
@@ -143,7 +168,54 @@ def roteiro_memoria(idioma):
     return {'chat': perguntando['id']}
 
 
-ROTEIROS = {'conselho': roteiro_conselho, 'memoria': roteiro_memoria}
+def roteiro_programar(idioma):
+    """Um defeito de verdade num arquivo de verdade, consertado pela IA.
+
+    O código de mentira é escrito aqui na hora, numa pasta temporária: a captura
+    mostra o app editando arquivo, e apontar pra pasta de alguém seria fotografar
+    o trabalho dessa pessoa.
+    """
+    pasta = Path(tempfile.mkdtemp(prefix='nuvo-codigo-'))
+    (pasta / 'soma.mjs').write_text(
+        '// Soma dois números.\n'
+        'export function soma(a, b) {\n'
+        '  return a - b;\n'
+        '}\n'
+    )
+    (pasta / 'README.md').write_text('# calculadora\n\nUm módulo, uma função.\n')
+
+    ia = cli_disponivel('claude') or cli_disponivel(None)
+    if not ia:
+        raise SystemExit('nenhuma IA de terminal ligada')
+
+    projeto = api('/projects', {'name': PROJETOS[idioma], 'workdir': str(pasta)})
+    conversa = api('/chats', {
+        'model': ia,
+        'title': CONVERSAS[idioma][2],
+        'project_id': projeto['id'],
+        'mode': 'coding',
+    })
+    falar(conversa['id'], PERGUNTAS['programar'][idioma], programar=True)
+    return {'chat': conversa['id'], 'projeto': projeto['id'], 'pasta': pasta}
+
+
+def roteiro_agente(idioma):
+    """A IA abre um navegador de verdade e volta com o endereço de onde leu."""
+    ia = cli_disponivel('claude') or cli_disponivel(None)
+    if not ia:
+        raise SystemExit('nenhuma IA de terminal ligada')
+    conversa = api('/chats', {'model': ia, 'title': CONVERSAS[idioma][3]})
+    # O prazo é maior: aqui tem navegador subindo, página carregando e leitura.
+    falar(conversa['id'], PERGUNTAS['agente'][idioma], prazo=420, web=True)
+    return {'chat': conversa['id']}
+
+
+ROTEIROS = {
+    'conselho': roteiro_conselho,
+    'memoria': roteiro_memoria,
+    'programar': roteiro_programar,
+    'agente': roteiro_agente,
+}
 
 
 def api(caminho, corpo=None):
@@ -168,6 +240,14 @@ def esperar_servidor(prazo=40):
         except (urllib.error.URLError, OSError, ValueError):
             time.sleep(0.4)
     return False
+
+
+def preparado_de(preparados, nome):
+    """O que o roteiro daquela tela deixou pronto. Falhar aqui é erro de roteiro."""
+    pronto = preparados.get(nome)
+    if not pronto:
+        raise SystemExit(f'{nome} precisa de roteiro e não recebeu um')
+    return pronto
 
 
 def reduzir(png, largura, jpg):
@@ -227,12 +307,22 @@ def capturar(quais):
                             locale=idioma,
                             color_scheme='dark',
                         )
+                        guardado = {'nuvo.idioma': idioma}
+                        if tela.get('roteiro') == 'programar':
+                            # A tela Programar lembra, por projeto, qual conversa
+                            # estava aberta — e a memória mora no navegador. Sem
+                            # semear isto, ela abre vazia e a foto não mostra nada.
+                            guardado['nuvo.programar.conversas'] = json.dumps(
+                                {preparado_de(preparados, nome)['projeto']:
+                                 preparado_de(preparados, nome)['chat']})
                         ctx.add_init_script(
-                            f"try {{ localStorage.setItem('nuvo.idioma', {json.dumps(idioma)}); }} catch {{}}")
+                            ''.join(
+                                f"try {{ localStorage.setItem({json.dumps(k)}, {json.dumps(v)}); }} catch {{}}"
+                                for k, v in guardado.items()))
                         pg = ctx.new_page()
                         pg.goto(f'http://127.0.0.1:{PORTA}/', wait_until='load')
                         preparado = preparados.get(nome)
-                        if tela.get('roteiro') == 'memoria':
+                        if tela.get('roteiro') in ('memoria', 'agente'):
                             # Abre pelo id, não pela posição: as conversas de
                             # enfeite entram depois e a primeira da lista deixa
                             # de ser a que tem a resposta.
@@ -263,6 +353,11 @@ def capturar(quais):
                             pg.click('#c-go')
                         # Resposta de IA de verdade demora: o prazo aqui é o da
                         # sessão, não o de uma tela que só precisa pintar.
+                        if tela.get('roteiro') == 'programar':
+                            # O passo a passo mora na aba Trabalho, que não é a
+                            # que abre por padrão.
+                            pg.wait_for_selector("[data-aba='trabalho']", timeout=20_000)
+                            pg.click("[data-aba='trabalho']")
                         pg.wait_for_selector(
                             tela['espera'], timeout=300_000 if tela.get('roteiro') else 20_000)
                         # A roseta abre em 700 ms e o brilho do rodapé entra

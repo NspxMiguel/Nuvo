@@ -367,6 +367,11 @@ function migrate() {
   addColumn('estudo_pastas', 'leitura', 'TEXT');
   addColumn('estudo_pastas', 'leitura_chave', 'TEXT');
   addColumn('estudo_pastas', 'leitura_em', 'TEXT');
+  // Suspender guardava 'suspenso' no mesmo campo que diz se o cartão é novo, está
+  // sendo aprendido ou já entrou em revisão — e o estado antigo se perdia. Sem
+  // ele, tirar da suspensão devolvia todo cartão como 'revisando', inclusive um
+  // que nunca tinha sido visto.
+  addColumn('cartoes', 'estado_antes', 'TEXT');
   addColumn('chunks', 'papel', "TEXT NOT NULL DEFAULT 'material'");
 
   // Ícone e cor no lugar do emoji.

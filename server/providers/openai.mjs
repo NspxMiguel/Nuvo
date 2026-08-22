@@ -52,7 +52,13 @@ export async function* stream(ctx, req) {
     } catch {
       continue;
     }
-    if (json.error) throw new Error(json.error.message || 'erro do provedor');
+    // Servidor compatível com a OpenAI escreve o erro de dois jeitos: objeto
+    // (`{error:{message}}`) e texto puro (`{error:"sem cota"}`). Ler só o
+    // primeiro jogava fora justamente o motivo, e sobrava "erro do provedor".
+    if (json.error) {
+      const motivo = typeof json.error === 'string' ? json.error : json.error.message;
+      throw new Error(motivo || 'erro do provedor');
+    }
     const choice = json.choices?.[0];
     const bruto = choice?.delta?.content ?? choice?.text;
     // Modelos de raciocínio locais mandam o pensamento num campo separado.

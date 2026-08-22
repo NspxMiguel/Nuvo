@@ -305,12 +305,17 @@ function glifoParaTexto(nome) {
   return null; // glifo desenhado (logo, ícone): não tem letra correspondente
 }
 
-/** Hexadecimal de destino do CMap: pares de 4 dígitos, UTF-16BE. */
-function hexParaTexto(hex) {
+/** Hexadecimal de destino do CMap: pares de 4 dígitos, UTF-16BE. Exportada porque
+ *  é ela que decide se uma letra some do texto extraído — o teste cobra isso. */
+export function hexParaTexto(hex) {
   if (hex.length <= 2) return String.fromCharCode(parseInt(hex, 16));
+  // Comprimento que não fecha em grupos de quatro é gerador desleixado, e
+  // acontece. Sem o preenchimento o laço não roda nenhuma volta e a função
+  // devolve string vazia — a letra some do texto extraído sem dizer nada.
+  const cheio = hex.length % 4 ? hex.padEnd(hex.length + (4 - (hex.length % 4)), '0') : hex;
   let out = '';
-  for (let i = 0; i + 3 < hex.length; i += 4) {
-    out += String.fromCharCode(parseInt(hex.slice(i, i + 4), 16));
+  for (let i = 0; i + 3 < cheio.length; i += 4) {
+    out += String.fromCharCode(parseInt(cheio.slice(i, i + 4), 16));
   }
   return out;
 }

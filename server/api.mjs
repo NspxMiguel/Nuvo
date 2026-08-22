@@ -256,6 +256,12 @@ export function limparMenu(bruto) {
   };
 }
 
+/** Nome novo se veio algum de verdade; senão, o que já estava lá. */
+function nomeOuOAtual(novo, atual) {
+  const limpo = typeof novo === 'string' ? novo.trim() : '';
+  return limpo || atual;
+}
+
 function settingsView(req) {
   const cfg = loadConfig();
   return {
@@ -714,7 +720,9 @@ export async function handleApi(req, res, url) {
       run(
         `UPDATE gems SET name = ?, icon = ?, color = ?, system_prompt = ?, model = ?, temperature = ?,
            mode = ?, unfiltered = ?, memory_read = ?, memory_write = ? WHERE id = ?`,
-        b.name ?? cur.name,
+        // Nome em branco é o mesmo que não mandar nome: gravar '' deixa um
+        // cartão sem título na lista, que ninguém consegue reconhecer nem abrir.
+        nomeOuOAtual(b.name, cur.name),
         b.icon ?? cur.icon,
         b.color ?? cur.color,
         b.system_prompt ?? cur.system_prompt,
@@ -764,7 +772,7 @@ export async function handleApi(req, res, url) {
       if (!cur) return json(res, { error: 'projeto não encontrado' }, 404);
       run(
         'UPDATE projects SET name = ?, icon = ?, color = ?, instructions = ?, workdir = ? WHERE id = ?',
-        b.name ?? cur.name,
+        nomeOuOAtual(b.name, cur.name),
         b.icon ?? cur.icon,
         b.color ?? cur.color,
         b.instructions ?? cur.instructions,

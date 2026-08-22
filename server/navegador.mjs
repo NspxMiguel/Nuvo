@@ -337,13 +337,21 @@ async function assentar(sessao, { limite = 6000 } = {}) {
       continue; // navegando: o contexto da página some por um instante
     }
     if (agora === anterior) {
-      if (++iguais >= 2) return;
+      if (++iguais >= 2) return true;
     } else {
       iguais = 0;
       anterior = agora;
     }
   }
+  // Estourou o prazo com a página ainda mexendo. Quem chamou precisa saber:
+  // devolver `undefined` fazia o passo dizer "abri a página" com a mesma
+  // confiança de sempre, e o modelo lia metade de um site que ainda carregava
+  // sem nunca desconfiar.
+  return false;
 }
+
+/** O aviso que acompanha um passo cuja página não parou de mudar a tempo. */
+const AINDA_CARREGANDO = ' (a página ainda estava carregando)';
 
 const acheElemento = (n) => `document.querySelector('[data-ia-n="${Number(n)}"]')`;
 
@@ -363,16 +371,16 @@ export async function executar(sessao, passo) {
     // lendo a página anterior achando que era a nova.
     const r = await sessao.cmd('Page.navigate', { url });
     if (r.errorText) throw erroTraduzivel('não abriu {url}: {causa}', { url, causa: r.errorText });
-    await assentar(sessao);
-    return `abri ${url}`;
+    const parou = await assentar(sessao);
+    return `abri ${url}${parou ? '' : AINDA_CARREGANDO}`;
   }
 
   if (acao === 'buscar') {
     const termo = String(passo.alvo || passo.texto || '').trim();
     const url = 'https://duckduckgo.com/?q=' + encodeURIComponent(termo);
     await sessao.cmd('Page.navigate', { url });
-    await assentar(sessao);
-    return `busquei por "${termo}"`;
+    const parou = await assentar(sessao);
+    return `busquei por "${termo}"${parou ? '' : AINDA_CARREGANDO}`;
   }
 
   if (acao === 'clicar') {
@@ -385,8 +393,8 @@ export async function executar(sessao, passo) {
       return r || 'elemento ' + ${Number(passo.alvo)};
     })()`);
     if (ok === null) throw erroTraduzivel('não existe elemento {alvo} nesta página', { alvo: passo.alvo });
-    await assentar(sessao);
-    return `cliquei em "${ok}"`;
+    const parou = await assentar(sessao);
+    return `cliquei em "${ok}"${parou ? '' : AINDA_CARREGANDO}`;
   }
 
   if (acao === 'escrever') {
@@ -425,7 +433,10 @@ export async function executar(sessao, passo) {
       await sessao.cmd('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13
       });
-      await assentar(sessao);
+      const parou = await assentar(sessao);
+      if (!parou) {
+        return `escrevi "${texto.slice(0, 60)}" no campo ${passo.alvo}${AINDA_CARREGANDO}`;
+      }
     }
     return `escrevi "${texto.slice(0, 60)}" no campo ${passo.alvo}`;
   }
@@ -441,8 +452,8 @@ export async function executar(sessao, passo) {
 
   if (acao === 'voltar') {
     await sessao.avaliar('history.back()');
-    await assentar(sessao);
-    return 'voltei uma página';
+    const parou = await assentar(sessao);
+    return `voltei uma página${parou ? '' : AINDA_CARREGANDO}`;
   }
 
   throw erroTraduzivel('ação desconhecida: {acao}', { acao });
