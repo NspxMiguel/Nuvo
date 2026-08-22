@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node bin/nuvo.mjs",
     "dev": "node --watch bin/nuvo.mjs",
-    "test": "node --test --test-timeout=30000 test/*.test.mjs"
+    "test": "node --test --test-timeout=30000 test/*.test.mjs",
+    "empacotar": "node build/landing-versao.mjs && node build/empacotar.mjs"
   },
   "engines": {
     "node": ">=22.5.0"

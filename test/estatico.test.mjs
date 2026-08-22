@@ -43,3 +43,14 @@ test('endereço que o `URL` recusa vira `null` em vez de derrubar o servidor', (
   // Host vazio (pedido HTTP/1.0 sem cabeçalho) cai no `localhost` e não levanta.
   assert.equal(enderecoDoPedido('/', '').pathname, '/');
 });
+
+test('a landing manda baixar a versão que está publicada', async () => {
+  // Ela ficou cinco releases atrás: os botões apontavam pra 0.2.2 enquanto o app
+  // ia na 0.5.2, e quem chegava pelo site baixava um app de dias atrás sem o
+  // Estudos e sem nenhum dos consertos. O nome do arquivo tem a versão dentro,
+  // então não existe link que sirva sempre — o que existe é este teste.
+  const { versaoDoApp, versoesNaLanding } = await import('../build/landing-versao.mjs');
+  const versao = versaoDoApp();
+  const fora = versoesNaLanding().filter((v) => v !== versao);
+  assert.deepEqual(fora, [], `a landing manda baixar ${fora.join(', ')} e a versão é ${versao}`);
+});
