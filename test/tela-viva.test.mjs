@@ -312,3 +312,19 @@ test('nenhuma classe do Estudos fica sem regra de estilo', () => {
   const orfas = [...usadas].filter((n) => !css.includes(`.${n}`)).sort();
   assert.deepEqual(orfas, [], 'classe do Estudos usada no JS e sem uma linha de CSS');
 });
+
+test('nenhum teste escreve no ~/.nuvo de quem roda a suíte', () => {
+  // Um teste sem casa de mentira gravou cinco provedores de teste no banco real
+  // desta máquina. O estrago é pequeno e o susto não: a suíte roda no mesmo
+  // computador em que o app guarda conversa, memória e prova de escola.
+  const DE_BANCO =
+    /(from|import\()\s*'\.\.\/server\/(db|config|providers\/index|estudos|estudos-formatos|documents|chat|memory|cartoes|backup|retrato|research|council|complete)\.mjs'/;
+  const soltos = readdirSync(join(RAIZ, 'test'))
+    .filter((n) => n.endsWith('.test.mjs'))
+    .filter((n) => {
+      const s = ler(join('test', n));
+      return DE_BANCO.test(s) && !s.includes('useTempHome');
+    })
+    .sort();
+  assert.deepEqual(soltos, [], 'teste que abre banco sem useTempHome()');
+});

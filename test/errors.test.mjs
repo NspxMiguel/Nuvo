@@ -1,9 +1,16 @@
 // A tradução de erro do provedor. Cada caso aqui é um defeito que aparece de
 // verdade em uso de casa, e o teste cobra que a mensagem diga o que fazer.
 
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { explainProviderError } from '../server/errors.mjs';
+import { useTempHome } from './helpers.mjs';
+
+// Casa de mentira antes de qualquer import que abra banco: um dos testes daqui
+// cria provedor, e sem isto ele grava no ~/.nuvo de quem roda a suíte.
+const home = useTempHome();
+const { explainProviderError } = await import('../server/errors.mjs');
+
+after(() => home.cleanup());
 
 // `explainProviderError` devolve um Error com o molde junto, pra frase chegar
 // na tela no idioma dela. O que se cobra aqui é o texto em português, que é o
