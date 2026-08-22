@@ -473,6 +473,7 @@
   "esse projeto não existe mais — recarregue a página e escolha outro": "this project does not exist any more — reload the page and pick another one",
   "esse zip não é um backup do Nuvo": "that zip is not an Nuvo backup",
   "esse zip não é um backup do Nuvo (falta o manifest)": "that zip is not an Nuvo backup (the manifest is missing)",
+  "Esta IA lê o material e escreve com o jeito do professor. Ligue o NotebookLM em \"IAs ligadas\" pra ele fazer a leitura.": "This AI reads the material and writes it in the teacher’s style. Connect NotebookLM under \"Connected AIs\" to have it do the reading.",
   "esta máquina não sabe abrir o formato em que o Ollama é publicado (zstd). Instale o programa zstd (no Ubuntu e no Debian: `sudo apt install zstd`) e clique em Instalar de novo.": "this machine cannot open the format Ollama ships in (zstd). Install the zstd program (on Ubuntu and Debian: `sudo apt install zstd`) and click Install again.",
   "Esta máquina não tem navegador compatível e não existe download pronto pra ela. O modo agente vai continuar como busca simples.": "This machine has no compatible browser and there is no ready download for it. Agent mode will stay a plain search.",
   "Está no material de aula e não apareceu em nenhuma prova. É o primeiro lugar onde economizar tempo.": "It is in the class material and has not shown up in a single exam. First place to save time.",

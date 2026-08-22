@@ -12,7 +12,7 @@
 // passado, que é exatamente o hábito que a ferramenta deveria substituir.
 
 import { complete, describeModel, parseJsonObject } from './complete.mjs';
-import { getProvider, parseRef } from './providers/index.mjs';
+import { getProvider, listProviders, parseRef } from './providers/index.mjs';
 import { caminhoNoDisco, listAttachments, textoDoAnexo } from './documents.mjs';
 import { gerarNoNotebookLM } from './notebooklm.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
@@ -92,6 +92,23 @@ function ehRefDoNotebookLM(ref) {
 const DESCANSO = 30 * 60 * 1000;
 let caiuEm = 0;
 const descansando = () => caiuEm > 0 && Date.now() - caiuEm < DESCANSO;
+
+/**
+ * Vale tentar a primeira mão?
+ *
+ * Só quando existe um NotebookLM ligado na lista de IAs. Sem isso, cada geração
+ * pagava vinte segundos abrindo um Chrome sem janela pra descobrir que não há
+ * sessão — um pedágio em cima de quem nunca configurou o NotebookLM. Quem
+ * configura ganha o padrão que ele pediu: o NotebookLM lê, a IA escolhida
+ * termina.
+ */
+function temNotebookLM() {
+  try {
+    return listProviders({ enabledOnly: true }).some((p) => p.kind === 'notebooklm');
+  } catch {
+    return false;
+  }
+}
 
 /** Só pros testes: esquece a última falha. */
 export function esquecerFalhaDoNotebookLM() {
@@ -551,7 +568,7 @@ export async function* gerarFormato({
   const professor = acharProfessor(professorId);
   const soNotebookLM = ehRefDoNotebookLM(ref);
 
-  const primeiraMao = soNotebookLM || (notebooklm && !descansando());
+  const primeiraMao = soNotebookLM || (notebooklm && temNotebookLM() && !descansando());
   yield {
     type: 'start',
     tipo,
@@ -567,7 +584,7 @@ export async function* gerarFormato({
 
   // --- primeira mão -------------------------------------------------------
   let rascunho = null;
-  if (soNotebookLM || (notebooklm && !descansando())) {
+  if (primeiraMao) {
     try {
       rascunho = yield* rascunhoDoNotebookLM({ professorId, tipo, formato, pastas, signal, sessao });
       if (rascunho) caiuEm = 0;

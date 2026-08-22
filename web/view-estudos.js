@@ -91,6 +91,10 @@ const PAPEIS = {
 };
 const papelDe = (p) => PAPEIS[p] || PAPEIS.material;
 
+/** Existe um NotebookLM ligado? É o que decide se a geração tem duas mãos. */
+const temNotebookLM = () =>
+  (state.providers || []).some((p) => p.kind === 'notebooklm' && p.enabled);
+
 /** A etiqueta de papel, do tamanho de uma palavra. */
 const selo = (papel) =>
   `<span class="est-selo" style="--t:var(--${papelDe(papel).cor})">${escapeHtml(
@@ -438,9 +442,13 @@ async function telaDoProfessor(el, ctx) {
             aqui.modelo || state.model
           )}</select>
         </div>
-        <p class="est-nada est-duas">${t(
-          'O NotebookLM lê o material. Esta IA reescreve com o jeito do professor.'
-        )}</p>
+        <p class="est-nada est-duas">${
+          // A frase tem que bater com o que vai acontecer: sem NotebookLM ligado
+          // não existe primeira mão, e prometer duas seria mentira na tela.
+          temNotebookLM()
+            ? t('O NotebookLM lê o material. Esta IA reescreve com o jeito do professor.')
+            : t('Esta IA lê o material e escreve com o jeito do professor. Ligue o NotebookLM em "IAs ligadas" pra ele fazer a leitura.')
+        }</p>
         <div class="est-rot">${t('Gerar')}</div>
         <div class="est-lads">
           ${LADRILHOS.map((l) => ladrilho(l, !!prof.retrato)).join('')}

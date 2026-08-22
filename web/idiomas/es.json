@@ -473,6 +473,7 @@
   "esse projeto não existe mais — recarregue a página e escolha outro": "este proyecto ya no existe: recarga la página y elige otro",
   "esse zip não é um backup do Nuvo": "ese zip no es una copia de Nuvo",
   "esse zip não é um backup do Nuvo (falta o manifest)": "ese zip no es una copia de Nuvo (falta el manifest)",
+  "Esta IA lê o material e escreve com o jeito do professor. Ligue o NotebookLM em \"IAs ligadas\" pra ele fazer a leitura.": "Esta IA lee el material y escribe con el estilo del profesor. Conecta NotebookLM en \"IAs conectadas\" para que él haga la lectura.",
   "esta máquina não sabe abrir o formato em que o Ollama é publicado (zstd). Instale o programa zstd (no Ubuntu e no Debian: `sudo apt install zstd`) e clique em Instalar de novo.": "esta máquina no sabe abrir el formato en que se publica Ollama (zstd). Instala el programa zstd (en Ubuntu y Debian: `sudo apt install zstd`) y pulsa Instalar de nuevo.",
   "Esta máquina não tem navegador compatível e não existe download pronto pra ela. O modo agente vai continuar como busca simples.": "Esta máquina no tiene navegador compatible y no hay descarga lista para ella. El modo agente seguirá como búsqueda simple.",
   "Está no material de aula e não apareceu em nenhuma prova. É o primeiro lugar onde economizar tempo.": "Está en el material de clase y no apareció en ningún examen. Es el primer sitio donde ahorrar tiempo.",

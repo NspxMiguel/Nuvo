@@ -18,6 +18,22 @@ const { criarProfessor } = await import('../server/estudos.mjs');
 const { addAttachment } = await import('../server/documents.mjs');
 const { run, uid, now } = await import('../server/db.mjs');
 
+/**
+ * A primeira mão só é tentada quando existe um NotebookLM ligado na lista de
+ * IAs — senão toda geração pagaria vinte segundos abrindo um Chrome à toa.
+ */
+function ligarNotebookLM() {
+  const id = uid();
+  run(
+    `INSERT INTO providers (id, name, kind, base_url, secret_name, config, enabled, auto, created_at)
+     VALUES (?, 'NotebookLM', 'notebooklm', NULL, NULL, '{}', 1, 0, ?)`,
+    id,
+    now()
+  );
+  return id;
+}
+ligarNotebookLM();
+
 after(() => home.cleanup());
 
 const RESPOSTA = `Notebook
@@ -235,5 +251,30 @@ test('depois de o NotebookLM cair, a geração seguinte não paga o pedágio de 
     );
   } finally {
     falso.limpar();
+  }
+});
+
+test('sem NotebookLM ligado, a geração nem tenta abrir a tela do Google', async () => {
+  // Vinte segundos abrindo um Chrome sem janela pra descobrir que não há sessão,
+  // em toda geração, é pedágio em cima de quem nunca configurou o NotebookLM.
+  const { run: exec } = await import('../server/db.mjs');
+  exec("UPDATE providers SET enabled = 0 WHERE kind = 'notebooklm'");
+  try {
+    const prof = await palco();
+    const espelho = join(home.dir, 'pedido-7.txt');
+    const { ref, falso } = iaDeMentira(espelho);
+    try {
+      const eventos = await collect(
+        // Passa a sessão de mentira: se ela for usada, o teste vê o rascunho.
+        gerarFormato({ professorId: prof.id, tipo: 'resumo', ref, sessao: new SessaoFalsa() })
+      );
+      assert.equal(eventos.find((e) => e.type === 'start').rascunho, null);
+      assert.equal(eventos.find((e) => e.type === 'etapa').o_que, 'sozinho');
+      assert.doesNotMatch(readFileSync(espelho, 'utf8'), /RASCUNHO DO NOTEBOOKLM/);
+    } finally {
+      falso.limpar();
+    }
+  } finally {
+    exec("UPDATE providers SET enabled = 1 WHERE kind = 'notebooklm'");
   }
 });
