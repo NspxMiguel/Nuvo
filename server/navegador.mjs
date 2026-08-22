@@ -350,8 +350,34 @@ async function assentar(sessao, { limite = 6000 } = {}) {
   return false;
 }
 
-/** O aviso que acompanha um passo cuja página não parou de mudar a tempo. */
-const AINDA_CARREGANDO = ' (a página ainda estava carregando)';
+/**
+ * O que um passo do navegador devolve.
+ *
+ * A frase em português é só a reserva: quem escreve o que a pessoa lê é a tela,
+ * a partir de `acao` e `alvo` — do mesmo jeito que o painel do modo Programar
+ * já fazia. Sem isto, a trilha aparecia em português no meio de uma tela em
+ * espanhol ("busquei por…", "cliquei em…") enquanto o resto estava traduzido.
+ *
+ * `carregando` diz que o prazo estourou com a página ainda mexendo.
+ */
+function passo(acao, alvo, assentou) {
+  return { acao, alvo: String(alvo || ''), carregando: !assentou, texto: frase(acao, alvo, assentou) };
+}
+
+const FRASES = {
+  navegar: (alvo) => `abri ${alvo}`,
+  buscar: (alvo) => `busquei por "${alvo}"`,
+  clicar: (alvo) => `cliquei em "${alvo}"`,
+  escrever: (alvo) => `escrevi "${alvo}"`,
+  'rolar-cima': () => 'rolei pra cima',
+  'rolar-baixo': () => 'rolei pra baixo',
+  voltar: () => 'voltei uma página'
+};
+
+function frase(acao, alvo, assentou) {
+  const base = (FRASES[acao] || (() => acao))(alvo);
+  return assentou ? base : `${base} (a página ainda estava carregando)`;
+}
 
 const acheElemento = (n) => `document.querySelector('[data-ia-n="${Number(n)}"]')`;
 
@@ -360,11 +386,11 @@ const acheElemento = (n) => `document.querySelector('[data-ia-n="${Number(n)}"]'
  * @param {Sessao} sessao
  * @param {{acao: string, alvo?: string, texto?: string}} passo
  */
-export async function executar(sessao, passo) {
-  const { acao } = passo;
+export async function executar(sessao, pedido) {
+  const { acao } = pedido;
 
   if (acao === 'navegar') {
-    let url = String(passo.alvo || '').trim();
+    let url = String(pedido.alvo || '').trim();
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url.replace(/^\/+/, '');
     // `Page.navigate` responde com `errorText` em vez de rejeitar: sem olhar
     // isso, um domínio que não existe viraria "naveguei" e o modelo seguiria
@@ -372,45 +398,45 @@ export async function executar(sessao, passo) {
     const r = await sessao.cmd('Page.navigate', { url });
     if (r.errorText) throw erroTraduzivel('não abriu {url}: {causa}', { url, causa: r.errorText });
     const parou = await assentar(sessao);
-    return `abri ${url}${parou ? '' : AINDA_CARREGANDO}`;
+    return passo('navegar', url, parou);
   }
 
   if (acao === 'buscar') {
-    const termo = String(passo.alvo || passo.texto || '').trim();
+    const termo = String(pedido.alvo || pedido.texto || '').trim();
     const url = 'https://duckduckgo.com/?q=' + encodeURIComponent(termo);
     await sessao.cmd('Page.navigate', { url });
     const parou = await assentar(sessao);
-    return `busquei por "${termo}"${parou ? '' : AINDA_CARREGANDO}`;
+    return passo('buscar', termo, parou);
   }
 
   if (acao === 'clicar') {
     const ok = await sessao.avaliar(`(() => {
-      const e = ${acheElemento(passo.alvo)};
+      const e = ${acheElemento(pedido.alvo)};
       if (!e) return null;
       e.scrollIntoView({ block: 'center' });
       const r = (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\\s+/g,' ').trim().slice(0,60);
       e.click();
-      return r || 'elemento ' + ${Number(passo.alvo)};
+      return r || 'elemento ' + ${Number(pedido.alvo)};
     })()`);
-    if (ok === null) throw erroTraduzivel('não existe elemento {alvo} nesta página', { alvo: passo.alvo });
+    if (ok === null) throw erroTraduzivel('não existe elemento {alvo} nesta página', { alvo: pedido.alvo });
     const parou = await assentar(sessao);
-    return `cliquei em "${ok}"${parou ? '' : AINDA_CARREGANDO}`;
+    return passo('clicar', ok, parou);
   }
 
   if (acao === 'escrever') {
-    const texto = String(passo.texto ?? '');
+    const texto = String(pedido.texto ?? '');
     // Campo de senha não se preenche sozinho. O agente erra de alvo, erra de
     // site e não tem como saber que errou; e uma senha digitada no lugar errado
     // não volta atrás. Quem digita senha aqui é o usuário, com a janela aberta.
     const senha = await sessao.avaliar(
-      `(() => { const e = ${acheElemento(passo.alvo)}; return !!e && (e.type || '').toLowerCase() === 'password'; })()`
+      `(() => { const e = ${acheElemento(pedido.alvo)}; return !!e && (e.type || '').toLowerCase() === 'password'; })()`
     );
     if (senha) throw new Error('campo de senha: só o usuário digita, com a janela do navegador aberta');
     // Digitar direto no `value` não acorda React nem Vue — o campo mostra o
     // texto e o site continua achando que está vazio. Os dois eventos abaixo
     // são o que as bibliotecas escutam.
     const ok = await sessao.avaliar(`(() => {
-      const e = ${acheElemento(passo.alvo)};
+      const e = ${acheElemento(pedido.alvo)};
       if (!e) return null;
       e.scrollIntoView({ block: 'center' });
       e.focus();
@@ -425,8 +451,8 @@ export async function executar(sessao, passo) {
       e.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
     })()`);
-    if (ok === null) throw erroTraduzivel('não existe elemento {alvo} nesta página', { alvo: passo.alvo });
-    if (passo.enter !== false) {
+    if (ok === null) throw erroTraduzivel('não existe elemento {alvo} nesta página', { alvo: pedido.alvo });
+    if (pedido.enter !== false) {
       await sessao.cmd('Input.dispatchKeyEvent', {
         type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13
       });
@@ -434,26 +460,24 @@ export async function executar(sessao, passo) {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13
       });
       const parou = await assentar(sessao);
-      if (!parou) {
-        return `escrevi "${texto.slice(0, 60)}" no campo ${passo.alvo}${AINDA_CARREGANDO}`;
-      }
+      if (!parou) return passo('escrever', texto.slice(0, 60), false);
     }
-    return `escrevi "${texto.slice(0, 60)}" no campo ${passo.alvo}`;
+    return passo('escrever', texto.slice(0, 60), true);
   }
 
   if (acao === 'rolar') {
-    const paraCima = String(passo.alvo || '').startsWith('cima');
+    const paraCima = String(pedido.alvo || '').startsWith('cima');
     await sessao.avaliar(
       `window.scrollBy({ top: ${paraCima ? '-' : ''}Math.round(window.innerHeight * 0.85) })`
     );
     await espera(500);
-    return paraCima ? 'rolei pra cima' : 'rolei pra baixo';
+    return passo(paraCima ? 'rolar-cima' : 'rolar-baixo', '', true);
   }
 
   if (acao === 'voltar') {
     await sessao.avaliar('history.back()');
     const parou = await assentar(sessao);
-    return `voltei uma página${parou ? '' : AINDA_CARREGANDO}`;
+    return passo('voltar', '', parou);
   }
 
   throw erroTraduzivel('ação desconhecida: {acao}', { acao });

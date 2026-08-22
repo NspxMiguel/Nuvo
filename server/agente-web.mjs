@@ -164,8 +164,13 @@ export async function* navegarComAgente({
   try {
     // O primeiro passo é sempre uma busca pela pergunta: começar em `about:blank`
     // gastaria uma rodada de modelo só pra ele pedir o óbvio.
+    // `executar` devolve o passo com `acao` e `alvo` separados: quem escreve a
+    // frase é a tela, no idioma dela. `descricao` é a reserva em português.
     let ultimo = await executar(sessao, { acao: 'buscar', alvo: pergunta });
-    yield { type: 'agent-step', n: 0, acao: 'buscar', descricao: ultimo };
+    yield {
+      type: 'agent-step', n: 0, acao: 'buscar', alvo: ultimo.alvo,
+      carregando: ultimo.carregando, descricao: ultimo.texto
+    };
 
     for (let passo = 1; passo <= passos; passo++) {
       if (signal?.aborted) break;
@@ -218,7 +223,8 @@ export async function* navegarComAgente({
       try {
         ultimo = await executar(sessao, decisao);
         yield {
-          type: 'agent-step', n: passo, acao: decisao.acao, descricao: ultimo, motivo,
+          type: 'agent-step', n: passo, acao: ultimo.acao, alvo: ultimo.alvo,
+          carregando: ultimo.carregando, descricao: ultimo.texto, motivo,
           modelo: nomeDoModelo, modeloRef: modelRef
         };
       } catch (err) {

@@ -561,6 +561,10 @@ export async function* runTurn({
 function passoDoAgente(ev) {
   const passo = { acao: ev.acao || 'outro' };
   if (ev.papel) passo.papel = ev.papel;
+  // `alvo` separado do texto: é o que deixa a tela reescrever a frase no idioma
+  // dela ao redesenhar o histórico.
+  if (ev.alvo) passo.alvo = String(ev.alvo).slice(0, 300);
+  if (ev.carregando) passo.carregando = true;
   if (ev.descricao) passo.descricao = String(ev.descricao).slice(0, 300);
   if (ev.porque) passo.porque = String(ev.porque).slice(0, 300);
   if (ev.modelo) passo.modelo = ev.modelo;

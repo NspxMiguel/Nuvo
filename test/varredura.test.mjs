@@ -228,7 +228,7 @@ test('passo do navegador diz quando a página ainda estava carregando', () => {
   const fonte = lerFonte('../server/navegador.mjs');
   assert.match(fonte, /if \(\+\+iguais >= 2\) return true;/, 'assentou devolve true');
   assert.match(fonte, /\n  return false;\n\}/, 'e o estouro do prazo devolve false');
-  assert.match(fonte, /const AINDA_CARREGANDO =/, 'existe um aviso pra anexar');
+  assert.match(fonte, /carregando: !assentou/, 'o passo carrega o aviso');
   // Toda chamada tem que usar o retorno: uma que ignore volta a mentir.
   const chamadas = [...fonte.matchAll(/await assentar\(sessao\)/g)].length;
   const usadas = [...fonte.matchAll(/const parou = await assentar\(sessao\)/g)].length;

@@ -188,11 +188,17 @@ test('o agente não digita em campo de senha', { skip: !temChrome }, async () =>
       () => executar(sessao, { acao: 'escrever', alvo: senha.n, texto: 'segredo' }),
       /senha/
     );
-    // e o campo comum ao lado continua aceitando
-    assert.match(
-      await executar(sessao, { acao: 'escrever', alvo: p.elementos[1].n, texto: 'oi', enter: false }),
-      /escrevi "oi"/
-    );
+    // e o campo comum ao lado continua aceitando. O passo volta estruturado —
+    // `acao` e `alvo` separados — pra tela poder escrever a frase no idioma dela.
+    const escrito = await executar(sessao, {
+      acao: 'escrever',
+      alvo: p.elementos[1].n,
+      texto: 'oi',
+      enter: false
+    });
+    assert.equal(escrito.acao, 'escrever');
+    assert.equal(escrito.alvo, 'oi');
+    assert.match(escrito.texto, /escrevi "oi"/);
   } finally {
     await aberto?.encerrar();
     await fechar();

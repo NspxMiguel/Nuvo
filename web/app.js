@@ -688,12 +688,53 @@ function notaAntesDe(alvo, texto, cls = '', iconName = 'brain') {
   return el;
 }
 
+/**
+ * A frase de um passo do navegador, escrita na língua da tela.
+ *
+ * O servidor manda `acao` e `alvo` separados justamente pra isto — ele monta uma
+ * frase em português pra quem não souber montar, mas não sabe em que idioma a
+ * tela está. Sem isto, a trilha saía em português no meio de uma tela em
+ * espanhol enquanto todo o resto estava traduzido. É a mesma solução que o
+ * painel do modo Programar já usava.
+ */
+function passoDoNavegador(ev) {
+  const alvo = ev.alvo || '';
+  const frase = (() => {
+    switch (ev.acao) {
+      case 'navegar':
+        return t('abri {alvo}', { alvo });
+      case 'buscar':
+        return t('busquei por "{alvo}"', { alvo });
+      case 'clicar':
+        return t('cliquei em "{alvo}"', { alvo });
+      case 'escrever':
+        return t('escrevi "{alvo}"', { alvo });
+      case 'rolar-cima':
+        return t('rolei pra cima');
+      case 'rolar-baixo':
+        return t('rolei pra baixo');
+      case 'voltar':
+        return t('voltei uma página');
+      case 'pronto':
+        return t('já tenho o que precisava');
+      case 'responder':
+        return t('montando a resposta');
+      default:
+        // Passo que esta tela não conhece — ou um erro, que vem em texto puro:
+        // a frase do servidor é melhor que nada.
+        return ev.descricao || ev.acao || '';
+    }
+  })();
+  return ev.carregando ? `${frase} ${t('(a página ainda estava carregando)')}` : frase;
+}
+
 /** A trilha do agente de navegador, redesenhada a partir do que ficou gravado. */
 function trilhaGuardada(passos) {
   const linhas = passos
     .map((p) => {
-      const descricao =
-        p.papel === 'responder' ? t('montando a resposta') : escapeHtml(p.descricao || p.acao || '');
+      const descricao = p.erro
+        ? escapeHtml(p.descricao || p.acao || '')
+        : escapeHtml(passoDoNavegador(p));
       const modelo = p.modelo
         ? `<span class="porque">${escapeHtml(t('IA: {modelo}', { modelo: p.modelo }))}</span>`
         : '';
@@ -1226,9 +1267,9 @@ async function consumeTurn(path, body, ganchos = {}) {
               );
             }
             {
-              const descricao = ev.papel === 'responder'
-                ? t('montando a resposta')
-                : escapeHtml(ev.descricao || ev.acao);
+              const descricao = ev.erro
+                ? escapeHtml(ev.descricao || ev.acao || '')
+                : escapeHtml(passoDoNavegador(ev));
               const modelo = ev.modelo
                 ? `<span class="porque">${escapeHtml(t('IA: {modelo}', { modelo: ev.modelo }))}</span>`
                 : '';

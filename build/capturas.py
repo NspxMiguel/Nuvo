@@ -381,9 +381,17 @@ def capturar(quais):
 
                 # Cada idioma começa do zero: senão a segunda volta acha as
                 # conversas da primeira e a barra lateral vira uma torre de Babel.
+                #
+                # Os projetos vão junto. A tela Programar abre o PRIMEIRO projeto
+                # da lista, e a conversa que ela lembra é a daquele projeto: com o
+                # projeto do idioma anterior ainda ali, a segunda volta abria a
+                # tela vazia e a foto esperava por um passo que nunca vinha.
                 for chat in api('/chats'):
                     urllib.request.urlopen(urllib.request.Request(
                         f'http://127.0.0.1:{PORTA}/api/chats/{chat["id"]}', method='DELETE'), timeout=20)
+                for projeto in api('/projects'):
+                    urllib.request.urlopen(urllib.request.Request(
+                        f'http://127.0.0.1:{PORTA}/api/projects/{projeto["id"]}', method='DELETE'), timeout=20)
             navegador.close()
         shutil.rmtree(temporario, ignore_errors=True)
     finally:
