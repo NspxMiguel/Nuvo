@@ -111,6 +111,40 @@ Regras que não se negociam:
 - Com UMA prova só, não afirme padrão: descreva o que viu e nada além.`;
 
 /**
+ * As leituras das provas escritas como texto, não como JSON.
+ *
+ * Um array JSON no meio do pedido é um começo de resposta, e modelo devolvia a
+ * própria lista de provas de volta em vez do retrato. Em texto não há array pra
+ * continuar, e o pedido fica menor e legível.
+ *
+ * Medido, e sem vitória: `gpt-oss-120b` e `qwen3.6-27b` erram a forma dos dois
+ * jeitos, três em três. O que decide este passo é o modelo — `gemini-2.5-flash`
+ * acerta na primeira com JSON ou com texto —, e é por isso que a mensagem de
+ * falha manda trocar de modelo.
+ */
+function emTexto(leituras) {
+  return leituras
+    .map((leitura) => {
+      const cabeca = [
+        `## ${leitura.nome}`,
+        leitura.n_questoes ? `${leitura.n_questoes} questões` : '',
+        leitura.pontuacao ? `pontuação: ${leitura.pontuacao}` : '',
+        leitura.cortado ? '(o arquivo foi cortado no meio)' : ''
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      const questoes = lista(leitura.questoes).map((q, i) => {
+        const marca = [q.formato, q.tema, q.nivel, q.verbo ? `verbo "${q.verbo}"` : '', q.pontos ? `${q.pontos} ponto(s)` : '']
+          .filter(Boolean)
+          .join(' · ');
+        return `${q.n || i + 1}. ${q.enunciado || ''}${marca ? `\n   [${marca}]` : ''}`;
+      });
+      return [cabeca, ...questoes].join('\n');
+    })
+    .join('\n\n');
+}
+
+/**
  * A ordem repetida no fim do pedido.
  *
  * O formato mora no prompt de sistema e, entre ele e a resposta, vem uma prova
@@ -386,7 +420,7 @@ export async function* montarRetrato({ professorId, ref, signal }) {
     const universo = teto ? bloco(materiais, teto) : { texto: '' };
     return [
       `Professor: ${professor.nome}${professor.materia ? ` (${professor.materia})` : ''}`,
-      `\n# Leitura das provas\n${JSON.stringify(leituras, null, 1)}`,
+      `\n# Leitura das provas\n${emTexto(leituras)}`,
       universo.texto
         ? `\n# O que ele ensina em aula\n${universo.texto}`
         : '\n# O que ele ensina em aula\n(nada foi anexado)'
