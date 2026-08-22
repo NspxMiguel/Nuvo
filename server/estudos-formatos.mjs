@@ -657,7 +657,13 @@ export async function* gerarFormato({
     if (tentativa) yield { type: 'repetindo' };
     const saida = await complete(ref, {
       system: sistema,
-      prompt: tentativa === 0 ? entrada : `${entrada}\n\nDevolva SOMENTE o objeto JSON. Nada antes, nada depois.`,
+      // A última linha é a que o modelo obedece: o formato mora no prompt de
+      // sistema e entre ele e a resposta vem o material inteiro.
+      prompt: `${entrada}\n\n${
+        tentativa === 0
+          ? 'Responda com o objeto JSON do formato acima, e nada mais.'
+          : 'Responda SOMENTE o objeto JSON do formato acima, começando em { e terminando em }. Nada antes, nada depois, sem cerca de markdown.'
+      }`,
       temperature: tentativa === 0 ? 0.3 : 0,
       signal
     });

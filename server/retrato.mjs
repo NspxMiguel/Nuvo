@@ -83,7 +83,10 @@ Regras que não se negociam:
   caso novo é "aplicar"; comparar duas posições é "analisar".
 - Se o documento não for uma prova, devolva {"formato": null, "questoes": [], "observacoes": ["não parece uma prova"]}.`;
 
-const PROMPT_SINTESE = `Você recebe a leitura de várias provas do MESMO professor e o que ele ensina em aula.
+const PROMPT_SINTESE = `Você é uma função que devolve JSON. Não escreve carta, não
+dá conselho e não fala com o professor: o que sai daqui é lido por um programa.
+
+Você recebe a leitura de várias provas do MESMO professor e o que ele ensina em aula.
 Escreva o retrato dele: o que ele cobra, como cobra, e o que ensina sem cobrar.
 
 Devolva SOMENTE um objeto JSON, sem texto em volta, neste formato:
@@ -94,17 +97,39 @@ Devolva SOMENTE um objeto JSON, sem texto em volta, neste formato:
   "verbos": [{"verbo": "...", "vezes": 0, "exemplo": "trecho literal"}],
   "pegadinhas": [{"padrao": "o que ele faz pra derrubar quem decorou", "exemplo": "trecho literal"}],
   "manias": ["frase curta sobre um hábito dele"],
-  "so_na_aula": ["tema que ele ensina e nunca cobrou"]
+  "temas_da_aula": ["tema que aparece no material de aula, qualquer um"]
 }
 
 Regras que não se negociam:
 - "peso" é fração de 0 a 1, e a soma de cada lista dá aproximadamente 1.
 - Toda "citacao" e todo "exemplo" são texto LITERAL vindo do que você recebeu.
   Sem trecho pra sustentar, não escreva o item.
-- "so_na_aula" sai da diferença entre o que aparece no material de aula e o que
-  aparece nas provas. Se você não recebeu material de aula, devolva lista vazia
-  em vez de inventar.
+- "temas_da_aula" é a lista do que o material de aula cobre, sem filtrar nada:
+  não é sua tarefa comparar com as provas nem decidir o que ele cobra. Liste
+  tudo, inclusive o que também aparece nas provas. Sem material de aula, lista
+  vazia.
 - Com UMA prova só, não afirme padrão: descreva o que viu e nada além.`;
+
+/**
+ * A ordem repetida no fim do pedido.
+ *
+ * O formato mora no prompt de sistema e, entre ele e a resposta, vem uma prova
+ * inteira. Repetir no fim é barato e é onde o modelo costuma olhar por último.
+ *
+ * Não é bala de prata, e foi medido: com `openai/gpt-oss-120b` e
+ * `qwen/qwen3.6-27b` o resultado é o mesmo com e sem a linha — os dois devolvem
+ * uma estrutura inventada nas três tentativas. `gemini-2.5-flash` acerta na
+ * primeira dos dois jeitos. Quem decide aqui é o modelo, e é por isso que a
+ * mensagem de falha manda trocar de modelo em vez de mandar tentar de novo.
+ *
+ * O modo JSON do provedor (`json: true` em `complete`) piora este caso em vez de
+ * ajudar: ligado, ele garante que a resposta é JSON e solta a forma — dois
+ * modelos devolveram JSON válido com a estrutura deles. Aqui a forma é o que
+ * importa, então ele fica desligado.
+ */
+const SO_O_JSON = 'Responda com o objeto JSON do formato acima, e nada mais.';
+const SO_O_JSON_DURO =
+  'Responda SOMENTE o objeto JSON do formato acima, começando em { e terminando em }. Nada antes, nada depois, sem cerca de markdown.';
 
 const nada = (v) => v === null || v === undefined;
 
@@ -141,6 +166,8 @@ export function limparRetrato(bruto) {
     .filter((c) => c.nivel);
   if (!conteudo.length && !cognitivo.length) return null;
 
+  const temasDaAula = lista(bruto.temas_da_aula).map((t) => texto(t, 120)).filter(Boolean);
+
   return {
     versao: 1,
     formato: nada(bruto.formato)
@@ -161,8 +188,57 @@ export function limparRetrato(bruto) {
       .map((p) => ({ padrao: texto(p.padrao), exemplo: texto(p.exemplo) }))
       .filter((p) => p.padrao),
     manias: lista(bruto.manias).map((m) => texto(m)).filter(Boolean),
-    so_na_aula: lista(bruto.so_na_aula).map((s) => texto(s, 120)).filter(Boolean)
+    temas_da_aula: temasDaAula,
+    // O "ensina e nunca cobrou" é a diferença entre duas listas, e conta feita
+    // por modelo no meio de outras seis saídas voltava vazia justamente quando
+    // havia material de aula pra comparar. Aqui ela é conta, e dá pra conferir:
+    // as duas listas ficam gravadas ao lado da resposta.
+    so_na_aula: soNaAula(temasDaAula, conteudo)
   };
+}
+
+/** Sem acento, sem pontuação, em minúscula. É como os dois lados se comparam. */
+const achatar = (texto) =>
+  String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * As palavras de um tema que sozinhas já nomeiam um assunto.
+ *
+ * Seis letras é grosseiro e é o que funciona: "ciclo" tem cinco e aparece em
+ * "ciclo de Krebs" e em "ciclo da água", que não são o mesmo assunto;
+ * "genética" tem oito e aparece em "genética mendeliana" e em "engenharia
+ * genética", que são. Palavra curta não some do texto — só não serve de prova
+ * de que dois temas são o mesmo.
+ */
+const palavrasDe = (texto) => achatar(texto).split(' ').filter((p) => p.length >= 6);
+
+/**
+ * O que ele ensina e nunca cobrou.
+ *
+ * Um tema de aula é dado como cobrado quando um tema de prova o contém, é contido
+ * por ele, ou divide com ele uma palavra que signifique alguma coisa. É frouxo de
+ * propósito: dizer que ele nunca cobrou uma coisa que ele cobrou é o erro caro —
+ * manda a pessoa estudar o que não cai e deixar de estudar o que cai.
+ */
+function soNaAula(temasDaAula, conteudo) {
+  if (!temasDaAula.length || !conteudo.length) return [];
+  const cobrados = conteudo.map((c) => ({ inteiro: achatar(c.tema), palavras: new Set(palavrasDe(c.tema)) }));
+  return temasDaAula.filter((tema) => {
+    const inteiro = achatar(tema);
+    if (!inteiro) return false;
+    const palavras = palavrasDe(tema);
+    return !cobrados.some(
+      (c) =>
+        (c.inteiro && (c.inteiro.includes(inteiro) || inteiro.includes(c.inteiro))) ||
+        palavras.some((p) => c.palavras.has(p))
+    );
+  });
 }
 
 /**
@@ -269,7 +345,7 @@ export async function* montarRetrato({ professorId, ref, signal }) {
           system: PROMPT_PROVA,
           prompt:
             tentativa === 0
-              ? `Prova: ${pasta.nome}\n\n${corpo}`
+              ? `Prova: ${pasta.nome}\n\n${corpo}\n\n${SO_O_JSON}`
               : `Prova: ${pasta.nome}\n\n${corpo}\n\nDevolva SOMENTE o objeto JSON, começando em { e terminando em }. Nada antes, nada depois.`,
           temperature: 0,
           signal
@@ -334,7 +410,7 @@ export async function* montarRetrato({ professorId, ref, signal }) {
           system: PROMPT_SINTESE,
           // A segunda tentativa é mais dura de propósito: modelo que já errou o
           // formato uma vez costuma errar de novo com o mesmo pedido.
-          prompt: tentativa === 0 ? entrada : `${entrada}\n\nDevolva SOMENTE o objeto JSON. Nada antes, nada depois.`,
+          prompt: `${entrada}\n\n${tentativa === 0 ? SO_O_JSON : SO_O_JSON_DURO}`,
           temperature: 0,
           signal
         });

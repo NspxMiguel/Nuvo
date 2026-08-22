@@ -38,6 +38,15 @@ export async function* stream(ctx, req) {
   if (req.temperature != null) generation.temperature = req.temperature;
   if (req.topP != null) generation.topP = req.topP;
   if (req.maxTokens) generation.maxOutputTokens = req.maxTokens;
+  // Quem chamou quer JSON e o provedor sabe garantir isso. Sem pedir, o modelo
+  // responde em prosa mesmo com o pedido dizendo "SOMENTE JSON" — e aí o app
+  // gasta uma segunda chamada de trinta segundos pra tentar de novo.
+  if (req.json) {
+    generation.responseMimeType = 'application/json';
+    // Com esquema o Gemini devolve a forma pedida; sem ele devolve JSON de
+    // qualquer forma — inclusive uma inventada por ele.
+    if (typeof req.json === 'object') generation.responseSchema = req.json;
+  }
   if (Object.keys(generation).length) body.generationConfig = generation;
   // O Gemini tem filtros de segurança configuráveis pelo chamador.
   if (req.unfiltered) {

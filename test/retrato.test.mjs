@@ -19,7 +19,7 @@ const bom = {
   verbos: [{ verbo: 'justifique', vezes: 7, exemplo: 'Justifique...' }],
   pegadinhas: [{ padrao: 'inverte causa e efeito', exemplo: '...' }],
   manias: ['sempre pede exemplo do cotidiano'],
-  so_na_aula: ['Comuna de Paris']
+  temas_da_aula: ['Revolução Francesa', 'Comuna de Paris']
 };
 
 test('retrato com forma passa e chega inteiro do outro lado', () => {
@@ -29,7 +29,9 @@ test('retrato com forma passa e chega inteiro do outro lado', () => {
   assert.equal(fora.cognitivo[0].nivel, 'aplicar');
   assert.equal(fora.verbos[0].vezes, 7);
   assert.equal(fora.manias[0], 'sempre pede exemplo do cotidiano');
-  assert.equal(fora.so_na_aula[0], 'Comuna de Paris');
+  // "Comuna de Paris" está no material de aula e não aparece nas provas: a
+  // diferença entre as duas listas é o que vira "ensina e nunca cobrou".
+  assert.deepEqual(fora.so_na_aula, ['Comuna de Paris']);
 });
 
 test('retrato sem conteúdo e sem nível é recusado, não gravado pela metade', () => {
@@ -92,4 +94,54 @@ test('o JSON é achado mesmo com conversa em volta', () => {
   });
   assert.equal(parseJsonObject('não vou responder isso'), null);
   assert.equal(parseJsonObject('[1,2,3]'), null);
+});
+
+test('"ensina e nunca cobrou" é conta, não palpite do modelo', () => {
+  // Era um campo entre sete que o modelo tinha que preencher fazendo diferença
+  // de conjunto de cabeça — e voltava vazio justamente quando havia material de
+  // aula pra comparar, que é quando ele vale alguma coisa.
+  const r = limparRetrato({
+    conteudo: [
+      { tema: 'Respiração celular', peso: 0.4 },
+      { tema: 'Fotossíntese', peso: 0.3 },
+      { tema: 'Genética mendeliana', peso: 0.3 }
+    ],
+    cognitivo: [{ nivel: 'aplicar', peso: 1 }],
+    temas_da_aula: [
+      'Respiração celular',
+      'fotossintese',
+      'Biotecnologia e engenharia genética',
+      'Bioluminescência',
+      'Plantas C4'
+    ]
+  });
+
+  assert.deepEqual(r.so_na_aula, ['Bioluminescência', 'Plantas C4']);
+  assert.equal(r.temas_da_aula.length, 5, 'as duas listas ficam gravadas pra dar pra conferir');
+});
+
+test('sem material de aula não se inventa o que ele deixou de cobrar', () => {
+  const r = limparRetrato({
+    conteudo: [{ tema: 'Respiração celular', peso: 1 }],
+    cognitivo: [{ nivel: 'lembrar', peso: 1 }],
+    so_na_aula: ['isto veio do modelo e não vale nada sem material']
+  });
+  assert.deepEqual(r.so_na_aula, [], 'sem lista de aula, a diferença é vazia');
+});
+
+test('a comparação é frouxa de propósito: errar pra menos é o lado barato', () => {
+  // Dizer que ele nunca cobrou uma coisa que ele cobrou manda estudar o que não
+  // cai e deixar de estudar o que cai. Na dúvida, o tema conta como cobrado.
+  const r = limparRetrato({
+    conteudo: [{ tema: 'Ciclo de Krebs', peso: 1 }],
+    cognitivo: [{ nivel: 'lembrar', peso: 1 }],
+    temas_da_aula: ['ciclo de krebs', 'O ciclo de Krebs e a matriz mitocondrial', 'Ciclo da água']
+  });
+  assert.equal(r.so_na_aula.includes('ciclo de krebs'), false, 'acento e caixa não separam tema');
+  assert.equal(
+    r.so_na_aula.includes('O ciclo de Krebs e a matriz mitocondrial'),
+    false,
+    'tema que contém o outro conta como cobrado'
+  );
+  assert.deepEqual(r.so_na_aula, ['Ciclo da água'], 'e "ciclo" sozinho não faz dois temas virarem um');
 });

@@ -33,6 +33,27 @@ export async function* stream(ctx, req) {
   if (req.temperature != null) body.temperature = req.temperature;
   if (req.topP != null) body.top_p = req.topP;
   if (req.maxTokens) body.max_tokens = req.maxTokens;
+  // Mesmo motivo do Gemini: pedir JSON de verdade sai mais barato do que pedir
+  // por favor e tentar de novo quando vem prosa.
+  //
+  // A Groq — e a OpenAI antes dela — recusa `json_object` quando a palavra
+  // "json" não aparece nas mensagens, e a checagem é por minúscula: um pedido
+  // que diz "objeto JSON" em maiúscula é recusado com 400. Em vez de exigir que
+  // quem chama escreva de um jeito, a linha entra aqui.
+  if (req.json) {
+    // Com esquema, o provedor garante a FORMA. Sem ele, garante só que é JSON —
+    // e modelo com liberdade de forma inventa a própria: dois modelos diferentes
+    // devolveram `{professor, disciplina, exames}` no lugar do retrato.
+    body.response_format =
+      typeof req.json === 'object'
+        ? { type: 'json_schema', json_schema: { name: 'resposta', schema: req.json } }
+        : { type: 'json_object' };
+    // A checagem da palavra é por minúscula: "objeto JSON" em maiúscula era
+    // recusado com 400.
+    if (!body.messages.some((m) => String(m.content || '').includes('json'))) {
+      body.messages = [{ role: 'system', content: 'Responda em json.' }, ...body.messages];
+    }
+  }
 
   const res = await fetch(`${trimUrl(ctx.baseUrl)}/chat/completions`, {
     method: 'POST',

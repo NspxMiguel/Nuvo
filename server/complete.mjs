@@ -34,7 +34,7 @@ const dormir = (ms, signal) =>
   });
 
 /** @returns {Promise<{text: string, reasoning: string, usage: object|null, ms: number}>} */
-export async function complete(ref, { system, messages, prompt, temperature, maxTokens, signal } = {}) {
+export async function complete(ref, { system, messages, prompt, temperature, maxTokens, json, signal } = {}) {
   const { providerId, modelId } = parseRef(ref);
   const provider = getProvider(providerId);
   if (!provider) throw erroTraduzivel('provedor sumiu: {id}', { id: providerId });
@@ -52,6 +52,8 @@ export async function complete(ref, { system, messages, prompt, temperature, max
         messages: messages || [{ role: 'user', content: prompt || '' }],
         temperature: temperature ?? null,
         maxTokens: maxTokens ?? null,
+        // O adaptador que souber garantir JSON garante; o que não souber ignora.
+        json: Boolean(json),
         signal
       })) {
         if (chunk.delta) text += chunk.delta;
