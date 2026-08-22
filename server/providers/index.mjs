@@ -6,11 +6,12 @@ import * as google from './google.mjs';
 import * as ollama from './ollama.mjs';
 import * as cli from './cli.mjs';
 import * as notebooklm from './notebooklm.mjs';
+import * as site from './ia-de-site.mjs';
 import { all, one, run, uid, now, parseJSON } from '../db.mjs';
 import { getSecret } from '../config.mjs';
 import { erroTraduzivel } from '../erro-traduzivel.mjs';
 
-const ADAPTERS = { openai, anthropic, google, ollama, cli, notebooklm };
+const ADAPTERS = { openai, anthropic, google, ollama, cli, notebooklm, site };
 
 export function adapterFor(kind) {
   const adapter = ADAPTERS[kind];
@@ -184,6 +185,8 @@ export const PRESETS = [
   { key: 'lmstudio', name: 'LM Studio (local)', kind: 'openai', baseUrl: 'http://127.0.0.1:1234/v1', secretName: null },
   { key: 'ollama', name: 'Ollama (local)', kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', secretName: null },
   { key: 'llamacpp', name: 'llama.cpp (local)', kind: 'openai', baseUrl: 'http://127.0.0.1:8080/v1', secretName: null },
+  // Sem chave e sem cobrança: quem responde é a conta que ele já tem no site.
+  { key: 'sites', name: 'IAs pelo site', kind: 'site', baseUrl: null, secretName: null },
   {
     key: 'claude-cli',
     name: 'Claude Code (CLI)',

@@ -53,6 +53,7 @@ const KIND_ROT = {
   ollama: 'roda nesta máquina',
   cli: 'programa do terminal',
   notebooklm: 'pelo seu navegador',
+  site: 'pelo site delas',
   openai: 'paga por uso',
   anthropic: 'paga por uso',
   google: 'paga por uso'
@@ -276,6 +277,7 @@ views.providers = async function renderProviders(el, { switchView }) {
              <option value="ollama">${t('roda nesta máquina')} · Ollama</option>
              <option value="cli">${t('programa do terminal')}</option>
              <option value="notebooklm">${t('pelo seu navegador')} · NotebookLM</option>
+             <option value="site">${t('pelo site delas')} · ChatGPT, Claude, Gemini, DeepSeek…</option>
            </select>
          </label>
        </div>
@@ -503,6 +505,18 @@ views.providers = async function renderProviders(el, { switchView }) {
         await refreshState();
         switchView('providers');
         return toast(t('NotebookLM ligado — ele responde a partir dos arquivos da conversa'), 'ok');
+      } catch (err) {
+        return toast(err.message, 'err');
+      }
+    }
+    // As IAs de site também não têm chave nem endereço: quem responde é a conta
+    // que ele já tem lá dentro, aberta no navegador do app.
+    if (inner.querySelector('#new-kind').value === 'site') {
+      try {
+        await api('/providers', { method: 'POST', body: { name: 'IAs pelo site', kind: 'site' } });
+        await refreshState();
+        switchView('providers');
+        return toast(t('pronto — entre em cada site pelo navegador do app quando ele pedir'), 'ok');
       } catch (err) {
         return toast(err.message, 'err');
       }
