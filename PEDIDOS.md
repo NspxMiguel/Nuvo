@@ -10,10 +10,46 @@ estiver entregue e conferido.
 > "faz tudo funcionar. testa tudo tudo tudo, coloca provas achadas na internet e
 > etc, pra tudo funcionar bem"
 
-- [ ] **provas de verdade, achadas na internet**, dentro do app
-- [ ] **exercitar o fluxo inteiro** — anexar, montar retrato, gerar os dez
-      formatos, revisar cartões — com IA de verdade, não com dado semeado
-- [ ] **consertar tudo o que quebrar no caminho**
+- [x] **provas de verdade, achadas na internet** — cinco provas de Biologia da
+      2ª fase do vestibular da Unicamp (2020 a 2024) e os dois programas
+      oficiais da prova, em PDF, direto do site da Comvest. O app leu os sete:
+      633 trechos indexados, sem biblioteca de PDF. O sexto arquivo era um PDF
+      digitalizado e o app disse isso em vez de fingir que leu.
+- [x] **fluxo inteiro com IA de verdade** — retrato montado a partir das cinco
+      provas em 146 s (23 questões lidas), os dez formatos gerados, 37 cartões
+      semeados e revisados com o FSRS, e o backup exportado e restaurado numa
+      casa vazia com tudo de volta: 1 professor, 6 pastas, 8 anexos, 10 saídas,
+      37 cartões, 633 trechos, o retrato e as cinco leituras guardadas.
+
+      O retrato bateu com o que a banca faz de verdade: 100% discursiva, 46%
+      "analisar", "explique" 13 vezes contra "cite" 3, temas atuais (pandemia,
+      fake news) e leitura de gráfico.
+- [x] **consertar tudo o que quebrou no caminho** — onze defeitos, todos
+      achados rodando o app contra API de verdade:
+
+      1. 429 de cota derrubava tudo; agora espera e repete quando a cota se
+         renova sozinha, e desiste na hora quando é cota diária;
+      2. uma prova que falhava levava as outras quatro junto;
+      3. a leitura de cada prova era jogada fora quando a síntese falhava —
+         quatro minutos de trabalho perdidos; agora fica guardada;
+      4. "lendo prova undefined de undefined" na barra de progresso;
+      5. o pedido da síntese não cabia em modelo de cota apertada (413) e não
+         encolhia;
+      6. leitura de prova densa desistia na primeira topada, sem segunda
+         tentativa;
+      7. resposta cortada pelo teto do modelo virava zero — 37 cartões
+         perdidos por causa do 38º pela metade;
+      8. o HTML que o modelo inventa (`<i>Escherichia coli</i>`) aparecia
+         literal na tela;
+      9. o pensamento `<think>` de modelos de raciocínio entrava como resposta;
+      10. erro de provedor saía cru (`chat: HTTP 429 — {...}`) em tudo que não
+          era conversa;
+      11. o guia de estudo empilhava o tema em quatro linhas com o peso solto
+          embaixo da barra.
+
+      E um pedágio: cada geração abria um Chrome sem janela por vinte segundos
+      pra descobrir que não havia NotebookLM configurado. Agora só tenta quando
+      ele está ligado na lista de IAs.
 
 ---
 
