@@ -1999,8 +1999,35 @@ button.icon { position: relative; }
 .cd-passo.correndo .ico { animation: cdPisca 1.1s var(--ease-io) infinite; }
 @keyframes cdPisca { 50% { opacity: 0.25; } }
 .cd-passo-txt { flex: 1 1 auto; min-width: 0; }
-.cd-passo b { display: block; font-size: 14.5px; font-weight: 550; color: var(--text); overflow-wrap: anywhere; }
-.cd-cmd { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+/* Comando comprido — e comando de verdade é comprido — não pode virar um
+   parágrafo em negrito. Duas linhas no título, três no comando, e o resto some
+   nas reticências: o painel é a lista do que ela fez, não o terminal. */
+.cd-passo b {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 550;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.cd-cmd {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* Aberto, o passo mostra o comando inteiro: quem clicou na saída quer ler. */
+.cd-passo:has(.cd-saida[open]) b,
+.cd-passo:has(.cd-saida[open]) .cd-cmd { -webkit-line-clamp: unset; line-clamp: unset; display: block; }
 
 .cd-saida { margin-top: 6px; }
 .cd-saida > summary { display: inline-flex; align-items: center; min-height: 32px; cursor: pointer; list-style: none; font-size: 13.5px; color: var(--muted); }

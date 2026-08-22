@@ -175,7 +175,15 @@ def roteiro_programar(idioma):
     mostra o app editando arquivo, e apontar pra pasta de alguém seria fotografar
     o trabalho dessa pessoa.
     """
-    pasta = Path(tempfile.mkdtemp(prefix='nuvo-codigo-'))
+    # Pasta com nome curto de propósito: o painel mostra o comando que a IA
+    # rodou, e um caminho de `mkdtemp` ocupa três linhas de captura com um
+    # endereço que não quer dizer nada pra quem olha a imagem.
+    # `/tmp` quando existe: no macOS o temporário do usuário é
+    # `/var/folders/2f/nt9…/T/`, e esse endereço sozinho enche o painel.
+    raiz = Path('/tmp') if Path('/tmp').is_dir() else Path(tempfile.gettempdir())
+    pasta = raiz / 'nuvo-calculadora'
+    shutil.rmtree(pasta, ignore_errors=True)
+    pasta.mkdir(parents=True)
     (pasta / 'soma.mjs').write_text(
         '// Soma dois números.\n'
         'export function soma(a, b) {\n'

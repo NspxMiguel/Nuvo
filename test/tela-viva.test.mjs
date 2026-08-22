@@ -356,3 +356,36 @@ test('perfil e projeto não aceitam ficar sem nome', () => {
   assert.match(api, /function nomeOuOAtual\(novo, atual\)/, 'e o servidor não grava vazio');
   assert.doesNotMatch(api, /b\.name \?\? cur\.name/, 'nenhum lugar aceita string vazia como nome');
 });
+
+test('a prova de que o app navegou volta com a conversa', () => {
+  // O app promete que abriu um navegador de verdade e leu a página. Essa prova
+  // — a trilha e as fontes — só existia enquanto a resposta chegava: bastava
+  // recarregar pra sumir, igual ao rodapé da memória antes de ser gravado.
+  const servidor = ler('server/chat.mjs');
+  assert.match(servidor, /web: paginasLidas\.length \? paginasLidas : undefined/, 'as fontes ficam gravadas');
+  assert.match(servidor, /agente: passosDoAgente\.length \? passosDoAgente : undefined/, 'e a trilha também');
+  assert.match(servidor, /function passoDoAgente\(ev\)/, 'gravando só o que a tela precisa');
+
+  const app = ler('web/app.js');
+  assert.match(app, /if \(meta\.agente\?\.length\) notaAntesDe\(el, trilhaGuardada\(meta\.agente\)/, 'a tela redesenha a trilha');
+  assert.match(app, /if \(meta\.web\?\.length\) \{/, 'e as fontes');
+  assert.match(app, /function notaAntesDe\(alvo, texto/, 'no lugar certo, antes da resposta');
+});
+
+test('a linha de fechamento do turno de programar sobrevive ao recarregamento', () => {
+  // "terminou · 8,8 s · 3 idas e voltas · custou US$ 0,24" só existia no stream:
+  // o resto do painel voltava depois de um F5 e essa linha não.
+  const servidor = ler('server/chat.mjs');
+  assert.match(servidor, /if \(evento\.tipo === 'fim'\) \{/, 'o fim entra na lista gravada');
+  const code = ler('web/view-code.js');
+  assert.match(code, /\{ tipo: 'fim', titulo: linhaDoFim\(passo\), texto: null \}/, 'e volta como fim, não como ferramenta');
+});
+
+test('comando comprido no painel não vira parágrafo', () => {
+  // Um `find /private/var/folders/2f/nt9…` em negrito ocupava três linhas do
+  // painel e empurrava o resto do trabalho pra fora da tela.
+  const css = ler('web/styles.css');
+  assert.match(css, /\.cd-passo b \{[^}]*line-clamp: 2/, 'o título para em duas linhas');
+  assert.match(css, /\.cd-cmd \{[^}]*line-clamp: 3/, 'e o comando em três');
+  assert.match(css, /\.cd-passo:has\(\.cd-saida\[open\]\)/, 'aberto, mostra inteiro');
+});

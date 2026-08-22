@@ -674,6 +674,37 @@ function addNote(text, cls = '', iconName = 'brain') {
 }
 
 /**
+ * O mesmo aviso, mas encaixado antes de uma resposta que já está na tela.
+ *
+ * `addNote` sempre põe no fim, que é o certo enquanto a resposta chega. Ao
+ * redesenhar o histórico, o fim é outro lugar: o aviso tem que voltar pro lugar
+ * onde ele aconteceu, que é logo acima da resposta a que ele pertence.
+ */
+function notaAntesDe(alvo, texto, cls = '', iconName = 'brain') {
+  const el = document.createElement('div');
+  el.className = `note ${cls}`;
+  el.innerHTML = `<span class="ico">${icon(iconName, 17)}</span><span>${texto}</span>`;
+  alvo.parentNode.insertBefore(el, alvo);
+  return el;
+}
+
+/** A trilha do agente de navegador, redesenhada a partir do que ficou gravado. */
+function trilhaGuardada(passos) {
+  const linhas = passos
+    .map((p) => {
+      const descricao =
+        p.papel === 'responder' ? t('montando a resposta') : escapeHtml(p.descricao || p.acao || '');
+      const modelo = p.modelo
+        ? `<span class="porque">${escapeHtml(t('IA: {modelo}', { modelo: p.modelo }))}</span>`
+        : '';
+      const porque = p.porque ? `<span class="porque">${escapeHtml(p.porque)}</span>` : '';
+      return `<div class="passo${p.erro ? ' ruim' : ''}">${descricao}${porque}${modelo}</div>`;
+    })
+    .join('');
+  return `<b>${t('navegando')}</b><div class="trilha">${linhas}</div>`;
+}
+
+/**
  * Rodapé da resposta: o que a memória entregou ao modelo neste turno. Uma
  * linha só; os fatos ficam a um toque, com a origem na coluna da direita.
  */
@@ -760,6 +791,27 @@ function renderMessages(focusId) {
       prependReasoning(el, meta.reasoning);
       // No histórico não existe quanto tempo o modelo pensou: só o rótulo.
       endReasoning(el, null);
+    }
+    // A navegação volta com a conversa pelo mesmo motivo da memória: o app
+    // promete que abriu um navegador de verdade e leu a página, e essa prova
+    // sumia no primeiro recarregamento.
+    if (meta.agente?.length) notaAntesDe(el, trilhaGuardada(meta.agente), 'agente', 'globe');
+    if (meta.web?.length) {
+      notaAntesDe(
+        el,
+        t('web: {lista}', {
+          lista: meta.web
+            .map(
+              (h) =>
+                `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">[${h.n}] ${escapeHtml(
+                  String(h.title || h.url).slice(0, 60)
+                )}</a>`
+            )
+            .join(' · ')
+        }),
+        '',
+        'globe'
+      );
     }
     // O rodapé da memória volta com a conversa. Ele é a prova de que a memória
     // compartilhada agiu, e existia só enquanto a resposta chegava.

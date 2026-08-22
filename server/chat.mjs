@@ -234,6 +234,12 @@ export async function* runTurn({
   const tools = parseJSON(chat.tools, {});
   const wantsWeb = useWeb === null ? Boolean(tools.web) : Boolean(useWeb);
   let webBlock = '';
+  // A prova de que o app navegou fica gravada com a resposta, pelo mesmo motivo
+  // que a memória fica: o app promete que abriu um navegador de verdade e leu a
+  // página, e essa prova não pode ser a coisa mais volátil da tela — bastava
+  // recarregar pra sumir a trilha inteira e as fontes junto.
+  const passosDoAgente = [];
+  let paginasLidas = [];
   if (wantsWeb) {
     // Com Chrome na máquina o globo dirige um navegador de verdade: o modelo
     // clica, lê e decide o próximo passo. Sem Chrome — servidor pelado, contêiner
@@ -261,15 +267,19 @@ export async function* runTurn({
         });
         let evento = await passeio.next();
         while (!evento.done) {
+          if (evento.value?.type === 'agent-step') passosDoAgente.push(passoDoAgente(evento.value));
           yield evento.value;
           evento = await passeio.next();
         }
         webBlock = evento.value.block;
         if (evento.value.visitadas.length) {
-          yield {
-            type: 'web-used',
-            hits: evento.value.visitadas.map((v, i) => ({ n: i + 1, title: v.titulo || v.url, url: v.url, ok: true }))
-          };
+          paginasLidas = evento.value.visitadas.map((v, i) => ({
+            n: i + 1,
+            title: v.titulo || v.url,
+            url: v.url,
+            ok: true
+          }));
+          yield { type: 'web-used', hits: paginasLidas };
         }
       } catch (err) {
         yield {
@@ -279,7 +289,7 @@ export async function* runTurn({
       }
       // A síntese é outro papel e outra chamada. A mesma trilha deixa explícito
       // onde terminam os passos baratos e qual IA escreve o que a pessoa lê.
-      yield {
+      const fecho = {
         type: 'agent-step',
         acao: 'responder',
         papel: 'responder',
@@ -287,15 +297,15 @@ export async function* runTurn({
         modelo: describeModel(refDaResposta),
         modeloRef: refDaResposta
       };
+      passosDoAgente.push(passoDoAgente(fecho));
+      yield fecho;
     } else {
       yield { type: 'phase', text: 'buscando na web' };
       try {
         const { pages } = await searchAndRead(userContent, { results: 5, read: 3, signal });
         webBlock = renderWebBlock(pages);
-        yield {
-          type: 'web-used',
-          hits: pages.map((p, i) => ({ n: i + 1, title: p.title, url: p.url, ok: Boolean(p.text) }))
-        };
+        paginasLidas = pages.map((p, i) => ({ n: i + 1, title: p.title, url: p.url, ok: Boolean(p.text) }));
+        yield { type: 'web-used', hits: paginasLidas };
       } catch (err) {
         yield { type: 'note', ...textoTraduzivel('text', 'busca na web falhou: {causa}', { causa: err.message }) };
       }
@@ -513,6 +523,8 @@ export async function* runTurn({
             }))
           : undefined,
         trabalho: trabalho.length ? trabalho : undefined,
+        web: paginasLidas.length ? paginasLidas : undefined,
+        agente: passosDoAgente.length ? passosDoAgente : undefined,
         provider: provider.name
       });
   yield { type: 'done', message: assistantMessage };
@@ -545,6 +557,17 @@ export async function* runTurn({
  * `usage`, `stats` e o raciocínio. Do resultado sobra o que a lista mostra: se
  * o passo deu certo. O texto inteiro continua chegando ao vivo pela tela.
  */
+/** Só o que a tela precisa pra redesenhar o passo do agente depois. */
+function passoDoAgente(ev) {
+  const passo = { acao: ev.acao || 'outro' };
+  if (ev.papel) passo.papel = ev.papel;
+  if (ev.descricao) passo.descricao = String(ev.descricao).slice(0, 300);
+  if (ev.porque) passo.porque = String(ev.porque).slice(0, 300);
+  if (ev.modelo) passo.modelo = ev.modelo;
+  if (ev.erro) passo.erro = true;
+  return passo;
+}
+
 function anotarTrabalho(lista, porId, evento) {
   if (evento.tipo === 'ferramenta') {
     if (lista.length >= TRABALHO_LIMIT) return;
