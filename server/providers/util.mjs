@@ -50,12 +50,40 @@ export async function ensureOk(res, label) {
   } catch {
     /* corpo ilegível */
   }
-  throw erroTraduzivel('{ia}: HTTP {status} {texto}{detalhe}', {
+  const err = erroTraduzivel('{ia}: HTTP {status} {texto}{detalhe}', {
     ia: label,
     status: res.status,
     texto: res.statusText,
     detalhe: detail ? ` — ${detail}` : ''
   });
+  // O código e o tempo de espera viajam junto com o erro: quem chamou precisa
+  // saber se vale tentar de novo, e daqui a quanto. Sem isso, um 429 de cota
+  // por minuto — que passa sozinho em segundos — derrubava trabalho de minutos.
+  err.httpStatus = res.status;
+  const espera = quantoEsperar(res.headers.get('retry-after'), detail);
+  if (espera) err.retryAfter = espera;
+  throw err;
+}
+
+/**
+ * Quantos segundos esperar antes de tentar de novo.
+ *
+ * O cabeçalho `retry-after` é o jeito certo e nem todo mundo manda. A Groq, por
+ * exemplo, põe o número só na frase do corpo ("try again in 27.5175s"), então
+ * vale ler os dois.
+ */
+function quantoEsperar(cabecalho, corpo) {
+  const doCabecalho = Number(cabecalho);
+  if (Number.isFinite(doCabecalho) && doCabecalho > 0) return doCabecalho;
+  // A frase vem em duas formas: "27.5175s" quando é cota por minuto e
+  // "1h16m39.504s" quando é a do dia. Ler só a primeira dava 0 na segunda, e o
+  // recuo exponencial entrava achando que valia insistir numa cota diária.
+  const naFrase = /try again in ((?:\d+h)?(?:\d+m)?(?:[\d.]+s)?)/i.exec(String(corpo || ''));
+  if (!naFrase?.[1]) return 0;
+  const [, horas = 0] = /(\d+)h/.exec(naFrase[1]) || [];
+  const [, minutos = 0] = /(\d+)m/.exec(naFrase[1]) || [];
+  const [, segundos = 0] = /([\d.]+)s/.exec(naFrase[1]) || [];
+  return Number(horas) * 3600 + Number(minutos) * 60 + Number(segundos);
 }
 
 export function trimUrl(url) {

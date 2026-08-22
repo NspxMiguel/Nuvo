@@ -7,6 +7,31 @@
 import { adapterFor, contextFor, getProvider, parseRef } from './providers/index.mjs';
 import { erroTraduzivel } from './erro-traduzivel.mjs';
 
+/**
+ * Quanto tempo ainda vale esperar por uma cota que se renova sozinha.
+ *
+ * Cota por minuto é o caso comum: o provedor devolve 429 dizendo "tente em 27
+ * segundos", e uma espera curta salva um trabalho que já custou minutos. Passar
+ * de um minuto de espera é outra coisa — cota diária, cartão vencido —, e aí
+ * insistir só empurra o erro pra frente.
+ */
+const TETO_DE_ESPERA = 60;
+const TENTATIVAS = 3;
+const PODE_ESPERAR = new Set([429, 500, 502, 503, 504]);
+
+const dormir = (ms, signal) =>
+  new Promise((ok, falha) => {
+    const t = setTimeout(ok, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(t);
+        falha(signal.reason ?? new Error('cancelado'));
+      },
+      { once: true }
+    );
+  });
+
 /** @returns {Promise<{text: string, reasoning: string, usage: object|null, ms: number}>} */
 export async function complete(ref, { system, messages, prompt, temperature, maxTokens, signal } = {}) {
   const { providerId, modelId } = parseRef(ref);
@@ -15,24 +40,41 @@ export async function complete(ref, { system, messages, prompt, temperature, max
   const adapter = adapterFor(provider.kind);
 
   const started = Date.now();
-  let text = '';
-  let reasoning = '';
-  let usage = null;
-
-  for await (const chunk of adapter.stream(contextFor(provider), {
-    model: modelId,
-    system: system || null,
-    messages: messages || [{ role: 'user', content: prompt || '' }],
-    temperature: temperature ?? null,
-    maxTokens: maxTokens ?? null,
-    signal
-  })) {
-    if (chunk.delta) text += chunk.delta;
-    if (chunk.reasoning) reasoning += chunk.reasoning;
-    if (chunk.usage) usage = chunk.usage;
+  for (let tentativa = 1; ; tentativa += 1) {
+    let text = '';
+    let reasoning = '';
+    let usage = null;
+    try {
+      for await (const chunk of adapter.stream(contextFor(provider), {
+        model: modelId,
+        system: system || null,
+        messages: messages || [{ role: 'user', content: prompt || '' }],
+        temperature: temperature ?? null,
+        maxTokens: maxTokens ?? null,
+        signal
+      })) {
+        if (chunk.delta) text += chunk.delta;
+        if (chunk.reasoning) reasoning += chunk.reasoning;
+        if (chunk.usage) usage = chunk.usage;
+      }
+      return { text: text.trim(), reasoning, usage, ms: Date.now() - started };
+    } catch (err) {
+      // Cancelar é decisão de quem chamou, não falha de rede: sai na hora.
+      if (signal?.aborted) throw err;
+      const espera = quantoEsperar(err, tentativa);
+      if (tentativa >= TENTATIVAS || !espera) throw err;
+      await dormir(espera * 1000, signal);
+    }
   }
+}
 
-  return { text: text.trim(), reasoning, usage, ms: Date.now() - started };
+/** Segundos até a próxima tentativa, ou 0 quando não vale tentar. */
+function quantoEsperar(err, tentativa) {
+  if (!PODE_ESPERAR.has(err?.httpStatus)) return 0;
+  // O provedor manda quanto esperar quando sabe; quando não manda, dobra a cada
+  // tentativa a partir de dois segundos.
+  const pedido = Number(err.retryAfter) || 2 ** tentativa;
+  return pedido > TETO_DE_ESPERA ? 0 : Math.ceil(pedido) + 1;
 }
 
 /** Nome legível do modelo, pra aparecer na tela sem o id interno. */

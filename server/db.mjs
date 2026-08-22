@@ -361,6 +361,12 @@ function migrate() {
   // já passou ou se é semana que vem — que é a primeira coisa que quem estuda
   // quer saber ao abrir a tela.
   addColumn('estudo_pastas', 'quando', 'TEXT');
+  // A leitura de uma prova pelo modelo fica guardada na pasta. Ler cinco provas
+  // leva minutos e custa cota; sem isso, um erro na síntese — que é o último
+  // passo — jogava fora tudo o que já tinha sido lido.
+  addColumn('estudo_pastas', 'leitura', 'TEXT');
+  addColumn('estudo_pastas', 'leitura_chave', 'TEXT');
+  addColumn('estudo_pastas', 'leitura_em', 'TEXT');
   addColumn('chunks', 'papel', "TEXT NOT NULL DEFAULT 'material'");
 
   // Ícone e cor no lugar do emoji.

@@ -361,7 +361,28 @@ function publico(linha) {
 }
 
 function pastaPublica(linha) {
-  return { ...linha, etiquetas: parseJSON(linha.etiquetas, []) };
+  // A leitura crua não vai pra tela: é JSON de trabalho, do tamanho de uma
+  // prova, e o que a tela mostra é o retrato pronto.
+  const { leitura, leitura_chave: chave, ...resto } = linha;
+  return { ...resto, etiquetas: parseJSON(linha.etiquetas, []) };
+}
+
+/** A leitura que o modelo fez desta prova, se ainda vale pra fonte de hoje. */
+export function leituraGuardada(pastaId, chave) {
+  const linha = one('SELECT leitura, leitura_chave FROM estudo_pastas WHERE id = ?', pastaId);
+  if (!linha || linha.leitura_chave !== chave) return null;
+  return parseJSON(linha.leitura, null);
+}
+
+/** Guarda a leitura junto com a impressão digital do que a produziu. */
+export function guardarLeitura(pastaId, chave, leitura) {
+  run(
+    'UPDATE estudo_pastas SET leitura = ?, leitura_chave = ?, leitura_em = ? WHERE id = ?',
+    JSON.stringify(leitura),
+    chave,
+    now(),
+    pastaId
+  );
 }
 
 function saidaPublica(linha) {

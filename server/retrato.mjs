@@ -19,8 +19,9 @@
 import { complete, describeModel, parseJsonObject } from './complete.mjs';
 import { listAttachments, textoDoAnexo } from './documents.mjs';
 import { erroHttp } from './erro-traduzivel.mjs';
-import { acharProfessor, pastasDo } from './estudos.mjs';
+import { acharProfessor, guardarLeitura, leituraGuardada, pastasDo } from './estudos.mjs';
 import { now, run } from './db.mjs';
+import { createHash } from 'node:crypto';
 
 /** Os seis níveis de Bloom, do mais raso ao mais fundo. Enum fechado de propósito:
  *  é o que deixa a tela traduzir o rótulo e o gerador de simulado equilibrar a prova. */
@@ -29,6 +30,21 @@ export const NIVEIS = ['lembrar', 'entender', 'aplicar', 'analisar', 'avaliar', 
 /** Teto de texto por prova numa passada. Prova cabe folgado; apostila não, e
  *  apostila não é prova — quem passar disso é cortado com aviso. */
 const TETO_POR_PROVA = 18_000;
+
+/**
+ * Impressão digital do que produziu uma leitura: os arquivos e o modelo.
+ *
+ * Trocar de modelo ou anexar outra prova na mesma pasta muda a leitura, então
+ * muda a chave. Reaproveitar a leitura de um modelo com o nome de outro seria
+ * mentira no campo "modelo" do retrato.
+ */
+function impressao(provas, ref) {
+  const fonte = provas
+    .map((a) => `${a.id}:${a.chunks || 0}:${a.updated_at || a.created_at || ''}`)
+    .sort()
+    .join('|');
+  return createHash('sha256').update(`${ref}\n${fonte}`).digest('hex').slice(0, 32);
+}
 const TETO_DO_UNIVERSO = 24_000;
 
 const PROMPT_PROVA = `Você analisa UMA prova já aplicada e devolve a estrutura dela.
@@ -207,26 +223,47 @@ export async function* montarRetrato({ professorId, ref, signal }) {
   };
 
   // --- passada 1: uma leitura por prova ------------------------------------
+  //
+  // Uma prova que falha não leva as outras junto. Ler cinco provas leva minutos,
+  // e um 429 de cota por minuto na terceira jogava fora o trabalho das duas
+  // primeiras — com quatro provas lidas o retrato já vale, e dizer qual ficou de
+  // fora é melhor do que não ter retrato nenhum.
   const leituras = [];
-  for (const { pasta, provas } of comProva) {
+  for (const [i, { pasta, provas }] of comProva.entries()) {
     if (signal?.aborted) return;
-    yield { type: 'lendo', nome: pasta.nome };
+    yield { type: 'lendo', nome: pasta.nome, n: i + 1, total: comProva.length };
     const { texto: corpo, cortado } = bloco(provas, TETO_POR_PROVA);
     if (!corpo) {
       yield { type: 'pulada', nome: pasta.nome, porque: 'não deu pra ler nenhum arquivo dela' };
       continue;
     }
-    const saida = await complete(ref, {
-      system: PROMPT_PROVA,
-      prompt: `Prova: ${pasta.nome}\n\n${corpo}`,
-      temperature: 0,
-      signal
-    });
-    const lido = parseJsonObject(saida.text);
+    // Leitura já feita, mesma fonte e mesmo modelo: reaproveita. Sem isto, um
+    // erro na síntese — que é o último passo — obrigava a reler tudo.
+    const chave = impressao(provas, ref);
+    let lido = leituraGuardada(pasta.id, chave);
+    if (lido) {
+      leituras.push({ nome: pasta.nome, cortado, ...lido });
+      yield { type: 'lida', nome: pasta.nome, questoes: lista(lido.questoes).length, cortado, guardada: true };
+      continue;
+    }
+    try {
+      const saida = await complete(ref, {
+        system: PROMPT_PROVA,
+        prompt: `Prova: ${pasta.nome}\n\n${corpo}`,
+        temperature: 0,
+        signal
+      });
+      lido = parseJsonObject(saida.text);
+    } catch (err) {
+      if (signal?.aborted) return;
+      yield { type: 'pulada', nome: pasta.nome, porque: err?.message || String(err) };
+      continue;
+    }
     if (!lido || !lista(lido.questoes).length) {
       yield { type: 'pulada', nome: pasta.nome, porque: 'a IA não devolveu a estrutura da prova' };
       continue;
     }
+    guardarLeitura(pasta.id, chave, lido);
     leituras.push({ nome: pasta.nome, cortado, ...lido });
     yield {
       type: 'lida',

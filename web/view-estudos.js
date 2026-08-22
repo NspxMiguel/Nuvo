@@ -1071,6 +1071,7 @@ async function montarRetrato(el, prof, botao, ref, ctx) {
     if (andar) andar.textContent = frase;
   };
   botao.disabled = true;
+  const foraDoRetrato = [];
   try {
     await stream(`/professores/${prof.id}/retrato`, { model: ref }, (ev) => {
       if (ev.type === 'start') {
@@ -1081,16 +1082,37 @@ async function montarRetrato(el, prof, botao, ref, ctx) {
           })
         );
       }
-      if (ev.type === 'lendo') dizer(t('lendo {nome}…', { nome: ev.nome }));
+      if (ev.type === 'lendo') {
+        dizer(
+          t('prova {n} de {total} · {nome}…', {
+            n: formatarNumero(ev.n || 1),
+            total: formatarNumero(ev.total || 1),
+            nome: ev.nome
+          })
+        );
+      }
       if (ev.type === 'lida') {
         dizer(t('{nome}: {questoes}', { nome: ev.nome, questoes: plural(ev.questoes, '1 questão', '{n} questões') }));
       }
-      if (ev.type === 'pulada') dizer(t('{nome} ficou de fora — {porque}', { nome: ev.nome, porque: ev.porque }));
+      // Prova que ficou de fora não pode passar piscando: o retrato sai mais
+      // fraco por causa dela, e quem estuda precisa saber qual foi.
+      if (ev.type === 'pulada') {
+        foraDoRetrato.push(t('{nome} ficou de fora — {porque}', { nome: ev.nome, porque: ev.porque }));
+        dizer(foraDoRetrato[foraDoRetrato.length - 1]);
+      }
       if (ev.type === 'sintetizando') dizer(t('juntando tudo…'));
       if (ev.type === 'repetindo') dizer(t('a resposta veio torta, pedindo de novo…'));
       if (ev.type === 'error') throw new Error(ev.message);
     });
-    toast(t('retrato pronto'), 'ok');
+    toast(
+      foraDoRetrato.length
+        ? t('retrato pronto, com {quantas} de fora', {
+            quantas: plural(foraDoRetrato.length, '1 prova', '{n} provas')
+          })
+        : t('retrato pronto'),
+      foraDoRetrato.length ? 'warn' : 'ok'
+    );
+    for (const aviso of foraDoRetrato) toast(aviso, 'warn');
   } catch (err) {
     toast(err.message || t('não deu pra montar o retrato'), 'err');
   } finally {

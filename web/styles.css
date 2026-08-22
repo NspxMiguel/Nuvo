@@ -1573,6 +1573,9 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
 .toast b { color: var(--text); font-weight: 600; }
 .toast.err { box-shadow: inset 3px 0 0 var(--danger), 0 12px 40px #000000aa; }
 .toast.ok { box-shadow: inset 3px 0 0 var(--ok), 0 12px 40px #000000aa; }
+/* Nem tudo é sucesso ou falha: "deu certo, mas faltou um pedaço" precisa de cor
+   própria, senão sai verde e a pessoa não repara no que ficou de fora. */
+.toast.warn { box-shadow: inset 3px 0 0 var(--warn), 0 12px 40px #000000aa; }
 
 /* ---------------------------------------------------------- computador */
 
