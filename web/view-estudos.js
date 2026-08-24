@@ -67,7 +67,7 @@ const ladrilho = (l, temRetrato) =>
     ${
       l.toque
         ? `<span class="marca${temRetrato ? ' com' : ''}">${
-            temRetrato ? t('com o jeito dele') : t('sem o retrato')
+            temRetrato ? t('com o jeito dele') : t('sem ler as provas')
           }</span>`
         : ''
     }
@@ -307,7 +307,7 @@ async function telaDaLista(el, ctx) {
               p.materia || t('sem matéria')
             )}</small></span>
             <span class="est-selo${p.retrato ? '' : ' sem'}">${
-              p.retrato ? `${icon('check', 16)} ${t('com retrato')}` : t('sem prova ainda')
+              p.retrato ? `${icon('check', 16)} ${t('provas lidas')}` : t('sem prova ainda')
             }</span>
           </button>`
         )
@@ -406,7 +406,7 @@ async function telaDoProfessor(el, ctx) {
       <div class="segmentado" role="tablist">
         ${[
           ['material', t('Material')],
-          ['retrato', t('Retrato')],
+          ['retrato', t('O jeito dele')],
           ['estudio', t('Estúdio')]
         ]
           .map(
@@ -549,14 +549,14 @@ function comoFunciona(prof) {
     {
       feito: false,
       agora: temProva,
-      titulo: () => t('2. O app lê as provas e monta o retrato'),
+      titulo: () => t('2. O app lê as provas e descobre o jeito dele'),
       exp: () => t('Peso de cada tema, nível que ele exige, verbo que ele usa, o que ele ensina e nunca cobrou — cada achado com a citação da prova de onde saiu.')
     },
     {
       feito: false,
       agora: false,
       titulo: () => t('3. Tudo que o estúdio gerar sai com o jeito dele'),
-      exp: () => t('O NotebookLM lê o material e rascunha; a IA escolhida reescreve com o retrato por cima. Simulado, guia, cartões e quiz saem com cara de prova dele.')
+      exp: () => t('O NotebookLM lê o material e rascunha; a IA escolhida reescreve com o jeito dele por cima. Simulado, guia, cartões e quiz saem com cara de prova dele.')
     }
   ];
   return `<ol class="est-passos">${passos
@@ -582,14 +582,14 @@ function desenharRetrato(prof) {
       <p class="veredito" style="margin:0">${
         temProva
           ? t('As provas estão aqui. Falta ler.')
-          : t('Ainda não tem retrato. Falta uma prova dele.')
+          : t('Ainda não dá pra saber o jeito dele. Falta uma prova.')
       }</p>
       <div class="est-conf"><span class="pt"></span><span>${t(
         'Com uma prova o app já mostra o que ele cobra; com quatro, os pesos param de oscilar. Material de aula sozinho não diz o que cai.'
       )}</span></div>
       <div class="row">${
         temProva
-          ? `<button class="primary" id="est-montar">${icon('sparkle', 18)} ${t('Montar o retrato')}</button>`
+          ? `<button class="primary" id="est-montar">${icon('sparkle', 18)} ${t('Ler as provas dele')}</button>`
           : `<button class="primary" id="est-primeira-prova">${icon('upload', 18)} ${t(
               'Adicionar uma prova dele'
             )}</button>`
@@ -772,7 +772,7 @@ function avaliacaoAberta(prof, pasta) {
     </div>`;
 
   return `
-    <button class="est-volta" data-volta>${icon('chevron', 17)} ${t('Retrato do professor')}</button>
+    <button class="est-volta" data-volta>${icon('chevron', 17)} ${t('O jeito do professor')}</button>
     <header class="est-cabeca-av">
       <h2>${escapeHtml(pasta.nome)}</h2>
       <div class="sub">${plural(pasta.anexos.length, '1 arquivo', '{n} arquivos')}</div>
@@ -795,7 +795,7 @@ function avaliacaoAberta(prof, pasta) {
       ${
         pasta.tipo === 'prova'
           ? caixa('prova', t('A prova'),
-              t('O arquivo como ele entregou. Todo achado do retrato aponta pra uma linha daqui.'),
+              t('O arquivo como ele entregou. Todo achado aponta pra uma linha daqui.'),
               provas) +
             caixa('conteudo', t('O que esta prova cobrou'),
               t('Só o que caiu de verdade. É a amostra do jeito dele.'),
@@ -815,16 +815,7 @@ function avaliacaoAberta(prof, pasta) {
           )}</p>`
         : ''
     }
-
-    <div class="est-fazer">
-      <div class="est-rot">${t('O que fazer com isto')}</div>
-      <div class="est-lads">
-        ${['resumo', 'simulado', 'flashcards', 'guia']
-          .map((id) => ladrilho(acharLadrilho(id), !!r))
-          .join('')}
-      </div>
-      <p class="est-nada">${t('Sai do que está marcado na coluna da esquerda. O resto está no Estúdio.')}</p>
-    </div>`;
+`;
 }
 
 // ------------------------------------------------------------- revisar
@@ -1073,7 +1064,7 @@ function ligarApagar(botao, aoConfirmar) {
 
 /** Manda montar o retrato, contando o que está sendo lido. */
 async function montarRetrato(el, prof, botao, ref, ctx) {
-  if (!ref) return toast(t('escolha uma IA pra montar o retrato'), 'err');
+  if (!ref) return toast(t('escolha uma IA pra ler as provas'), 'err');
   const andar = el.querySelector('#est-andar');
   const dizer = (frase) => {
     if (andar) andar.textContent = frase;
@@ -1120,15 +1111,15 @@ async function montarRetrato(el, prof, botao, ref, ctx) {
     });
     toast(
       foraDoRetrato.length
-        ? t('retrato pronto, com {quantas} de fora', {
+        ? t('pronto, com {quantas} de fora', {
             quantas: plural(foraDoRetrato.length, '1 prova', '{n} provas')
           })
-        : t('retrato pronto'),
+        : t('pronto — agora o app sabe o jeito dele'),
       foraDoRetrato.length ? 'warn' : 'ok'
     );
     for (const aviso of foraDoRetrato) toast(aviso, 'warn');
   } catch (err) {
-    toast(err.message || t('não deu pra montar o retrato'), 'err');
+    toast(err.message || t('não deu pra ler as provas'), 'err');
   } finally {
     botao.disabled = false;
     ctx.switchView('estudos');
@@ -1210,7 +1201,7 @@ function desenharSaida(saida) {
   }[saida.tipo];
 
   return `
-    <button class="est-volta" data-fechar-saida>${icon('chevron', 17)} ${t('Retrato do professor')}</button>
+    <button class="est-volta" data-fechar-saida>${icon('chevron', 17)} ${t('O jeito do professor')}</button>
     <header class="est-cabeca-av">
       <h2>${escapeHtml(saida.titulo)}</h2>
       <div class="sub">${escapeHtml(

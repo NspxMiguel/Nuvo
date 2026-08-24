@@ -3215,5 +3215,3 @@ button.icon { position: relative; }
    O Estúdio fica na coluna da direita, e quem abre uma prova está olhando pro
    meio — a pergunta "como recebo um resumo disto?" não podia depender de achar
    outra coluna. */
-.est-fazer { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
-.est-fazer .est-lads { grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); }

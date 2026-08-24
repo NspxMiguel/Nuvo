@@ -321,7 +321,7 @@ function bloco(anexos, teto) {
  */
 export async function* montarRetrato({ professorId, ref, signal }) {
   const professor = acharProfessor(professorId);
-  if (!ref) throw erroHttp(400, 'escolha uma IA pra montar o retrato');
+  if (!ref) throw erroHttp(400, 'escolha uma IA pra ler as provas');
 
   const pastas = pastasDo(professorId).map((pasta) => ({
     ...pasta,
@@ -461,7 +461,7 @@ export async function* montarRetrato({ professorId, ref, signal }) {
     if (retrato) break;
   }
 
-  if (!retrato) throw erroHttp(422, 'a IA não devolveu um retrato utilizável — tente com outro modelo');
+  if (!retrato) throw erroHttp(422, 'a IA não conseguiu ler as provas direito — tente com outro modelo');
   if (apertado) retrato.apertado = true;
 
   retrato.confianca = confianca({ provas: leituras.length, materiais: materiais.length });

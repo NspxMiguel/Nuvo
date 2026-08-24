@@ -247,11 +247,15 @@ test('a avaliação diz se já foi, e o resumo fica onde a pessoa está olhando'
   assert.match(v, /t\('já foi'\)/, 'e diz "já foi" com todas as letras');
   assert.match(v, /function porUrgencia\(a, b\)/, 'as que vêm primeiro aparecem primeiro');
   assert.match(v, /\.sort\(porUrgencia\)/, 'e a lista usa isso');
-  assert.match(v, /class="est-fazer"/, 'o que fazer com a prova fica no meio da tela');
-  assert.match(
-    v,
-    /\['resumo', 'simulado', 'flashcards', 'guia'\]/,
-    'com o resumo em primeiro, que é o que ele procurou'
+  // Os geradores moram no Estúdio e em lugar nenhum mais. Uma fileira com quatro
+  // deles ficava no meio da tela, com o mesmo nome, a mesma cor e a mesma
+  // etiqueta dos ladrilhos da direita: quem abria a pasta via o Resumo duas
+  // vezes na mesma janela e perguntava qual dos dois era o de verdade.
+  assert.doesNotMatch(v, /class="est-fazer"/, 'sem a fileira repetida no meio');
+  assert.equal(
+    (v.match(/class="est-lads"/g) || []).length,
+    1,
+    'os dez geradores são desenhados num lugar só'
   );
 });
 
@@ -272,10 +276,10 @@ test('nenhum gerador do estúdio nasce trancado', () => {
   // escondido num `title`. Metade do estúdio cinza é o que ele leu como botão
   // que não funciona.
   const v = ler('web/view-estudos.js');
-  assert.doesNotMatch(v, /precisaRetrato/, 'o retrato não tranca mais nada');
+  assert.doesNotMatch(v, /precisaRetrato/, 'ler as provas não tranca mais nada');
   assert.doesNotMatch(v, /data-gerar="\$\{l\.id\}"[^`]*disabled/, 'nenhum ladrilho sai desabilitado');
   assert.match(v, /const ladrilho = \(l, temRetrato\)/, 'um desenho só pros dez');
-  assert.match(v, /t\('sem o retrato'\)/, 'e a etiqueta diz o que falta em vez de bloquear');
+  assert.match(v, /t\('sem ler as provas'\)/, 'e a etiqueta diz o que falta em vez de bloquear');
 });
 
 test('a loja liga busca e ordem antes de ir buscar a lista', () => {

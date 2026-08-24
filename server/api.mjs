@@ -817,9 +817,9 @@ export async function handleApi(req, res, url) {
     if (method === 'PATCH') {
       const b = await readJSON(req);
       const atual = verProfessor(seg[1]).retrato;
-      if (!atual) return json(res, corpoDoErro(erroTraduzivel('ainda não existe retrato pra corrigir')), 400);
+      if (!atual) return json(res, corpoDoErro(erroTraduzivel('o app ainda não leu as provas dele')), 400);
       const junto = limparRetrato({ ...atual, ...(b.retrato || {}) });
-      if (!junto) return json(res, corpoDoErro(erroTraduzivel('a correção deixou o retrato sem forma')), 400);
+      if (!junto) return json(res, corpoDoErro(erroTraduzivel('a correção deixou o resultado sem forma')), 400);
       junto.confianca = atual.confianca;
       junto.fontes = atual.fontes;
       junto.gerado_em = atual.gerado_em;
