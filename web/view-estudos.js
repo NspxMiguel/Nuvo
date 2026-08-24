@@ -374,7 +374,9 @@ async function telaDoProfessor(el, ctx) {
   // Abrir uma prova põe o Estúdio a serviço dela: os ladrilhos passam a dizer
   // o nome da prova, e o que sair fica arquivado ali dentro.
   const proxima = proximaProva(prof);
-  const foco = pasta?.tipo === 'prova' ? pasta : null;
+  // Prova de ano anterior é fonte, não alvo: gerar "para" ela produziria um
+  // simulado da avaliação que já passou, com o nome dela no título.
+  const foco = pasta?.tipo === 'prova' && !pasta.anterior ? pasta : null;
   const meio = saida
     ? desenharSaida(saida)
     : pasta

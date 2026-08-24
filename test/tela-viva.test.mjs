@@ -437,6 +437,9 @@ test('prova de ano anterior não vira compromisso na agenda', () => {
   assert.match(v, /id="est-prova-antiga"/, 'existe o botão de adicionar');
   assert.match(v, /p\.tipo === 'prova' && p\.anterior/, 'e elas ficam num grupo à parte');
   assert.match(v, /!p\.anterior && p\.quando/, 'a próxima prova nunca é uma de ano passado');
+  // E gerar "para" uma prova de 2025 produziria um simulado da avaliação que já
+  // passou, com o nome dela no título: ela é fonte, não alvo.
+  assert.match(v, /pasta\?\.tipo === 'prova' && !pasta\.anterior \? pasta : null/, 'nem alvo de geração');
   const db = ler('server/db.mjs');
   assert.match(db, /addColumn\('estudo_pastas', 'anterior'/, 'a marca é coluna, não adivinhação por data');
 });
