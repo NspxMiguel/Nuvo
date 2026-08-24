@@ -278,7 +278,7 @@ test('nenhum gerador do estúdio nasce trancado', () => {
   const v = ler('web/view-estudos.js');
   assert.doesNotMatch(v, /precisaRetrato/, 'ler as provas não tranca mais nada');
   assert.doesNotMatch(v, /data-gerar="\$\{l\.id\}"[^`]*disabled/, 'nenhum ladrilho sai desabilitado');
-  assert.match(v, /const ladrilho = \(l, temRetrato\)/, 'um desenho só pros dez');
+  assert.match(v, /const ladrilho = \(l, temRetrato, foco = null\)/, 'um desenho só pros dez');
   assert.match(v, /t\('sem ler as provas'\)/, 'e a etiqueta diz o que falta em vez de bloquear');
 });
 
@@ -392,4 +392,75 @@ test('comando comprido no painel não vira parágrafo', () => {
   assert.match(css, /\.cd-passo b \{[^}]*line-clamp: 2/, 'o título para em duas linhas');
   assert.match(css, /\.cd-cmd \{[^}]*line-clamp: 3/, 'e o comando em três');
   assert.match(css, /\.cd-passo:has\(\.cd-saida\[open\]\)/, 'aberto, mostra inteiro');
+});
+
+test('o simulado é uma prova pra fazer, não um relatório sobre o professor', () => {
+  // Ele pediu um simulado e recebeu análise: cada questão com a etiqueta do
+  // peso, o tema, o nível, e a resposta a um clique de distância. Prova é
+  // outra coisa — tem onde responder, esconde o gabarito até você entregar, e
+  // sai no papel com espaço pra escrever.
+  const v = ler('web/view-estudos.js');
+  const folha = v.slice(v.indexOf('function desenharSimulado('), v.indexOf('function ligarSimulado('));
+  assert.match(folha, /data-act="entregar"/, 'dá pra entregar a prova');
+  assert.match(folha, /type="radio"/, 'e assinalar as objetivas');
+  assert.match(folha, /class="prova-pautado"/, 'a discursiva tem linha pra escrever no papel');
+  assert.doesNotMatch(folha, /est-gabarito/, 'a resposta não fica a um clique de distância');
+  // O que o retrato descobriu só reaparece no gabarito: numa prova pra fazer,
+  // dizer "esta cai com 30%" é entregar metade da resposta.
+  assert.match(folha, /class="prova-so-gabarito"/, 'a probabilidade fica guardada no gabarito');
+  const css = ler('web/styles.css');
+  assert.match(css, /\.prova\[data-modo='gabarito'\] \.prova-so-gabarito \{ display: inline-flex/);
+  assert.match(css, /\.imprimindo-prova \.prova-folha \{/, 'a folha tem CSS de impressão próprio');
+  assert.match(css, /\.imprimindo-prova \.prova-pautado \{ display: block/, 'e as linhas só saem no papel');
+});
+
+test('a prova que vem tem onde clicar', () => {
+  // "N dá pra saber onde peço o resumo pra prova q vem agora": a avaliação com
+  // data era uma linha na coluna da esquerda e os geradores moravam na da
+  // direita, sem vínculo nenhum entre as duas.
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /function proximaProva\(/, 'alguém sabe qual é a próxima');
+  assert.match(v, /function faixaDaProxima\(/, 'e ela abre a coluna do meio');
+  assert.match(v, /data-gerar="\$\{id\}" data-foco="\$\{pasta\.id\}"/, 'gerando para aquela prova');
+  // O foco viaja até o servidor: sem ele a saída sairia solta do professor em
+  // vez de arquivada na avaliação, e o modelo não saberia pra qual prova é.
+  assert.match(v, /\{ tipo, model: ref, pastas, foco \}/, 'o pedido leva o foco');
+  const api = ler('server/api.mjs');
+  assert.match(api, /foco: typeof b\.foco === 'string'/, 'a rota aceita o foco');
+});
+
+test('prova de ano anterior não vira compromisso na agenda', () => {
+  // O professor repete a forma de um ano pro outro, e prova velha é a melhor
+  // amostra do jeito dele — mas ela não é uma prova marcada, e misturar as
+  // duas faria a tela anunciar oito avaliações onde há duas.
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /id="est-prova-antiga"/, 'existe o botão de adicionar');
+  assert.match(v, /p\.tipo === 'prova' && p\.anterior/, 'e elas ficam num grupo à parte');
+  assert.match(v, /!p\.anterior && p\.quando/, 'a próxima prova nunca é uma de ano passado');
+  const db = ler('server/db.mjs');
+  assert.match(db, /addColumn\('estudo_pastas', 'anterior'/, 'a marca é coluna, não adivinhação por data');
+});
+
+test('os botões do menu se escolhem por lugar, e o "Mais" aparece', () => {
+  // Duas caixas de marcar por linha ("aparece" e "no Mais") não diziam o
+  // resultado: era preciso combinar as duas de cabeça. E o "Mais" — o botão
+  // que guarda os outros — não aparecia em canto nenhum da tela, então não
+  // dava pra saber onde ele ficava. "cade botao mais?"
+  const views = ler('web/views.js');
+  assert.doesNotMatch(views, /data-campo="ver"/, 'sem a caixa de "aparece"');
+  assert.doesNotMatch(views, /data-campo="mais"/, 'sem a caixa de "no Mais"');
+  assert.match(views, /data-onde="\$\{k\}"/, 'um controle só, e ele diz o destino');
+  assert.match(views, /class="menu-previa"/, 'a gaveta aparece desenhada como vai ficar');
+  assert.match(views, /class="menu-previa-item mais"/, 'com o "Mais" no lugar dele');
+  assert.match(views, /class="menu-previa-dentro"/, 'e o que fica dentro dele');
+});
+
+test('o tema não flutua no rodapé de toda seção de ajustes', () => {
+  // Dois botões redondos sem rótulo, no canto de baixo à direita de qualquer
+  // seção: numa seção curta eles apareciam sozinhos no meio do vazio, sem
+  // pertencer a nada do que estava na tela.
+  const views = ler('web/views.js');
+  assert.doesNotMatch(views, /class="cfg-pe"/, 'o rodapé flutuante saiu');
+  assert.match(views, /cfgLin\(t\('Aparência'\)/, 'e o tema virou linha de ajuste, com nome');
+  assert.doesNotMatch(ler('web/styles.css'), /\.cfg-pe/, 'e o CSS dele foi junto');
 });

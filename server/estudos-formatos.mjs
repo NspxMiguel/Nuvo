@@ -24,6 +24,59 @@ const TETO = 26_000;
 const texto = (v, limite = 600) => cortarNaPalavra(semMarcacao(v), limite);
 const lista = (v) => (Array.isArray(v) ? v : []);
 
+/**
+ * Tira a letra da frente da alternativa.
+ *
+ * Quem numera é a folha de prova, e não o modelo: com o "a)" vindo no texto a
+ * folha imprimia "a) a) ..." — e, pior, mudar a ordem das alternativas passava
+ * a mentir. Aceita "a)", "A.", "a -", "(a)" e marcador de lista.
+ */
+function semLetra(v) {
+  return String(v || '')
+    .replace(/^\s*[-*•]\s*/, '')
+    .replace(/^\s*\(?([a-eA-E])\)?\s*[).:-]\s+/, '')
+    .trim();
+}
+
+/**
+ * O índice da alternativa certa, aceitando as três formas que o modelo devolve:
+ * o número, a letra, ou nada — e aí a letra é lida do gabarito escrito.
+ *
+ * Simulado gerado antes deste campo existir cai no mesmo caminho, então prova
+ * velha continua sendo corrigida na tela em vez de virar só gabarito de texto.
+ */
+function indiceCerto(q, quantas) {
+  if (!quantas) return null;
+  const dentro = (n) => (Number.isInteger(n) && n >= 0 && n < quantas ? n : null);
+  if (typeof q?.correta === 'number') return dentro(q.correta);
+  const daLetra = (v) => {
+    const m = /^\s*\(?([a-eA-E])\)?\s*$/.exec(String(v || ''));
+    return m ? dentro(m[1].toLowerCase().charCodeAt(0) - 97) : null;
+  };
+  const porLetra = daLetra(q?.correta);
+  if (porLetra !== null) return porLetra;
+  // "Letra B", "b) fermentação…", "alternativa c".
+  const g = String(q?.gabarito || '');
+  const m = /^\s*(?:letra|alternativa|op[çc][ãa]o)?\s*\(?([a-eA-E])\)?\s*[).:-]?(?:\s|$)/.exec(g);
+  return m ? dentro(m[1].toLowerCase().charCodeAt(0) - 97) : null;
+}
+
+/**
+ * A avaliação alvo, dita ao modelo.
+ *
+ * Sem isto, todo simulado saía "de Biologia" e nenhum saía "da A2 do 2º
+ * trimestre" — e é a segunda coisa que o aluno quer. Prova de ano anterior é
+ * dita como tal de propósito: ela é a melhor amostra do jeito dele e a pior
+ * fonte de conteúdo, porque o programa daquele ano pode ter mudado.
+ */
+function avaliacaoEmPalavras(alvo) {
+  const linhas = [`Nome: ${alvo.nome}.`];
+  if (alvo.quando) linhas.push(`Marcada para ${alvo.quando}.`);
+  if (alvo.anterior) linhas.push('É uma prova de ano anterior: sirva-se da FORMA dela, não do conteúdo.');
+  linhas.push('Escreva pensando nesta avaliação: o recorte de conteúdo e o peso saem dela.');
+  return linhas.join(' ');
+}
+
 /** O retrato virado prompt: é assim que o professor entra na cabeça do modelo. */
 function retratoEmPalavras(retrato) {
   if (!retrato) return '';
@@ -139,14 +192,19 @@ export const FORMATOS = {
   simulado: {
     papeis: ['conteudo', 'material'],
     titulo: (prof) => `Simulado de ${prof.materia || prof.nome}`,
-    prompt: `Você escreve uma prova NOVA no estilo de um professor específico, para o aluno treinar.
+    prompt: `Você escreve uma prova NOVA no estilo de um professor específico. O aluno vai
+IMPRIMIR e RESPONDER esta prova, ou respondê-la na tela. Ela é uma prova de verdade,
+não um relatório sobre o professor.
 
 Devolva SOMENTE um objeto JSON:
 {
   "instrucoes": "cabeçalho da prova, como ele escreveria",
+  "tempo": 50,
   "questoes": [
     {"n": 1, "enunciado": "...", "tipo": "discursiva|multipla escolha|verdadeiro ou falso|calculo",
-     "alternativas": ["a) ...", "b) ..."],
+     "alternativas": ["texto da alternativa, SEM a letra na frente", "..."],
+     "correta": 1,
+     "linhas": 6,
      "valor": 1.5,
      "tema": "...", "nivel": "lembrar|entender|aplicar|analisar|avaliar|criar",
      "probabilidade": "alta|media|baixa",
@@ -161,8 +219,14 @@ Regras:
 - Escreva questões NOVAS. Não copie enunciado do material.
 - A distribuição de temas, de níveis e de formatos segue o retrato, não o seu gosto.
 - Use os verbos de comando do professor.
+- "tempo" é a duração em minutos que essa prova pediria.
 - "probabilidade" é o quanto aquele tema pesa no retrato: alta acima de 20%, média entre 8 e 20%, baixa abaixo disso.
-- "alternativas" só existe em múltipla escolha e verdadeiro ou falso.
+- "alternativas" só existe em múltipla escolha e verdadeiro ou falso, e vem SEM
+  "a)", "b)", "( )" nem numeração: quem escreve a letra é a folha de prova.
+- "correta" é o ÍNDICE (começando em zero) da alternativa certa, e é obrigatório
+  sempre que houver alternativas — é ele que corrige a prova na tela.
+- "linhas" é quantas linhas em branco a folha impressa deve deixar pra resposta
+  de uma discursiva. Sem alternativas, nunca menos que 3.
 ${REGRAS_DE_FONTE}`,
     conferir: (bruto) => {
       const questoes = lista(bruto?.questoes)
@@ -170,7 +234,12 @@ ${REGRAS_DE_FONTE}`,
           n: Number(q.n) || i + 1,
           enunciado: texto(q.enunciado, 1200),
           tipo: texto(q.tipo, 40),
-          alternativas: lista(q.alternativas).map((a) => texto(a, 400)),
+          alternativas: lista(q.alternativas).map((a) => semLetra(texto(a, 400))),
+          // O índice da certa é o que deixa a prova ser corrigida na tela. O
+          // modelo às vezes devolve a letra em vez do número, e simulado antigo
+          // não tem o campo nenhum — os dois caem no gabarito escrito.
+          correta: indiceCerto(q, lista(q.alternativas).length),
+          linhas: Math.min(Math.max(Number(q.linhas) || 0, 0), 30),
           valor: Number(q.valor) || null,
           tema: texto(q.tema, 120),
           nivel: texto(q.nivel, 30),
@@ -181,7 +250,12 @@ ${REGRAS_DE_FONTE}`,
         }))
         .filter((q) => q.enunciado);
       if (!questoes.length) return null;
-      return { instrucoes: texto(bruto.instrucoes, 600), questoes, faltou: lista(bruto.faltou).map((f) => texto(f, 160)) };
+      return {
+        instrucoes: texto(bruto.instrucoes, 600),
+        tempo: Math.min(Math.max(Number(bruto.tempo) || 0, 0), 600) || null,
+        questoes,
+        faltou: lista(bruto.faltou).map((f) => texto(f, 160))
+      };
     }
   },
 
@@ -558,6 +632,11 @@ export async function* gerarFormato({
   tipo,
   ref,
   pastas = null,
+  // A avaliação que este material é PARA. Não filtra fonte nenhuma — quem
+  // filtra é `pastas` —, mas diz ao modelo qual prova está sendo preparada e é
+  // onde a saída fica arquivada. Sem isso, "resumo pra prova que vem agora"
+  // não tinha como ser pedido: tudo saía solto do professor.
+  foco = null,
   signal,
   notebooklm = true,
   // Injetada só pelos testes, como em `gerarNoNotebookLM`: a tela do Google não
@@ -569,6 +648,8 @@ export async function* gerarFormato({
   if (!ref) throw erroHttp(400, 'escolha uma IA pra gerar');
 
   const professor = acharProfessor(professorId);
+  const alvo = foco ? pastasDo(professorId).find((p) => p.id === foco) || null : null;
+  const titulo = alvo ? `${formato.titulo(professor)} — ${alvo.nome}` : formato.titulo(professor);
   const soNotebookLM = ehRefDoNotebookLM(ref);
 
   const primeiraMao = soNotebookLM || (notebooklm && temNotebookLM() && !descansando());
@@ -603,9 +684,9 @@ export async function* gerarFormato({
     if (!rascunho) throw erroHttp(422, 'o NotebookLM não devolveu nada utilizável');
     const salvo = guardarSaida({
       professorId,
-      pastaId: Array.isArray(pastas) && pastas.length === 1 ? pastas[0] : null,
+      pastaId: alvo?.id || (Array.isArray(pastas) && pastas.length === 1 ? pastas[0] : null),
       tipo,
-      titulo: formato.titulo(professor),
+      titulo,
       // Texto corrido, não o JSON dos nossos moldes: guardar como texto é
       // honesto, e a tela desenha texto quando não há estrutura.
       json: { texto: rascunho.texto },
@@ -635,6 +716,7 @@ export async function* gerarFormato({
   const retrato = retratoEmPalavras(professor.retrato);
   const entrada = [
     `Professor: ${professor.nome}${professor.materia ? ` (${professor.materia})` : ''}`,
+    alvo ? `\n# É para esta avaliação\n${avaliacaoEmPalavras(alvo)}` : '',
     retrato ? `\n# Retrato do professor\n${retrato}` : '',
     rascunho
       ? `\n# Rascunho (leitura do material feita pelo NotebookLM)\n${rascunho.texto}`
@@ -674,9 +756,9 @@ export async function* gerarFormato({
 
   const salvo = guardarSaida({
     professorId,
-    pastaId: Array.isArray(pastas) && pastas.length === 1 ? pastas[0] : null,
+    pastaId: alvo?.id || (Array.isArray(pastas) && pastas.length === 1 ? pastas[0] : null),
     tipo,
-    titulo: formato.titulo(professor),
+    titulo,
     json: pronto,
     fontes: fonte.fontes,
     modelo: rascunho ? `notebooklm+${ref}` : ref

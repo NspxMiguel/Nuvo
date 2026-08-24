@@ -218,8 +218,8 @@ function inserirPasta(professorId, pasta = {}, ord = 0) {
   const tipo = TIPOS_DE_PASTA.includes(pasta.tipo) ? pasta.tipo : 'prova';
   const id = uid();
   run(
-    `INSERT INTO estudo_pastas (id, professor_id, nome, tipo, etiquetas, ord, quando, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO estudo_pastas (id, professor_id, nome, tipo, etiquetas, ord, quando, anterior, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     professorId,
     nome,
@@ -227,6 +227,7 @@ function inserirPasta(professorId, pasta = {}, ord = 0) {
     JSON.stringify(Array.isArray(pasta.etiquetas) ? pasta.etiquetas.map((e) => texto(e, 40)) : []),
     Number.isFinite(pasta.ord) ? pasta.ord : ord,
     soData(pasta.quando),
+    pasta.anterior ? 1 : 0,
     now()
   );
   return id;
@@ -248,11 +249,12 @@ export function atualizarPasta(id, campos = {}) {
     ? JSON.stringify(campos.etiquetas.map((e) => texto(e, 40)))
     : linha.etiquetas;
   run(
-    'UPDATE estudo_pastas SET nome = ?, tipo = ?, etiquetas = ?, quando = ? WHERE id = ?',
+    'UPDATE estudo_pastas SET nome = ?, tipo = ?, etiquetas = ?, quando = ?, anterior = ? WHERE id = ?',
     nome,
     tipo,
     etiquetas,
     'quando' in campos ? soData(campos.quando) : linha.quando,
+    'anterior' in campos ? (campos.anterior ? 1 : 0) : linha.anterior,
     id
   );
   return pastaPublica(one('SELECT * FROM estudo_pastas WHERE id = ?', id));

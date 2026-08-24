@@ -261,6 +261,22 @@ simulado de biologia" em "a prova que este professor faria". Nenhuma das duas é
 ponto único de falha: sem NotebookLM ligado, a segunda mão lê os arquivos direto;
 escolhendo o NotebookLM no seletor, não há segunda mão.
 
+**O simulado é uma prova, não um relatório.** Ele sai em folha, com dois modos e
+um botão de imprimir: assinalar na tela — e aí o app corrige a objetiva sozinha,
+pelo índice da alternativa certa que o gerador devolve, e mostra o que o
+professor esperava ao lado do que você escreveu na discursiva — ou imprimir em
+branco, com Nome, Data, Nota e linhas pautadas pra escrever à mão. O que o
+retrato descobriu (peso do tema, nível, por que a questão existe) fica no
+gabarito: numa prova pra fazer, dizer "esta cai com 30%" é entregar metade da
+resposta.
+
+**A prova que vem** abre a tela do professor, com quanto falta e os três
+geradores que servem pra estudar pra uma. Abrir uma avaliação põe o estúdio a
+serviço dela, e o que for gerado fica arquivado ali. Prova de ano anterior tem
+lugar próprio, separado da agenda: ela é a melhor amostra que existe da forma
+como aquele professor cobra, e a pior fonte de conteúdo — o programa do ano pode
+ter mudado.
+
 **A revisão** usa FSRS-4.5 — dificuldade, estabilidade e recuperabilidade por
 cartão. É o que o NotebookLM e os concorrentes não têm: eles geram material e
 param ali.

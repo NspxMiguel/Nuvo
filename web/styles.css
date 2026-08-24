@@ -1492,6 +1492,13 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
   .cfg-item.sel > .ico { color: var(--text); }
 
   .cfg-corpo { overflow-y: auto; padding: 16px 26px 44px 30px; min-width: 0; }
+  /* Ajuste não é planilha: numa janela de 1600px o rótulo ficava colado na
+     margem esquerda e o controle na direita, com meio metro de nada no meio, e
+     o olho tinha que atravessar a tela pra ligar um ao outro. */
+  .cfg-corpo > * { max-width: 760px; }
+  /* A configuração do menu carrega a prévia da gaveta ao lado, e ela precisa
+     da largura de duas colunas — a régua estreita é pra linha de ajuste. */
+  .cfg-corpo > .menu-cfg { max-width: 1000px; }
   .cfg-corpo h3 { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; margin: 6px 0 4px; }
   .cfg-corpo h4 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 26px 0 0; }
   /* linha de ajuste: rótulo e explicação à esquerda, controle à direita */
@@ -1517,9 +1524,6 @@ details.reg-fechado > summary::-webkit-details-marker { display: none; }
     .cfg-lin.larga { grid-template-columns: 1fr; }
     .cfg-lin.larga .ctl { justify-self: stretch; }
   }
-  .cfg-pe { display: flex; justify-content: flex-end; gap: 8px; padding-top: 26px; }
-  .cfg-pe button { width: 44px; height: 44px; border-radius: 12px; padding: 0; background: var(--panel); color: var(--muted); }
-  .cfg-pe button.sel { background: var(--panel-2); color: var(--text); }
 }
 
 /* --------------------------------------------------------------- overlays */
@@ -2934,6 +2938,355 @@ button.icon { position: relative; }
 }
 .est-faltou, .est-pule { margin-top: 18px; }
 
+/* --------------------------------------------------------------------------
+   A prova que vem.
+
+   "N dá pra saber onde peço o resumo pra prova q vem agora" — e não dava
+   mesmo: a avaliação com data marcada era uma linha a mais na coluna da
+   esquerda, e os geradores moravam na coluna da direita sem nenhum vínculo
+   entre as duas. Quem quisesse estudar pra quarta-feira tinha que descobrir
+   sozinho que uma coisa servia pra outra.
+
+   Agora a prova que vem abre a coluna do meio, com o nome, quanto falta e os
+   três geradores que servem pra estudar pra uma prova. O que sair fica
+   arquivado nela.
+   -------------------------------------------------------------------------- */
+.est-proxima {
+  margin: 4px 0 24px;
+  padding: 18px 20px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.est-proxima.q-hoje, .est-proxima.q-perto {
+  border-color: color-mix(in srgb, var(--warn) 38%, transparent);
+  background: linear-gradient(color-mix(in srgb, var(--warn) 7%, transparent), transparent 70%), var(--panel);
+}
+.est-proxima > header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.est-proxima .rot {
+  flex: 1 1 100%;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.est-proxima h3 { margin: 4px 0 0; font-size: 19px; font-weight: 680; letter-spacing: -0.025em; }
+/* Quanto falta é o número que decide o dia da pessoa: sai do tamanho do nome. */
+.est-proxima .quando {
+  padding: 3px 11px;
+  border-radius: var(--pill);
+  background: var(--panel-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.est-proxima.q-hoje .quando, .est-proxima.q-perto .quando {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+.est-proxima .ver {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.est-proxima .ver:hover { color: var(--text-2); }
+.est-proxima .ver svg { transform: rotate(-90deg); }
+.est-proxima .acoes {
+  margin-top: 15px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+.est-proxima-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--t) 15%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--d1) var(--ease), transform var(--d1) var(--ease);
+}
+.est-proxima-btn .ico { display: grid; place-items: center; color: var(--t); flex: 0 0 auto; }
+.est-proxima-btn:hover { background: color-mix(in srgb, var(--t) 24%, transparent); }
+.est-proxima-btn:active { transform: scale(0.985); }
+.est-proxima-btn.ocupado { opacity: 0.6; }
+
+/* O segundo botão de adicionar não compete com o primeiro: prova de ano
+   anterior é o caso raro, e dois botões do mesmo peso fariam a pessoa parar
+   pra escolher entre eles toda vez. */
+.est-add.fraco {
+  min-height: 38px;
+  margin-top: 6px;
+  border-style: solid;
+  border-color: transparent;
+  font-size: 13.5px;
+  opacity: 0.75;
+}
+.est-add.fraco:hover { opacity: 1; background: var(--panel); }
+
+
+/* --------------------------------------------------------------------------
+   A folha de prova.
+
+   O simulado saía como um relatório: cada questão com a etiqueta do peso, o
+   tema, o nível, e a resposta a um clique de distância. Isso é análise do
+   professor — quem pede um simulado quer a prova, pra imprimir e fazer, ou pra
+   assinalar na tela e receber a nota.
+
+   Então esta parte do CSS desenha PAPEL: medida de leitura curta, número da
+   questão marcado, bolinha de assinalar, e linhas pautadas onde a discursiva
+   vai ser escrita à mão. O que o retrato descobriu só reaparece no gabarito.
+   -------------------------------------------------------------------------- */
+.prova { display: grid; gap: 16px; }
+
+.prova-barra {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 12px;
+  background: linear-gradient(var(--bg) 74%, color-mix(in srgb, var(--bg) 55%, transparent));
+  backdrop-filter: blur(6px);
+}
+.prova-modos { flex: 0 0 auto; align-self: center; }
+.prova-placar {
+  padding: 4px 12px;
+  border-radius: var(--pill);
+  background: var(--panel-2);
+  font-size: 13.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.prova-placar.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.prova-placar.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+
+/* A folha em si. Medida curta de propósito: enunciado longo em coluna larga é
+   onde o olho perde a linha, e prova se lê de cima a baixo. */
+.prova-folha {
+  max-width: 44em;
+  padding: 26px 30px 30px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--glass-luz);
+}
+/* Na tela o título já está no cabeçalho da saída, com a data e a IA que fez —
+   repetir dentro da folha era o mesmo nome duas vezes em 60px. No papel não há
+   cabeçalho nenhum, e prova sem título não é prova. */
+.prova-titulo { display: none; }
+@media print { .imprimindo-prova .prova-titulo { display: block; } }
+.prova-titulo {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.prova-instrucoes {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.prova-meta {
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Nome, data e nota: existem pro papel. Na tela quem responde já é quem abriu
+   o app, e três linhas em branco no topo só empurrariam a primeira questão. */
+.prova-identificacao { display: none; }
+
+.prova-questoes { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.prova-q { padding: 18px 0; border-top: 1px solid var(--line-soft); }
+.prova-q:first-child { border-top: 0; }
+.prova-q-topo { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+/* O número num círculo: na folha impressa é o que guia o olho de uma questão
+   pra outra sem precisar de linha divisória. */
+.prova-n {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--panel-2);
+  font-size: 13px;
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.prova-valor {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.prova-so-gabarito { display: none; align-items: center; gap: 8px; margin-left: auto; }
+.prova[data-modo='gabarito'] .prova-so-gabarito { display: inline-flex; }
+.prova-so-gabarito .meta { font-size: 12px; color: var(--muted); }
+.prova-so-gabarito .tag {
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.prova-so-gabarito .tag.prob-alta { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+.prova-so-gabarito .tag.prob-media { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.prova-enunciado { margin: 0; font-size: 15px; line-height: 1.62; text-wrap: pretty; }
+
+/* --- assinalar --- */
+.prova-alts { margin: 12px 0 0; display: grid; gap: 5px; }
+.prova-alt {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--d1) var(--ease), border-color var(--d1) var(--ease);
+}
+.prova-alt:hover { background: var(--panel-2); }
+/* O radio nativo continua no DOM — é ele que guarda a resposta e que o teclado
+   percorre —, mas some da tela: quem se vê é a letra. Tirar do fluxo com
+   `position:absolute` fazia o alvo de clique cair em cima do texto; zerar o
+   tamanho deixa o rótulo inteiro clicável, que é o que se espera de uma prova. */
+.prova-alt input {
+  appearance: none;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+}
+/* Sem isto, quem navega de Tab não vê onde está. */
+.prova-alt input:focus-visible + .prova-letra {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* A letra É o controle: o círculo em volta dela é a bolinha de assinalar, na
+   tela e no papel. Um `<input type=radio>` nativo imprime cinza e apagado. */
+.prova-letra {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 auto;
+  margin-top: -1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  transition: all var(--d1) var(--ease);
+}
+.prova-alt-txt { font-size: 14px; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
+.prova-alt:has(input:checked) { background: var(--accent-soft); border-color: var(--accent-line); }
+.prova-alt:has(input:checked) .prova-letra {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.prova-alt:has(input:checked) .prova-alt-txt { color: var(--text); }
+/* Depois de entregar, e no gabarito, a certa e a marcada errada se separam. */
+.prova-alt.certa, .prova[data-modo='gabarito'] .prova-alt[data-certa-alt] {
+  background: color-mix(in srgb, var(--ok) 13%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 42%, transparent);
+}
+.prova-alt.certa .prova-letra,
+.prova[data-modo='gabarito'] .prova-alt[data-certa-alt] .prova-letra {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #06240f;
+}
+.prova-alt.errada { background: color-mix(in srgb, var(--danger) 13%, transparent); border-color: color-mix(in srgb, var(--danger) 42%, transparent); }
+.prova-alt.errada .prova-letra { background: var(--danger); border-color: var(--danger); color: #2a0805; }
+.prova-alt:has(input:disabled) { cursor: default; }
+
+/* --- discursiva --- */
+.prova-resp {
+  width: 100%;
+  margin-top: 11px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+  resize: vertical;
+}
+.prova-resp:focus { outline: none; border-color: var(--accent-line); background: var(--panel-2); }
+/* As linhas pautadas existem só no papel: são o espaço de escrever à mão. */
+.prova-pautado { display: none; }
+
+.prova-correcao { margin-top: 12px; display: grid; gap: 7px; }
+.prova-resposta { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
+.prova-conf {
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.prova-conf b { display: block; font-size: 12px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.prova-conf p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--text-2); text-wrap: pretty; }
+.prova-eu { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+.prova-eu .meta { font-size: 12.5px; color: var(--muted); }
+.prova-eu button {
+  padding: 5px 12px;
+  border-radius: var(--pill);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all var(--d1) var(--ease);
+}
+.prova-eu button:hover { background: var(--panel-3); }
+.prova-eu button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.prova-correcao .meta {
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.prova-fim { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 9px; justify-items: start; }
+.prova-fim .hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; max-width: 40em; }
+/* Entregue, o botão sai: reentregar não existe numa prova. */
+.prova[data-entregue] .prova-fim > .primary { display: none; }
+.prova[data-modo='gabarito'] .prova-fim { display: none; }
+
+
 /* --- resumo --- */
 .est-abertura {
   margin: 14px 0 6px;
@@ -3136,6 +3489,98 @@ button.icon { position: relative; }
   .est-slides-topo { display: none; }
 }
 
+/* A prova impressa: papel branco, tinta preta, e espaço pra escrever.
+
+   Sai sempre em branco, mesmo com a tela já respondida e corrigida — o papel é
+   pra fazer de novo, à mão. Quem quer a resposta imprime o gabarito, que é o
+   outro modo. Serifa no enunciado porque é o que toda prova de escola usa e é o
+   que se lê melhor em papel; o resto do app continua sem serifa. */
+@media print {
+  @page { margin: 16mm 15mm; }
+
+  .imprimindo-prova .prova-folha,
+  .imprimindo-prova .prova-folha * { visibility: visible; }
+  .imprimindo-prova .prova-folha {
+    position: absolute;
+    inset: 0;
+    max-width: none;
+    padding: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+    color: #000;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .imprimindo-prova .prova-barra,
+  .imprimindo-prova .prova-fim,
+  .imprimindo-prova .prova-correcao,
+  .imprimindo-prova .prova-so-gabarito,
+  .imprimindo-prova .prova-resp { display: none !important; }
+
+  .imprimindo-prova .prova-titulo { font-size: 17pt; letter-spacing: 0; }
+  .imprimindo-prova .prova-instrucoes { color: #000; font-size: 10.5pt; line-height: 1.5; }
+  .imprimindo-prova .prova-meta { color: #444; border-color: #bbb; font-size: 9pt; }
+
+  /* As três linhas que toda prova tem em cima. */
+  .imprimindo-prova .prova-identificacao {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    margin-top: 18px;
+    font-size: 9.5pt;
+  }
+  .imprimindo-prova .prova-campo {
+    flex: 0 0 auto;
+    border-bottom: 1px solid #000;
+    padding-bottom: 2px;
+    color: #000;
+  }
+  .imprimindo-prova .prova-campo.grow { flex: 1 1 auto; }
+  /* Data e nota precisam de espaço de escrever, não do tamanho da palavra. */
+  .imprimindo-prova .prova-campo { min-width: 32mm; }
+  .imprimindo-prova .prova-nota { min-width: 26mm; }
+
+  /* Questão não parte no meio da página: metade do enunciado numa folha e as
+     alternativas na outra é o defeito clássico de prova impressa. */
+  .imprimindo-prova .prova-q {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    padding: 12pt 0 0;
+    border-top: 0;
+  }
+  .imprimindo-prova .prova-n {
+    width: 18pt;
+    height: 18pt;
+    background: none;
+    border: 1px solid #000;
+    color: #000;
+    font-size: 9.5pt;
+  }
+  .imprimindo-prova .prova-valor { color: #333; font-size: 8.5pt; }
+  .imprimindo-prova .prova-enunciado { color: #000; font-size: 11pt; line-height: 1.5; }
+
+  .imprimindo-prova .prova-alts { gap: 2pt; margin-top: 7pt; }
+  .imprimindo-prova .prova-alt {
+    padding: 2pt 0;
+    background: none !important;
+    border-color: transparent !important;
+    break-inside: avoid;
+  }
+  .imprimindo-prova .prova-letra {
+    width: 15pt;
+    height: 15pt;
+    background: none !important;
+    border: 1px solid #000 !important;
+    color: #000 !important;
+    font-size: 8.5pt;
+  }
+  .imprimindo-prova .prova-alt-txt { color: #000 !important; font-size: 10.5pt; }
+
+  /* Onde a discursiva é escrita: linhas de verdade, não um retângulo vazio. */
+  .imprimindo-prova .prova-pautado { display: block; margin-top: 6pt; }
+  .imprimindo-prova .prova-pautado i { display: block; height: 9mm; border-bottom: 1px solid #999; }
+}
+
 /* --- mapa mental: o texto do SVG --- */
 .mapa-centro { fill: var(--accent); }
 .mapa-centro-txt { fill: var(--on-accent); font-size: 13px; font-weight: 650; }
@@ -3215,3 +3660,102 @@ button.icon { position: relative; }
    O Estúdio fica na coluna da direita, e quem abre uma prova está olhando pro
    meio — a pergunta "como recebo um resumo disto?" não podia depender de achar
    outra coluna. */
+
+/* --------------------------------------------------------------------------
+   Botões do menu.
+
+   Era a tela mais crua do app: oito linhas com duas caixas de marcar cada uma
+   ("aparece" e "no Mais"), duas setas, e nenhuma delas dizendo o resultado. O
+   próprio "Mais" — o botão que guarda os outros — não aparecia em canto nenhum,
+   então não dava pra saber onde ele ficava nem o que ia parar dentro dele.
+
+   O desenho novo troca a combinação de caixas por um lugar: o grupo em que o
+   botão está É onde ele vai aparecer, e ao lado a gaveta desenhada como vai
+   ficar, com o "Mais" no lugar dele e o conteúdo dele indentado embaixo.
+   -------------------------------------------------------------------------- */
+.menu-cfg { display: grid; gap: 22px; margin-top: 18px; align-items: start; }
+@media (min-width: 1060px) {
+  .menu-cfg { grid-template-columns: minmax(0, 1fr) 224px; gap: 30px; }
+  .menu-previa { position: sticky; top: 4px; }
+}
+.menu-grupos { display: grid; gap: 20px; min-width: 0; }
+.menu-grupo {
+  padding: 14px 14px 8px;
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.menu-grupo[data-grupo='oculto'] { background: none; border: 1px dashed var(--line); }
+.menu-grupo-cab { padding: 0 4px 6px; }
+.menu-grupo-cab h4 { margin: 0; font-size: 13px; font-weight: 650; color: var(--text); letter-spacing: -0.01em; }
+.menu-grupo-cab small { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.menu-vazio { margin: 4px 4px 8px; font-size: 12.5px; color: var(--muted); font-style: italic; }
+
+.menu-linha {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 46px;
+  padding: 5px 8px;
+  border-radius: 10px;
+}
+.menu-linha:hover { background: var(--panel-2); }
+.menu-linha > .ico { display: grid; place-items: center; color: var(--muted); flex: 0 0 auto; }
+.menu-linha > .grow { flex: 1 1 auto; min-width: 0; font-size: 14.5px; }
+.menu-fixo {
+  padding: 3px 10px;
+  border-radius: var(--pill);
+  background: var(--panel-3);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+/* Um controle por linha, e ele diz o resultado: "Gaveta", "Mais", "Oculto". */
+.menu-onde { flex: 0 0 auto; align-self: center; }
+.menu-onde button { font-size: 12.5px !important; padding: 5px 11px !important; min-height: 28px; }
+.menu-mover { display: flex; gap: 2px; flex: 0 0 auto; }
+.menu-mover button { width: 28px; height: 28px; min-height: 0; padding: 0; color: var(--muted); }
+.menu-mover button:disabled { opacity: 0.25; }
+.menu-mover [data-mover='-1'] svg { transform: rotate(180deg); }
+
+/* A gaveta como vai ficar. É a única parte da tela que responde "e o Mais,
+   onde é que fica?" — a pergunta que a versão de caixas de marcar não respondia. */
+.menu-previa-rot {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-bottom: 8px;
+}
+.menu-previa-caixa {
+  display: grid;
+  gap: 1px;
+  padding: 10px 8px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.menu-previa-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.menu-previa-item svg { color: var(--muted); flex: 0 0 auto; }
+.menu-previa-item.mais { color: var(--text); font-weight: 600; }
+.menu-previa-seta { margin-left: auto; display: grid; place-items: center; }
+.menu-previa-dentro {
+  display: grid;
+  gap: 1px;
+  margin-left: 13px;
+  padding-left: 9px;
+  border-left: 1px solid var(--line);
+}
+.menu-previa-dentro .menu-previa-item { font-size: 12.5px; padding: 5px 8px; color: var(--muted); }
+
+/* O tema saiu do rodapé flutuante: dois botões redondos soltos no canto de
+   baixo à direita de toda seção de ajustes, sem rótulo, apareciam no meio do
+   vazio de uma seção curta e não pertenciam a nada do que estava na tela. */
+.tema-seg button { display: inline-flex; align-items: center; gap: 7px; }

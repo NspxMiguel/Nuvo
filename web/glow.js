@@ -137,12 +137,21 @@ export function marca(tamanho = 44, mini = false, fixa = false) {
 
 export function roseta(tamanho = 44, modo = 'fixa') {
   const id = 'r' + Math.random().toString(36).slice(2, 8);
-  const lobos = [0, 1, 2, 3, 4, 5].map((i) => {
-    const a = (-90 + i * 60) * Math.PI / 180;
-    const cx = (12 + Math.cos(a) * 4.6).toFixed(2);
-    const cy = (12 + Math.sin(a) * 4.6).toFixed(2);
-    return `<circle cx="${cx}" cy="${cy}" r="5.2" style="animation-delay:${i * 80}ms"/>`;
-  }).join('');
+  // Seis lóbulos em volta de um miolo. A versão anterior encostava os lóbulos
+  // no miolo e os três raios se somavam num disco só: no ícone de 512 px saía
+  // uma bolha azul lisa, sem um traço dentro — "parece que falta algo nesse
+  // logo", e faltava mesmo. Agora o lóbulo é menor e mais afastado, o que
+  // devolve o recorte entre um e outro, e um furo de verdade (máscara, não
+  // círculo preto por cima) separa a coroa do miolo. É o que a marca queria
+  // dizer desde o começo: muitas vozes convergindo numa memória só.
+  const lobos = [0, 1, 2, 3, 4, 5]
+    .map((i) => {
+      const a = ((-90 + i * 60) * Math.PI) / 180;
+      const cx = (12 + Math.cos(a) * 5.4).toFixed(2);
+      const cy = (12 + Math.sin(a) * 5.4).toFixed(2);
+      return `<circle cx="${cx}" cy="${cy}" r="4.8" style="animation-delay:${i * 80}ms"/>`;
+    })
+    .join('');
   return `<span class="roseta ${modo}" style="width:${tamanho}px;height:${tamanho}px">
     <svg viewBox="0 0 24 24" width="${tamanho}" height="${tamanho}">
       <defs>
@@ -152,8 +161,17 @@ export function roseta(tamanho = 44, modo = 'fixa') {
         <radialGradient id="b${id}" cx=".5" cy=".2" r=".8">
           <stop stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
         </radialGradient>
+        <mask id="m${id}">
+          <rect width="24" height="24" fill="#000"/>
+          <g fill="#fff" class="lobos">${lobos}<circle cx="12" cy="12" r="6.2"/></g>
+          <circle cx="12" cy="12" r="4" fill="#000"/>
+        </mask>
       </defs>
-      <g fill="url(#${id})" class="lobos">${lobos}<circle cx="12" cy="12" r="6.8"/></g>
-      <g fill="url(#b${id})" style="mix-blend-mode:screen"><circle cx="12" cy="12" r="10.6"/></g>
+      <g mask="url(#m${id})">
+        <rect width="24" height="24" fill="url(#${id})"/>
+        <rect width="24" height="24" fill="url(#b${id})" style="mix-blend-mode:screen"/>
+      </g>
+      <circle cx="12" cy="12" r="3" fill="url(#${id})"/>
+      <circle cx="12" cy="12" r="3" fill="url(#b${id})" style="mix-blend-mode:screen"/>
     </svg></span>`;
 }

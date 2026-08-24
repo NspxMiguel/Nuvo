@@ -60,8 +60,10 @@ const LADRILHOS = [
 ];
 
 /** Um ladrilho do estúdio. `temRetrato` só muda a etiqueta, nunca destranca. */
-const ladrilho = (l, temRetrato) =>
-  `<button class="est-lad" style="--t:var(--${l.cor})" data-gerar="${l.id}">
+const ladrilho = (l, temRetrato, foco = null) =>
+  `<button class="est-lad" style="--t:var(--${l.cor})" data-gerar="${l.id}"${
+    foco ? ` data-foco="${foco}"` : ''
+  }>
     <span class="ico">${icon(l.ico, 18)}</span>
     <span class="nm">${escapeHtml(l.nome())}</span>
     ${
@@ -362,16 +364,22 @@ async function telaDoProfessor(el, ctx) {
     return ligarRevisao(el, prof, cartoes, ctx);
   }
 
-  const provas = prof.pastas.filter((p) => p.tipo === 'prova').sort(porUrgencia);
+  const provas = prof.pastas.filter((p) => p.tipo === 'prova' && !p.anterior).sort(porUrgencia);
+  const anteriores = prof.pastas.filter((p) => p.tipo === 'prova' && p.anterior).sort(porUrgencia);
   const aula = prof.pastas.filter((p) => p.tipo === 'material');
   const pasta = prof.pastas.find((p) => p.id === aqui.pastaAberta);
   const saida = saidas.find((s) => s.id === aqui.saidaAberta);
 
+  // O que a coluna do meio mostra, e pra que avaliação o Estúdio está gerando.
+  // Abrir uma prova põe o Estúdio a serviço dela: os ladrilhos passam a dizer
+  // o nome da prova, e o que sair fica arquivado ali dentro.
+  const proxima = proximaProva(prof);
+  const foco = pasta?.tipo === 'prova' ? pasta : null;
   const meio = saida
     ? desenharSaida(saida)
     : pasta
       ? avaliacaoAberta(prof, pasta)
-      : desenharRetrato(prof);
+      : `${proxima ? faixaDaProxima(proxima) : ''}${desenharRetrato(prof)}`;
 
   el.innerHTML = `<div class="est">
     <header class="est-topo">
@@ -427,9 +435,23 @@ async function telaDoProfessor(el, ctx) {
             ? provas.map((p) => linhaDeFonte(p)).join('')
             : `<p class="est-nada">${t('Nenhuma prova dele ainda. É a prova que diz o que cai.')}</p>`
         }
+        ${
+          // Prova de ano anterior fica separada: ela ensina o jeito dele e não
+          // é compromisso na agenda. Junto das outras, a lista dizia que ele
+          // tinha oito provas marcadas quando tinha duas.
+          anteriores.length
+            ? `<div class="est-rot">${t('De anos anteriores')} <span class="n">${formatarNumero(
+                anteriores.length
+              )}</span></div>
+               ${anteriores.map((p) => linhaDeFonte(p)).join('')}`
+            : ''
+        }
         <div class="est-rot">${t('Material de aula')} <span class="n">${formatarNumero(aula.length)}</span></div>
         ${aula.map((p) => linhaDeFonte(p)).join('')}
         <button class="est-add" id="est-nova-pasta">${icon('plus', 18)} ${t('Adicionar material')}</button>
+        <button class="est-add fraco" id="est-prova-antiga">${icon('archive', 18)} ${t(
+          'Prova de ano anterior'
+        )}</button>
         <p class="est-nada">${t('O que está marcado entra nas respostas e no que for gerado.')}</p>
       </aside>
 
@@ -449,9 +471,13 @@ async function telaDoProfessor(el, ctx) {
             ? t('O NotebookLM lê o material. Esta IA reescreve com o jeito do professor.')
             : t('Esta IA lê o material e escreve com o jeito do professor. Ligue o NotebookLM em "IAs ligadas" pra ele fazer a leitura.')
         }</p>
-        <div class="est-rot">${t('Gerar')}</div>
+        <div class="est-rot">${
+          foco
+            ? t('Gerar para {nome}', { nome: escapeHtml(foco.nome) })
+            : t('Gerar')
+        }</div>
         <div class="est-lads">
-          ${LADRILHOS.map((l) => ladrilho(l, !!prof.retrato)).join('')}
+          ${LADRILHOS.map((l) => ladrilho(l, !!prof.retrato, foco?.id)).join('')}
         </div>
         ${
           saidas.length
@@ -570,6 +596,54 @@ function comoFunciona(prof) {
 }
 
 // ---------------------------------------------------------------- o retrato
+
+/**
+ * A prova que vem: a avaliação futura mais próxima, com dia marcado.
+ *
+ * Esta é a pergunta que a tela não respondia — "onde eu peço o resumo pra prova
+ * de quarta?". A resposta não podia ser "procure na coluna da direita e torça":
+ * a prova que vem abre a tela, com o nome dela e os três geradores que servem
+ * pra estudar pra uma, e o que sair fica arquivado dentro dela.
+ *
+ * Prova de ano anterior nunca entra aqui, mesmo com data futura por engano: ela
+ * é amostra do jeito dele, não compromisso na agenda de ninguém.
+ */
+function proximaProva(prof) {
+  return (
+    (prof.pastas || [])
+      .filter((p) => p.tipo === 'prova' && !p.anterior && p.quando && quandoDiz(p.quando).dias >= 0)
+      .sort((a, b) => a.quando.localeCompare(b.quando))[0] || null
+  );
+}
+
+/** Os três geradores que servem pra estudar pra uma prova, com o nome dela. */
+const PRA_PROVA = [
+  ['simulado', () => t('Fazer um simulado')],
+  ['guia', () => t('O que estudar')],
+  ['flashcards', () => t('Cartões pra decorar')]
+];
+
+function faixaDaProxima(pasta) {
+  const q = quandoDiz(pasta.quando);
+  return `<section class="est-proxima q-${q.classe}">
+    <header>
+      <span class="rot">${t('Prova que vem')}</span>
+      <h3>${escapeHtml(pasta.nome)}</h3>
+      <span class="quando">${escapeHtml(q.txt())}</span>
+      <button class="ver" data-abrir-pasta="${pasta.id}">${t('ver a pasta')} ${icon('chevron', 14)}</button>
+    </header>
+    <div class="acoes">
+      ${PRA_PROVA.map(([id, rot]) => {
+        const l = acharLadrilho(id);
+        return `<button class="est-proxima-btn" style="--t:var(--${l.cor})"
+          data-gerar="${id}" data-foco="${pasta.id}">
+          <span class="ico">${icon(l.ico, 18)}</span>
+          <span class="nm">${escapeHtml(rot())}</span>
+        </button>`;
+      }).join('')}
+    </div>
+  </section>`;
+}
 
 function desenharRetrato(prof) {
   const r = prof.retrato;
@@ -958,6 +1032,15 @@ function ligarProfessor(el, prof, saidas, ctx) {
   }
 
   q('#est-nova-pasta').onclick = () => criarPasta(prof, ctx, q('.est-mat'));
+  q('#est-prova-antiga').onclick = () => criarPasta(prof, ctx, q('.est-mat'), { anterior: true });
+  for (const b of el.querySelectorAll('[data-abrir-pasta]')) {
+    b.onclick = () => {
+      aqui.pastaAberta = b.dataset.abrirPasta;
+      aqui.saidaAberta = null;
+      aqui.regiao = 'retrato';
+      repintar();
+    };
+  }
   q('[data-volta]')?.addEventListener('click', () => {
     aqui.pastaAberta = null;
     aqui.saidaAberta = null;
@@ -1013,7 +1096,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
     aqui.modelo = seletor.value;
   };
   for (const b of el.querySelectorAll('[data-gerar]')) {
-    b.onclick = () => gerar(el, prof, b, seletor.value, ctx);
+    b.onclick = () => gerar(el, prof, b, seletor.value, ctx, b.dataset.foco || null);
   }
 
 
@@ -1022,6 +1105,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
   if (saida) {
     ligarPodcast(el, saida.json);
     ligarQuiz(el, saida.json);
+    ligarSimulado(el, saida.json);
     ligarSlides(el, saida.json);
     q('[data-act=revisar]')?.addEventListener('click', async (ev) => {
       ev.currentTarget.disabled = true;
@@ -1126,7 +1210,7 @@ async function montarRetrato(el, prof, botao, ref, ctx) {
   }
 }
 
-async function gerar(el, prof, botao, ref, ctx) {
+async function gerar(el, prof, botao, ref, ctx, foco = null) {
   const tipo = botao.dataset.gerar;
   if (!ref) return toast(t('escolha uma IA pra gerar'), 'err');
   const rotulo = botao.querySelector('.nm');
@@ -1152,7 +1236,7 @@ async function gerar(el, prof, botao, ref, ctx) {
 
   const pastas = prof.pastas.filter((p) => !aqui.fora.has(p.id)).map((p) => p.id);
   try {
-    await stream(`/professores/${prof.id}/gerar`, { tipo, model: ref, pastas }, (ev) => {
+    await stream(`/professores/${prof.id}/gerar`, { tipo, model: ref, pastas, foco }, (ev) => {
       if (ev.type === 'start') fase = ev.rascunho ? t('NotebookLM lendo…') : t('lendo…');
       if (ev.type === 'passo' && ev.o_que) fase = ev.o_que;
       // A segunda mão é a que interessa: é ela que põe o professor no resultado,
@@ -1188,7 +1272,7 @@ function desenharSaida(saida) {
   const j = saida.json || {};
   const l = acharLadrilho(saida.tipo);
   const desenhar = {
-    simulado: () => desenharSimulado(j),
+    simulado: () => desenharSimulado(j, saida),
     guia: () => desenharGuia(j),
     flashcards: () => desenharCartoes(j),
     resumo: () => desenharResumo(j),
@@ -1226,13 +1310,22 @@ function desenharSaida(saida) {
 
 // ----------------------------------------------------------- pequenas ações
 
-function criarPasta(prof, ctx, host) {
+/**
+ * Pasta nova. `anterior` marca prova de ano passado.
+ *
+ * O professor costuma repetir a forma de um ano pro outro, e essa é a melhor
+ * amostra que existe do jeito dele — mas ela não é uma prova marcada, então
+ * entra separada da agenda e o nome já vem com o ano do ano passado.
+ */
+function criarPasta(prof, ctx, host, { anterior = false } = {}) {
+  const anoPassado = new Date().getFullYear() - 1;
   pedirNome(host, {
-    dica: t('A1 do 1º trimestre'),
+    valor: anterior ? t('Prova de {ano}', { ano: String(anoPassado) }) : '',
+    dica: anterior ? t('Prova de {ano}', { ano: String(anoPassado) }) : t('A1 do 1º trimestre'),
     aoConfirmar: async (nome) => {
       const pasta = await api(`/professores/${prof.id}/pastas`, {
         method: 'POST',
-        body: { nome, tipo: 'prova' }
+        body: { nome, tipo: 'prova', anterior }
       });
       aqui.pastaAberta = pasta.id;
       ctx.switchView('estudos');
@@ -1303,39 +1396,238 @@ function faltouEmHtml(faltou) {
   </div>`;
 }
 
-function desenharSimulado(j) {
-  // O cabeçalho da prova é o que o professor escreveria em cima da folha, não
-  // código: num `<pre>` sem regra de estilo ele saía em monoespaçada e sem
-  // quebra de linha, e um cabeçalho comprido rolava a tela pro lado.
-  return `${j.instrucoes ? `<p class="est-instrucoes">${escapeHtml(j.instrucoes)}</p>` : ''}
-    ${(j.questoes || [])
-      .map(
-        (q) => `<div class="est-questao">
-          <div class="est-q-topo">
-            <b>${formatarNumero(q.n)}.</b>
-            <span class="tag prob-${escapeHtml(q.probabilidade)}">${escapeHtml(
-              (PROBABILIDADE[q.probabilidade] || (() => q.probabilidade))()
-            )}</span>
-            ${q.tema ? `<span class="meta">${escapeHtml(q.tema)}</span>` : ''}
-            ${q.valor ? `<span class="meta">${formatarNumero(q.valor)}</span>` : ''}
-          </div>
-          <p class="est-enunciado">${escapeHtml(q.enunciado)}</p>
-          ${
-            q.alternativas?.length
-              ? `<ul class="est-alts">${q.alternativas
-                  .map((a) => `<li>${escapeHtml(a)}</li>`)
-                  .join('')}</ul>`
-              : ''
-          }
-          <details class="est-gabarito">
-            <summary>${t('ver a resposta')}</summary>
-            <p>${escapeHtml(q.gabarito)}</p>
-            ${q.porque ? `<p class="meta">${t('por que esta questão')}: ${escapeHtml(q.porque)}</p>` : ''}
-            ${q.fonte ? `<p class="ret-cita">${escapeHtml(q.fonte)}</p>` : ''}
-          </details>
-        </div>`
-      )
-      .join('')}`;
+/** Quanto vale a prova inteira. Sem valor por questão, cada uma vale um ponto. */
+const valorTotal = (questoes) =>
+  questoes.reduce((soma, q) => soma + (Number(q.valor) || 1), 0);
+
+/** A letra da alternativa: a, b, c… — quem numera é a folha, não o modelo. */
+const letra = (i) => String.fromCharCode(97 + i);
+
+/**
+ * A folha de prova.
+ *
+ * Isto é uma prova pra fazer, não um relatório sobre o professor: as respostas
+ * ficam escondidas, cada questão tem onde responder, e o cabeçalho tem as linhas
+ * de nome, data e nota que toda prova de escola tem. Dois modos, um botão de
+ * imprimir:
+ *
+ * - **responder** — assinala na tela, entrega, e o app corrige o que dá pra
+ *   corrigir sozinho (objetiva pelo índice da certa) e mostra o esperado ao lado
+ *   do que você escreveu nas discursivas, pra você mesmo se dar a nota;
+ * - **gabarito** — a mesma folha com a resposta, o porquê da questão e a citação;
+ * - **imprimir** — sai a folha em branco, com espaço pra escrever, sem nada da
+ *   tela junto. O CSS de impressão desenha as linhas e o círculo de assinalar.
+ *
+ * O que o retrato descobriu (probabilidade, tema, nível) só aparece no gabarito:
+ * numa prova pra fazer, dizer "esta cai com 30%" é entregar metade da resposta.
+ */
+function desenharSimulado(j, saida) {
+  const questoes = j.questoes || [];
+  const total = valorTotal(questoes);
+  const meta = [
+    plural(questoes.length, '1 questão', '{n} questões'),
+    t('{n} pontos', { n: formatarNumero(total, { maximumFractionDigits: 1 }) }),
+    j.tempo ? t('{n} min', { n: formatarNumero(j.tempo) }) : ''
+  ].filter(Boolean);
+
+  return `<div class="prova" data-modo="fazer">
+    <div class="prova-barra">
+      <div class="segmentado prova-modos" role="tablist">
+        <button type="button" data-modo-btn="fazer" class="sel" role="tab" aria-selected="true">${t('Responder')}</button>
+        <button type="button" data-modo-btn="gabarito" role="tab" aria-selected="false">${t('Gabarito')}</button>
+      </div>
+      <span class="grow"></span>
+      <span class="prova-placar tag" hidden></span>
+      <button type="button" class="ghost" data-act="imprimir">
+        ${icon('download', 16)} ${t('Imprimir')}
+      </button>
+    </div>
+
+    <div class="prova-folha">
+      <header class="prova-cabeca">
+        <h1 class="prova-titulo">${escapeHtml(saida?.titulo || '')}</h1>
+        ${j.instrucoes ? `<p class="prova-instrucoes">${escapeHtml(j.instrucoes)}</p>` : ''}
+        <div class="prova-identificacao">
+          <span class="prova-campo grow">${t('Nome')}</span>
+          <span class="prova-campo">${t('Data')}</span>
+          <span class="prova-campo prova-nota">${t('Nota')}</span>
+        </div>
+        <p class="prova-meta">${escapeHtml(meta.join(' · '))}</p>
+      </header>
+
+      <ol class="prova-questoes">
+        ${questoes.map((q, i) => desenharQuestao(q, i)).join('')}
+      </ol>
+
+      <div class="prova-fim">
+        <button type="button" class="primary" data-act="entregar">${t('Entregar e corrigir')}</button>
+        <p class="hint">${t('O que for de assinalar o app corrige sozinho. Na discursiva ele mostra o esperado ao lado do que você escreveu.')}</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+/** Uma questão da folha: enunciado, onde responder, e a correção escondida. */
+function desenharQuestao(q, i) {
+  const temAlts = !!q.alternativas?.length;
+  const linhas = Math.max(Number(q.linhas) || 0, 3);
+  return `<li class="prova-q" data-q="${i}"${
+    Number.isInteger(q.correta) ? ` data-certa="${q.correta}"` : ''
+  } data-valor="${Number(q.valor) || 1}">
+    <div class="prova-q-topo">
+      <span class="prova-n">${formatarNumero(q.n || i + 1)}</span>
+      ${q.valor ? `<span class="prova-valor">${t('{n} pt', { n: formatarNumero(q.valor, { maximumFractionDigits: 2 }) })}</span>` : ''}
+      <span class="prova-so-gabarito">
+        <span class="tag prob-${escapeHtml(q.probabilidade)}">${escapeHtml(
+          (PROBABILIDADE[q.probabilidade] || (() => q.probabilidade))()
+        )}</span>
+        ${q.tema ? `<span class="meta">${escapeHtml(q.tema)}</span>` : ''}
+      </span>
+    </div>
+    <p class="prova-enunciado">${escapeHtml(q.enunciado)}</p>
+    ${
+      temAlts
+        ? `<div class="prova-alts">${q.alternativas
+            .map(
+              (a, k) => `<label class="prova-alt"${k === q.correta ? ' data-certa-alt' : ''}>
+                <input type="radio" name="prova-q${i}" value="${k}" />
+                <span class="prova-letra">${letra(k)}</span>
+                <span class="prova-alt-txt">${escapeHtml(a)}</span>
+              </label>`
+            )
+            .join('')}</div>`
+        : `<textarea class="prova-resp" rows="${Math.min(linhas, 12)}"
+            aria-label="${t('sua resposta')}" placeholder="${t('escreva aqui')}"></textarea>
+          <div class="prova-pautado" aria-hidden="true">${'<i></i>'.repeat(linhas)}</div>`
+    }
+    <div class="prova-correcao" hidden>
+      ${
+        temAlts
+          ? ''
+          : `<div class="prova-conf">
+              <b>${t('O que ele esperava')}</b>
+              <p>${escapeHtml(q.gabarito)}</p>
+              <div class="prova-eu">
+                <span class="meta">${t('e você:')}</span>
+                <button type="button" data-eu="1">${t('acertei')}</button>
+                <button type="button" data-eu="0.5">${t('mais ou menos')}</button>
+                <button type="button" data-eu="0">${t('errei')}</button>
+              </div>
+            </div>`
+      }
+      ${temAlts ? `<p class="prova-resposta"><b>${t('Resposta')}:</b> ${escapeHtml(q.gabarito)}</p>` : ''}
+      ${q.porque ? `<p class="meta">${t('por que esta questão')}: ${escapeHtml(q.porque)}</p>` : ''}
+      ${q.fonte ? `<p class="ret-cita">${escapeHtml(q.fonte)}</p>` : ''}
+    </div>
+  </li>`;
+}
+
+/**
+ * A folha viva: trocar de modo, entregar, corrigir e imprimir.
+ *
+ * A nota sai de duas somas que não se misturam — o que a máquina corrigiu e o
+ * que a pessoa se deu na discursiva. Elas aparecem juntas no placar porque é a
+ * nota da prova inteira que ela quer saber, mas a discursiva só entra depois de
+ * a pessoa clicar, e até lá o placar diz quanto ainda falta avaliar.
+ */
+function ligarSimulado(host, j) {
+  const prova = host.querySelector('.prova');
+  if (!prova) return;
+  const questoes = j.questoes || [];
+  const total = valorTotal(questoes);
+  const placar = prova.querySelector('.prova-placar');
+  let entregue = false;
+
+  const trocarModo = (modo) => {
+    prova.dataset.modo = modo;
+    for (const b of prova.querySelectorAll('[data-modo-btn]')) {
+      const on = b.dataset.modoBtn === modo;
+      b.classList.toggle('sel', on);
+      b.setAttribute('aria-selected', String(on));
+    }
+    // O gabarito mostra tudo; voltar pra "responder" só reesconde o que a
+    // pessoa ainda não entregou — quem já entregou não perde a correção.
+    for (const caixa of prova.querySelectorAll('.prova-correcao')) {
+      caixa.hidden = modo === 'fazer' && !entregue;
+    }
+  };
+  for (const b of prova.querySelectorAll('[data-modo-btn]')) {
+    b.onclick = () => trocarModo(b.dataset.modoBtn);
+  }
+
+  const contar = () => {
+    let feito = 0;
+    let ganho = 0;
+    let aAvaliar = 0;
+    for (const caixa of prova.querySelectorAll('.prova-q')) {
+      const valor = Number(caixa.dataset.valor) || 1;
+      if (caixa.dataset.certa !== undefined) {
+        feito += valor;
+        if (caixa.dataset.acertou === '1') ganho += valor;
+      } else if (caixa.dataset.eu !== undefined) {
+        feito += valor;
+        ganho += valor * Number(caixa.dataset.eu);
+      } else {
+        aAvaliar += valor;
+      }
+    }
+    placar.hidden = false;
+    placar.textContent = t('{nota} de {total}', {
+      nota: formatarNumero(ganho, { maximumFractionDigits: 2 }),
+      total: formatarNumero(total, { maximumFractionDigits: 1 })
+    });
+    placar.title = aAvaliar
+      ? t('faltam {n} pontos de discursiva pra você avaliar', {
+          n: formatarNumero(aAvaliar, { maximumFractionDigits: 1 })
+        })
+      : '';
+    placar.classList.toggle('ok', !aAvaliar && feito > 0 && ganho / total >= 0.6);
+    placar.classList.toggle('warn', !aAvaliar && feito > 0 && ganho / total < 0.6);
+  };
+
+  prova.querySelector('[data-act=entregar]').onclick = () => {
+    entregue = true;
+    prova.dataset.entregue = '1';
+    for (const caixa of prova.querySelectorAll('.prova-q')) {
+      caixa.querySelector('.prova-correcao').hidden = false;
+      const certa = caixa.dataset.certa;
+      if (certa === undefined) continue;
+      const escolhido = caixa.querySelector('input[type=radio]:checked');
+      caixa.dataset.acertou = escolhido && escolhido.value === certa ? '1' : '0';
+      for (const alt of caixa.querySelectorAll('.prova-alt')) {
+        const marcado = alt.querySelector('input').checked;
+        alt.classList.toggle('certa', alt.hasAttribute('data-certa-alt'));
+        alt.classList.toggle('errada', marcado && !alt.hasAttribute('data-certa-alt'));
+        alt.querySelector('input').disabled = true;
+      }
+    }
+    contar();
+    // A folha corrigida rola pro topo: a nota está lá em cima, e ficar no
+    // último rodapé depois de entregar parecia que nada tinha acontecido.
+    prova.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  for (const botao of prova.querySelectorAll('[data-eu]')) {
+    botao.onclick = () => {
+      const caixa = botao.closest('.prova-q');
+      caixa.dataset.eu = botao.dataset.eu;
+      for (const b of caixa.querySelectorAll('[data-eu]')) b.classList.toggle('on', b === botao);
+      contar();
+    };
+  }
+
+  prova.querySelector('[data-act=imprimir]').onclick = () => {
+    // Imprime a folha em branco, mesmo com a tela já respondida: o papel é pra
+    // fazer de novo, à mão. O que assinalar na tela vira a bolinha vazia de
+    // sempre no CSS de impressão.
+    document.body.classList.add('imprimindo-prova');
+    const voltar = () => {
+      document.body.classList.remove('imprimindo-prova');
+      removeEventListener('afterprint', voltar);
+    };
+    addEventListener('afterprint', voltar);
+    print();
+  };
 }
 
 function desenharGuia(j) {

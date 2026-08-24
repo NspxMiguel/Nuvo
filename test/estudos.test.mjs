@@ -12,6 +12,7 @@ const home = useTempHome();
 const estudos = await import('../server/estudos.mjs');
 const { addAttachment, listAttachments, recallChunks } = await import('../server/documents.mjs');
 const { all, one } = await import('../server/db.mjs');
+const { FORMATOS } = await import('../server/estudos-formatos.mjs');
 
 after(() => home.cleanup());
 
@@ -194,4 +195,50 @@ test('avaliação guarda o dia, e só o dia', () => {
   const renomeada = estudos.atualizarPasta(pasta.id, { nome: 'A2 nova' });
   assert.equal(renomeada.quando, '2026-08-24');
   assert.equal(estudos.atualizarPasta(pasta.id, { quando: null }).quando, null);
+});
+
+// --------------------------------------------------------------- simulado
+
+test('a alternativa certa é achada mesmo quando o modelo não dá o índice', () => {
+  // O que corrige a prova na tela é o índice da certa. O modelo devolve ele de
+  // três formas — o número, a letra, ou nada —, e simulado gerado antes deste
+  // campo existir não tem o campo nenhum. Todas caem no mesmo lugar, senão
+  // metade das provas volta a ser só gabarito de texto.
+  const conferir = FORMATOS.simulado.conferir;
+  const base = { enunciado: 'x', alternativas: ['um', 'dois', 'três'] };
+
+  assert.equal(conferir({ questoes: [{ ...base, correta: 2 }] }).questoes[0].correta, 2);
+  assert.equal(conferir({ questoes: [{ ...base, correta: 'b' }] }).questoes[0].correta, 1);
+  assert.equal(conferir({ questoes: [{ ...base, correta: '(C)' }] }).questoes[0].correta, 2);
+  assert.equal(conferir({ questoes: [{ ...base, gabarito: 'letra B' }] }).questoes[0].correta, 1);
+  assert.equal(conferir({ questoes: [{ ...base, gabarito: 'a) um' }] }).questoes[0].correta, 0);
+  // Índice fora da lista é o mesmo que não ter: marcar a quarta alternativa de
+  // uma questão com três daria uma prova impossível de acertar.
+  assert.equal(conferir({ questoes: [{ ...base, correta: 7 }] }).questoes[0].correta, null);
+  // Sem alternativa nenhuma não existe índice: a discursiva é avaliada pela
+  // pessoa, contra o que o professor esperava.
+  assert.equal(
+    conferir({ questoes: [{ enunciado: 'x', gabarito: 'letra B' }] }).questoes[0].correta,
+    null
+  );
+});
+
+test('a letra da frente da alternativa é da folha, não do modelo', () => {
+  // Quem numera é a folha de prova. Com o "a)" vindo dentro do texto, a folha
+  // imprimia "a) a) …" — e mudar a ordem das alternativas passaria a mentir.
+  const { questoes } = FORMATOS.simulado.conferir({
+    questoes: [
+      {
+        enunciado: 'x',
+        alternativas: ['a) glicólise', 'B. ciclo de Krebs', '(c) cadeia', '- fermentação', 'sem letra']
+      }
+    ]
+  });
+  assert.deepEqual(questoes[0].alternativas, [
+    'glicólise',
+    'ciclo de Krebs',
+    'cadeia',
+    'fermentação',
+    'sem letra'
+  ]);
 });

@@ -364,6 +364,11 @@ function migrate() {
   // A leitura de uma prova pelo modelo fica guardada na pasta. Ler cinco provas
   // leva minutos e custa cota; sem isso, um erro na síntese — que é o último
   // passo — jogava fora tudo o que já tinha sido lido.
+  // Prova de ano anterior. O professor costuma repetir a forma de um ano pro
+  // outro, então uma prova velha é a melhor amostra que existe do jeito dele —
+  // mas ela NÃO é a prova que vem, e misturar as duas faria o app anunciar uma
+  // avaliação que já passou. A marca separa as duas coisas.
+  addColumn('estudo_pastas', 'anterior', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('estudo_pastas', 'leitura', 'TEXT');
   addColumn('estudo_pastas', 'leitura_chave', 'TEXT');
   addColumn('estudo_pastas', 'leitura_em', 'TEXT');

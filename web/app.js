@@ -1001,6 +1001,10 @@ function renderFirstRun() {
 // no português, antes de o dicionário existir e sem voltar a mudar quando a
 // pessoa troca de idioma.
 const ATALHOS = () => [
+  // Estudar pra uma prova é a coisa mais concreta que o app faz e era a única
+  // que a tela vazia não oferecia: quem abria o Nuvo pra estudar tinha que
+  // saber de antemão que existe uma tela chamada "Estudos" na gaveta.
+  ['book', t('Estudar pra uma prova'), 'estudos'],
   ['users', t('Perguntar pra várias'), 'council'],
   ['globe', t('Pesquisar na web'), 'research'],
   ['file', t('Ler um arquivo'), 'arquivo'],

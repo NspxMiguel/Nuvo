@@ -1244,49 +1244,123 @@ const MENU_PADRAO_DA_TELA = {
 };
 
 const CFG_SECOES = {
+  /**
+   * Botões do menu.
+   *
+   * A versão de antes era uma lista chapada onde cada linha tinha duas caixas
+   * de marcar — "aparece" e "no Mais" — e duas setas. Quatro controles por
+   * linha, oito linhas, e nenhum deles dizia o resultado: pra saber onde um
+   * botão ia parar era preciso combinar duas caixas de cabeça, e o "Mais", que
+   * é o botão que guarda os outros, não aparecia em lugar nenhum da tela.
+   *
+   * Agora a própria lista é a resposta: três grupos, e o grupo em que o botão
+   * está É onde ele vai aparecer. Ao lado, a gaveta desenhada como vai ficar,
+   * com o "Mais" no lugar dele. Um controle por linha em vez de quatro.
+   */
   menu: (settings) => {
     const cfg = settings.menu || MENU_PADRAO_DA_TELA;
     const nomes = new Map(TELAS_DA_GAVETA.map(([id, ico, rot]) => [id, { ico, rot }]));
+    const ordem = cfg.ordem.filter((id) => nomes.has(id));
+    // Tela que a configuração não citou existe e vai pra gaveta: sumir do
+    // ajuste é como sumir do app, e uma versão nova sempre traz tela nova.
+    for (const [id] of TELAS_DA_GAVETA) if (!ordem.includes(id)) ordem.push(id);
+    const onde = (id) =>
+      cfg.escondidos.includes(id) ? 'oculto' : cfg.noMais.includes(id) ? 'mais' : 'gaveta';
+
+    // O título explica o grupo; o botão do segmentado é o destino em uma
+    // palavra. Repetir a frase inteira em cada linha fazia o controle ocupar
+    // metade da largura e empurrar o nome do botão contra a margem.
+    const GRUPOS = [
+      ['gaveta', () => t('Na gaveta'), () => t('Aparecem direto no menu, nesta ordem.'), () => t('Gaveta')],
+      ['mais', () => t('Dentro do "Mais"'), () => t('O "Mais" é o último botão da gaveta, e abre com estes dentro.'), () => t('Mais')],
+      ['oculto', () => t('Escondidos'), () => t('Somem do menu. Continuam existindo, e voltam por aqui.'), () => t('Oculto')]
+    ];
+
+    const linha = (id, grupo, i, quantos) => {
+      const { ico, rot } = nomes.get(id);
+      // Conversas não sai da gaveta: esconder tudo deixaria o menu vazio e sem
+      // caminho de volta pra cá.
+      const fixo = id === 'chat';
+      return `<div class="menu-linha" data-id="${id}" data-grupo="${grupo}">
+        <span class="ico">${icon(ico, 17)}</span>
+        <span class="grow">${escapeHtml(rot())}</span>
+        ${
+          fixo
+            ? `<span class="menu-fixo">${t('fica sempre')}</span>`
+            : `<div class="segmentado menu-onde" role="group"
+                 aria-label="${t('onde fica {nome}', { nome: rot() })}">
+                ${GRUPOS.map(
+                  ([k, tit, , curto]) =>
+                    `<button type="button" data-onde="${k}"${k === grupo ? ' class="sel"' : ''}
+                      title="${escapeHtml(tit())}"
+                      aria-pressed="${k === grupo}">${escapeHtml(curto())}</button>`
+                ).join('')}
+              </div>`
+        }
+        <div class="menu-mover">
+          <button type="button" class="icon" data-mover="-1" ${i === 0 ? 'disabled' : ''}
+            title="${t('subir')}" aria-label="${t('subir {nome}', { nome: rot() })}">${icon('chevron', 15)}</button>
+          <button type="button" class="icon vira" data-mover="1" ${i === quantos - 1 ? 'disabled' : ''}
+            title="${t('descer')}" aria-label="${t('descer {nome}', { nome: rot() })}">${icon('chevron', 15)}</button>
+        </div>
+      </div>`;
+    };
+
+    const naGaveta = ordem.filter((id) => onde(id) === 'gaveta');
+    const noMais = ordem.filter((id) => onde(id) === 'mais');
+    const previa = (id) => {
+      const { ico, rot } = nomes.get(id);
+      return `<span class="menu-previa-item">${icon(ico, 16)} ${escapeHtml(rot())}</span>`;
+    };
+
     return `<h3>${t('Botões do menu')}</h3>
-      <p class="hint">${t(
-        'Escolha o que aparece na gaveta, em que ordem, e o que fica guardado dentro do "Mais".'
-      )}</p>
-      <div id="menu-lista" class="grupo">${cfg.ordem
-        .filter((id) => nomes.has(id))
-        .map((id, i) => {
-          const { ico, rot } = nomes.get(id);
-          const escondido = cfg.escondidos.includes(id);
-          const noMais = cfg.noMais.includes(id);
-          // Conversas não some: esconder tudo deixaria a gaveta vazia e sem
-          // caminho de volta pra cá.
-          const fixo = id === 'chat';
-          return `<div class="linha menu-linha" data-id="${id}">
-            <span class="ico">${icon(ico, 18)}</span>
-            <span class="grow">${escapeHtml(rot())}</span>
-            <label class="check" title="${t('aparece na gaveta')}">
-              <input type="checkbox" data-campo="ver" ${escondido ? '' : 'checked'}
-                ${fixo ? 'disabled' : ''} aria-label="${t('mostrar {nome}', { nome: rot() })}" />
-              <span>${t('aparece')}</span>
-            </label>
-            <label class="check" title="${t('fica dentro do Mais')}">
-              <input type="checkbox" data-campo="mais" ${noMais ? 'checked' : ''}
-                aria-label="${t('guardar {nome} dentro do Mais', { nome: rot() })}" />
-              <span>${t('no Mais')}</span>
-            </label>
-            <button type="button" class="icon" data-mover="-1" ${i === 0 ? 'disabled' : ''}
-              title="${t('subir')}" aria-label="${t('subir {nome}', { nome: rot() })}">${icon('chevron', 16)}</button>
-            <button type="button" class="icon vira" data-mover="1"
-              ${i === cfg.ordem.length - 1 ? 'disabled' : ''}
-              title="${t('descer')}" aria-label="${t('descer {nome}', { nome: rot() })}">${icon('chevron', 16)}</button>
-          </div>`;
-        })
-        .join('')}</div>
+      <p class="hint">${t('O grupo em que o botão está é onde ele vai aparecer na gaveta. As setas mudam a ordem.')}</p>
+      <div class="menu-cfg">
+        <div id="menu-lista" class="menu-grupos">
+          ${GRUPOS.map(([k, tit, exp]) => {
+            const itens = ordem.filter((id) => onde(id) === k);
+            return `<section class="menu-grupo" data-grupo="${k}">
+              <div class="menu-grupo-cab">
+                <h4>${escapeHtml(tit())}</h4>
+                <small>${escapeHtml(exp())}</small>
+              </div>
+              ${
+                itens.length
+                  ? itens.map((id, i) => linha(id, k, i, itens.length)).join('')
+                  : `<p class="menu-vazio">${t('nada aqui')}</p>`
+              }
+            </section>`;
+          }).join('')}
+        </div>
+        <aside class="menu-previa">
+          <div class="menu-previa-rot">${t('Como a gaveta fica')}</div>
+          <div class="menu-previa-caixa">
+            ${naGaveta.map(previa).join('')}
+            ${
+              noMais.length
+                ? `<span class="menu-previa-item mais">${icon('layers', 16)} ${t('Mais')}
+                     <span class="menu-previa-seta">${icon('chevron', 13)}</span></span>
+                   <div class="menu-previa-dentro">${noMais.map(previa).join('')}</div>`
+                : ''
+            }
+          </div>
+        </aside>
+      </div>
       <div class="row">
         <button id="menu-padrao" class="ghost" type="button">${t('Voltar ao padrão')}</button>
       </div>`;
   },
 
   geral: () => `<h3>${t('Geral')}</h3>
+    ${cfgLin(t('Aparência'), t('Vale pro app inteiro, neste computador.'),
+      `<div class="segmentado tema-seg" role="group" aria-label="${t('Aparência')}">
+        <button type="button" data-theme="dark"${
+          document.documentElement.dataset.theme === 'dark' ? ' class="sel"' : ''
+        }>${icon('moon', 16)} ${t('Escuro')}</button>
+        <button type="button" data-theme="light"${
+          document.documentElement.dataset.theme === 'light' ? ' class="sel"' : ''
+        }>${icon('sun', 16)} ${t('Claro')}</button>
+      </div>`)}
     ${cfgLin(t('Idioma'), t('Vale pra tela e pras mensagens do servidor. Sem escolher, ele segue o lugar onde você está.'),
       `<select id="s-idioma">${Object.entries(IDIOMAS)
         .map(([codigo, nome]) => `<option value="${escapeHtml(codigo)}"${codigo === idioma() ? ' selected' : ''}>${escapeHtml(nome)}</option>`)
@@ -1647,7 +1721,6 @@ async function rodarReindex(aoAndar) {
 views.settings = async function renderSettings(el, { switchView, applyTheme, aplicarMenu }) {
   const [settings, pendente] = await Promise.all([api('/settings'), api('/reindex')]);
   const secao = CFG_SECOES[cfgSecao] ? cfgSecao : 'geral';
-  const tema = document.documentElement.dataset.theme;
 
   el.className = `view panel${el.classList.contains('entra') ? ' entra' : ''}`;
   el.innerHTML = `
@@ -1667,10 +1740,6 @@ views.settings = async function renderSettings(el, { switchView, applyTheme, apl
       </nav>
       <div class="cfg-corpo">
         ${CFG_SECOES[secao](settings, pendente)}
-        <div class="cfg-pe">
-          <button data-theme="dark" type="button" class="${tema === 'dark' ? 'sel' : ''}" title="${t('escuro')}" aria-label="${t('tema escuro')}">${icon('moon', 19)}</button>
-          <button data-theme="light" type="button" class="${tema === 'light' ? 'sel' : ''}" title="${t('claro')}" aria-label="${t('tema claro')}">${icon('sun', 19)}</button>
-        </div>
       </div>
     </div>
     ${cfgMobile(settings, pendente)}`;
@@ -1693,28 +1762,48 @@ views.settings = async function renderSettings(el, { switchView, applyTheme, apl
       aplicarMenu?.();
       switchView('settings');
     };
-    const marcar = (lista, id, ligado) => {
-      const dentro = lista.includes(id);
-      if (ligado && !dentro) lista.push(id);
-      if (!ligado && dentro) lista.splice(lista.indexOf(id), 1);
+    // Onde o botão fica é uma escolha só, de três: a lista de escondidos e a
+    // de "no Mais" são derivadas dela, e não dois interruptores independentes
+    // que podiam se contradizer (escondido E dentro do Mais não quer dizer nada).
+    const por = (id, destino) => {
+      const tirar = (lista) => {
+        const i = lista.indexOf(id);
+        if (i >= 0) lista.splice(i, 1);
+      };
+      tirar(cfg.escondidos);
+      tirar(cfg.noMais);
+      if (destino === 'oculto') cfg.escondidos.push(id);
+      if (destino === 'mais') cfg.noMais.push(id);
     };
 
     for (const linha of listaDoMenu.querySelectorAll('.menu-linha')) {
       const id = linha.dataset.id;
-      linha.querySelector('[data-campo=ver]').onchange = (ev) => {
-        marcar(cfg.escondidos, id, !ev.target.checked);
-        guardar();
-      };
-      linha.querySelector('[data-campo=mais]').onchange = (ev) => {
-        marcar(cfg.noMais, id, ev.target.checked);
-        guardar();
-      };
+      for (const botao of linha.querySelectorAll('[data-onde]')) {
+        botao.onclick = () => {
+          if (botao.classList.contains('sel')) return;
+          por(id, botao.dataset.onde);
+          guardar();
+        };
+      }
       for (const botao of linha.querySelectorAll('[data-mover]')) {
         botao.onclick = () => {
-          const de = cfg.ordem.indexOf(id);
-          const para = de + Number(botao.dataset.mover);
-          if (de < 0 || para < 0 || para >= cfg.ordem.length) return;
-          cfg.ordem.splice(para, 0, cfg.ordem.splice(de, 1)[0]);
+          // Subir e descer andam DENTRO do grupo: pular por cima de um botão
+          // que está noutro grupo mexeria numa ordem que a pessoa não vê.
+          const grupo = linha.dataset.grupo;
+          const irmaos = cfg.ordem.filter(
+            (outro) =>
+              (cfg.escondidos.includes(outro)
+                ? 'oculto'
+                : cfg.noMais.includes(outro)
+                  ? 'mais'
+                  : 'gaveta') === grupo
+          );
+          const de = irmaos.indexOf(id);
+          const vizinho = irmaos[de + Number(botao.dataset.mover)];
+          if (de < 0 || !vizinho) return;
+          const a = cfg.ordem.indexOf(id);
+          const b = cfg.ordem.indexOf(vizinho);
+          [cfg.ordem[a], cfg.ordem[b]] = [cfg.ordem[b], cfg.ordem[a]];
           guardar();
         };
       }

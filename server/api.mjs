@@ -858,6 +858,7 @@ export async function handleApi(req, res, url) {
         tipo: TIPOS_DE_SAIDA.includes(b.tipo) ? b.tipo : '',
         ref: b.model,
         pastas: Array.isArray(b.pastas) ? b.pastas : b.pasta ? [b.pasta] : null,
+        foco: typeof b.foco === 'string' ? b.foco : null,
         notebooklm: b.notebooklm !== false,
         signal: stream.signal
       })
