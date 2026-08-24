@@ -269,3 +269,35 @@ test('a lista de professores diz qual deles tem prova vindo', () => {
   assert.notEqual(r.proxima.nome, 'do ano passado');
   assert.equal(lista.find((p) => p.id === outro.id).proxima, null, 'sem data, sem promessa');
 });
+
+test('o cabeçalho da prova não repete os campos que a folha já desenha', () => {
+  // O modelo aprendeu com milhares de provas de verdade e escreve
+  // "Nome: ______ Nº: ____ Turma: ____" por reflexo, mesmo mandado não
+  // escrever. No papel isso saía duas vezes: uma como frase corrida dentro das
+  // instruções, e outra como o campo com régua que a folha desenha em cima.
+  const conferir = FORMATOS.simulado.conferir;
+  const com = conferir({
+    instrucoes:
+      'Colégio — Biologia — Prof. Ricardo Alves — 28/08/2026 Nome: _______ Nº: ____ ' +
+      'Turma: ____ Leia cada questão com atenção. A prova vale 10,0 pontos.',
+    questoes: [{ enunciado: 'x' }]
+  }).instrucoes;
+  assert.doesNotMatch(com, /Nome:/, 'o campo de nome sai');
+  assert.doesNotMatch(com, /Turma:/, 'o de turma também');
+  assert.doesNotMatch(com, /_{3}/, 'e não sobra régua de sublinhado');
+  // O que é comando de prova fica: sem isso a folha perderia o cabeçalho dele.
+  assert.match(com, /Prof\. Ricardo Alves/, 'o cabeçalho do professor fica');
+  assert.match(com, /vale 10,0 pontos/, 'e o comando de prova também');
+
+  // O cabeçalho de verdade vem em linhas — escola, avaliação e data, comando —
+  // e é assim que ele sai na folha impressa: colapsar tudo num parágrafo só
+  // apagava a forma que o professor deu à folha dele.
+  const emLinhas = conferir({
+    instrucoes:
+      'Colégio — Biologia\n2º Trimestre · A2 — 28/08/2026\nNome: ________  Nº: ____\n\nLeia com atenção.',
+    questoes: [{ enunciado: 'x' }]
+  }).instrucoes;
+  assert.equal(emLinhas.split('\n')[0], 'Colégio — Biologia');
+  assert.equal(emLinhas.split('\n')[1], '2º Trimestre · A2 — 28/08/2026');
+  assert.match(emLinhas, /\n\nLeia com atenção\.$/, 'a linha do campo some, a estrutura fica');
+});

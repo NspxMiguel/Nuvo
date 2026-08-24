@@ -500,3 +500,34 @@ test('saída sem estrutura vira texto, e não uma folha de prova vazia', () => {
   assert.match(saida, /renderMarkdown\(j\.texto\)/, 'e é desenhado como markdown');
   assert.match(v, /if \(!prova \|\| !questoes\.length\) return;/, 'a folha vazia não é fiada');
 });
+
+test('a configuração do menu mexe na tela que acabou de chegar', () => {
+  // A lista desenhada completava com a tela que a configuração salva não
+  // citava — versão nova sempre traz tela nova —, mas a lista que se GRAVA
+  // não completava. `ordem.indexOf(id)` dava -1 na recém-chegada, e as setas
+  // de subir e descer não faziam nada, sem dizer por quê.
+  const views = ler('web/views.js');
+  const fio = views.slice(views.indexOf('const listaDoMenu ='), views.indexOf('const selVisao'));
+  assert.match(
+    fio,
+    /for \(const \[id\] of TELAS_DA_GAVETA\) if \(!cfg\.ordem\.includes\(id\)\) cfg\.ordem\.push\(id\);/,
+    'a ordem gravada também completa'
+  );
+});
+
+test('zero digitado é zero, e não o padrão', () => {
+  // `Number(campo.value) || padrao`: zero é falso, então quem punha 0 em "nota
+  // mínima" recebia 0,12 de volta — um número que ela não escolheu, sem aviso.
+  const views = ler('web/views.js');
+  assert.match(views, /function numeroOuPadrao\(/, 'existe quem saiba a diferença');
+  assert.doesNotMatch(views, /Number\(q\('#s-min'\)\.value\) \|\| 0\.12/, 'e o atalho errado saiu');
+  assert.doesNotMatch(views, /Number\(q\('#s-max'\)\.value\) \|\| 12/);
+});
+
+test('escolher o mesmo arquivo duas vezes importa duas vezes', () => {
+  // `change` não dispara quando o valor do campo não muda: a segunda
+  // importação do mesmo arquivo simplesmente não acontecia, sem erro nenhum.
+  const views = ler('web/views.js');
+  const trecho = views.slice(views.indexOf("querySelector('#m-file').onchange"), views.indexOf('#import-status'));
+  assert.match(trecho, /ev\.target\.value = '';/, 'o campo é limpo antes de usar o arquivo');
+});

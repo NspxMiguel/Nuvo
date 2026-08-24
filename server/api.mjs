@@ -89,7 +89,7 @@ import {
 } from './projeto-arquivos.mjs';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { corpoDoErro, erroTraduzivel } from './erro-traduzivel.mjs';
+import { corpoDoErro, erroHttp, erroTraduzivel } from './erro-traduzivel.mjs';
 
 // ------------------------------------------------------------------ helpers
 
@@ -107,7 +107,14 @@ async function readBuffer(req, limit = 64 * 1024 * 1024) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) throw new Error('arquivo grande demais (limite de 64 MB)');
+    // O teto dito é o teto aplicado: a mensagem era fixa em "64 MB" e quem
+    // subia uma foto de 9 MB, barrada pelo limite de 8 MB da rota de foto,
+    // lia que o limite era 64 — e tentava de novo com o mesmo arquivo.
+    if (size > limit) {
+      throw erroHttp(413, 'arquivo grande demais (limite de {mb} MB)', {
+        mb: Math.round(limit / (1024 * 1024))
+      });
+    }
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -120,11 +127,49 @@ async function readBody(req, limit) {
 async function readJSON(req) {
   const raw = await readBody(req);
   if (!raw.trim()) return {};
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Corpo torto é erro de quem mandou, não defeito daqui: 500 mandava a
+    // pessoa procurar um problema no servidor que não existe.
+    throw erroHttp(400, 'o corpo do pedido não é JSON válido');
+  }
 }
 
 // Um comentário SSE a cada 15 s. Modelo local pensando, pesquisa lendo página:
 // há minutos sem nenhum byte, e celular em Wi‑Fi derruba conexão parada.
+/**
+ * Número dentro da faixa, ou o que já estava lá.
+ *
+ * `top_p: 2` era gravado como veio, e o provedor passava a recusar TODA
+ * resposta daquela conversa — com o erro aparecendo longe da causa, num lugar
+ * que não menciona `top_p`. Prender na faixa é o que a tela mostra de volta
+ * quando recarrega, então a pessoa vê o valor que de fato vale.
+ */
+function naFaixa(valor, min, max, atual) {
+  if (valor === undefined) return atual;
+  if (valor === null) return null;
+  const n = Number(valor);
+  return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : atual;
+}
+
+/**
+ * Envelope de formulário chegando onde se espera o arquivo cru.
+ *
+ * A rota de anexo recebe os bytes do arquivo direto no corpo, com o nome na
+ * query — multipart não vale a pena implementar à mão só pra isso. O problema
+ * é o silêncio: um `POST` com `FormData` era aceito com 200, e o que ficava
+ * guardado era o envelope inteiro ("------WebKitFormBoundary…") com o nome
+ * "arquivo". Nada acusava, e aquele lixo entrava como matéria de estudo na
+ * hora de gerar. Recusar é a resposta honesta.
+ */
+function recusarMultipart(req) {
+  if (/^multipart\/form-data/i.test(req.headers['content-type'] || '')) {
+    throw erroHttp(415, 'mande os bytes do arquivo no corpo e o nome em ?name=, sem formulário');
+  }
+}
+
+
 const PING_MS = 15_000;
 
 /** Abre um stream SSE e devolve o par (enviar, encerrar). */
@@ -615,10 +660,13 @@ export async function handleApi(req, res, url) {
     }
     if (method === 'PATCH' && seg.length === 2) {
       const body = await readJSON(req);
+      // O provedor primeiro: gravar a chave antes de saber se ele existe
+      // deixava um segredo no chaveiro que nada referencia, num pedido que
+      // termina em erro.
+      const current = getProvider(id);
       if (body.secretValue !== undefined && body.secretName) {
         setSecret(body.secretName, body.secretValue);
       }
-      const current = getProvider(id);
       run(
         'UPDATE providers SET name = ?, base_url = ?, secret_name = ?, config = ?, enabled = ? WHERE id = ?',
         body.name ?? current.name,
@@ -709,11 +757,11 @@ export async function handleApi(req, res, url) {
   }
   if (seg[0] === 'gems' && seg[1]) {
     const id = seg[1];
-    if (method === 'DELETE') {
+    if (method === 'DELETE' && seg.length === 2) {
       run('DELETE FROM gems WHERE id = ?', id);
       return json(res, { ok: true });
     }
-    if (method === 'PATCH') {
+    if (method === 'PATCH' && seg.length === 2) {
       const b = await readJSON(req);
       const cur = one('SELECT * FROM gems WHERE id = ?', id);
       if (!cur) return json(res, { error: 'gem não encontrada' }, 404);
@@ -738,6 +786,9 @@ export async function handleApi(req, res, url) {
     }
   }
 
+  // Verbo de recurso inteiro exige caminho de recurso inteiro (`seg.length === 2`).
+  // Sem isso, uma subrota que ninguém implementou caía no verbo de cima:
+  // `DELETE /projects/<id>/attachments` apagava o projeto inteiro, calado.
   // --- projetos ------------------------------------------------------------
   if (method === 'GET' && path === '/projects') {
     return json(res, all('SELECT * FROM projects ORDER BY created_at'));
@@ -759,14 +810,14 @@ export async function handleApi(req, res, url) {
   }
   if (seg[0] === 'projects' && seg[1]) {
     const id = seg[1];
-    if (method === 'DELETE') {
+    if (method === 'DELETE' && seg.length === 2) {
       // Antes do DELETE: o cascade leva a linha do anexo e o arquivo no disco
       // ficaria órfão, com o documento inteiro dentro.
       deleteAttachmentsOf({ projectId: id });
       run('DELETE FROM projects WHERE id = ?', id);
       return json(res, { ok: true });
     }
-    if (method === 'PATCH') {
+    if (method === 'PATCH' && seg.length === 2) {
       const b = await readJSON(req);
       const cur = one('SELECT * FROM projects WHERE id = ?', id);
       if (!cur) return json(res, { error: 'projeto não encontrado' }, 404);
@@ -883,22 +934,22 @@ export async function handleApi(req, res, url) {
       const b = await readJSON(req);
       return json(res, responderCartao(seg[1], b.nota));
     }
-    if (method === 'PATCH') {
+    if (method === 'PATCH' && seg.length === 2) {
       const b = await readJSON(req);
       return json(res, suspenderCartao(seg[1], b.suspenso !== false));
     }
-    if (method === 'DELETE') return json(res, apagarCartao(seg[1]));
+    if (method === 'DELETE' && seg.length === 2) return json(res, apagarCartao(seg[1]));
   }
   if (seg[0] === 'professores' && seg[1] && seg[2] === 'saidas' && method === 'GET') {
     return json(res, listarSaidas(seg[1], { tipo: url.searchParams.get('tipo') }));
   }
   if (seg[0] === 'pastas' && seg[1]) {
-    if (method === 'PATCH') return json(res, atualizarPasta(seg[1], await readJSON(req)));
-    if (method === 'DELETE') return json(res, apagarPasta(seg[1]));
+    if (method === 'PATCH' && seg.length === 2) return json(res, atualizarPasta(seg[1], await readJSON(req)));
+    if (method === 'DELETE' && seg.length === 2) return json(res, apagarPasta(seg[1]));
   }
   if (seg[0] === 'saidas' && seg[1]) {
-    if (method === 'GET') return json(res, acharSaida(seg[1]));
-    if (method === 'DELETE') return json(res, apagarSaida(seg[1]));
+    if (method === 'GET' && seg.length === 2) return json(res, acharSaida(seg[1]));
+    if (method === 'DELETE' && seg.length === 2) return json(res, apagarSaida(seg[1]));
   }
 
   // --- código do projeto: o painel da tela Programar -----------------------
@@ -991,9 +1042,9 @@ export async function handleApi(req, res, url) {
         b.project_id !== undefined ? b.project_id : cur.project_id,
         b.mode ?? cur.mode,
         b.system_prompt !== undefined ? b.system_prompt : cur.system_prompt,
-        b.temperature !== undefined ? b.temperature : cur.temperature,
-        b.top_p !== undefined ? b.top_p : cur.top_p,
-        b.max_tokens !== undefined ? b.max_tokens : cur.max_tokens,
+        naFaixa(b.temperature, 0, 2, cur.temperature),
+        naFaixa(b.top_p, 0, 1, cur.top_p),
+        naFaixa(b.max_tokens, 1, 1_000_000, cur.max_tokens),
         b.pinned === undefined ? cur.pinned : b.pinned ? 1 : 0,
         b.archived === undefined ? cur.archived : b.archived ? 1 : 0,
         b.tools !== undefined ? JSON.stringify(b.tools) : cur.tools,
@@ -1107,6 +1158,7 @@ export async function handleApi(req, res, url) {
     // Anexos da conversa. O corpo é o arquivo cru: multipart não vale a pena
     // implementar à mão só pra isso.
     if (method === 'POST' && seg[2] === 'attachments') {
+      recusarMultipart(req);
       const buffer = await readBuffer(req);
       const name = url.searchParams.get('name') || 'arquivo';
       const attachment = await addAttachment({
@@ -1125,11 +1177,11 @@ export async function handleApi(req, res, url) {
   // --- mensagens -----------------------------------------------------------
   if (seg[0] === 'messages' && seg[1]) {
     const id = seg[1];
-    if (method === 'DELETE') {
+    if (method === 'DELETE' && seg.length === 2) {
       deleteMessage(id);
       return json(res, { ok: true });
     }
-    if (method === 'PATCH') {
+    if (method === 'PATCH' && seg.length === 2) {
       const b = await readJSON(req);
       const cur = one('SELECT * FROM messages WHERE id = ?', id);
       if (!cur) return json(res, { error: 'mensagem não encontrada' }, 404);
@@ -1150,6 +1202,7 @@ export async function handleApi(req, res, url) {
     );
   }
   if (method === 'POST' && path === '/attachments') {
+    recusarMultipart(req);
     const buffer = await readBuffer(req);
     const attachment = await addAttachment({
       buffer,
@@ -1162,7 +1215,7 @@ export async function handleApi(req, res, url) {
     });
     return json(res, publicAttachment(attachment));
   }
-  if (seg[0] === 'attachments' && seg[1] && method === 'DELETE') {
+  if (seg[0] === 'attachments' && seg[1] && !seg[2] && method === 'DELETE') {
     deleteAttachment(seg[1]);
     return json(res, { ok: true });
   }
@@ -1176,8 +1229,10 @@ export async function handleApi(req, res, url) {
       runResearch({
         question: b.question || '',
         ref: b.model,
-        breadth: Number(b.breadth) || 4,
-        depth: Number(b.depth) || 3,
+        // Negativo virava `slice(0, -4)`, que em vez de ler menos lia tudo
+        // menos as últimas quatro — 20 páginas onde o teto é 12.
+        breadth: naFaixa(b.breadth, 1, 8, 4) || 4,
+        depth: naFaixa(b.depth, 1, 5, 3) || 3,
         signal: stream.signal
       })
     );
@@ -1273,11 +1328,11 @@ export async function handleApi(req, res, url) {
   }
   if (seg[0] === 'memories' && seg[1]) {
     const id = seg[1];
-    if (method === 'DELETE') {
+    if (method === 'DELETE' && seg.length === 2) {
       deleteMemory(id);
       return json(res, { ok: true });
     }
-    if (method === 'PATCH') {
+    if (method === 'PATCH' && seg.length === 2) {
       const b = await readJSON(req);
       return json(res, updateMemory(id, b));
     }

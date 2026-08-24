@@ -306,3 +306,23 @@ test('anexo único continua entrando inteiro', async () => {
   const { used } = await renderDocuments('qual o prazo', { chatId: null, projectId });
   assert.deepEqual(used, [{ source: 'contrato.txt', whole: true }]);
 });
+
+test('anexo que não consegue ser gravado não deixa o arquivo órfão no disco', async () => {
+  // O arquivo cru ia pro disco ANTES do INSERT. Quando o INSERT falhava — a
+  // chave estrangeira de uma conversa já apagada, por exemplo — a cópia ficava
+  // lá para sempre, com o documento inteiro dentro e nenhuma linha apontando
+  // pra ela: ninguém veria, e nada limparia.
+  const { UPLOAD_DIR } = await import('../server/config.mjs');
+  const { readdirSync, mkdirSync } = await import('node:fs');
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+  const antes = readdirSync(UPLOAD_DIR).length;
+  await assert.rejects(
+    addAttachment({
+      buffer: Buffer.from('segredo que não pode ficar sobrando'),
+      name: 'orfao.txt',
+      mime: 'text/plain',
+      chatId: 'conversa-que-nunca-existiu'
+    })
+  );
+  assert.equal(readdirSync(UPLOAD_DIR).length, antes, 'nada sobrou na pasta de uploads');
+});

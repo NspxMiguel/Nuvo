@@ -77,6 +77,32 @@ function avaliacaoEmPalavras(alvo) {
   return linhas.join(' ');
 }
 
+/**
+ * Tira do cabeçalho os campos que a folha já desenha.
+ *
+ * Pedir no prompt não basta: o modelo aprendeu com milhares de provas de
+ * verdade e escreve "Nome: ______ Nº: ____ Turma: ____" por reflexo. No papel
+ * isso saía duas vezes — uma como frase corrida dentro das instruções, e outra
+ * como o campo com régua de verdade que a folha desenha em cima.
+ */
+function semCamposEmBranco(v) {
+  return String(v || '')
+    // "Nome: ______", "Nº ____", "Turma: ___", "Nota: ____", "Data: __/__/__"
+    .replace(/\b(nome|n[ºo°]|turma|s[ée]rie|data|nota|valor|assinatura)\s*:?\s*[_\-–—.]{3,}/gi, '')
+    // Sobra de espaço de onde o campo saiu. A quebra de linha fica: o modelo
+    // escreve o cabeçalho em linhas ("escola", "avaliação e data", "comando"),
+    // e é assim que ele sai na folha impressa. Só o vão que restou do campo
+    // apagado é que some.
+    .replace(/[^\S\n]{2,}/g, ' ')
+    .replace(/[^\S\n]+([,;.])/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map((linha) => linha.replace(/[\s,;·—-]+$/, ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /** O retrato virado prompt: é assim que o professor entra na cabeça do modelo. */
 function retratoEmPalavras(retrato) {
   if (!retrato) return '';
@@ -219,6 +245,11 @@ Regras:
 - Escreva questões NOVAS. Não copie enunciado do material.
 - A distribuição de temas, de níveis e de formatos segue o retrato, não o seu gosto.
 - Use os verbos de comando do professor.
+- "instrucoes" é SÓ o comando de prova: como responder, quanto vale, quanto
+  tempo, o que não pode. NÃO escreva ali "Nome: ____", "Nº: ____", "Turma: ____"
+  nem a linha de nota — a folha já desenha esses campos, com régua de verdade, e
+  repetidos saem duas vezes no papel. Cabeçalho de escola, matéria, professor e
+  data pode.
 - "tempo" é a duração em minutos que essa prova pediria.
 - "probabilidade" é o quanto aquele tema pesa no retrato: alta acima de 20%, média entre 8 e 20%, baixa abaixo disso.
 - "alternativas" só existe em múltipla escolha e verdadeiro ou falso, e vem SEM
@@ -251,7 +282,7 @@ ${REGRAS_DE_FONTE}`,
         .filter((q) => q.enunciado);
       if (!questoes.length) return null;
       return {
-        instrucoes: texto(bruto.instrucoes, 600),
+        instrucoes: semCamposEmBranco(texto(bruto.instrucoes, 600)),
         tempo: Math.min(Math.max(Number(bruto.tempo) || 0, 0), 600) || null,
         questoes,
         faltou: lista(bruto.faltou).map((f) => texto(f, 160))

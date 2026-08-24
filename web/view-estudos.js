@@ -1224,6 +1224,13 @@ async function montarRetrato(el, prof, botao, ref, ctx) {
 async function gerar(el, prof, botao, ref, ctx, foco = null) {
   const tipo = botao.dataset.gerar;
   if (!ref) return toast(t('escolha uma IA pra gerar'), 'err');
+  // Desmarcar tudo na coluna da esquerda e mandar gerar chegava ao servidor
+  // como "não há material pra ler — anexe o conteúdo da matéria antes", que
+  // acusa a coisa errada: o material está lá, foi a pessoa que o desmarcou. E
+  // a viagem até o modelo era gasta pra descobrir isso.
+  if (prof.pastas.length && prof.pastas.every((p) => aqui.fora.has(p.id))) {
+    return toast(t('nada está marcado na coluna da esquerda — marque o que entra'), 'err');
+  }
   const rotulo = botao.querySelector('.nm');
   const antes = rotulo?.textContent;
   botao.classList.add('ocupado');

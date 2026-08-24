@@ -137,44 +137,54 @@ export async function addAttachment({
 
   // Anexo e trechos entram juntos: anexo sem trecho aparece na lista como se
   // fosse pesquisável e nunca devolve nada.
-  tx(() => {
-    run(
-      `INSERT INTO attachments (id, chat_id, project_id, pasta_id, papel, name, mime, bytes, chars, path, status, note, text, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id,
-      chatId,
-      projectId,
-      pastaId,
-      papel,
-      name,
-      mime || kind,
-      buffer.length,
-      text.length,
-      path,
-      text.trim() ? 'ok' : 'erro',
-      note || null,
-      // Só o que cabe inteiro no prompt: acima disso o texto vem dos trechos
-      // recuperados, e guardar de novo seria dobrar o banco à toa.
-      text.length <= INLINE_LIMIT ? text : null,
-      now()
-    );
-
-    const stamp = now();
-    for (const [ord, piece] of pieces.entries()) {
+  //
+  // E se a gravação não acontecer — chave estrangeira de uma conversa que já
+  // foi apagada, por exemplo —, a cópia crua sai do disco junto. Ela ficava lá
+  // para sempre, com o documento inteiro dentro e nenhuma linha apontando pra
+  // ela: ninguém veria, e nada limparia.
+  try {
+    tx(() => {
       run(
-        'INSERT INTO chunks (id, attachment_id, chat_id, project_id, pasta_id, papel, ord, text, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)',
-        uid(),
+        `INSERT INTO attachments (id, chat_id, project_id, pasta_id, papel, name, mime, bytes, chars, path, status, note, text, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         id,
         chatId,
         projectId,
         pastaId,
         papel,
-        ord,
-        piece,
-        stamp
+        name,
+        mime || kind,
+        buffer.length,
+        text.length,
+        path,
+        text.trim() ? 'ok' : 'erro',
+        note || null,
+        // Só o que cabe inteiro no prompt: acima disso o texto vem dos trechos
+        // recuperados, e guardar de novo seria dobrar o banco à toa.
+        text.length <= INLINE_LIMIT ? text : null,
+        now()
       );
-    }
-  });
+
+      const stamp = now();
+      for (const [ord, piece] of pieces.entries()) {
+        run(
+          'INSERT INTO chunks (id, attachment_id, chat_id, project_id, pasta_id, papel, ord, text, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)',
+          uid(),
+          id,
+          chatId,
+          projectId,
+          pastaId,
+          papel,
+          ord,
+          piece,
+          stamp
+        );
+      }
+    });
+  } catch (erro) {
+    if (path) try { unlinkSync(path); } catch { /* já não estava lá */ }
+    throw erro;
+  }
 
   // Embedding em lote, e só se houver modelo — a indexação por palavra já
   // funciona sozinha.

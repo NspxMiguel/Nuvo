@@ -1018,3 +1018,96 @@ test('pedir arquivo sem caminho responde 400 em vez de tentar ler a pasta', asyn
   assert.equal(res.status, 400, res.text);
   assert.match(res.data.error, /caminho/);
 });
+
+test('anexo mandado como formulário é recusado, não guardado como lixo', async () => {
+  // A rota recebe os bytes do arquivo direto no corpo, com o nome na query.
+  // Um POST com FormData era aceito com 200 e o que ficava guardado era o
+  // envelope inteiro ("------WebKitFormBoundary…"), com o nome "arquivo" — e
+  // aquele lixo entrava como matéria de estudo na hora de gerar.
+  const envelope = '------X\r\nContent-Disposition: form-data; name="file"\r\n\r\noi\r\n------X--\r\n';
+  const recusado = await app.api('/attachments?name=teste.txt', {
+    method: 'POST',
+    raw: true,
+    mime: 'multipart/form-data; boundary=----X',
+    body: envelope
+  });
+  assert.equal(recusado.status, 415, 'recusa em vez de guardar');
+  assert.match(recusado.data.error, /\?name=/, 'e diz como se manda de verdade');
+
+  // O caminho de verdade continua funcionando: bytes crus e o nome na query.
+  const ok = await app.api('/attachments?name=certo.txt', {
+    method: 'POST',
+    raw: true,
+    mime: 'text/plain',
+    body: 'conteúdo de verdade'
+  });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.name, 'certo.txt');
+});
+
+test('verbo de recurso inteiro não atende caminho de subrota', async () => {
+  // `DELETE /projects/<id>/attachments` — uma subrota que ninguém implementou —
+  // caía no `DELETE` do recurso de cima e apagava o projeto inteiro, calado.
+  const criado = await app.api('/projects', { method: 'POST', body: { name: 'Alvo' } });
+  const id = criado.data.id;
+
+  const errado = await app.api(`/projects/${id}/attachments`, { method: 'DELETE' });
+  assert.notEqual(errado.status, 200, 'subrota desconhecida não responde ok');
+  const ainda = await app.api('/projects');
+  assert.ok(ainda.data.some((p) => p.id === id), 'e o projeto continua lá');
+
+  // O caminho de verdade continua apagando.
+  const certo = await app.api(`/projects/${id}`, { method: 'DELETE' });
+  assert.equal(certo.status, 200);
+  const depois = await app.api('/projects');
+  assert.ok(!depois.data.some((p) => p.id === id), 'agora sim');
+});
+
+test('corpo torto é erro de quem mandou, não defeito do servidor', async () => {
+  const res = await app.api('/projects', {
+    method: 'POST',
+    raw: true,
+    mime: 'application/json',
+    body: '{ isto não é json'
+  });
+  assert.equal(res.status, 400, '400, e não 500');
+  assert.match(res.data.error, /JSON/);
+});
+
+test('parâmetro fora da faixa é preso, não gravado pra quebrar depois', async () => {
+  // `top_p: 2` era gravado como veio, e o provedor passava a recusar TODA
+  // resposta daquela conversa — com o erro aparecendo longe da causa.
+  const chat = await app.api('/chats', { method: 'POST', body: { title: 'Faixa' } });
+  const id = chat.data.id;
+  const fora = await app.api(`/chats/${id}`, {
+    method: 'PATCH',
+    body: { top_p: 2, temperature: -3, max_tokens: 0 }
+  });
+  assert.equal(fora.status, 200);
+  assert.equal(fora.data.top_p, 1, 'top_p prende em 1');
+  assert.equal(fora.data.temperature, 0, 'temperatura prende em 0');
+  assert.equal(fora.data.max_tokens, 1, 'max_tokens não pode ser zero');
+
+  // Valor bom passa inteiro, e `null` continua querendo dizer "usa o padrão".
+  const bom = await app.api(`/chats/${id}`, { method: 'PATCH', body: { top_p: 0.9, temperature: null } });
+  assert.equal(bom.data.top_p, 0.9);
+  assert.equal(bom.data.temperature, null);
+});
+
+test('IA desligada não continua sendo chamada por conversa antiga', async () => {
+  // "Desligado por você" tirava a IA da lista de escolha e parava por aí: a
+  // conversa já aberta nela continuava chamando, e o provedor continuava sendo
+  // cobrado por algo que a tela dizia estar desligado.
+  const chat = await app.api('/chats', { method: 'POST', body: { title: 'Desligada', model: fakeRef } });
+  await app.api(`/providers/${fakeProviderId}`, { method: 'PATCH', body: { enabled: false } });
+
+  const res = await app.raw(`/api/chats/${chat.data.id}/stream`, {
+    method: 'POST',
+    headers: { 'x-nuvo-token': app.token, 'content-type': 'application/json' },
+    body: JSON.stringify({ content: 'oi' })
+  });
+  const texto = await res.text();
+  assert.match(texto, /desligada/, 'diz que está desligada, em vez de chamar assim mesmo');
+
+  await app.api(`/providers/${fakeProviderId}`, { method: 'PATCH', body: { enabled: true } });
+});

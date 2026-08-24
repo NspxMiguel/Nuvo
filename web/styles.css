@@ -3100,11 +3100,15 @@ button.icon { position: relative; }
   letter-spacing: -0.03em;
   text-wrap: balance;
 }
+/* O cabeçalho sai em linhas — escola, avaliação e data, comando de prova —
+   porque é assim que o professor escreve numa folha. Sem `pre-line` as três
+   viravam um parágrafo corrido só. */
 .prova-instrucoes {
   margin: 12px 0 0;
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-2);
+  white-space: pre-line;
   text-wrap: pretty;
 }
 .prova-meta {

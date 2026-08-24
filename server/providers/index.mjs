@@ -112,6 +112,26 @@ export function getProvider(id) {
   return row;
 }
 
+/**
+ * A IA que a conversa aponta ainda está ligada?
+ *
+ * "Desligado por você" tirava a IA da lista de escolha e parava por aí:
+ * conversa já aberta nela continuava chamando, e o provedor continuava sendo
+ * cobrado por uma coisa que a tela dizia estar desligada. Recusar dizendo o
+ * nome é a resposta honesta — dá pra religar ou trocar de modelo.
+ *
+ * Não vale pra tudo: atualizar o catálogo de modelos e conferir a saúde de um
+ * provedor desligado é justamente o que se faz ANTES de ligar ele.
+ */
+export function exigirLigado(provider) {
+  if (!provider.enabled) {
+    throw erroTraduzivel('a IA {nome} está desligada — ligue ela em "IAs ligadas" ou escolha outra', {
+      nome: provider.name
+    });
+  }
+  return provider;
+}
+
 export function listProviders({ enabledOnly = false } = {}) {
   const sql = enabledOnly
     ? 'SELECT * FROM providers WHERE enabled = 1 ORDER BY created_at'

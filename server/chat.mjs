@@ -5,7 +5,8 @@
 // pode mudar no meio da conversa: o histórico é do chat, não do provedor.
 
 import { all, one, run, uid, now, parseJSON } from './db.mjs';
-import { adapterFor, contextFor, getProvider, parseRef, withStallTimeout } from './providers/index.mjs';
+import { cortarNaPalavra } from './texto-do-modelo.mjs';
+import { adapterFor, contextFor, exigirLigado, getProvider, parseRef, withStallTimeout } from './providers/index.mjs';
 import { loadConfig } from './config.mjs';
 import { recall, renderForPrompt, learnFromExchange } from './memory.mjs';
 import { caminhoNoDisco, listAttachments, renderDocuments } from './documents.mjs';
@@ -174,6 +175,30 @@ function conversaDeMentira(modelRef) {
   };
 }
 
+/**
+ * O nome da conversa, tirado da primeira fala.
+ *
+ * Não chama modelo de propósito: um título custaria uma ida ao provedor por
+ * conversa nova, e com CLI isso é meio minuto de espera por um rótulo de barra
+ * lateral. O que dava pra melhorar de graça era o corte — ele partia palavra no
+ * meio ("Qual a versão mais recente d…") — e o começo, porque quase toda fala
+ * abre com o comando ("Responda em uma linha só: qual é a capital do Ceará?") e
+ * o comando é igual em todas elas, então não distingue uma conversa da outra.
+ */
+export function tituloDaFala(fala) {
+  let linha = String(fala || '').trim().split('\n')[0].trim();
+  // "Responda em uma linha só: X" → "X". Só quando o que sobra tem substância:
+  // "Erro: cannot read property" não pode virar "cannot read property".
+  const doisPontos = /^([^:]{4,48}):\s+(\S.*)$/.exec(linha);
+  if (doisPontos && doisPontos[2].length >= 12 && /\s/.test(doisPontos[1])) {
+    linha = doisPontos[2].trim();
+  }
+  // Sem mexer na caixa: "npm install falha" viraria "Npm install falha", e o
+  // que a pessoa escreveu é o que ela reconhece na lista.
+  return cortarNaPalavra(linha, 60) || 'Nova conversa';
+}
+
+
 export async function* runTurn({
   chatId,
   userContent,
@@ -206,8 +231,7 @@ export async function* runTurn({
 
   // Título vem da primeira frase do usuário.
   if (!anon && chat.title === 'Nova conversa') {
-    const title = userContent.trim().split('\n')[0].slice(0, 60) || 'Nova conversa';
-    run('UPDATE chats SET title = ? WHERE id = ?', title, chatId);
+    run('UPDATE chats SET title = ? WHERE id = ?', tituloDaFala(userContent), chatId);
   }
 
   const memories =
@@ -360,6 +384,10 @@ export async function* runTurn({
   const { providerId, modelId } = parseRef(refDaResposta);
   const provider = getProvider(providerId);
   if (!provider) throw new Error('o provedor desse modelo foi removido');
+  // Desligar uma IA em "IAs ligadas" tirava ela da lista de escolha e parava
+  // por aí: conversa já aberta nela continuava chamando, e o provedor
+  // continuava sendo cobrado por algo que a tela dizia estar desligado.
+  exigirLigado(provider);
   const adapter = adapterFor(provider.kind);
 
   let answer = '';

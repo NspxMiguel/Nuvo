@@ -809,3 +809,37 @@ test('conversa comum roda o mesmo CLI em texto puro, sem passo a passo', async (
     falso.limpar();
   }
 });
+
+test('o nome da conversa não corta palavra no meio nem repete o comando', async () => {
+  // A barra lateral era uma pilha de comandos truncados no meio da palavra —
+  // "Qual a versão mais recente d…" — e quase toda fala abre com a mesma
+  // instrução, que por ser igual em todas não distingue uma conversa da outra.
+  const { tituloDaFala } = await import('../server/chat.mjs');
+
+  assert.equal(
+    tituloDaFala('Responda em uma linha só: qual é a capital do Ceará?'),
+    'qual é a capital do Ceará?',
+    'o comando sai e o assunto fica'
+  );
+  // Dois pontos que fazem parte do assunto ficam: "Erro" é a coisa, não a ordem.
+  assert.equal(
+    tituloDaFala('Erro: cannot read property of undefined'),
+    'Erro: cannot read property of undefined'
+  );
+  const fala =
+    'Me explica como funciona a respiração celular, com detalhe, porque eu tenho prova quarta';
+  const longo = tituloDaFala(fala);
+  assert.ok(longo.length <= 61, `${longo.length} caracteres é mais que o teto`);
+  assert.match(longo, /…$/, 'diz que cortou');
+  // Toda palavra que sobrou existe inteira na fala: é isso que "não cortar no
+  // meio da palavra" quer dizer, e não a forma do último caractere.
+  for (const p of longo.replace(/…$/, '').split(/\s+/).filter(Boolean)) {
+    assert.ok(fala.includes(p), `"${p}" saiu partido`);
+  }
+  // A caixa é a que a pessoa escreveu: "npm install" não vira "Npm install".
+  assert.equal(tituloDaFala('npm install falha'), 'npm install falha');
+  // Só a primeira linha, e nunca vazio.
+  assert.equal(tituloDaFala('primeira\nsegunda'), 'primeira');
+  assert.equal(tituloDaFala('   '), 'Nova conversa');
+  assert.equal(tituloDaFala(null), 'Nova conversa');
+});

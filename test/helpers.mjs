@@ -141,12 +141,15 @@ export async function startServer() {
     port,
     token,
     base: `http://127.0.0.1:${port}`,
-    async api(path, { method = 'GET', body, raw, token: override } = {}) {
+    // `mime` existe pra exercer rota que decide pelo content-type — a de anexo
+    // recusa formulário, e sem poder mandar um não dava pra testar a recusa.
+    async api(path, { method = 'GET', body, raw, mime, token: override } = {}) {
       const res = await fetch(`http://127.0.0.1:${port}/api${path}`, {
         method,
         headers: {
           'x-nuvo-token': override === undefined ? token : override,
-          ...(body !== undefined && !raw ? { 'content-type': 'application/json' } : {})
+          ...(mime ? { 'content-type': mime } : {}),
+          ...(body !== undefined && !raw && !mime ? { 'content-type': 'application/json' } : {})
         },
         body: raw ? body : body !== undefined ? JSON.stringify(body) : undefined
       });

@@ -769,7 +769,7 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
     await api('/gems', {
       method: 'POST',
       body: {
-        name: inner.querySelector('#g-name').value || t('Novo perfil'),
+        name: inner.querySelector('#g-name').value.trim() || t('Novo perfil'),
         icon: picker.icon,
         color: picker.color,
         system_prompt: inner.querySelector('#g-prompt').value,
@@ -790,6 +790,9 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
 };
 
 function editGem(card, gem, switchView) {
+  // Um formulário por cartão: clicar em "mudar" duas vezes empilhava dois, e
+  // salvar no de cima gravava o que estava escrito no de baixo.
+  if (card.querySelector('.e-save')) return;
   const form = document.createElement('div');
   form.style.marginTop = '10px';
   form.innerHTML = `
@@ -924,11 +927,11 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
     await api('/projects', {
       method: 'POST',
       body: {
-        name: inner.querySelector('#p-name').value || t('Novo projeto'),
+        name: inner.querySelector('#p-name').value.trim() || t('Novo projeto'),
         icon: picker.icon,
         color: picker.color,
         instructions: inner.querySelector('#p-inst').value,
-        workdir: inner.querySelector('#p-dir').value || null
+        workdir: inner.querySelector('#p-dir').value.trim() || null
       }
     });
     await refreshState();
@@ -1146,6 +1149,10 @@ views.memory = async function renderMemory(el, { switchView }) {
 
   inner.querySelector('#m-file').onchange = async (ev) => {
     const file = ev.target.files[0];
+    // Limpar o campo agora: escolher DE NOVO o mesmo arquivo não dispara
+    // `change` se o valor não mudou, e a segunda importação não acontecia —
+    // sem erro, sem nada na tela.
+    ev.target.value = '';
     if (!file) return;
     const status = inner.querySelector('#import-status');
     status.textContent = t('lendo e separando o que vale guardar… arquivo grande demora.');
@@ -1211,6 +1218,18 @@ const CFG_TRILHA = [
     ['atalhos', 'command', () => t('Atalhos de teclado')]
   ]]
 ];
+
+/**
+ * O número que a pessoa digitou, e o padrão só quando ela não digitou nada.
+ *
+ * `Number(campo.value) || padrao` parece certo e não é: zero é falso, então
+ * quem punha 0 em "nota mínima" recebia 0,12 de volta — o campo mostrava um
+ * número que ela não escolheu, sem nenhum aviso de que foi trocado.
+ */
+function numeroOuPadrao(valor, padrao) {
+  const n = Number(String(valor ?? '').trim());
+  return String(valor ?? '').trim() !== '' && Number.isFinite(n) ? n : padrao;
+}
 
 const cfgLin = (rot, sub, ctl, larga) => `<div class="cfg-lin${larga ? ' larga' : ''}">
     <div class="rot">${rot}${sub ? `<small>${sub}</small>` : ''}</div>
@@ -1756,6 +1775,11 @@ views.settings = async function renderSettings(el, { switchView, applyTheme, apl
       escondidos: [...(settings.menu?.escondidos || [])],
       noMais: [...(settings.menu?.noMais || MENU_PADRAO_DA_TELA.noMais)]
     };
+    // A lista desenhada já completa com a tela que a configuração não citava —
+    // versão nova sempre traz tela nova. A lista que se GRAVA precisa da mesma
+    // conta: sem ela, `ordem.indexOf(id)` dava -1 na tela recém-chegada e as
+    // setas de subir e descer não faziam nada, sem dizer por quê.
+    for (const [id] of TELAS_DA_GAVETA) if (!cfg.ordem.includes(id)) cfg.ordem.push(id);
     const guardar = async () => {
       const fora = await api('/settings', { method: 'PATCH', body: { menu: cfg } });
       state.settings = fora;
@@ -1975,8 +1999,10 @@ views.settings = async function renderSettings(el, { switchView, applyTheme, apl
           memory: {
             enabled: q('#s-enabled').checked,
             autoExtract: q('#s-auto').checked,
-            maxInjected: Number(q('#s-max').value) || 12,
-            minScore: Number(q('#s-min').value) || 0.12,
+            // `|| padrão` transformava o zero digitado no padrão: quem punha
+            // 0 em "nota mínima" queria tudo, e recebia 0,12 de volta sem aviso.
+            maxInjected: numeroOuPadrao(q('#s-max').value, 12),
+            minScore: numeroOuPadrao(q('#s-min').value, 0.12),
             extractorModel: q('#s-extractor').value || null,
             embeddingModel: q('#s-embed').value || null
           }
