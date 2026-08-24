@@ -45,8 +45,35 @@ function exigirExiste(linha, molde) {
 
 // ------------------------------------------------------------- professores
 
+/** Hoje em AAAA-MM-DD, no fuso da máquina — a mesma régua que `soData` grava. */
+function hojeISO() {
+  const d = new Date();
+  const dois = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
+}
+
 export function listarProfessores() {
-  return all('SELECT * FROM professores ORDER BY created_at').map(publico);
+  // A prova que vem entra na lista porque é a pergunta que se faz olhando pra
+  // ela — "qual deles tem prova essa semana?". Sem isso era preciso abrir um
+  // por um pra descobrir, e a lista é justamente a tela em que se escolhe.
+  //
+  // Uma consulta só, ordenada por data: a primeira linha de cada professor já
+  // é a próxima dele. Prova de ano anterior fica de fora: ela é amostra do
+  // jeito dele, não compromisso na agenda de ninguém.
+  const proximas = new Map();
+  for (const linha of all(
+    `SELECT professor_id, nome, quando FROM estudo_pastas
+      WHERE tipo = 'prova' AND anterior = 0 AND quando IS NOT NULL AND quando >= ?
+      ORDER BY quando`,
+    hojeISO()
+  )) {
+    if (!proximas.has(linha.professor_id)) {
+      proximas.set(linha.professor_id, { nome: linha.nome, quando: linha.quando });
+    }
+  }
+  return all('SELECT * FROM professores ORDER BY created_at')
+    .map(publico)
+    .map((p) => ({ ...p, proxima: proximas.get(p.id) || null }));
 }
 
 export function acharProfessor(id) {

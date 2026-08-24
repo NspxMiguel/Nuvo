@@ -242,3 +242,30 @@ test('a letra da frente da alternativa é da folha, não do modelo', () => {
     'sem letra'
   ]);
 });
+
+test('a lista de professores diz qual deles tem prova vindo', () => {
+  // É a pergunta que se faz olhando pra essa tela — "com qual deles eu estudo
+  // hoje?" — e a resposta ficava um clique adiante, dentro de cada professor.
+  const prof = estudos.criarProfessor({ nome: 'Ricardo', materia: 'Biologia', organizacao: 'pastas' });
+  const outro = estudos.criarProfessor({ nome: 'Ana', organizacao: 'pastas' });
+
+  const emDias = (n) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    const dois = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
+  };
+  estudos.criarPasta(prof.id, { nome: 'A2', tipo: 'prova', quando: emDias(9) });
+  estudos.criarPasta(prof.id, { nome: 'A1', tipo: 'prova', quando: emDias(3) });
+  estudos.criarPasta(prof.id, { nome: 'do ano passado', tipo: 'prova', quando: emDias(20), anterior: true });
+  estudos.criarPasta(prof.id, { nome: 'já foi', tipo: 'prova', quando: emDias(-5) });
+  estudos.criarPasta(outro.id, { nome: 'sem data', tipo: 'prova' });
+
+  const lista = estudos.listarProfessores();
+  const r = lista.find((p) => p.id === prof.id);
+  assert.equal(r.proxima.nome, 'A1', 'a mais próxima, não a primeira criada');
+  // Prova de ano anterior nunca é "a que vem", mesmo com data futura por
+  // engano: ela é amostra do jeito dele, não compromisso na agenda.
+  assert.notEqual(r.proxima.nome, 'do ano passado');
+  assert.equal(lista.find((p) => p.id === outro.id).proxima, null, 'sem data, sem promessa');
+});

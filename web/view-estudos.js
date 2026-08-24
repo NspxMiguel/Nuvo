@@ -308,7 +308,15 @@ async function telaDaLista(el, ctx) {
             ${fotoDo(p, 44)}
             <span class="rot"><b>${escapeHtml(p.nome)}</b><small>${escapeHtml(
               p.materia || t('sem matéria')
-            )}</small></span>
+            )}</small>${
+              // A prova que vem, já na lista: é o que decide com qual professor
+              // a pessoa vai estudar hoje, e ficava escondido um clique adiante.
+              p.proxima
+                ? `<span class="est-prof-prox q-${quandoDiz(p.proxima.quando).classe}">${escapeHtml(
+                    p.proxima.nome
+                  )} · ${escapeHtml(quandoDiz(p.proxima.quando).txt())}</span>`
+                : ''
+            }</span>
             <span class="est-selo${p.retrato ? '' : ' sem'}">${
               p.retrato ? `${icon('check', 16)} ${t('provas lidas')}` : t('sem prova ainda')
             }</span>

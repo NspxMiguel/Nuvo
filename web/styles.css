@@ -3820,3 +3820,21 @@ button.icon { position: relative; }
 .est-texto p, .est-texto li { text-wrap: pretty; }
 .est-texto ul, .est-texto ol { padding-left: 20px; }
 .est-texto li { margin: 4px 0; }
+
+/* A prova que vem, no cartão do professor: é o que decide com qual deles a
+   pessoa vai estudar hoje, e ficava escondido um clique adiante. */
+.est-prof-prox {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 5px;
+  padding: 2px 9px;
+  border-radius: var(--pill);
+  background: var(--panel-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.est-prof-prox.q-hoje, .est-prof-prox.q-perto {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
