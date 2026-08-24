@@ -3809,3 +3809,14 @@ button.icon { position: relative; }
   .menu-onde { order: 3; flex: 1 1 auto; }
   .menu-mover { order: 2; margin-left: auto; }
 }
+
+/* Saída sem estrutura: o NotebookLM sozinho devolve texto corrido, e o texto
+   precisa de medida de leitura como qualquer outro. */
+.est-texto { max-width: 44em; font-size: 15px; line-height: 1.68; color: var(--text-2); }
+.est-texto h1, .est-texto h2, .est-texto h3 { color: var(--text); letter-spacing: -0.02em; margin: 22px 0 8px; }
+.est-texto h1 { font-size: 20px; }
+.est-texto h2 { font-size: 17px; }
+.est-texto h3 { font-size: 15px; }
+.est-texto p, .est-texto li { text-wrap: pretty; }
+.est-texto ul, .est-texto ol { padding-left: 20px; }
+.est-texto li { margin: 4px 0; }

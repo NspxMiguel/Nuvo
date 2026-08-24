@@ -16,6 +16,7 @@ import {
   api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel
 } from './core.js';
 import { icon } from './icons.js';
+import { renderMarkdown } from './md.js';
 import { t, plural, formatarNumero, formatarData } from './i18n.js';
 
 /** Navegação da tela — não é dado do app, então não mora no `state`. */
@@ -1273,6 +1274,28 @@ async function gerar(el, prof, botao, ref, ctx, foco = null) {
 function desenharSaida(saida) {
   const j = saida.json || {};
   const l = acharLadrilho(saida.tipo);
+  // O NotebookLM sozinho devolve texto corrido, e não o JSON dos nossos moldes:
+  // o servidor guarda `{ texto }` e diz que "a tela desenha texto quando não há
+  // estrutura" — só que a tela não desenhava. Um simulado vindo só dele abria
+  // uma folha de prova vazia, com um botão de entregar sem nada pra corrigir.
+  if (typeof j.texto === 'string' && j.texto.trim()) {
+    return `
+      <button class="est-volta" data-fechar-saida>${icon('chevron', 17)} ${t('O jeito do professor')}</button>
+      <header class="est-cabeca-av">
+        <h2>${escapeHtml(saida.titulo)}</h2>
+        <div class="sub">${escapeHtml(
+          [l ? l.nome() : saida.tipo, formatarData(saida.created_at, { day: '2-digit', month: 'short' }), quemFez(saida.modelo)]
+            .filter(Boolean)
+            .join(' · ')
+        )}</div>
+        <div class="acoes">
+          <button class="icon danger" data-apagar-saida title="${t('apagar')}"
+            aria-label="${t('apagar')}">${icon('trash', 18)}</button>
+        </div>
+      </header>
+      <div class="est-saida est-texto">${renderMarkdown(j.texto)}</div>`;
+  }
+
   const desenhar = {
     simulado: () => desenharSimulado(j, saida),
     guia: () => desenharGuia(j),
@@ -1534,8 +1557,8 @@ function desenharQuestao(q, i) {
  */
 function ligarSimulado(host, j) {
   const prova = host.querySelector('.prova');
-  if (!prova) return;
   const questoes = j.questoes || [];
+  if (!prova || !questoes.length) return;
   const total = valorTotal(questoes);
   const placar = prova.querySelector('.prova-placar');
   let entregue = false;

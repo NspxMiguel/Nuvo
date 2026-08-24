@@ -488,3 +488,15 @@ test('a marca tem um miolo, e não é uma bolha lisa', () => {
   );
   assert.ok(Number(miolo[2]) > 0, 'e existe um furo');
 });
+
+test('saída sem estrutura vira texto, e não uma folha de prova vazia', () => {
+  // O NotebookLM sozinho devolve texto corrido: o servidor guarda `{ texto }`
+  // e o comentário dele promete que "a tela desenha texto quando não há
+  // estrutura". A tela não desenhava — um simulado vindo só dele abria a folha
+  // com cabeçalho, zero questões e um botão de entregar sem nada pra corrigir.
+  const v = ler('web/view-estudos.js');
+  const saida = v.slice(v.indexOf('function desenharSaida('), v.indexOf('const desenhar = {'));
+  assert.match(saida, /typeof j\.texto === 'string' && j\.texto\.trim\(\)/, 'o texto tem caminho próprio');
+  assert.match(saida, /renderMarkdown\(j\.texto\)/, 'e é desenhado como markdown');
+  assert.match(v, /if \(!prova \|\| !questoes\.length\) return;/, 'a folha vazia não é fiada');
+});
