@@ -14,6 +14,8 @@ window.IDIOMAS = {
   en: {
     '@nomes': ['Alex', 'Maya', 'Chris', 'Priya', 'Jordan', 'Amara', 'Noah'],
 
+    'O simulado é pra fazer.': 'The mock exam is there to be taken.',
+    'Assinale na tela e o app corrige o que dá pra corrigir sozinho, ou imprima em branco — nome, data, nota e linhas pra escrever à mão. E a prova que vem tem botão: simulado, o que estudar e cartões, arquivados nela.': 'Tick the answers on screen and the app grades what it can grade on its own, or print it blank — name, date, grade, and ruled space to write by hand. And the next test carries its own buttons: mock exam, what to study, cards, all filed under it.',
     'Dez coisas saem daí:': 'Ten things come out of it:',
     'simulado com cara de prova dele, guia de estudo pelo peso de cada tema, cartões, quiz, resumo, mapa mental, linha do tempo, conversa em áudio, infográfico e slides.': 'a practice exam that looks like theirs, a study guide ordered by the weight of each topic, flashcards, a quiz, a summary, a mind map, a timeline, an audio conversation, an infographic and slides.',
     'E revisão espaçada.': 'And spaced repetition.',
@@ -168,6 +170,8 @@ window.IDIOMAS = {
   es: {
     '@nomes': ['Miguel', 'Lucía', 'Mateo', 'Sofía', 'Diego', 'Valentina', 'Camila'],
 
+    'O simulado é pra fazer.': 'El simulacro es para hacerlo.',
+    'Assinale na tela e o app corrige o que dá pra corrigir sozinho, ou imprima em branco — nome, data, nota e linhas pra escrever à mão. E a prova que vem tem botão: simulado, o que estudar e cartões, arquivados nela.': 'Marca en la pantalla y la app corrige lo que puede corregir sola, o imprímelo en blanco — nombre, fecha, nota y renglones para escribir a mano. Y el próximo examen tiene sus botones: simulacro, qué estudiar y tarjetas, archivados en él.',
     'Dez coisas saem daí:': 'De ahí salen diez cosas:',
     'simulado com cara de prova dele, guia de estudo pelo peso de cada tema, cartões, quiz, resumo, mapa mental, linha do tempo, conversa em áudio, infográfico e slides.': 'un simulacro con cara de examen suyo, una guía de estudio por el peso de cada tema, tarjetas, test, resumen, mapa mental, línea de tiempo, conversación en audio, infografía y diapositivas.',
     'E revisão espaçada.': 'Y repaso espaciado.',

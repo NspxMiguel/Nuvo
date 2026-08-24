@@ -3514,9 +3514,41 @@ button.icon { position: relative; }
   }
   .imprimindo-prova .prova-barra,
   .imprimindo-prova .prova-fim,
-  .imprimindo-prova .prova-correcao,
-  .imprimindo-prova .prova-so-gabarito,
   .imprimindo-prova .prova-resp { display: none !important; }
+  /* Imprimir dá o que está na tela: em "Responder" sai a folha em branco, em
+     "Gabarito" sai a folha com as respostas. Um botão que imprime sempre a
+     mesma coisa, esteja a pessoa onde estiver, é um botão que mente. */
+  .imprimindo-prova .prova[data-modo='fazer'] .prova-correcao,
+  .imprimindo-prova .prova[data-modo='fazer'] .prova-so-gabarito { display: none !important; }
+  .imprimindo-prova .prova[data-modo='gabarito'] .prova-correcao { display: block; }
+  /* O gabarito é pra conferir, não pra escrever: as linhas em branco só fariam
+     a chave ocupar quatro folhas em vez de uma. */
+  .imprimindo-prova .prova[data-modo='gabarito'] .prova-pautado { display: none; }
+  /* O que o retrato descobriu sai como texto, sem a pastilha colorida: fundo
+     chapado numa impressora doméstica é tinta gasta à toa, e o rótulo do tema
+     precisa poder quebrar linha em vez de sair pela margem. */
+  .imprimindo-prova .prova-so-gabarito {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
+    font-size: 8.5pt;
+  }
+  .imprimindo-prova .prova-so-gabarito .tag {
+    background: none !important;
+    color: #444 !important;
+    padding: 0;
+    font-weight: 600;
+  }
+  .imprimindo-prova .prova-so-gabarito .meta { color: #666; }
+  .imprimindo-prova .prova-q-topo { flex-wrap: wrap; }
+  .imprimindo-prova .prova-correcao,
+  .imprimindo-prova .prova-conf { color: #000; }
+  .imprimindo-prova .prova-conf { background: none; border: 1px solid #bbb; }
+  .imprimindo-prova .prova-eu { display: none !important; }
+  .imprimindo-prova .prova-correcao .meta { background: none; color: #444; padding-left: 0; }
+  .imprimindo-prova .prova-resposta { color: #000; }
+  .imprimindo-prova .ret-cita { color: #555; border-color: #bbb; }
 
   .imprimindo-prova .prova-titulo { font-size: 17pt; letter-spacing: 0; }
   .imprimindo-prova .prova-instrucoes { color: #000; font-size: 10.5pt; line-height: 1.5; }

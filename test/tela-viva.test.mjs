@@ -464,3 +464,24 @@ test('o tema não flutua no rodapé de toda seção de ajustes', () => {
   assert.match(views, /cfgLin\(t\('Aparência'\)/, 'e o tema virou linha de ajuste, com nome');
   assert.doesNotMatch(ler('web/styles.css'), /\.cfg-pe/, 'e o CSS dele foi junto');
 });
+
+test('a marca tem um miolo, e não é uma bolha lisa', () => {
+  // Os seis lóbulos encostavam no miolo e os três raios se somavam num disco
+  // só: no ícone de 512px saía uma bolha azul sem um traço dentro. O furo é de
+  // máscara, e não um círculo preto por cima, porque a marca também aparece
+  // sobre o painel claro — um "buraco" pintado de preto ali seria uma mancha.
+  const glow = ler('web/glow.js');
+  assert.match(glow, /<mask id="m\$\{id\}">/, 'o furo é máscara');
+  assert.match(glow, /mask="url\(#m\$\{id\}\)"/, 'e a coroa é desenhada através dela');
+  const lobo = /Math\.cos\(a\) \* ([\d.]+)/.exec(glow);
+  const raio = /r="\$\{cx\}"|r="([\d.]+)" style="animation-delay/.exec(glow);
+  const miolo = /<circle cx="12" cy="12" r="([\d.]+)"\/><\/g>\n\s*<circle cx="12" cy="12" r="([\d.]+)" fill="#000"/s.exec(glow);
+  assert.ok(lobo && raio?.[1] && miolo, 'os números da marca continuam legíveis daqui');
+  // A borda interna do lóbulo tem que passar do furo, senão a coroa se fecha
+  // sobre o miolo de novo e volta a bolha.
+  assert.ok(
+    Number(lobo[1]) - Number(raio[1]) < Number(miolo[2]),
+    'o lóbulo alcança o furo, então a coroa é contínua'
+  );
+  assert.ok(Number(miolo[2]) > 0, 'e existe um furo');
+});
