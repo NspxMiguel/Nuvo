@@ -572,3 +572,22 @@ test('a coluna do meio conversa com o material do professor', () => {
   const db = ler('server/db.mjs');
   assert.match(db, /addColumn\('chats', 'professor_id', 'TEXT'\)/, 'e a conversa sabe de quem é');
 });
+
+test('a foto do professor leva o token, senão ela nunca aparece', () => {
+  // `<img src>` não passa pelos nossos cabeçalhos: o navegador busca a imagem
+  // sozinho, sem o `x-nuvo-token` que o `api()` põe. A rota devolvia 401 e o
+  // círculo ficava vazio — quem trocasse a foto via o envio dar certo e nada
+  // mudar na tela, sem erro nenhum. É o mesmo caminho do manifest.
+  const v = ler('web/view-estudos.js');
+  const foto = v.slice(v.indexOf('function fotoDo('), v.indexOf('// ------', v.indexOf('function fotoDo(')));
+  assert.match(foto, /token=\$\{encodeURIComponent\(TOKEN\)\}/, 'o token vai na URL da foto');
+  assert.match(v, /modelLabel, TOKEN\n\} from '\.\/core\.js'/, 'e vem do core');
+});
+
+test('foto que sumiu do disco responde 404, não 500', async () => {
+  // Banco apontando pra arquivo que não existe mais — pasta de uploads
+  // restaurada de um backup mais velho que o banco — estourava no
+  // `readFileSync` e virava erro de servidor por uma foto que só sumiu.
+  const estudos = ler('server/estudos.mjs');
+  assert.match(estudos, /if \(!existsSync\(caminho\)\) throw erroHttp\(404,/, 'diz 404 com todas as letras');
+});

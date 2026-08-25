@@ -1500,9 +1500,6 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
 }/* --- as três regiões --- */
 /* abaixo de 1200 o segmentado manda: uma região por vez */
 @media (max-width: 1199px) {
-  .est-cols[data-aba='material'] .est-mid, .est-cols[data-aba='material'] .est-lado,
-  .est-cols[data-aba='retrato'] .est-mat, .est-cols[data-aba='retrato'] .est-lado,
-  .est-cols[data-aba='estudio'] .est-mat, .est-cols[data-aba='estudio'] .est-mid { display: none; }
 }/* --- rótulo de coluna --- */
 /* --- material: avaliação e arquivo, com o interruptor de entrar na resposta --- */
 /* A linha é uma linha: os dois botões de dentro herdavam a régua do dedo
@@ -2747,7 +2744,7 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   .nlm-cols { grid-template-columns: minmax(0, 1fr); }
   .nlm-cols > .nlm-painel { display: none; }
   .nlm-cols[data-aba='material'] > .nlm-fontes,
-  .nlm-cols[data-aba='retrato'] > .nlm-meio,
+  .nlm-cols[data-aba='conversa'] > .nlm-meio,
   .nlm-cols[data-aba='estudio'] > .nlm-estudio { display: flex; }
   .nlm-sub { display: none; }
 }/* --- a casa: a lista de professores, na forma da lista de notebooks deles ---

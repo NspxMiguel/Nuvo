@@ -326,3 +326,36 @@ test('anexo que não consegue ser gravado não deixa o arquivo órfão no disco'
   );
   assert.equal(readdirSync(UPLOAD_DIR).length, antes, 'nada sobrou na pasta de uploads');
 });
+
+test('a varredura de órfãos não apaga a foto do professor', async () => {
+  // A pasta de uploads tem dois donos: os anexos e a foto de cada professor.
+  // A varredura só sabia dos anexos, então TODA foto de professor era apagada
+  // na subida seguinte do servidor. Trocar a foto funcionava, e ela sumia
+  // sozinha no próximo boot — sem erro em lugar nenhum, e o círculo voltava
+  // pra inicial como se nunca tivesse havido foto.
+  const { UPLOAD_DIR } = await import('../server/config.mjs');
+  const { mkdirSync, writeFileSync, existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { criarProfessor, guardarFoto } = await import('../server/estudos.mjs');
+  const { sweepOrphanUploads } = await import('../server/documents.mjs');
+
+  const prof = criarProfessor({ nome: 'Foto', materia: 'Arte' });
+  // PNG de 1×1 de verdade: `guardarFoto` confere os primeiros bytes.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const salvo = guardarFoto(prof.id, png);
+  const caminho = join(UPLOAD_DIR, salvo.foto);
+  assert.ok(existsSync(caminho), 'a foto foi gravada');
+
+  // E um arquivo que não é de ninguém, pra provar que a varredura ainda varre.
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+  const lixo = join(UPLOAD_DIR, 'sobra-sem-dono.txt');
+  writeFileSync(lixo, 'nada aponta pra mim');
+
+  const fora = sweepOrphanUploads();
+  assert.ok(existsSync(caminho), 'a foto do professor continua lá depois da varredura');
+  assert.ok(!existsSync(lixo), 'e o que não é de ninguém sai');
+  assert.ok(fora.removed >= 1);
+});

@@ -8,7 +8,7 @@
 //
 // Nada aqui chama modelo. Isto é o armário; quem lê e conclui é o retrato.
 
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 import { all, one, run, tx, uid, now, parseJSON } from './db.mjs';
@@ -224,6 +224,11 @@ export function lerFoto(professorId) {
   // `basename` porque o que está no banco só pode ser um nome simples — se um dia
   // virar caminho, ele para aqui em vez de sair da pasta de uploads.
   const caminho = join(UPLOAD_DIR, basename(nome));
+  // Banco apontando pra arquivo que não está mais lá: pode acontecer se a pasta
+  // de uploads for restaurada de um backup mais velho que o banco. `readFileSync`
+  // estourava e a rota devolvia 500 — um erro de servidor pra uma foto que só
+  // sumiu. 404 dizendo o que houve é a resposta honesta, e a tela cai na inicial.
+  if (!existsSync(caminho)) throw erroHttp(404, 'a foto deste professor não está mais no disco');
   const buffer = readFileSync(caminho);
   return { buffer, mime: tipoDaImagem(buffer) || 'application/octet-stream' };
 }

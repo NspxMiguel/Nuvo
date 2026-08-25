@@ -291,9 +291,15 @@ export function deleteAttachmentsOf({ chatId = null, projectId = null, pastaId =
  */
 export function sweepOrphanUploads() {
   if (!existsSync(UPLOAD_DIR)) return { removed: 0, bytes: 0 };
-  const conhecidos = new Set(
-    all('SELECT path FROM attachments WHERE path IS NOT NULL').map((r) => basename(r.path))
-  );
+  // A pasta de uploads tem DOIS donos, e por muito tempo a varredura só sabia
+  // de um: além dos anexos, a foto de cada professor mora aqui, apontada por
+  // `professores.foto`. Sem esta segunda consulta, toda foto de professor era
+  // apagada na subida seguinte do servidor — trocar a foto funcionava, e ela
+  // sumia sozinha no próximo boot, sem erro nenhum em lugar nenhum.
+  const conhecidos = new Set([
+    ...all('SELECT path FROM attachments WHERE path IS NOT NULL').map((r) => basename(r.path)),
+    ...all('SELECT foto FROM professores WHERE foto IS NOT NULL').map((r) => basename(r.foto))
+  ]);
 
   let removed = 0;
   let bytes = 0;

@@ -13,7 +13,7 @@
 // e sem isso as três colunas não cabem num 1280. Sair devolve a gaveta.
 
 import {
-  api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel
+  api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel, TOKEN
 } from './core.js';
 import { icon } from './icons.js';
 import { renderMarkdown } from './md.js';
@@ -22,7 +22,7 @@ import { t, plural, formatarNumero, formatarData } from './i18n.js';
 /** Navegação da tela — não é dado do app, então não mora no `state`. */
 const aqui = {
   professorId: null,
-  regiao: 'retrato',     // material | retrato | estudio, só usado no estreito
+  regiao: 'conversa',    // material | conversa | estudio, só usado no estreito
   pastaAberta: null,
   saidaAberta: null,
   revisando: false,
@@ -385,7 +385,7 @@ async function telaDaLista(el, ctx) {
     };
     botao.onclick = () => {
       aqui.professorId = botao.dataset.prof;
-      aqui.regiao = 'retrato';
+      aqui.regiao = 'conversa';
       aqui.pastaAberta = null;
       aqui.saidaAberta = null;
       aqui.fora.clear();
@@ -417,12 +417,23 @@ async function telaDaLista(el, ctx) {
   paintIcons(el);
 }
 
+/**
+ * O círculo do professor: a foto dele, ou a inicial.
+ *
+ * O token vai na URL porque `<img src>` não passa pelos nossos cabeçalhos — o
+ * navegador busca a imagem sozinho, sem o `x-nuvo-token` que o `api()` põe. Sem
+ * isto a rota devolvia 401 e a foto NUNCA aparecia: quem trocasse a foto via o
+ * envio dar certo e o círculo continuar vazio, sem erro nenhum na tela. É o
+ * mesmo caminho que o manifest já usa, pela mesma razão.
+ */
 function fotoDo(p, tamanho) {
   const estilo = `--t:var(--${p.cor || 'indigo'});width:${tamanho}px;height:${tamanho}px`;
   if (!p.foto) return `<span class="est-foto" style="${estilo}">${escapeHtml(inicial(p.nome))}</span>`;
+  const versao = encodeURIComponent(p.updated_at || '');
+  const chave = TOKEN ? `&token=${encodeURIComponent(TOKEN)}` : '';
   return `<span class="est-foto" style="${estilo}"><img src="/api/professores/${encodeURIComponent(
     p.id
-  )}/foto?v=${encodeURIComponent(p.updated_at || '')}" alt="" /></span>`;
+  )}/foto?v=${versao}${chave}" alt="" /></span>`;
 }
 
 // -------------------------------------------------------------- o professor
@@ -511,7 +522,7 @@ async function telaDoProfessor(el, ctx) {
       <div class="segmentado" role="tablist">
         ${[
           ['material', t('Fontes')],
-          ['retrato', t('Conversa')],
+          ['conversa', t('Conversa')],
           ['estudio', t('Estúdio')]
         ]
           .map(
@@ -1248,7 +1259,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
     linha.querySelector('[data-abrir]').onclick = () => {
       aqui.pastaAberta = aqui.pastaAberta === id ? null : id;
       aqui.saidaAberta = null;
-      aqui.regiao = 'retrato';
+      aqui.regiao = 'conversa';
       repintar();
     };
   }
@@ -1282,7 +1293,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
     b.onclick = () => {
       aqui.pastaAberta = b.dataset.abrirPasta;
       aqui.saidaAberta = null;
-      aqui.regiao = 'retrato';
+      aqui.regiao = 'conversa';
       repintar();
     };
   }
@@ -1317,7 +1328,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
     b.onclick = () => {
       aqui.saidaAberta = aqui.saidaAberta === b.dataset.saida ? null : b.dataset.saida;
       aqui.pastaAberta = null;
-      aqui.regiao = 'retrato';
+      aqui.regiao = 'conversa';
       repintar();
     };
   }
@@ -2468,8 +2479,15 @@ function formularioDeProfessor(host, ctx) {
         pastas: org.semear()
       }
     });
+    // `aqui.pastaId` não existe — o campo é `pastaAberta`, e a linha só
+    // escrevia num nome que ninguém lê. Professor novo abre na conversa, que
+    // é o meio da tela; a pasta se abre com um clique na coluna da esquerda.
     aqui.professorId = novo.id;
-    aqui.pastaId = novo.pastas[0]?.id || null;
+    aqui.pastaAberta = null;
+    aqui.saidaAberta = null;
+    aqui.conversaId = null;
+    aqui.mensagens = [];
+    aqui.fora.clear();
     ctx.switchView('estudos');
     toast(t('professor criado'), 'ok');
   };
