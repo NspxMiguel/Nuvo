@@ -38,6 +38,8 @@ const aqui = {
   busca: '',
   ordem: 'recente',
   /** A conversa daquele professor — a coluna do meio, como no NotebookLM. */
+  /** Colunas recolhidas, como as setinhas de recolher deles. */
+  recolhidas: new Set(),
   conversaId: null,
   mensagens: [],
   respondendo: false
@@ -520,10 +522,14 @@ async function telaDoProfessor(el, ctx) {
       </div>
     </div>
 
-    <div class="nlm-cols" data-aba="${aqui.regiao}">
+    <div class="nlm-cols" data-aba="${aqui.regiao}" data-recolhido="${[...aqui.recolhidas].join(' ')}">
       <!-- Fontes -->
       <section class="nlm-painel nlm-fontes">
-        <header class="nlm-cab"><h2>${t('Fontes')}</h2></header>
+        <header class="nlm-cab">
+          <h2>${t('Fontes')}</h2>
+          <button class="nlm-encolhe" data-encolhe="fontes" title="${t('recolher')}"
+            aria-label="${t('recolher')}">${icon('menu', 16)}</button>
+        </header>
         <div class="nlm-rolo">
           <button class="nlm-add" id="est-nova-pasta">${icon('plus', 16)} ${t('Adicionar fontes')}</button>
           <button class="nlm-add fraco" id="est-prova-antiga">${icon('archive', 16)} ${t(
@@ -584,7 +590,11 @@ async function telaDoProfessor(el, ctx) {
 
       <!-- Estúdio -->
       <section class="nlm-painel nlm-estudio">
-        <header class="nlm-cab"><h2>${t('Estúdio')}</h2></header>
+        <header class="nlm-cab">
+          <h2>${t('Estúdio')}</h2>
+          <button class="nlm-encolhe" data-encolhe="estudio" title="${t('recolher')}"
+            aria-label="${t('recolher')}">${icon('menu', 16)}</button>
+        </header>
         <div class="nlm-rolo">
           <div class="nlm-quem">${icon('bot', 15)}
             <select id="est-modelo" aria-label="${t('IA que dá o toque do professor')}">${modelOptions(
@@ -1244,6 +1254,14 @@ function ligarProfessor(el, prof, saidas, ctx) {
   q('#est-nova-pasta').onclick = () => criarPasta(prof, ctx, q('.nlm-fontes'));
   q('#est-prova-antiga').onclick = () => criarPasta(prof, ctx, q('.nlm-fontes'), { anterior: true });
   // Uma caixa liga e desliga TODAS as fontes de uma vez, como a deles.
+  for (const b of el.querySelectorAll('[data-encolhe]')) {
+    b.onclick = () => {
+      const qual = b.dataset.encolhe;
+      if (aqui.recolhidas.has(qual)) aqui.recolhidas.delete(qual);
+      else aqui.recolhidas.add(qual);
+      repintar();
+    };
+  }
   q('#est-todas')?.addEventListener('change', (ev) => {
     if (ev.target.checked) aqui.fora.clear();
     else for (const p of prof.pastas) aqui.fora.add(p.id);
