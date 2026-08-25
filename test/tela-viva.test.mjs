@@ -253,7 +253,7 @@ test('a avaliação diz se já foi, e o resumo fica onde a pessoa está olhando'
   // vezes na mesma janela e perguntava qual dos dois era o de verdade.
   assert.doesNotMatch(v, /class="est-fazer"/, 'sem a fileira repetida no meio');
   assert.equal(
-    (v.match(/class="est-lads"/g) || []).length,
+    (v.match(/class="nlm-lads"/g) || []).length,
     1,
     'os dez geradores são desenhados num lugar só'
   );
@@ -267,8 +267,11 @@ test('todo arquivo diz se é prova, se caiu na prova, ou se é só aula', () => 
   assert.match(v, /const PAPEIS = \{/, 'os três papéis têm um vocabulário só');
   assert.match(v, /const selo = \(papel\)/, 'e viram etiqueta');
   assert.match(v, /function contagemDePapeis/, 'a pasta fechada diz quantos de cada');
-  assert.match(v, /class="est-arqs"/, 'a pasta aberta lista os arquivos');
-  assert.match(v, /class="est-arq"[^`]*\$\{selo\(a\.papel\)\}/, 'com o papel em cada um');
+  assert.match(v, /class="nlm-arqs"/, 'a pasta aberta lista os arquivos');
+  assert.match(v, /class="nlm-arq"[^`]*\$\{selo\(a\.papel\)\}/, 'com o papel em cada um');
+  // Fechada, a fonte diz a mesma coisa em palavra na segunda linha: sem isso a
+  // cópia do NotebookLM teria apagado a única informação que o app tem e eles não.
+  assert.match(v, /papeis\.map\(\(\[papel, k\]\)/, 'e a fechada conta por papel');
 });
 
 test('nenhum gerador do estúdio nasce trancado', () => {
@@ -530,4 +533,42 @@ test('escolher o mesmo arquivo duas vezes importa duas vezes', () => {
   const views = ler('web/views.js');
   const trecho = views.slice(views.indexOf("querySelector('#m-file').onchange"), views.indexOf('#import-status'));
   assert.match(trecho, /ev\.target\.value = '';/, 'o campo é limpo antes de usar o arquivo');
+});
+
+test('a tela de Estudos é a do NotebookLM, com os números dela', () => {
+  // Ele olhou a tela de três colunas que existia aqui e disse "bagunçado pra
+  // porra", e pediu a cópia declarada: "copia na cara dura a interface do
+  // notebook lm, tudo tudo tudo, mas ao invez de notebooks, professores".
+  // Estes são os valores medidos no navegador dele em notebook.google.com, a
+  // 1122px de largura — se algum mudar aqui, deixou de ser cópia.
+  const css = ler('web/styles.css');
+  const bloco = css.slice(css.indexOf('.nlm {'), css.indexOf('.nlm-casa {'));
+  assert.match(bloco, /--nlm-fundo: #1a1d22/, 'o fundo da tela é o deles');
+  assert.match(bloco, /--nlm-painel: #22262b/, 'e o do painel também');
+  assert.match(bloco, /--nlm-campo: #2e3135/, 'e o do campo de escrever');
+  assert.match(bloco, /--nlm-fio: #37383b/, 'e o do fio dos botões de contorno');
+  assert.match(bloco, /grid-template-columns: 270px minmax\(0, 1fr\) 270px/, '270 | resto | 270');
+  assert.match(bloco, /\.nlm-topo \{[^}]*height: 64px/, 'a barra de cima tem 64px');
+  assert.match(bloco, /\.nlm-painel \{[^}]*border-radius: 16px/, 'o painel tem raio 16');
+  assert.match(bloco, /\.nlm-fonte \{[^}]*min-height: 48px/, 'a linha de fonte tem 48px');
+  assert.match(bloco, /\.nlm-lad \{[^}]*height: 56px/, 'o ladrilho tem 56px');
+  assert.match(bloco, /\.nlm-lad \{[^}]*border-radius: 12px/, 'e raio 12');
+  assert.match(bloco, /\.nlm-add \{[^}]*border-radius: 96px/, 'o botão de contorno é pílula de 96');
+  assert.match(bloco, /\.nlm-escrever \{[^}]*height: 48px/, 'o campo de escrever tem 48px');
+  // Uma barra de cima só: a do app sai enquanto o professor está aberto.
+  assert.match(css, /#app\[data-nlm\] #topbar \{ display: none; \}/);
+});
+
+test('a coluna do meio conversa com o material do professor', () => {
+  // Era o buraco da tela: três colunas e nenhuma delas respondia pergunta. No
+  // NotebookLM a do meio é a conversa, e é ela que dá sentido às outras duas —
+  // fonte à esquerda, resposta no meio, o que gerar à direita.
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /function desenharConversa\(prof, proxima\)/, 'a conversa é desenhada');
+  assert.match(v, /`\/chats\/\$\{aqui\.conversaId\}\/stream`/, 'e fala com o servidor');
+  assert.match(v, /\/professores\/\$\{prof\.id\}\/conversas/, 'presa àquele professor');
+  const chat = ler('server/chat.mjs');
+  assert.match(chat, /pastaIds: chat\.professor_id \? pastasDo\(chat\.professor_id\)/, 'as fontes são as pastas dele');
+  const db = ler('server/db.mjs');
+  assert.match(db, /addColumn\('chats', 'professor_id', 'TEXT'\)/, 'e a conversa sabe de quem é');
 });

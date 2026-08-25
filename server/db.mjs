@@ -369,6 +369,11 @@ function migrate() {
   // mas ela NÃO é a prova que vem, e misturar as duas faria o app anunciar uma
   // avaliação que já passou. A marca separa as duas coisas.
   addColumn('estudo_pastas', 'anterior', 'INTEGER NOT NULL DEFAULT 0');
+
+  // Conversa presa a um professor. A tela de Estudos passou a ter as três
+  // colunas do NotebookLM — material à esquerda, CONVERSA no meio, estúdio à
+  // direita — e a do meio precisa saber de quem é o material que responde.
+  addColumn('chats', 'professor_id', 'TEXT');
   addColumn('estudo_pastas', 'leitura', 'TEXT');
   addColumn('estudo_pastas', 'leitura_chave', 'TEXT');
   addColumn('estudo_pastas', 'leitura_em', 'TEXT');

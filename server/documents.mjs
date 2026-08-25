@@ -432,10 +432,12 @@ export function textoDoAnexo(id) {
  * Bloco de documentos pro system prompt. Arquivo curto entra inteiro; o resto
  * entra pelos trechos recuperados.
  */
-export async function renderDocuments(query, { chatId, projectId }) {
+export async function renderDocuments(query, { chatId, projectId, pastaIds = null }) {
   const attachments = [
     ...(chatId ? listAttachments({ chatId }) : []),
-    ...(projectId ? listAttachments({ projectId }) : [])
+    ...(projectId ? listAttachments({ projectId }) : []),
+    // Conversa de professor: as fontes são as pastas dele, e são várias.
+    ...(pastaIds || []).flatMap((pastaId) => listAttachments({ pastaId }))
   ].filter((a) => a.status === 'ok');
   if (!attachments.length) return { block: '', used: [] };
 

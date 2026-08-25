@@ -51,6 +51,7 @@ import {
   PAPEIS,
   listarProfessores,
   criarProfessor,
+  acharProfessor,
   verProfessor,
   atualizarProfessor,
   apagarProfessor,
@@ -939,6 +940,27 @@ export async function handleApi(req, res, url) {
       return json(res, suspenderCartao(seg[1], b.suspenso !== false));
     }
     if (method === 'DELETE' && seg.length === 2) return json(res, apagarCartao(seg[1]));
+  }
+  // As conversas daquele professor: a coluna do meio da tela de Estudos.
+  if (seg[0] === 'professores' && seg[1] && seg[2] === 'conversas') {
+    if (method === 'GET') {
+      return json(
+        res,
+        all('SELECT * FROM chats WHERE professor_id = ? ORDER BY updated_at DESC', seg[1])
+      );
+    }
+    if (method === 'POST') {
+      const b = await readJSON(req);
+      const professor = acharProfessor(seg[1]);
+      return json(
+        res,
+        createChat({
+          title: b.title || `Conversa · ${professor.nome}`,
+          professorId: seg[1],
+          model: b.model || null
+        })
+      );
+    }
   }
   if (seg[0] === 'professores' && seg[1] && seg[2] === 'saidas' && method === 'GET') {
     return json(res, listarSaidas(seg[1], { tipo: url.searchParams.get('tipo') }));

@@ -33,7 +33,14 @@ const aqui = {
   /** Quantos cartões a rodada tinha quando começou. Ver a explicação no contador. */
   totalDaRodada: 0,
   /** Fontes desmarcadas. Guardar o que está FORA deixa o padrão ser "tudo entra". */
-  fora: new Set()
+  fora: new Set(),
+  /** Busca e ordem da lista de professores — a barra da casa deles. */
+  busca: '',
+  ordem: 'recente',
+  /** A conversa daquele professor — a coluna do meio, como no NotebookLM. */
+  conversaId: null,
+  mensagens: [],
+  respondendo: false
 };
 
 /**
@@ -62,18 +69,14 @@ const LADRILHOS = [
 
 /** Um ladrilho do estúdio. `temRetrato` só muda a etiqueta, nunca destranca. */
 const ladrilho = (l, temRetrato, foco = null) =>
-  `<button class="est-lad" style="--t:var(--${l.cor})" data-gerar="${l.id}"${
+  `<button class="nlm-lad" style="--t:var(--${l.cor})" data-gerar="${l.id}"${
     foco ? ` data-foco="${foco}"` : ''
-  }>
-    <span class="ico">${icon(l.ico, 18)}</span>
+  } title="${
+    l.toque ? (temRetrato ? t('com o jeito dele') : t('sem ler as provas')) : escapeHtml(l.nome())
+  }">
+    <span class="ico">${icon(l.ico, 17)}</span>
     <span class="nm">${escapeHtml(l.nome())}</span>
-    ${
-      l.toque
-        ? `<span class="marca${temRetrato ? ' com' : ''}">${
-            temRetrato ? t('com o jeito dele') : t('sem ler as provas')
-          }</span>`
-        : ''
-    }
+    <span class="seta">${icon('chevron', 14)}</span>
   </button>`;
 
 const acharLadrilho = (id) => LADRILHOS.find((l) => l.id === id);
@@ -288,47 +291,96 @@ export async function renderEstudos(el, ctx) {
 /** Devolve a gaveta ao sair — só se tiver sido a gente a recolher. */
 export function sairDeEstudos() {
   const app = document.querySelector('#app');
+  app?.removeAttribute('data-nlm');
   if (!app?.dataset.recolhiPorEstudos) return;
   delete app.dataset.recolhiPorEstudos;
   app.classList.remove('recolhido');
 }
 
 async function telaDaLista(el, ctx) {
-  const professores = await api('/professores');
-  el.className = 'view panel';
-  el.innerHTML = `<div class="panel-inner">
-    <h2>${t('Estudos')}</h2>
-    <p class="hint">${t(
-      'Um professor por vez. O app lê as provas dele e devolve o material recortado pelo jeito dele cobrar.'
-    )}</p>
-    <div class="est-profs">
-      ${professores
-        .map(
-          (p) => `<button class="est-prof" data-prof="${escapeHtml(p.id)}">
-            ${fotoDo(p, 44)}
-            <span class="rot"><b>${escapeHtml(p.nome)}</b><small>${escapeHtml(
-              p.materia || t('sem matéria')
-            )}</small>${
-              // A prova que vem, já na lista: é o que decide com qual professor
-              // a pessoa vai estudar hoje, e ficava escondido um clique adiante.
-              p.proxima
-                ? `<span class="est-prof-prox q-${quandoDiz(p.proxima.quando).classe}">${escapeHtml(
-                    p.proxima.nome
-                  )} · ${escapeHtml(quandoDiz(p.proxima.quando).txt())}</span>`
-                : ''
-            }</span>
-            <span class="est-selo${p.retrato ? '' : ' sem'}">${
-              p.retrato ? `${icon('check', 16)} ${t('provas lidas')}` : t('sem prova ainda')
-            }</span>
-          </button>`
-        )
-        .join('')}
-      <button class="est-add" id="est-novo">${icon('plus', 18)} ${t('Adicionar professor')}</button>
+  document.querySelector('#app')?.removeAttribute('data-nlm');
+  const todos = await api('/professores');
+  // Buscar e ordenar acontecem aqui: são dois professores hoje, e uma ida ao
+  // servidor pra filtrar duas linhas seria latência sem nada em troca.
+  const busca = aqui.busca.trim().toLowerCase();
+  const professores = todos
+    .filter((p) => !busca || `${p.nome} ${p.materia || ''}`.toLowerCase().includes(busca))
+    .sort((a, b) => {
+      if (aqui.ordem === 'nome') return a.nome.localeCompare(b.nome);
+      if (aqui.ordem === 'prova') {
+        // Quem tem prova marcada primeiro, da mais próxima pra mais distante;
+        // quem não tem, no fim — a ordem em que eles importam essa semana.
+        const q = (p) => p.proxima?.quando || '9999-99-99';
+        return q(a).localeCompare(q(b));
+      }
+      return String(b.created_at).localeCompare(String(a.created_at));
+    });
+  el.className = 'view';
+  el.innerHTML = `<div class="nlm nlm-casa">
+    <header class="nlm-casa-topo">
+      <div class="nlm-busca">${icon('search', 17)}
+        <input id="est-busca" type="search" value="${escapeHtml(aqui.busca)}"
+          placeholder="${t('Buscar professor')}" aria-label="${t('Buscar professor')}" />
+      </div>
+      <select id="est-ordem" class="nlm-ordem" aria-label="${t('Ordem')}">
+        <option value="recente"${aqui.ordem === 'recente' ? ' selected' : ''}>${t('Mais recentes')}</option>
+        <option value="prova"${aqui.ordem === 'prova' ? ' selected' : ''}>${t('Prova mais próxima')}</option>
+        <option value="nome"${aqui.ordem === 'nome' ? ' selected' : ''}>${t('Por nome')}</option>
+      </select>
+      <span class="grow"></span>
+      <button class="nlm-criar" id="est-novo">${icon('plus', 17)} ${t('Criar novo')}</button>
+    </header>
+    <div class="nlm-casa-rolo">
+      <div class="nlm-casa-meio">
+        <h1>${t('Meus professores')}</h1>
+        ${
+          professores.length
+            ? `<table class="nlm-tab">
+                <thead><tr>
+                  <th>${t('Nome')}</th>
+                  <th class="col-n">${t('Fontes')}</th>
+                  <th class="col-q">${t('Prova que vem')}</th>
+                  <th class="col-s">${t('Provas lidas')}</th>
+                </tr></thead>
+                <tbody>${professores
+                  .map((p) => {
+                    const q = p.proxima ? quandoDiz(p.proxima.quando) : null;
+                    return `<tr data-prof="${escapeHtml(p.id)}" tabindex="0">
+                      <td class="nome">${fotoDo(p, 28)}<span>
+                        <b>${escapeHtml(p.nome)}</b>
+                        <small>${escapeHtml(p.materia || t('sem matéria'))}</small>
+                      </span></td>
+                      <td class="col-n">${plural(p.fontes ?? 0, '1 fonte', '{n} fontes')}</td>
+                      <td class="col-q${q ? ` q-${q.classe}` : ''}">${
+                        p.proxima
+                          ? `${escapeHtml(p.proxima.nome)} · ${escapeHtml(q.txt())}`
+                          : `<span class="fraco">${t('nenhuma marcada')}</span>`
+                      }</td>
+                      <td class="col-s">${
+                        p.retrato
+                          ? `<span class="nlm-ok">${icon('check', 14)} ${t('sim')}</span>`
+                          : `<span class="fraco">${t('ainda não')}</span>`
+                      }</td>
+                    </tr>`;
+                  })
+                  .join('')}</tbody>
+              </table>`
+            : `<p class="nlm-nada">${t(
+                'Um professor por vez. O app lê as provas dele e devolve o material recortado pelo jeito dele cobrar.'
+              )}</p>`
+        }
+        <div id="est-form"></div>
+      </div>
     </div>
-    <div id="est-form"></div>
   </div>`;
 
   for (const botao of el.querySelectorAll('[data-prof]')) {
+    botao.onkeydown = (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        botao.click();
+      }
+    };
     botao.onclick = () => {
       aqui.professorId = botao.dataset.prof;
       aqui.regiao = 'retrato';
@@ -339,6 +391,27 @@ async function telaDaLista(el, ctx) {
     };
   }
   el.querySelector('#est-novo').onclick = () => formularioDeProfessor(el.querySelector('#est-form'), ctx);
+  const campoBusca = el.querySelector('#est-busca');
+  if (campoBusca) {
+    campoBusca.oninput = () => {
+      aqui.busca = campoBusca.value;
+      ctx.switchView('estudos');
+      // Repintar recria o campo: devolver o cursor pra ele é o que deixa
+      // continuar digitando sem clicar de novo a cada letra.
+      const novo = document.querySelector('#est-busca');
+      if (novo) {
+        novo.focus();
+        novo.setSelectionRange(novo.value.length, novo.value.length);
+      }
+    };
+  }
+  const ordem = el.querySelector('#est-ordem');
+  if (ordem) {
+    ordem.onchange = () => {
+      aqui.ordem = ordem.value;
+      ctx.switchView('estudos');
+    };
+  }
   paintIcons(el);
 }
 
@@ -361,11 +434,23 @@ async function telaDoProfessor(el, ctx) {
     return telaDaLista(el, ctx);
   }
 
-  const [saidas, cartoes] = await Promise.all([
+  const [saidas, cartoes, conversas] = await Promise.all([
     api(`/professores/${prof.id}/saidas`),
-    api(`/professores/${prof.id}/cartoes`).catch(() => ({ contagem: { hoje: 0 }, cartoes: [] }))
+    api(`/professores/${prof.id}/cartoes`).catch(() => ({ contagem: { hoje: 0 }, cartoes: [] })),
+    api(`/professores/${prof.id}/conversas`).catch(() => [])
   ]);
 
+  // A conversa do professor: a mais recente, ou nenhuma até a primeira pergunta.
+  if (!aqui.conversaId && conversas[0]) aqui.conversaId = conversas[0].id;
+  if (aqui.conversaId && !aqui.respondendo) {
+    const cheia = await api(`/chats/${aqui.conversaId}`).catch(() => null);
+    aqui.mensagens = cheia?.messages || [];
+  }
+
+  // Dentro de um professor a tela é a do NotebookLM inteira, e ela tem a
+  // própria barra de cima. A do app ficaria em cima dela: duas barras de 64px
+  // empilhadas antes de qualquer conteúdo.
+  document.querySelector('#app')?.setAttribute('data-nlm', '1');
   el.className = 'view';
   if (aqui.revisando && cartoes.cartoes.length) {
     if (!aqui.totalDaRodada) aqui.totalDaRodada = cartoes.cartoes.length;
@@ -386,46 +471,43 @@ async function telaDoProfessor(el, ctx) {
   // Prova de ano anterior é fonte, não alvo: gerar "para" ela produziria um
   // simulado da avaliação que já passou, com o nome dela no título.
   const foco = pasta?.tipo === 'prova' && !pasta.anterior ? pasta : null;
+  // A coluna do meio é a conversa — e o que se abre (uma avaliação, um
+  // simulado) entra POR CIMA dela, como o NotebookLM abre um relatório por
+  // cima do bate-papo. Fechar volta pra conversa, não pra outra tela.
   const meio = saida
     ? desenharSaida(saida)
     : pasta
       ? avaliacaoAberta(prof, pasta)
-      : `${proxima ? faixaDaProxima(proxima) : ''}${desenharRetrato(prof)}`;
+      : desenharConversa(prof, proxima);
+  const meioTitulo = saida
+    ? escapeHtml(saida.titulo)
+    : pasta
+      ? escapeHtml(pasta.nome)
+      : t('Conversa');
 
-  el.innerHTML = `<div class="est">
-    <header class="est-topo">
-      <button class="est-foto-btn" id="est-foto" title="${t('trocar a foto')}"
-        aria-label="${t('trocar a foto')}">${fotoDo(prof, 54)}</button>
-      <div class="est-quem">
-        <h2>${escapeHtml(prof.nome)}</h2>
-        <div class="sub">${escapeHtml(prof.materia || t('sem matéria'))} · <b>${plural(
-          prof.material.provas,
-          '1 prova',
-          '{n} provas'
-        )}</b> · ${plural(
-          prof.material.conteudos + prof.material.materiais,
-          '1 arquivo',
-          '{n} arquivos'
-        )}</div>
-      </div>
-      <div class="acoes">
-        ${
-          cartoes.contagem.hoje
-            ? `<button class="est-rev" id="est-revisar">${icon('layers', 18)} ${t(
-                'Revisar'
-              )} <b>${formatarNumero(cartoes.contagem.hoje)}</b></button>`
-            : ''
-        }
-        <button class="icon" id="est-trocar" title="${t('trocar de professor')}"
-          aria-label="${t('trocar de professor')}">${icon('users', 20)}</button>
-      </div>
+  el.innerHTML = `<div class="nlm">
+    <header class="nlm-topo">
+      <button class="nlm-voltar" id="est-trocar" title="${t('trocar de professor')}"
+        aria-label="${t('trocar de professor')}">${icon('chevron', 18)}</button>
+      <button class="nlm-marca" id="est-foto" title="${t('trocar a foto')}"
+        aria-label="${t('trocar a foto')}">${fotoDo(prof, 32)}</button>
+      <h1 class="nlm-titulo">${escapeHtml(prof.nome)}</h1>
+      <span class="nlm-sub">${escapeHtml(prof.materia || t('sem matéria'))}</span>
+      <span class="grow"></span>
+      ${
+        cartoes.contagem.hoje
+          ? `<button class="nlm-pill" id="est-revisar">${icon('layers', 16)} ${t(
+              'Revisar'
+            )} <b>${formatarNumero(cartoes.contagem.hoje)}</b></button>`
+          : ''
+      }
     </header>
 
-    <div class="est-abas">
+    <div class="nlm-abas">
       <div class="segmentado" role="tablist">
         ${[
-          ['material', t('Material')],
-          ['retrato', t('O jeito dele')],
+          ['material', t('Fontes')],
+          ['retrato', t('Conversa')],
           ['estudio', t('Estúdio')]
         ]
           .map(
@@ -438,65 +520,90 @@ async function telaDoProfessor(el, ctx) {
       </div>
     </div>
 
-    <div class="est-cols" data-aba="${aqui.regiao}">
-      <aside class="est-mat">
-        <div class="est-rot">${t('Avaliações')} <span class="n">${formatarNumero(provas.length)}</span></div>
-        ${
-          provas.length
-            ? provas.map((p) => linhaDeFonte(p)).join('')
-            : `<p class="est-nada">${t('Nenhuma prova dele ainda. É a prova que diz o que cai.')}</p>`
-        }
-        ${
-          // Prova de ano anterior fica separada: ela ensina o jeito dele e não
-          // é compromisso na agenda. Junto das outras, a lista dizia que ele
-          // tinha oito provas marcadas quando tinha duas.
-          anteriores.length
-            ? `<div class="est-rot">${t('De anos anteriores')} <span class="n">${formatarNumero(
-                anteriores.length
-              )}</span></div>
-               ${anteriores.map((p) => linhaDeFonte(p)).join('')}`
-            : ''
-        }
-        <div class="est-rot">${t('Material de aula')} <span class="n">${formatarNumero(aula.length)}</span></div>
-        ${aula.map((p) => linhaDeFonte(p)).join('')}
-        <button class="est-add" id="est-nova-pasta">${icon('plus', 18)} ${t('Adicionar material')}</button>
-        <button class="est-add fraco" id="est-prova-antiga">${icon('archive', 18)} ${t(
-          'Prova de ano anterior'
-        )}</button>
-        <p class="est-nada">${t('O que está marcado entra nas respostas e no que for gerado.')}</p>
-      </aside>
-
-      <div class="est-mid">${meio}</div>
-
-      <aside class="est-lado">
-        <div class="est-rot">${t('Estúdio')}</div>
-        <div class="est-quem-gera">${icon('bot', 16)}
-          <select id="est-modelo" aria-label="${t('IA que dá o toque do professor')}">${modelOptions(
-            aqui.modelo || state.model
-          )}</select>
+    <div class="nlm-cols" data-aba="${aqui.regiao}">
+      <!-- Fontes -->
+      <section class="nlm-painel nlm-fontes">
+        <header class="nlm-cab"><h2>${t('Fontes')}</h2></header>
+        <div class="nlm-rolo">
+          <button class="nlm-add" id="est-nova-pasta">${icon('plus', 16)} ${t('Adicionar fontes')}</button>
+          <button class="nlm-add fraco" id="est-prova-antiga">${icon('archive', 16)} ${t(
+            'Prova de ano anterior'
+          )}</button>
+          <div class="nlm-todas">
+            <span class="grow">${t('Selecionar tudo')}</span>
+            <label class="nlm-caixa">
+              <input type="checkbox" id="est-todas" ${aqui.fora.size ? '' : 'checked'}
+                aria-label="${t('Selecionar tudo')}" />
+              <span></span>
+            </label>
+          </div>
+          ${
+            provas.length
+              ? `<div class="nlm-rot">${t('Avaliações')}</div>${provas.map((p) => linhaDeFonte(p)).join('')}`
+              : `<p class="nlm-nada">${t('Nenhuma prova dele ainda. É a prova que diz o que cai.')}</p>`
+          }
+          ${
+            anteriores.length
+              ? `<div class="nlm-rot">${t('De anos anteriores')}</div>${anteriores
+                  .map((p) => linhaDeFonte(p))
+                  .join('')}`
+              : ''
+          }
+          ${aula.length ? `<div class="nlm-rot">${t('Material de aula')}</div>${aula.map((p) => linhaDeFonte(p)).join('')}` : ''}
         </div>
-        <p class="est-nada est-duas">${
-          // A frase tem que bater com o que vai acontecer: sem NotebookLM ligado
-          // não existe primeira mão, e prometer duas seria mentira na tela.
-          temNotebookLM()
-            ? t('O NotebookLM lê o material. Esta IA reescreve com o jeito do professor.')
-            : t('Esta IA lê o material e escreve com o jeito do professor. Ligue o NotebookLM em "IAs ligadas" pra ele fazer a leitura.')
-        }</p>
-        <div class="est-rot">${
-          foco
-            ? t('Gerar para {nome}', { nome: escapeHtml(foco.nome) })
-            : t('Gerar')
-        }</div>
-        <div class="est-lads">
-          ${LADRILHOS.map((l) => ladrilho(l, !!prof.retrato, foco?.id)).join('')}
-        </div>
+      </section>
+
+      <!-- Conversa (ou o que estiver aberto por cima dela) -->
+      <section class="nlm-painel nlm-meio">
+        <header class="nlm-cab">
+          <h2>${meioTitulo}</h2>
+          ${
+            saida || pasta
+              ? `<button class="nlm-x" data-fechar-meio title="${t('fechar')}"
+                   aria-label="${t('fechar')}">${icon('close', 17)}</button>`
+              : ''
+          }
+        </header>
+        <div class="nlm-rolo nlm-corpo">${meio}</div>
         ${
-          saidas.length
-            ? `<div class="est-rot">${t('Já gerado')} <span class="n">${formatarNumero(saidas.length)}</span></div>
-               ${saidas.map((s) => linhaDeSaida(s)).join('')}`
-            : ''
+          saida || pasta
+            ? ''
+            : `<form class="nlm-escrever" id="est-form">
+                 <input id="est-pergunta" autocomplete="off"
+                   placeholder="${t('Faça uma pergunta sobre o material dele')}" />
+                 <button type="submit" class="nlm-enviar" aria-label="${t('perguntar')}"
+                   title="${t('perguntar')}">${icon('send', 17)}</button>
+               </form>
+               <p class="nlm-fontes-n">${plural(
+                 provas.length + anteriores.length + aula.length - aqui.fora.size,
+                 '1 fonte',
+                 '{n} fontes'
+               )}</p>`
         }
-      </aside>
+      </section>
+
+      <!-- Estúdio -->
+      <section class="nlm-painel nlm-estudio">
+        <header class="nlm-cab"><h2>${t('Estúdio')}</h2></header>
+        <div class="nlm-rolo">
+          <div class="nlm-quem">${icon('bot', 15)}
+            <select id="est-modelo" aria-label="${t('IA que dá o toque do professor')}">${modelOptions(
+              aqui.modelo || state.model
+            )}</select>
+          </div>
+          ${foco ? `<div class="nlm-rot">${t('Gerar para {nome}', { nome: escapeHtml(foco.nome) })}</div>` : ''}
+          <div class="nlm-lads">
+            ${LADRILHOS.map((l) => ladrilho(l, !!prof.retrato, foco?.id)).join('')}
+          </div>
+          ${
+            saidas.length
+              ? `<div class="nlm-rot">${t('Já gerado')} <span class="n">${formatarNumero(
+                  saidas.length
+                )}</span></div>${saidas.map((s) => linhaDeSaida(s)).join('')}`
+              : `<p class="nlm-nada">${t('O que você gerar fica guardado aqui.')}</p>`
+          }
+        </div>
+      </section>
     </div>
   </div>`;
 
@@ -504,33 +611,54 @@ async function telaDoProfessor(el, ctx) {
   paintIcons(el);
 }
 
+/**
+ * Uma fonte na coluna da esquerda, na forma da deles: 48px, caixa de marcar à
+ * direita, nome à esquerda, e a linha inteira abre a pasta.
+ *
+ * No NotebookLM a caixa fica na PONTA DIREITA e serve só pra ligar e desligar
+ * a fonte da resposta; clicar no nome abre o arquivo. Era o contrário aqui, e
+ * a caixa à esquerda com o nome do lado parecia lista de tarefas.
+ */
 function linhaDeFonte(pasta) {
   const marcada = !aqui.fora.has(pasta.id);
   const aberta = pasta.id === aqui.pastaAberta;
   const q = pasta.tipo === 'prova' ? quandoDiz(pasta.quando) : null;
+  const n = pasta.anexos.length;
+  // A diferença entre "a prova", "o que caiu nela" e "dado em aula" é o que o
+  // app inteiro promete usar — some dela e o Estudos vira um resumidor. Ela
+  // volta como palavra na segunda linha, e não como três pastilhas coloridas
+  // empilhadas do lado do nome, que era a bagunça de antes.
   const papeis = contagemDePapeis(pasta.anexos);
-  return `<div class="est-fonte${marcada ? ' on' : ''}${aberta ? ' sel' : ''}${
+  return `<div class="nlm-fonte${marcada ? ' on' : ''}${aberta ? ' sel' : ''}${
     q ? ` q-${q.classe}` : ''
   }" data-pasta="${escapeHtml(pasta.id)}">
-    <button class="cx" data-marcar aria-pressed="${marcada}"
-      aria-label="${t('usar {nome} no que for gerado', { nome: escapeHtml(pasta.nome) })}">${icon('check', 13)}</button>
     <button class="rot" data-abrir>
-      <span class="nm">${escapeHtml(pasta.nome)}</span>
-      <span class="baixo">${
-        q ? `<span class="qd">${escapeHtml(q.txt())}</span>` : ''
-      }${
-        papeis.length
-          ? papeis.map(([papel, n]) => `${selo(papel)}<i class="est-n">${formatarNumero(n)}</i>`).join('')
-          : `<span class="qd">${t('vazia')}</span>`
-      }</span>
+      <span class="ico">${icon(pasta.tipo === 'prova' ? 'file' : 'book', 16)}</span>
+      <span class="txt">
+        <span class="nm">${escapeHtml(pasta.nome)}</span>
+        <span class="sub">${
+          [
+            q ? q.txt() : '',
+            papeis.length
+              ? papeis.map(([papel, k]) => `${formatarNumero(k)} ${papelDe(papel).curto()}`).join(' · ')
+              : t('vazia')
+          ]
+            .filter(Boolean)
+            .map(escapeHtml)
+            .join(' · ')
+        }</span>
+      </span>
     </button>
+    <label class="nlm-caixa" title="${t('usar {nome} no que for gerado', { nome: escapeHtml(pasta.nome) })}">
+      <input type="checkbox" data-marcar ${marcada ? 'checked' : ''}
+        aria-label="${t('usar {nome} no que for gerado', { nome: escapeHtml(pasta.nome) })}" />
+      <span></span>
+    </label>
   </div>${
-    // Aberta, a pasta mostra os arquivos com o papel de cada um: o total nunca
-    // respondeu "qual destes é a prova e qual é só matéria de aula".
-    aberta && pasta.anexos.length
-      ? `<div class="est-arqs">${pasta.anexos
+    aberta && n
+      ? `<div class="nlm-arqs">${pasta.anexos
           .map(
-            (a) => `<div class="est-arq" style="--t:var(--${papelDe(a.papel).cor})">
+            (a) => `<div class="nlm-arq" style="--t:var(--${papelDe(a.papel).cor})">
               <span class="nm">${escapeHtml(a.name)}</span>${selo(a.papel)}
             </div>`
           )
@@ -557,7 +685,7 @@ function quemFez(modelo) {
 
 function linhaDeSaida(s) {
   const l = acharLadrilho(s.tipo);
-  return `<button class="est-feito" style="--t:var(--${l?.cor || 'slate'})" data-saida="${escapeHtml(s.id)}">
+  return `<button class="nlm-feito" style="--t:var(--${l?.cor || 'slate'})" data-saida="${escapeHtml(s.id)}">
     <span class="ico">${icon(l?.ico || 'file', 18)}</span>
     <span class="rot">${escapeHtml(s.titulo)}<small>${escapeHtml(
       [formatarData(s.created_at, { day: '2-digit', month: 'short' }), quemFez(s.modelo)]
@@ -654,6 +782,79 @@ function faixaDaProxima(pasta) {
       }).join('')}
     </div>
   </section>`;
+}
+
+/**
+ * A coluna do meio: a conversa com o material do professor.
+ *
+ * É o lugar que faltava. A tela tinha três colunas e nenhuma delas respondia
+ * pergunta: material à esquerda, retrato no meio, geradores à direita — e o
+ * retrato, que é leitura, ocupava o lugar onde se conversa. Agora ele abre a
+ * conversa vazia, que é onde ele pertence: o resumo das fontes antes da
+ * primeira pergunta.
+ */
+function desenharConversa(prof, proxima) {
+  if (aqui.mensagens.length) {
+    return `<div class="nlm-msgs">${aqui.mensagens
+      .map(
+        (m) => `<div class="nlm-msg ${m.role === 'user' ? 'eu' : 'ia'}">
+          ${m.role === 'user' ? '' : `<span class="nlm-quem">${icon('bot', 15)}</span>`}
+          <div class="corpo">${
+            m.role === 'user' ? escapeHtml(m.content) : renderMarkdown(m.content || '')
+          }</div>
+        </div>`
+      )
+      .join('')}<div class="nlm-msg ia pendente" hidden><span class="nlm-quem">${icon(
+      'bot',
+      15
+    )}</span><div class="corpo"></div></div></div>`;
+  }
+  return `<div class="nlm-vazio">
+    ${proxima ? faixaDaProxima(proxima) : ''}
+    ${desenharRetrato(prof)}
+  </div>`;
+}
+
+/** Manda a pergunta e vai escrevendo a resposta na coluna do meio. */
+async function perguntar(el, prof, ctx, texto) {
+  if (!texto.trim() || aqui.respondendo) return;
+  const campo = el.querySelector('#est-pergunta');
+  if (campo) campo.value = '';
+  aqui.respondendo = true;
+  aqui.mensagens = [...aqui.mensagens, { role: 'user', content: texto }];
+  ctx.switchView('estudos');
+
+  try {
+    if (!aqui.conversaId) {
+      const nova = await api(`/professores/${prof.id}/conversas`, { method: 'POST', body: {} });
+      aqui.conversaId = nova.id;
+    }
+    const caixa = () => document.querySelector('#view-estudos .nlm-msg.pendente');
+    let resposta = '';
+    const pendente = caixa();
+    if (pendente) pendente.hidden = false;
+    await stream(
+      `/chats/${aqui.conversaId}/stream`,
+      { content: texto, model: aqui.modelo || state.model },
+      (ev) => {
+        if (ev.type === 'delta') {
+          resposta += ev.text;
+          const c = caixa()?.querySelector('.corpo');
+          if (c) {
+            c.innerHTML = renderMarkdown(resposta);
+            c.closest('.nlm-rolo')?.scrollTo({ top: 1e6 });
+          }
+        }
+        if (ev.type === 'error') throw new Error(ev.message);
+      }
+    );
+    aqui.mensagens = [...aqui.mensagens, { role: 'assistant', content: resposta }];
+  } catch (err) {
+    toast(err.message || t('não deu pra responder'), 'err');
+  } finally {
+    aqui.respondendo = false;
+    ctx.switchView('estudos');
+  }
 }
 
 function desenharRetrato(prof) {
@@ -857,9 +1058,7 @@ function avaliacaoAberta(prof, pasta) {
     </div>`;
 
   return `
-    <button class="est-volta" data-volta>${icon('chevron', 17)} ${t('O jeito do professor')}</button>
     <header class="est-cabeca-av">
-      <h2>${escapeHtml(pasta.nome)}</h2>
       <div class="sub">${plural(pasta.anexos.length, '1 arquivo', '{n} arquivos')}</div>
       ${
         pasta.tipo === 'prova'
@@ -1029,7 +1228,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
 
   for (const linha of el.querySelectorAll('[data-pasta]')) {
     const id = linha.dataset.pasta;
-    linha.querySelector('[data-marcar]').onclick = () => {
+    linha.querySelector('[data-marcar]').onchange = () => {
       if (aqui.fora.has(id)) aqui.fora.delete(id);
       else aqui.fora.add(id);
       repintar();
@@ -1042,8 +1241,23 @@ function ligarProfessor(el, prof, saidas, ctx) {
     };
   }
 
-  q('#est-nova-pasta').onclick = () => criarPasta(prof, ctx, q('.est-mat'));
-  q('#est-prova-antiga').onclick = () => criarPasta(prof, ctx, q('.est-mat'), { anterior: true });
+  q('#est-nova-pasta').onclick = () => criarPasta(prof, ctx, q('.nlm-fontes'));
+  q('#est-prova-antiga').onclick = () => criarPasta(prof, ctx, q('.nlm-fontes'), { anterior: true });
+  // Uma caixa liga e desliga TODAS as fontes de uma vez, como a deles.
+  q('#est-todas')?.addEventListener('change', (ev) => {
+    if (ev.target.checked) aqui.fora.clear();
+    else for (const p of prof.pastas) aqui.fora.add(p.id);
+    repintar();
+  });
+  q('#est-form')?.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    perguntar(el, prof, ctx, q('#est-pergunta').value);
+  });
+  q('[data-fechar-meio]')?.addEventListener('click', () => {
+    aqui.pastaAberta = null;
+    aqui.saidaAberta = null;
+    repintar();
+  });
   for (const b of el.querySelectorAll('[data-abrir-pasta]')) {
     b.onclick = () => {
       aqui.pastaAberta = b.dataset.abrirPasta;
@@ -1052,12 +1266,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
       repintar();
     };
   }
-  q('[data-volta]')?.addEventListener('click', () => {
-    aqui.pastaAberta = null;
-    aqui.saidaAberta = null;
-    repintar();
-  });
-  q('#est-primeira-prova')?.addEventListener('click', () => criarPasta(prof, ctx, q('.est-mat')));
+  q('#est-primeira-prova')?.addEventListener('click', () => criarPasta(prof, ctx, q('.nlm-fontes')));
   q('#est-montar')?.addEventListener('click', (ev) => montarRetrato(el, prof, ev.currentTarget, q('#est-modelo').value, ctx));
 
   for (const b of el.querySelectorAll('[data-add]')) {
@@ -1092,10 +1301,6 @@ function ligarProfessor(el, prof, saidas, ctx) {
       repintar();
     };
   }
-  q('[data-fechar-saida]')?.addEventListener('click', () => {
-    aqui.saidaAberta = null;
-    repintar();
-  });
   ligarApagar(q('[data-apagar-saida]'), async () => {
     await api(`/saidas/${aqui.saidaAberta}`, { method: 'DELETE' });
     aqui.saidaAberta = null;
@@ -1295,9 +1500,7 @@ function desenharSaida(saida) {
   // uma folha de prova vazia, com um botão de entregar sem nada pra corrigir.
   if (typeof j.texto === 'string' && j.texto.trim()) {
     return `
-      <button class="est-volta" data-fechar-saida>${icon('chevron', 17)} ${t('O jeito do professor')}</button>
       <header class="est-cabeca-av">
-        <h2>${escapeHtml(saida.titulo)}</h2>
         <div class="sub">${escapeHtml(
           [l ? l.nome() : saida.tipo, formatarData(saida.created_at, { day: '2-digit', month: 'short' }), quemFez(saida.modelo)]
             .filter(Boolean)
@@ -1325,9 +1528,7 @@ function desenharSaida(saida) {
   }[saida.tipo];
 
   return `
-    <button class="est-volta" data-fechar-saida>${icon('chevron', 17)} ${t('O jeito do professor')}</button>
     <header class="est-cabeca-av">
-      <h2>${escapeHtml(saida.titulo)}</h2>
       <div class="sub">${escapeHtml(
         [
           l ? l.nome() : saida.tipo,

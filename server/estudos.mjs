@@ -71,9 +71,18 @@ export function listarProfessores() {
       proximas.set(linha.professor_id, { nome: linha.nome, quando: linha.quando });
     }
   }
+  // Quantas fontes cada um tem: a lista deles mostra a contagem, e sem ela a
+  // linha do professor não diz se há material lá dentro ou se está vazio.
+  const fontes = new Map(
+    all(
+      `SELECT p.professor_id AS id, COUNT(a.id) AS n
+         FROM estudo_pastas p LEFT JOIN attachments a ON a.pasta_id = p.id
+        GROUP BY p.professor_id`
+    ).map((l) => [l.id, l.n])
+  );
   return all('SELECT * FROM professores ORDER BY created_at')
     .map(publico)
-    .map((p) => ({ ...p, proxima: proximas.get(p.id) || null }));
+    .map((p) => ({ ...p, proxima: proximas.get(p.id) || null, fontes: fontes.get(p.id) || 0 }));
 }
 
 export function acharProfessor(id) {

@@ -3842,3 +3842,524 @@ button.icon { position: relative; }
   background: color-mix(in srgb, var(--warn) 16%, transparent);
   color: var(--warn);
 }
+
+/* ==========================================================================
+   Estudos, na forma do NotebookLM.
+
+   Ele olhou a tela de três colunas que existia aqui e disse "bagunçado pra
+   porra" — e estava certo: as três colunas tinham o mesmo peso, a do meio
+   abria no meio de uma prova sem cabeçalho à vista, e nenhuma delas respondia
+   pergunta. Então esta parte é cópia declarada, medida no navegador dele em
+   notebook.google.com e não de olho:
+
+     fundo da tela      #1a1d22        painel             #22262b
+     campo de escrever  #2e3135        fio                #37383b
+     texto              #f2f2f2        texto secundário   #c7c7c7
+     barra de cima      64px           margem/vão         16px
+     colunas            270 | 1fr | 270    raio do painel  16px
+     linha de fonte     48px, raio 8   ladrilho  117×56, raio 12, rótulo 12px
+     botão de contorno  32px, raio 96, fio de 1px
+
+   O que muda é o conteúdo: notebook vira professor, fonte vira avaliação, e a
+   conversa responde com o material dele.
+   ========================================================================== */
+.nlm {
+  --nlm-fundo: #1a1d22;
+  --nlm-painel: #22262b;
+  --nlm-campo: #2e3135;
+  --nlm-fio: #37383b;
+  --nlm-txt: #f2f2f2;
+  --nlm-txt2: #c7c7c7;
+
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--nlm-fundo);
+}
+[data-theme='light'] .nlm {
+  --nlm-fundo: #f7f8fa;
+  --nlm-painel: #fff;
+  --nlm-campo: #f0f2f5;
+  --nlm-fio: #dcdfe4;
+  --nlm-txt: #1f2124;
+  --nlm-txt2: #5b6068;
+}
+
+/* Uma barra só, como a deles: a do app sai enquanto um professor está aberto,
+   senão são 128px de cabeçalho antes de qualquer conteúdo. */
+#app[data-nlm] #topbar { display: none; }
+#app[data-nlm] #view-estudos { padding: 0; }
+
+/* --- a barra de cima: 64px, sem fundo e sem fio, como a deles --- */
+.nlm-topo {
+  flex: 0 0 auto;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+.nlm-voltar, .nlm-marca {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--nlm-txt2);
+  cursor: pointer;
+}
+.nlm-voltar:hover, .nlm-marca:hover { background: var(--nlm-campo); }
+.nlm-voltar svg { transform: rotate(90deg); }
+.nlm-marca { width: 32px; height: 32px; overflow: hidden; }
+.nlm-marca img, .nlm-marca .est-ini { width: 32px; height: 32px; border-radius: 50%; font-size: 14px; }
+.nlm-titulo {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--nlm-txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nlm-sub { font-size: 13px; color: var(--nlm-txt2); white-space: nowrap; }
+.nlm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--nlm-fio);
+  border-radius: 96px;
+  background: none;
+  color: var(--nlm-txt);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.nlm-pill:hover { background: var(--nlm-campo); }
+
+/* --- três colunas: 270 | resto | 270, vão de 16, margem de 16 --- */
+.nlm-abas { display: none; }
+.nlm-cols {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr) 270px;
+  gap: 16px;
+  padding: 0 16px 22px;
+}
+.nlm-painel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 16px;
+  background: var(--nlm-painel);
+}
+.nlm-cab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 16px 8px;
+}
+.nlm-cab h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--nlm-txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nlm-x {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--nlm-txt2);
+  cursor: pointer;
+}
+.nlm-x:hover { background: var(--nlm-campo); color: var(--nlm-txt); }
+.nlm-rolo { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 16px 16px; }
+.nlm-rolo::-webkit-scrollbar { width: 8px; }
+.nlm-rolo::-webkit-scrollbar-thumb { background: var(--nlm-campo); border-radius: 8px; }
+.nlm-rot {
+  padding: 16px 4px 6px;
+  font-size: 12px;
+  color: var(--nlm-txt2);
+  letter-spacing: 0.02em;
+}
+.nlm-rot .n { opacity: 0.7; }
+.nlm-nada { margin: 8px 4px; font-size: 12.5px; line-height: 1.5; color: var(--nlm-txt2); }
+
+/* --- coluna das fontes --- */
+.nlm-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  margin-bottom: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--nlm-fio);
+  border-radius: 96px;
+  background: none;
+  color: var(--nlm-txt);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.nlm-add:hover { background: var(--nlm-campo); }
+.nlm-add.fraco { color: var(--nlm-txt2); font-size: 13px; }
+.nlm-todas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--nlm-txt2);
+}
+/* A caixa de marcar é deles: quadrada, cantos de 4px, cheia quando ligada. */
+.nlm-caixa { display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 auto; cursor: pointer; }
+.nlm-caixa input { appearance: none; position: absolute; width: 0; height: 0; opacity: 0; }
+.nlm-caixa > span {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--nlm-txt2);
+  border-radius: 4px;
+  transition: background var(--d1) var(--ease), border-color var(--d1) var(--ease);
+}
+.nlm-caixa input:checked + span {
+  background: var(--accent) no-repeat center/12px url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");
+  border-color: var(--accent);
+}
+.nlm-caixa input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.nlm-fonte {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 48px;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+.nlm-fonte:hover { background: var(--nlm-campo); }
+.nlm-fonte.sel { background: var(--nlm-campo); }
+.nlm-fonte:not(.on) { opacity: 0.5; }
+.nlm-fonte .rot {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nlm-fonte .rot .ico { display: grid; place-items: center; color: var(--nlm-txt2); flex: 0 0 auto; }
+.nlm-fonte .txt { min-width: 0; display: grid; gap: 1px; }
+.nlm-fonte .nm {
+  font-size: 14px;
+  color: var(--nlm-txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nlm-fonte .sub { font-size: 11.5px; color: var(--nlm-txt2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nlm-fonte.q-hoje .sub, .nlm-fonte.q-perto .sub { color: var(--warn); }
+.nlm-arqs { display: grid; gap: 2px; margin: 2px 0 8px; padding-left: 34px; }
+.nlm-arq {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-left: 2px solid color-mix(in srgb, var(--t) 55%, transparent);
+  font-size: 12px;
+  color: var(--nlm-txt2);
+}
+.nlm-arq .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- coluna do meio: a conversa --- */
+.nlm-corpo { padding-top: 4px; }
+.nlm-msgs { display: grid; gap: 18px; padding: 4px 0 8px; }
+.nlm-msg { display: flex; gap: 11px; }
+.nlm-msg.eu { justify-content: flex-end; }
+.nlm-msg.eu .corpo {
+  max-width: 78%;
+  padding: 10px 15px;
+  border-radius: 18px;
+  background: var(--nlm-campo);
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--nlm-txt);
+  white-space: pre-wrap;
+}
+.nlm-msg .nlm-quem {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--nlm-campo);
+  color: var(--accent);
+}
+.nlm-msg.ia .corpo { min-width: 0; font-size: 14.5px; line-height: 1.7; color: var(--nlm-txt2); }
+.nlm-msg.ia .corpo > :first-child { margin-top: 0; }
+.nlm-msg.ia .corpo h1, .nlm-msg.ia .corpo h2, .nlm-msg.ia .corpo h3 { color: var(--nlm-txt); font-size: 15px; margin: 16px 0 6px; }
+.nlm-msg.ia .corpo ul, .nlm-msg.ia .corpo ol { padding-left: 20px; }
+.nlm-msg.pendente .corpo::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  vertical-align: -2px;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: respira 1.1s ease-in-out infinite;
+}
+.nlm-vazio { padding-top: 4px; }
+
+/* O campo de escrever: 48px, raio 16, o tom do campo — medido no deles. */
+.nlm-escrever {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  margin: 0 22px 6px;
+  padding: 0 6px 0 16px;
+  border-radius: 16px;
+  background: var(--nlm-campo);
+}
+.nlm-escrever input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--nlm-txt);
+  font: inherit;
+  font-size: 14.5px;
+}
+.nlm-escrever input::placeholder { color: var(--nlm-txt2); }
+.nlm-escrever input:focus { outline: none; box-shadow: none; }
+.nlm-enviar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+.nlm-enviar:hover { filter: brightness(1.08); }
+.nlm-fontes-n { flex: 0 0 auto; margin: 0 0 12px; text-align: center; font-size: 11.5px; color: var(--nlm-txt2); }
+
+/* --- coluna do estúdio: ladrilhos dois por linha, 56px de altura --- */
+.nlm-quem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 96px;
+  background: var(--nlm-campo);
+  color: var(--nlm-txt2);
+}
+.nlm-quem select {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--nlm-txt);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 0;
+}
+.nlm-quem select:focus { outline: none; box-shadow: none; }
+.nlm-lads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+/* O par tinta/letra é o deles: o fundo é a cor bem escurecida sobre o painel,
+   e a letra é a mesma cor bem clara. Medido: fundo rgb(50,52,62) com letra
+   rgb(212,218,250) no ladrilho de áudio. */
+.nlm-lad {
+  position: relative;
+  display: grid;
+  align-content: space-between;
+  justify-items: stretch;
+  height: 56px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--t) 13%, var(--nlm-painel));
+  color: color-mix(in srgb, var(--t) 55%, #fff);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--d1) var(--ease);
+}
+.nlm-lad:hover { background: color-mix(in srgb, var(--t) 22%, var(--nlm-painel)); }
+.nlm-lad .ico { display: grid; place-items: center; justify-self: start; }
+.nlm-lad .nm {
+  width: 100%;
+  padding-right: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nlm-lad .seta { position: absolute; right: 8px; top: 50%; transform: translateY(-50%) rotate(-90deg); opacity: 0.75; }
+.nlm-lad.ocupado { opacity: 0.55; }
+
+.nlm-feito {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--nlm-txt);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nlm-feito:hover { background: var(--nlm-campo); }
+.nlm-feito .ico { display: grid; place-items: center; color: var(--t); flex: 0 0 auto; }
+.nlm-feito .rot { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; font-size: 13.5px; }
+.nlm-feito .rot, .nlm-feito .rot small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nlm-feito .rot small { font-size: 11.5px; color: var(--nlm-txt2); }
+.nlm-feito > svg { flex: 0 0 auto; color: var(--nlm-txt2); transform: rotate(-90deg); }
+
+/* --- estreito: uma coluna por vez, escolhida no segmentado --- */
+@media (max-width: 1100px) {
+  .nlm-abas { display: block; padding: 0 16px 12px; }
+  .nlm-cols { grid-template-columns: minmax(0, 1fr); }
+  .nlm-cols > .nlm-painel { display: none; }
+  .nlm-cols[data-aba='material'] > .nlm-fontes,
+  .nlm-cols[data-aba='retrato'] > .nlm-meio,
+  .nlm-cols[data-aba='estudio'] > .nlm-estudio { display: flex; }
+  .nlm-sub { display: none; }
+}
+
+/* --- a casa: a lista de professores, na forma da lista de notebooks deles ---
+   Medido no deles: fundo é a cor do painel (a casa não tem painel), conteúdo
+   centrado em ~1000px, "Criar novo" é uma pílula BRANCA de 40px, título de
+   24px peso 400, e as linhas da tabela têm 52px sem fio nenhum entre elas. */
+.nlm-casa { background: var(--nlm-painel); }
+.nlm-casa-topo { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 24px; }
+.nlm-busca {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 100px;
+  background: var(--nlm-campo);
+  color: var(--nlm-txt2);
+}
+.nlm-busca input { width: 200px; border: 0; background: none; color: var(--nlm-txt); font: inherit; font-size: 14px; }
+.nlm-busca input:focus { outline: none; box-shadow: none; }
+.nlm-busca input::-webkit-search-cancel-button { filter: invert(0.6); }
+.nlm-ordem {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--nlm-fio);
+  border-radius: 100px;
+  background: none;
+  color: var(--nlm-txt);
+  font: inherit;
+  font-size: 14px;
+}
+@media (max-width: 640px) { .nlm-busca input { width: 110px; } .nlm-ordem { display: none; } }
+.nlm-criar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 100px;
+  background: var(--nlm-txt);
+  color: var(--nlm-painel);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.nlm-criar:hover { filter: brightness(0.92); }
+.nlm-casa-rolo { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 24px 48px; }
+.nlm-casa-meio { max-width: 1000px; margin: 0 auto; }
+.nlm-casa-meio h1 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--nlm-txt);
+}
+.nlm-tab { width: 100%; border-collapse: collapse; }
+.nlm-tab th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--nlm-fio);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--nlm-txt2);
+  text-align: left;
+}
+.nlm-tab td { padding: 8px 12px; font-size: 14px; color: var(--nlm-txt2); }
+.nlm-tab tbody tr { height: 52px; cursor: pointer; }
+.nlm-tab tbody tr:hover { background: var(--nlm-campo); }
+.nlm-tab tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.nlm-tab tbody tr td:first-child { border-radius: 12px 0 0 12px; }
+.nlm-tab tbody tr td:last-child { border-radius: 0 12px 12px 0; }
+.nlm-tab .nome { display: flex; align-items: center; gap: 12px; }
+.nlm-tab .nome b { display: block; font-size: 14px; font-weight: 500; color: var(--nlm-txt); }
+.nlm-tab .nome small { font-size: 12px; color: var(--nlm-txt2); }
+.nlm-tab .nome img, .nlm-tab .nome .est-ini { width: 28px; height: 28px; border-radius: 50%; font-size: 12px; flex: 0 0 auto; }
+.nlm-tab .col-n { width: 110px; white-space: nowrap; }
+.nlm-tab .col-q { width: 260px; }
+.nlm-tab .col-s { width: 120px; white-space: nowrap; }
+.nlm-tab .col-q.q-hoje, .nlm-tab .col-q.q-perto { color: var(--warn); }
+.nlm-tab .fraco { opacity: 0.55; }
+.nlm-ok { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); }
+@media (max-width: 760px) {
+  .nlm-tab .col-n, .nlm-tab .col-s { display: none; }
+  .nlm-tab .col-q { width: auto; font-size: 12.5px; }
+  .nlm-casa-rolo { padding: 12px 16px 40px; }
+}
+
+/* O que abre na coluna do meio é a coluna do meio: a folha de prova, o resumo
+   e a pasta traziam a própria caixa e viravam caixa dentro de caixa, com dois
+   raios e dois fundos a 20px de distância um do outro. */
+.nlm .prova-folha { max-width: none; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+.nlm .prova-barra { background: linear-gradient(var(--nlm-painel) 76%, transparent); }
+.nlm .est-cabeca-av { margin: 0; }
+.nlm .est-cabeca-av .acoes { margin-left: auto; }
+.nlm .est-saida { margin-top: 12px; }
+.nlm .est-caixa, .nlm .est-proxima { background: var(--nlm-campo); border-color: transparent; }
+.nlm .prova-alt:hover, .nlm .prova-q .prova-resp { background: var(--nlm-campo); }
+.nlm .prova-resp { border-color: var(--nlm-fio); }
+.nlm .prova-n, .nlm .prova-placar, .nlm .prova-conf { background: var(--nlm-campo); }

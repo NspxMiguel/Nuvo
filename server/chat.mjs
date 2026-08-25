@@ -10,6 +10,7 @@ import { adapterFor, contextFor, exigirLigado, getProvider, parseRef, withStallT
 import { loadConfig } from './config.mjs';
 import { recall, renderForPrompt, learnFromExchange } from './memory.mjs';
 import { caminhoNoDisco, listAttachments, renderDocuments } from './documents.mjs';
+import { pastasDo } from './estudos.mjs';
 import { searchAndRead, renderWebBlock } from './web.mjs';
 import { escolherModelosDoAgente, navegarComAgente } from './agente-web.mjs';
 import { acharNavegador } from './navegador.mjs';
@@ -55,15 +56,16 @@ function modelosDisponiveisParaOAgente() {
   }));
 }
 
-export function createChat({ title, projectId = null, gemId = null, mode = 'chat', model = null }) {
+export function createChat({ title, projectId = null, professorId = null, gemId = null, mode = 'chat', model = null }) {
   const id = uid();
   const stamp = now();
   run(
-    `INSERT INTO chats (id, title, project_id, gem_id, mode, model, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO chats (id, title, project_id, professor_id, gem_id, mode, model, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     title || 'Nova conversa',
     projectId,
+    professorId,
     gemId,
     mode,
     model,
@@ -247,7 +249,13 @@ export async function* runTurn({
     // que é justamente o que a conversa anônima não deixa pra trás.
     const docs = anon
       ? { block: '', used: [] }
-      : await renderDocuments(userContent, { chatId, projectId: chat.project_id });
+      : await renderDocuments(userContent, {
+          chatId,
+          projectId: chat.project_id,
+          // Conversa de professor responde com o material dele: é a coluna do
+          // meio da tela de Estudos, entre as fontes e o estúdio.
+          pastaIds: chat.professor_id ? pastasDo(chat.professor_id).map((p) => p.id) : null
+        });
     docBlock = docs.block;
     if (docs.used.length) yield { type: 'docs-used', items: docs.used };
   } catch (err) {

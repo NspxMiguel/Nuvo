@@ -74,6 +74,11 @@ TELAS = {
     # os três passos no meio. O retrato exige uma sessão de modelo e ficaria
     # diferente a cada captura.
     'tela-estudos': {'view': 'estudos', 'espera': '.est-passos li', 'roteiro': 'estudos'},
+    # A folha de prova. Esta precisa de IA de verdade, como as quatro de cima:
+    # é o simulado saindo do material, e escrever as questões à mão seria
+    # anunciar uma prova que o app não escreveu. O material é o mesmo de
+    # mentira do `roteiro_estudos`, então nada de ninguém vai pro site.
+    'tela-prova': {'view': 'estudos', 'espera': '.prova-folha .prova-q', 'roteiro': 'estudos'},
 }
 
 # Títulos de conversa que aparecem na barra lateral. São de mentira, e é de
@@ -441,13 +446,26 @@ def capturar(quais):
                             # dentro de um professor, que é onde o material está.
                             pg.wait_for_selector('.est-prof, [data-prof]', timeout=20_000)
                             pg.click('.est-prof, [data-prof]')
+                        if nome == 'tela-prova':
+                            # A prova que vem tem o botão; o simulado sai dela e
+                            # fica arquivado nela. Uma geração leva minutos, e é
+                            # por isso que o prazo desta tela é o de sessão.
+                            pg.wait_for_selector('.est-proxima-btn[data-gerar=simulado]', timeout=30_000)
+                            pg.click('.est-proxima-btn[data-gerar=simulado]')
+                            pg.wait_for_selector('[data-saida]', timeout=600_000)
+                            pg.wait_for_timeout(2000)
+                            # Terminar de gerar já abre a folha. Clicar na saída
+                            # aqui ALTERNA — fechava justamente a tela da foto.
+                            if not pg.query_selector('.prova-folha'):
+                                pg.click('[data-saida]')
+                                pg.wait_for_timeout(1200)
                         if tela.get('roteiro') == 'programar':
                             # O passo a passo mora na aba Trabalho, que não é a
                             # que abre por padrão.
                             pg.wait_for_selector("[data-aba='trabalho']", timeout=20_000)
                             pg.click("[data-aba='trabalho']")
                         pg.wait_for_selector(
-                            tela['espera'], timeout=300_000 if tela.get('roteiro') else 20_000)
+                            tela['espera'], timeout=600_000 if tela.get('roteiro') else 20_000)
                         # A roseta abre em 700 ms e o brilho do rodapé entra
                         # depois: bater antes pega a marca pela metade.
                         pg.wait_for_timeout(2500)
