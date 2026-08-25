@@ -657,3 +657,37 @@ test('informação não é apagada com opacidade', () => {
   // E a alternativa já respondida continua legível: ela está travada, não fora.
   assert.match(css, /\.quiz-alt:disabled \{ opacity: 1;/, 'a questão respondida não desbota');
 });
+
+test('as abas do estreito cumprem o que o role promete', () => {
+  // `role="tab"` faz o leitor de tela anunciar "aba 1 de 3" e a pessoa apertar
+  // a seta. Sem `aria-controls`, sem painel com `role="tabpanel"` e sem as
+  // setas ligadas, o anúncio era mentira: as setas não faziam nada e nenhuma
+  // aba dizia qual painel ela comanda.
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /aria-controls="nlm-painel-\$\{k\}"/, 'a aba aponta pro painel');
+  assert.match(v, /role="tabpanel" aria-labelledby="nlm-aba-material"/, 'e o painel se declara');
+  assert.match(v, /tabindex="\$\{aqui\.regiao === k \? '0' : '-1'\}"/, 'tabindex móvel: só a escolhida no Tab');
+  const teclas = v.slice(v.indexOf('b.onkeydown = (ev) => {'), v.indexOf('alvo.click();'));
+  assert.match(teclas, /ArrowRight/, 'seta anda entre as abas');
+  assert.match(teclas, /'Home'/, 'Home e End vão pras pontas');
+  // Trocar de aba redesenha tudo: sem devolver o foco depois, o teclado se
+  // perde no body — é o mesmo defeito que a busca de professor teve.
+  assert.match(v, /if \(aqui\.focarAba\)/, 'o foco volta pra aba depois da repintura');
+});
+
+test('a prova impressa é branca com tinta preta, marcado ou não o fundo', () => {
+  // Quem imprime pode ter "gráficos de plano de fundo" marcado. Com o tema
+  // escuro na tela, isso levava o preto do app pro papel — e a folha saía preta
+  // com a letra #000 que este bloco já define: uma prova ilegível. O papel não
+  // tem tema, então a impressão declara o branco e o `color-scheme` claro em
+  // vez de contar com o padrão da caixa de impressão.
+  const css = ler('web/styles.css');
+  const bloco = css.slice(css.indexOf('@media print {\n  @page { margin: 16mm 15mm; }'));
+  assert.match(bloco, /html, body \{ background: #fff !important; \}/, 'papel branco');
+  assert.match(bloco, /:root \{ color-scheme: light !important; \}/, 'e sem tema escuro no papel');
+  assert.match(bloco, /\.imprimindo-prova \* \{ background: none !important;/, 'nenhum fundo chapado sobra');
+  // O gabarito é o que se imprime pra LER: o texto dele não pode sair cinza
+  // claro, que é o que `--text-2` vale no tema escuro.
+  assert.match(bloco, /\.imprimindo-prova \.prova-conf p \} ?|\.imprimindo-prova \.prova-conf,\n  \.imprimindo-prova \.prova-conf p \{ color: #000; \}/,
+    'a resposta esperada sai em preto');
+});

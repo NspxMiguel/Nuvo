@@ -27,6 +27,8 @@ const aqui = {
   saidaAberta: null,
   revisando: false,
   cartao: 0,
+  /** Devolver o foco pra aba depois da repintura. Ver `ligarProfessor`. */
+  focarAba: false,
   /** A IA escolhida no estúdio. Guardada aqui porque a tela é redesenhada a cada
    *  ação, e sem isto o seletor voltava sozinho pro padrão depois de gerar. */
   modelo: null,
@@ -562,9 +564,15 @@ async function telaDoProfessor(el, ctx) {
         ]
           .map(
             ([k, r]) =>
-              `<button type="button" role="tab" data-regiao="${k}" class="${
-                aqui.regiao === k ? 'sel' : ''
-              }" aria-selected="${aqui.regiao === k}">${escapeHtml(r)}</button>`
+              // `role="tab"` cobrava o resto do contrato e não entregava: o
+              // leitor de tela anunciava "aba 1 de 3", a pessoa apertava a seta
+              // e nada acontecia, e nenhuma aba dizia qual painel ela comanda.
+              // Com `aria-controls`, tabindex móvel e as setas ligadas, o que
+              // ele anuncia passa a ser verdade.
+              `<button type="button" role="tab" id="nlm-aba-${k}" data-regiao="${k}"
+                aria-controls="nlm-painel-${k}" tabindex="${aqui.regiao === k ? '0' : '-1'}"
+                class="${aqui.regiao === k ? 'sel' : ''}"
+                aria-selected="${aqui.regiao === k}">${escapeHtml(r)}</button>`
           )
           .join('')}
       </div>
@@ -572,7 +580,8 @@ async function telaDoProfessor(el, ctx) {
 
     <div class="nlm-cols" data-aba="${aqui.regiao}" data-recolhido="${[...aqui.recolhidas].join(' ')}">
       <!-- Fontes -->
-      <section class="nlm-painel nlm-fontes">
+      <section class="nlm-painel nlm-fontes" id="nlm-painel-material"
+        role="tabpanel" aria-labelledby="nlm-aba-material">
         <header class="nlm-cab">
           <h2>${t('Fontes')}</h2>
           <button class="nlm-encolhe" data-encolhe="fontes" title="${t('recolher')}"
@@ -608,7 +617,8 @@ async function telaDoProfessor(el, ctx) {
       </section>
 
       <!-- Conversa (ou o que estiver aberto por cima dela) -->
-      <section class="nlm-painel nlm-meio">
+      <section class="nlm-painel nlm-meio" id="nlm-painel-conversa"
+        role="tabpanel" aria-labelledby="nlm-aba-conversa">
         <header class="nlm-cab">
           <h2>${meioTitulo}</h2>
           ${
@@ -637,7 +647,8 @@ async function telaDoProfessor(el, ctx) {
       </section>
 
       <!-- Estúdio -->
-      <section class="nlm-painel nlm-estudio">
+      <section class="nlm-painel nlm-estudio" id="nlm-painel-estudio"
+        role="tabpanel" aria-labelledby="nlm-aba-estudio">
         <header class="nlm-cab">
           <h2>${t('Estúdio')}</h2>
           <button class="nlm-encolhe" data-encolhe="estudio" title="${t('recolher')}"
@@ -1272,10 +1283,36 @@ function ligarProfessor(el, prof, saidas, ctx) {
   const q = (s) => el.querySelector(s);
   const repintar = () => ctx.switchView('estudos');
 
-  for (const b of el.querySelectorAll('[data-regiao]')) {
+  const abas = [...el.querySelectorAll('[data-regiao]')];
+  // Trocar de aba redesenha a tela inteira, e o foco morre junto com o botão
+  // antigo. Quem chegou aqui pelo teclado ficaria sem lugar nenhum: a marca é
+  // posta antes da repintura e cobrada aqui, que é depois do DOM existir.
+  if (aqui.focarAba) {
+    aqui.focarAba = false;
+    abas.find((b) => b.dataset.regiao === aqui.regiao)?.focus();
+  }
+  for (const [i, b] of abas.entries()) {
     b.onclick = () => {
       aqui.regiao = b.dataset.regiao;
       repintar();
+    };
+    // Seta anda entre as abas e Home/End vão pras pontas, que é o que o
+    // `role="tablist"` faz o leitor de tela prometer. A repintura devolve o
+    // foco pra aba escolhida porque ela nasce com `tabindex="0"` e as outras
+    // com -1 — sem isso o Tab passaria por todas as três.
+    b.onkeydown = (ev) => {
+      const passo = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[ev.key];
+      const alvo = passo
+        ? abas[(i + passo + abas.length) % abas.length]
+        : ev.key === 'Home'
+          ? abas[0]
+          : ev.key === 'End'
+            ? abas[abas.length - 1]
+            : null;
+      if (!alvo) return;
+      ev.preventDefault();
+      aqui.focarAba = true;
+      alvo.click();
     };
   }
   q('#est-trocar').onclick = () => {

@@ -2185,6 +2185,22 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
 @media print {
   @page { margin: 16mm 15mm; }
 
+  /* Papel é branco, e quem imprime pode ter marcado "gráficos de plano de
+     fundo" — aí o preto do tema escuro ia junto e a prova saía preta sobre
+     preta, com a letra #000 que este bloco já define. A folha declara o branco
+     dela em vez de contar com o padrão da caixa de impressão. */
+  html, body { background: #fff !important; }
+  /* E o papel não tem tema: `color-scheme: dark` faz o navegador pintar a tela
+     da página de preto antes de qualquer fundo nosso, e isso ia pra folha. */
+  :root { color-scheme: light !important; }
+
+  /* E nenhum fundo chapado sobrevive à folha: com "gráficos de plano de fundo"
+     marcado, o cinza do app virava tinta preta — a moldura em volta da folha, e
+     a bolinha do número da questão, que engolia o próprio número. O que desenha
+     nesta folha é traço e letra, que é o que uma prova de escola é. */
+  .imprimindo-prova * { background: none !important; box-shadow: none !important; }
+  .imprimindo-prova .prova-folha { background: #fff !important; }
+
   .imprimindo-prova .prova-folha,
   .imprimindo-prova .prova-folha * { visibility: visible; }
   .imprimindo-prova .prova-folha {
@@ -2229,7 +2245,12 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   .imprimindo-prova .prova-so-gabarito .meta { color: #666; }
   .imprimindo-prova .prova-q-topo { flex-wrap: wrap; }
   .imprimindo-prova .prova-correcao,
-  .imprimindo-prova .prova-conf { color: #000; }
+  /* O rótulo e o texto da caixa têm cor própria (`--muted` e `--text-2`), que
+     no tema escuro são cinzas claros: a resposta esperada saía quase branca no
+     papel do gabarito — justo o que se imprime pra ler. */
+  .imprimindo-prova .prova-conf,
+  .imprimindo-prova .prova-conf p { color: #000; }
+  .imprimindo-prova .prova-conf b { color: #444; }
   .imprimindo-prova .prova-conf { background: none; border: 1px solid #bbb; }
   .imprimindo-prova .prova-eu { display: none !important; }
   .imprimindo-prova .prova-correcao .meta { background: none; color: #444; padding-left: 0; }
