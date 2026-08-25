@@ -230,6 +230,17 @@ política dele — o sinalizador não muda isso.
 Um professor por vez. Dentro dele, as avaliações passadas e o material de aula —
 e a diferença entre os dois é o produto.
 
+**A tela é a do NotebookLM, copiada de propósito e medida no navegador**: barra
+de 64px, colunas de 270 | resto | 270 com vão de 16, painel de raio 16 sobre
+`#22262b`, linha de fonte de 48px, ladrilho de 56px com rótulo de 12px. Fontes à
+esquerda, **conversa no meio**, estúdio à direita. A conversa responde com o
+material daquele professor e cita o arquivo de onde tirou — é o que dá sentido
+às outras duas colunas. As laterais recolhem pra 56px quando a resposta precisa
+de espaço.
+
+O que a cópia literal jogaria fora ficou: a fonte fechada continua dizendo
+quantos arquivos são a prova, o que a prova cobrou e o que só foi dado em aula.
+
 Cada arquivo tem um papel, e a tela diz qual em todo lugar em que ele aparece:
 
 | Papel | O que é |

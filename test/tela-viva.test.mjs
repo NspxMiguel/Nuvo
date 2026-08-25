@@ -236,7 +236,7 @@ test('a animação de entrada é pra chegar na tela, não pra cada clique', () =
   assert.match(app, /if \(!chegando\) return;/, 'e só anima ao chegar');
   const css = ler('web/styles.css');
   assert.match(css, /#messages\.sem-entrada \.msg/, 'histórico não sobe junto');
-  assert.match(css, /\.view\.entra \.est-mid \{ animation: sobe/, 'Estudos chega escalonado como os painéis');
+  assert.match(css, /\.view\.entra \.nlm-meio \{ animation: sobe/, 'Estudos chega escalonado como os painéis');
 });
 
 test('a avaliação diz se já foi, e o resumo fica onde a pessoa está olhando', () => {

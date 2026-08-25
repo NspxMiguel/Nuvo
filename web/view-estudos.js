@@ -456,7 +456,9 @@ async function telaDoProfessor(el, ctx) {
   el.className = 'view';
   if (aqui.revisando && cartoes.cartoes.length) {
     if (!aqui.totalDaRodada) aqui.totalDaRodada = cartoes.cartoes.length;
-    el.innerHTML = `<div class="est">${telaDeRevisar(prof, cartoes)}</div>`;
+    // A revisão é parte do Estudos: sem a mesma paleta ela abria em preto puro
+    // no meio de uma tela cinza-azulada, e parecia outro app.
+    el.innerHTML = `<div class="nlm nlm-revisar">${telaDeRevisar(prof, cartoes)}</div>`;
     return ligarRevisao(el, prof, cartoes, ctx);
   }
 
