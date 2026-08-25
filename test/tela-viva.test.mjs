@@ -606,3 +606,54 @@ test('a busca de professor filtra sem repintar, e por isso não perde o cursor',
   const lista = v.slice(v.indexOf('async function telaDaLista'), v.indexOf('const campoBusca ='));
   assert.doesNotMatch(lista, /\.filter\(\(p\) => !busca/, 'o desenho não filtra também');
 });
+
+test('a rodada de revisão é congelada, senão ela acaba na metade', () => {
+  // A fila encolhe a cada resposta — o cartão respondido sai de "vence hoje".
+  // Comparar o contador que sobe com o tamanho da fila que desce fazia as duas
+  // se cruzarem no meio: com 6 cartões a revisão terminava sozinha depois de 3,
+  // e o professor voltava pra tela dizendo "Revisar 3" sem ninguém entender.
+  const v = ler('web/view-estudos.js');
+  const laco = v.slice(v.indexOf('const responder = async (nota)'), v.indexOf("q('[data-sair-rev]')"));
+  assert.match(laco, /aqui\.cartao >= aqui\.rodada\.length/, 'o fim é o tamanho da rodada');
+  assert.doesNotMatch(laco, /fila\.cartoes\.length/, 'e nunca o tamanho da fila viva');
+  // Errado volta nesta mesma rodada: é o que o rótulo "volta hoje" promete.
+  assert.match(laco, /if \(nota <= 2\)[\s\S]{0,120}aqui\.rodada\.push/, 'errado volta pro fim da rodada');
+  // E a rodada nasce de uma cópia, não da referência que o próximo fetch troca.
+  assert.match(v, /aqui\.rodada = cartoes\.cartoes\.slice\(\)/, 'a rodada é uma cópia congelada');
+});
+
+test('a cor que enche botão é outra da que vira texto', () => {
+  // `--accent` faz dois trabalhos que puxam pra lados opostos: como texto sobre
+  // o preto ela quer ser clara, como fundo de botão com letra branca em cima
+  // ela quer ser escura. Com uma cor só, o botão mais clicado do app ficava em
+  // 3.77:1 — abaixo do mínimo. Quem enche superfície é `--accent-cheio`.
+  const css = ler('web/styles.css');
+  const cheios = css.match(/background: var\(--accent\);[\s\S]{0,80}?color: var\(--on-accent\)/g) || [];
+  assert.equal(cheios.length, 0, 'nenhum preenchimento usa --accent com --on-accent em cima');
+  assert.match(css, /--accent-cheio: #2f6ae6/, 'o tema escuro tem a cor de preenchimento própria');
+});
+
+test('a letra em cima de uma tinta acompanha o tema', () => {
+  // As tintas invertem entre os temas: claras no escuro, escuras no claro. Uma
+  // letra preta fixa passava no escuro e dava 3.71:1 no claro — a inicial do
+  // professor sumia dentro do círculo.
+  const css = ler('web/styles.css');
+  assert.match(css, /--sobre-tinta: #000;/, 'preta no tema escuro');
+  assert.match(css, /--sobre-tinta: #fff;/, 'branca no tema claro');
+  const foto = css.slice(css.indexOf('.est-foto {'), css.indexOf('.est-foto {') + 400);
+  assert.match(foto, /color: var\(--sobre-tinta\)/, 'e a inicial do professor usa o par');
+});
+
+test('informação não é apagada com opacidade', () => {
+  // Opacidade não muda `color`, então o contraste calculado no papel continua
+  // ótimo enquanto o texto some na tela. Quatro lugares diziam coisa que a
+  // pessoa precisa ler — "nenhuma marcada", "ainda não", o contador da aba da
+  // loja e o do estúdio — e estavam entre 2.4:1 e 3.8:1 por causa disso. Quem
+  // separa informação secundária aqui é a cor e o tamanho, não o desbotado.
+  const css = ler('web/styles.css');
+  assert.match(css, /\.nlm-tab \.fraco \{ color: var\(--nlm-txt2\); \}/, 'a coluna fraca usa cor');
+  assert.doesNotMatch(css, /\.loja-aba small \{[^}]*opacity: 0\.7/, 'o contador da loja não é apagado');
+  assert.doesNotMatch(css, /\.nlm-rot \.n \{ opacity/, 'nem o contador do estúdio');
+  // E a alternativa já respondida continua legível: ela está travada, não fora.
+  assert.match(css, /\.quiz-alt:disabled \{ opacity: 1;/, 'a questão respondida não desbota');
+});

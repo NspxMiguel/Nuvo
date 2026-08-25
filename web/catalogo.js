@@ -52,7 +52,13 @@ function linha(m) {
   return `<div class="cat-linha" data-id="${escapeHtml(m.id)}">
       <div class="cat-txt">
         <div class="cat-nome">${escapeHtml(m.nome_legivel || m.id)}</div>
-        <div class="cat-meta">${escapeHtml(m.id)} · ${baixadas(m.downloads)}</div>
+        <!-- O id é cortado por reticências de propósito (ver .cat-meta no CSS), e
+             sem o title ele ficava ilegível: em 390px sobrava
+             "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGU…" e o repositório de
+             verdade não aparecia em lugar nenhum da tela. -->
+        <div class="cat-meta" title="${escapeHtml(m.id)}">${escapeHtml(m.id)} · ${baixadas(
+    m.downloads
+  )}</div>
       </div>
       <div class="cat-tam" aria-live="polite"></div>
       <button class="ghost" type="button" data-baixar>${icon('download', 16)} ${t('Baixar')}</button>

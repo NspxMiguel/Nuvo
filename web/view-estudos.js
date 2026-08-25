@@ -30,8 +30,8 @@ const aqui = {
   /** A IA escolhida no estúdio. Guardada aqui porque a tela é redesenhada a cada
    *  ação, e sem isto o seletor voltava sozinho pro padrão depois de gerar. */
   modelo: null,
-  /** Quantos cartões a rodada tinha quando começou. Ver a explicação no contador. */
-  totalDaRodada: 0,
+  /** Os cartões desta rodada, congelados quando ela começa. Ver `telaDeRevisar`. */
+  rodada: [],
   /** Fontes desmarcadas. Guardar o que está FORA deixa o padrão ser "tudo entra". */
   fora: new Set(),
   /** Busca e ordem da lista de professores — a barra da casa deles. */
@@ -185,9 +185,14 @@ const ORGANIZACOES = [
     ]
   },
   {
+    // O `id` continua 'etiquetas' porque é o que já está gravado no banco de
+    // quem usa o app — o nome na tela é que estava prometendo etiqueta por
+    // arquivo, e isso não existe em lugar nenhum: quem escolhia essa opção
+    // ganhava duas pastas e nenhum lugar pra marcar coisa alguma. O rótulo
+    // agora diz o que ela faz de verdade.
     id: 'etiquetas',
-    nome: () => t('Tudo junto, com etiquetas'),
-    dica: () => t('Um monte só, e você marca cada arquivo depois.'),
+    nome: () => t('Tudo num monte só'),
+    dica: () => t('Uma pasta de prova e uma de aula. Você separa depois, se quiser.'),
     semear: () => [
       { nome: t('Provas'), tipo: 'prova' },
       { nome: t('Material da aula'), tipo: 'material' }
@@ -389,6 +394,10 @@ async function telaDaLista(el, ctx) {
       aqui.regiao = 'conversa';
       aqui.pastaAberta = null;
       aqui.saidaAberta = null;
+      // A rodada de revisão é de um professor só: sair pro menu no meio dela e
+      // entrar em outro professor abriria os cartões do primeiro.
+      aqui.revisando = false;
+      aqui.rodada = [];
       aqui.fora.clear();
       ctx.switchView('estudos');
     };
@@ -480,12 +489,23 @@ async function telaDoProfessor(el, ctx) {
   // empilhadas antes de qualquer conteúdo.
   document.querySelector('#app')?.setAttribute('data-nlm', '1');
   el.className = 'view';
-  if (aqui.revisando && cartoes.cartoes.length) {
-    if (!aqui.totalDaRodada) aqui.totalDaRodada = cartoes.cartoes.length;
+  if (aqui.revisando && (aqui.rodada.length || cartoes.cartoes.length)) {
+    // A rodada é congelada quando começa, e não é a fila viva.
+    //
+    // A fila encolhe a cada resposta — o cartão respondido sai de "vence hoje".
+    // O fim da rodada era `aqui.cartao >= fila.cartoes.length`: um contador que
+    // sobe comparado com um total que desce. Eles se cruzavam no meio, e a
+    // revisão terminava sozinha com metade dos cartões por fazer — com três
+    // cartões só dois eram revisados, com doze só seis.
+    if (!aqui.rodada.length) aqui.rodada = cartoes.cartoes.slice();
+    // O texto do cartão não muda, mas a previsão de intervalo muda a cada
+    // resposta: quem ainda está na fila entra com os números novos.
+    const porId = new Map(cartoes.cartoes.map((c) => [c.id, c]));
+    const rodada = aqui.rodada.map((c) => porId.get(c.id) || c);
     // A revisão é parte do Estudos: sem a mesma paleta ela abria em preto puro
     // no meio de uma tela cinza-azulada, e parecia outro app.
-    el.innerHTML = `<div class="nlm nlm-revisar">${telaDeRevisar(prof, cartoes)}</div>`;
-    return ligarRevisao(el, prof, cartoes, ctx);
+    el.innerHTML = `<div class="nlm nlm-revisar">${telaDeRevisar(prof, rodada)}</div>`;
+    return ligarRevisao(el, prof, rodada, ctx);
   }
 
   const provas = prof.pastas.filter((p) => p.tipo === 'prova' && !p.anterior).sort(porUrgencia);
@@ -1142,8 +1162,8 @@ function avaliacaoAberta(prof, pasta) {
 
 // ------------------------------------------------------------- revisar
 
-function telaDeRevisar(prof, fila) {
-  const cartao = fila.cartoes[aqui.cartao % fila.cartoes.length];
+function telaDeRevisar(prof, rodada) {
+  const cartao = rodada[aqui.cartao];
   const notas = [
     { valor: 1, nome: () => t('Errei'), id: 'denovo', cls: 'dura' },
     { valor: 2, nome: () => t('Difícil'), id: 'dificil', cls: '' },
@@ -1158,11 +1178,12 @@ function telaDeRevisar(prof, fila) {
 
   return `<div class="est-revisar">
     <div class="est-passo">${t('cartão {n} de {total}', {
-      // O total é o da fila em que esta rodada começou, e não o que sobra agora:
-      // com os dois andando ao mesmo tempo, o contador mostrava "4 de 12" e
-      // depois "5 de 9" — o numerador subindo enquanto o denominador encolhia.
+      // O total é o da rodada congelada, e não o que sobra na fila: com os dois
+      // andando ao mesmo tempo, o contador mostrava "4 de 12" e depois "5 de 9"
+      // — o numerador subindo enquanto o denominador encolhia. Ele só cresce
+      // quando um cartão errado volta pro fim da rodada, que é o combinado.
       n: formatarNumero(aqui.cartao + 1),
-      total: formatarNumero(aqui.totalDaRodada || fila.cartoes.length)
+      total: formatarNumero(rodada.length)
     })}${prof.materia ? ` · ${escapeHtml(prof.materia)}` : ''}</div>
     <div class="est-cartao" data-cartao="${escapeHtml(cartao.id)}">
       <div class="frente">${escapeHtml(cartao.frente)}</div>
@@ -1184,7 +1205,7 @@ function telaDeRevisar(prof, fila) {
   </div>`;
 }
 
-function ligarRevisao(el, prof, fila, ctx) {
+function ligarRevisao(el, prof, rodada, ctx) {
   const q = (s) => el.querySelector(s);
   const mostrar = () => {
     q('.verso').hidden = false;
@@ -1203,10 +1224,17 @@ function ligarRevisao(el, prof, fila, ctx) {
     } catch (err) {
       toast(err.message || t('não deu pra gravar a revisão'), 'err');
     }
+    // "Errei" e "Difícil" dizem "volta hoje" embaixo do botão, e é isso que o
+    // cartão faz: volta pro fim desta mesma rodada em vez de sumir até amanhã.
+    // Sem isso a promessa do botão só se cumpria no dia seguinte.
+    if (nota <= 2) {
+      const errado = rodada[aqui.cartao];
+      if (errado) aqui.rodada.push(errado);
+    }
     aqui.cartao += 1;
-    if (aqui.cartao >= aqui.totalDaRodada || aqui.cartao >= fila.cartoes.length) {
+    if (aqui.cartao >= aqui.rodada.length) {
       aqui.cartao = 0;
-      aqui.totalDaRodada = 0;
+      aqui.rodada = [];
       aqui.revisando = false;
       toast(t('Por hoje acabou'), 'ok');
     }
@@ -1216,7 +1244,7 @@ function ligarRevisao(el, prof, fila, ctx) {
   q('[data-sair-rev]').onclick = () => {
     aqui.revisando = false;
     aqui.cartao = 0;
-    aqui.totalDaRodada = 0;
+    aqui.rodada = [];
     ctx.switchView('estudos');
   };
   // Espaço mostra, número responde: cem cartões não se faz com o mouse.
@@ -1254,12 +1282,14 @@ function ligarProfessor(el, prof, saidas, ctx) {
     aqui.professorId = null;
     aqui.pastaAberta = null;
     aqui.saidaAberta = null;
+    aqui.revisando = false;
+    aqui.rodada = [];
     repintar();
   };
   q('#est-revisar')?.addEventListener('click', () => {
     aqui.revisando = true;
     aqui.cartao = 0;
-    aqui.totalDaRodada = 0;
+    aqui.rodada = [];
     repintar();
   });
   q('#est-foto').onclick = () => escolherFoto(prof, ctx);
@@ -1573,6 +1603,13 @@ function desenharSaida(saida) {
     slides: () => desenharSlides(j)
   }[saida.tipo];
 
+  // Uma saída guardada que o desenho de hoje não sabe ler abria um quadro em
+  // branco: título, botão de apagar e nada no meio. Acontece quando o molde
+  // muda e a saída é de antes — e ficar calado faz parecer defeito da máquina
+  // dele. Melhor dizer que o resultado está lá e não dá mais pra desenhar.
+  const corpo = desenhar ? desenhar() : '';
+  const vazio = !corpo || !corpo.trim();
+
   return `
     <header class="est-cabeca-av">
       <div class="sub">${escapeHtml(
@@ -1590,7 +1627,13 @@ function desenharSaida(saida) {
       </div>
     </header>
     <div class="est-saida">
-      ${desenhar ? desenhar() : ''}
+      ${
+        vazio
+          ? `<p class="est-nada">${t(
+              'Este resultado foi guardado num formato que esta versão não sabe mais desenhar. Gere de novo pra ver o conteúdo.'
+            )}</p>`
+          : corpo
+      }
       ${faltouEmHtml(j.faltou)}
     </div>`;
 }

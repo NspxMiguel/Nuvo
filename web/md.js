@@ -5,6 +5,11 @@
 import { t } from './i18n.js';
 
 export function escapeHtml(text) {
+  // Nada vira nada. `String(undefined)` devolve a palavra "undefined", e ela
+  // chegava na tela como se fosse conteúdo: um campo que faltou no JSON de uma
+  // saída aparecia escrito "undefined" no lugar do enunciado da questão, com
+  // cara de texto e não de defeito.
+  if (text === null || text === undefined) return '';
   return String(text).replace(
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]

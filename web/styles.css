@@ -14,6 +14,14 @@
   --text-2: #d7d7dc;
   --muted: #8e8e96;
   --accent: #3d7dff;
+  /* Duas tarefas puxam a mesma cor pra lados opostos: como texto sobre o preto
+     ela quer ser clara (#3d7dff dá 5.04:1), e como fundo de botão com letra
+     branca em cima ela quer ser escura — e aí o mesmo #3d7dff dava só 3.77:1,
+     abaixo do mínimo, justamente no botão mais clicado do app. Uma cor não
+     resolve as duas: `--accent` continua sendo a do texto e `--accent-cheio`
+     é a do preenchimento, 4.86:1 sob o branco. No tema claro e no anônimo as
+     duas são a mesma, porque lá o par já passa. */
+  --accent-cheio: #2f6ae6;
   --accent-soft: #3d7dff26;
   --accent-line: #3d7dff66;
   --on-accent: #fff;
@@ -22,6 +30,11 @@
   --warn: #ffc44d;
 
   /* as 5 vozes do sinal, e os rótulos de gem/projeto */
+  /* A letra que fica EM CIMA de uma tinta. No escuro as tintas são claras, e o
+     preto passa em todas (6.8:1 na pior, o indigo); no claro elas são escuras e
+     quem passa é o branco. Sem este par a inicial do professor saía preta sobre
+     indigo escuro no tema claro: 3.71:1, ilegível. */
+  --sobre-tinta: #000;
   --indigo: #6b8cff;
   --teal: #3fd6c0;
   --amber: #ffb84d;
@@ -89,8 +102,9 @@
   --glass-luz: inset 0 1px 0 rgba(255, 255, 255, 0.6);
   --text: #000;
   --text-2: #303036;
-  --muted: #71717a;
+  --muted: #666670;   /* #71717a dava 4.33:1 sobre o painel claro, abaixo do mínimo */
   --accent: #0a5cff;
+  --accent-cheio: #0a5cff;   /* 5.27:1 sob o branco: já passa como está */
   --accent-soft: #0a5cff1a;
   --accent-line: #0a5cff55;
   --on-accent: #fff;
@@ -98,8 +112,9 @@
   --ok: #12864f;
   --warn: #8a6100;
 
+  --sobre-tinta: #fff;
   --indigo: #3b5bdb;
-  --teal: #0f8a7a;
+  --teal: #0d8172;   /* #0f8a7a dava 4.25:1 com a letra branca em cima */
   --amber: #8a6100;
   --rose: #c23a63;
   --violet: #6b3fd4;
@@ -559,7 +574,7 @@ body {
   border-radius: 50%;
   padding: 0;
   justify-content: center;
-  background: var(--accent);
+  background: var(--accent-cheio);
   color: var(--on-accent);
   transition: transform var(--d1) var(--mola), background var(--d1) var(--ease), opacity var(--d1) var(--ease);
 }#btn-send.vazio { background: var(--panel-2); color: var(--muted); }#btn-send:active { transform: scale(0.9); }#btn-stop { background: var(--panel-2); color: var(--text); }#composer.drag { box-shadow: 0 0 0 2px var(--accent); }/* --- tela vazia: o sinal, a saudação e as sugestões em lista --- */
@@ -601,6 +616,7 @@ body {
 }.atalho:active { background: var(--panel-2); }.atalho .ico { color: var(--muted); flex: 0 0 auto; }.atalho .sub { display: none; }/* --- conversa anônima: nada guardado, nada aprendido --- */
 #btn-anon svg { display: block; }#app.anon {
   --accent: #b9bec9;
+  --accent-cheio: #b9bec9;
   --accent-soft: #b9bec92a;
   --accent-line: #b9bec966;
   --on-accent: #0a0a0c;
@@ -731,7 +747,7 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   justify-content: center;
   gap: 10px;
   transition: transform var(--d1) var(--ease), background var(--d1) var(--ease), opacity var(--d1) var(--ease);
-}button:active:not(:disabled) { transform: scale(0.97); }button:disabled { opacity: 0.4; cursor: default; }button.primary { background: var(--accent); color: var(--on-accent); font-weight: 600; }button.block { width: 100%; }button.danger { color: var(--danger); background: none; }button.icon { background: none; padding: 10px; color: var(--muted); border-radius: 50%; min-width: var(--toque); }button.icon.toggle.on { background: var(--accent-soft); color: var(--accent); }/* `#topbar button.icon` e `#composer button.icon` têm id na frente e ganham da
+}button:active:not(:disabled) { transform: scale(0.97); }button:disabled { opacity: 0.4; cursor: default; }button.primary { background: var(--accent-cheio); color: var(--on-accent); font-weight: 600; }button.block { width: 100%; }button.danger { color: var(--danger); background: none; }button.icon { background: none; padding: 10px; color: var(--muted); border-radius: 50%; min-width: var(--toque); }button.icon.toggle.on { background: var(--accent-soft); color: var(--accent); }/* `#topbar button.icon` e `#composer button.icon` têm id na frente e ganham da
    regra acima por especificidade, então buscar na web, o anônimo e o ditado
    ficavam com a mesma cara ligados e desligados — o microfone gravando não
    dava retorno nenhum. Estas duas repetem a regra no mesmo peso delas. */
@@ -1425,11 +1441,14 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   font: inherit;
   font-size: 14.5px;
   cursor: pointer;
-}.loja-aba small { font-variant-numeric: tabular-nums; opacity: 0.7; font-size: 12.5px; }.loja-aba:active { background: var(--panel-2); }/* `--accent`, e não `--tint`: `--tint` é a cor de um perfil ou projeto, posta
+/* O número da aba é informação — quantos itens tem ali. A 0.7 de opacidade ele
+   dava 2.84:1 no tema claro; quem separa ele do nome já é o tamanho e a fonte
+   tabular, não o desbotado. */
+}.loja-aba small { font-variant-numeric: tabular-nums; font-size: 12.5px; }.loja-aba:active { background: var(--panel-2); }/* `--accent`, e não `--tint`: `--tint` é a cor de um perfil ou projeto, posta
    no próprio cartão em tempo de execução. Fora desse escopo ela não existe, e
    a aba ativa saía com texto branco sobre fundo transparente — invisível no
    tema claro. */
-.loja-aba.ativa { background: var(--accent); color: var(--on-accent); }.loja-aba.ativa small { opacity: 0.85; }.loja-linha2 { display: flex; gap: 8px; flex-wrap: wrap; }.loja-busca {
+.loja-aba.ativa { background: var(--accent-cheio); color: var(--on-accent); }.loja-aba.ativa small { opacity: 1; }.loja-linha2 { display: flex; gap: 8px; flex-wrap: wrap; }.loja-busca {
   flex: 1 1 220px;
   display: flex;
   align-items: center;
@@ -1494,7 +1513,7 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   font-size: 17px;
   font-weight: 650;
   letter-spacing: -0.02em;
-  color: #000;
+  color: var(--sobre-tinta);
   background: var(--t, var(--indigo));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }/* --- as três regiões --- */
@@ -1969,8 +1988,8 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   color: var(--muted);
   transition: all var(--d1) var(--ease);
 }.prova-alt-txt { font-size: 14px; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }.prova-alt:has(input:checked) { background: var(--accent-soft); border-color: var(--accent-line); }.prova-alt:has(input:checked) .prova-letra {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-cheio);
+  border-color: var(--accent-cheio);
   color: var(--on-accent);
 }.prova-alt:has(input:checked) .prova-alt-txt { color: var(--text); }/* Depois de entregar, e no gabarito, a certa e a marcada errada se separam. */
 .prova-alt.certa,
@@ -2010,7 +2029,7 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   font-size: 12.5px;
   cursor: pointer;
   transition: all var(--d1) var(--ease);
-}.prova-eu button:hover { background: var(--panel-3); }.prova-eu button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }.prova-correcao .meta {
+}.prova-eu button:hover { background: var(--panel-3); }.prova-eu button.on { background: var(--accent-cheio); border-color: var(--accent-cheio); color: var(--on-accent); font-weight: 600; }.prova-correcao .meta {
   margin: 0;
   padding: 7px 10px;
   border-radius: 8px;
@@ -2020,7 +2039,16 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   line-height: 1.5;
 }.prova-fim { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 9px; justify-items: start; }.prova-fim .hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; max-width: 40em; }/* Entregue, o botão sai: reentregar não existe numa prova. */
 .prova[data-entregue] .prova-fim > .primary { display: none; }.prova[data-modo='gabarito'] .prova-fim { display: none; }/* --- resumo --- */
-.est-abertura {
+.est-nada {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  text-wrap: pretty;
+}.est-abertura {
   margin: 14px 0 6px;
   font-size: 15.5px;
   line-height: 1.65;
@@ -2072,7 +2100,13 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   text-align: left;
   font-size: 13.5px;
   line-height: 1.45;
-}.quiz-alt:hover:not(:disabled) { background: var(--panel-2); }.quiz-letra {
+}
+/* Respondida é travada, não indisponível. O `opacity: 0.4` que todo botão
+   desligado leva apagava a questão inteira justo depois de responder — que é
+   quando se olha pra ela pra aprender. O que diz "não dá mais pra clicar" aqui
+   é a cor da certa e da errada, não o desbotado. */
+.quiz-alt:disabled { opacity: 1; cursor: default; }
+.quiz-alt:hover:not(:disabled) { background: var(--panel-2); }.quiz-letra {
   flex: 0 0 auto;
   width: 19px;
   height: 19px;
@@ -2083,7 +2117,7 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   font-size: 11px;
   font-weight: 650;
   text-transform: uppercase;
-}.quiz-alt.certa { background: color-mix(in srgb, var(--ok) 18%, transparent); }.quiz-alt.certa .quiz-letra { background: var(--ok); color: #000; }.quiz-alt.errada { background: color-mix(in srgb, var(--danger) 16%, transparent); }.quiz-alt.errada .quiz-letra { background: var(--danger); color: #000; }.quiz-porque {
+}.quiz-alt.certa { background: color-mix(in srgb, var(--ok) 18%, transparent); }.quiz-alt.certa .quiz-letra { background: var(--ok); color: var(--sobre-tinta); }.quiz-alt.errada { background: color-mix(in srgb, var(--danger) 16%, transparent); }.quiz-alt.errada .quiz-letra { background: var(--danger); color: var(--sobre-tinta); }.quiz-porque {
   margin-top: 9px;
   padding: 9px 11px;
   border-radius: 9px;
@@ -2265,7 +2299,7 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   .imprimindo-prova .prova-pautado { display: block; margin-top: 6pt; }
   .imprimindo-prova .prova-pautado i { display: block; height: 9mm; border-bottom: 1px solid #999; }
 }/* --- mapa mental: o texto do SVG --- */
-.mapa-centro { fill: var(--accent); }.mapa-centro-txt { fill: var(--on-accent); font-size: 13px; font-weight: 650; }.mapa-traco { fill: none; stroke-width: 1.6; opacity: 0.55; }.mapa-ramo { fill: var(--text); font-size: 12.5px; font-weight: 650; }.mapa-folha { fill: var(--muted); font-size: 11.5px; }/* Frase de apoio nas colunas: pequena, cinza, sem virar parágrafo. */
+.mapa-centro { fill: var(--accent-cheio); }.mapa-centro-txt { fill: var(--on-accent); font-size: 13px; font-weight: 650; }.mapa-traco { fill: none; stroke-width: 1.6; opacity: 0.55; }.mapa-ramo { fill: var(--text); font-size: 12.5px; font-weight: 650; }.mapa-folha { fill: var(--muted); font-size: 11.5px; }/* Frase de apoio nas colunas: pequena, cinza, sem virar parágrafo. */
 .est-explica { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 46em; text-wrap: pretty; }.est-achado blockquote.sem { opacity: 0.6; }.est-cabeca-av { margin: 10px 0 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }.est-cabeca-av h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.03em; }.est-cabeca-av .sub { font-size: 15px; color: var(--muted); }.est-cabeca-av .acoes { margin-left: auto; display: flex; gap: 6px; }.est-saida { margin-top: 18px; }/* O que está sendo lido enquanto o retrato é montado, e o cabeçalho de Estudos
    no celular: nome e ações em linhas separadas, porque em 390px eles colidiam —
    o nome ficava espremido contra o botão de revisar e o título era cortado. */
@@ -2547,7 +2581,9 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   font-size: 12px;
   color: var(--nlm-txt2);
   letter-spacing: 0.02em;
-}.nlm-rot .n { opacity: 0.7; }.nlm-nada { margin: 8px 4px; font-size: 12.5px; line-height: 1.5; color: var(--nlm-txt2); }/* --- coluna das fontes --- */
+/* O contador ao lado do rótulo ("Já gerado 1") também é informação: a 0.7 ele
+   caía pra 3.22:1 no tema claro. */
+}.nlm-rot .n { color: var(--nlm-txt2); }.nlm-nada { margin: 8px 4px; font-size: 12.5px; line-height: 1.5; color: var(--nlm-txt2); }/* --- coluna das fontes --- */
 .nlm-add {
   display: flex;
   align-items: center;
@@ -2676,7 +2712,7 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-cheio);
   color: var(--on-accent);
   cursor: pointer;
 }.nlm-enviar:hover { filter: brightness(1.08); }.nlm-fontes-n { flex: 0 0 auto; margin: 0 0 12px; text-align: center; font-size: 11.5px; color: var(--nlm-txt2); }/* --- coluna do estúdio: ladrilhos dois por linha, 56px de altura --- */
@@ -2705,7 +2741,11 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   display: grid;
   align-content: space-between;
   justify-items: stretch;
-  height: 56px;
+  /* Altura mínima, não fixa: "Linha do tempo" e "Línea de tiempo" não cabem em
+     uma linha de 95px e saíam cortadas com reticências — o nome do botão era
+     ilegível em dois dos três idiomas. Como `.nlm-lads` é grade, as duas peças
+     da mesma fileira crescem juntas e a coluna continua alinhada. */
+  min-height: 56px;
   padding: 8px 10px;
   border: 0;
   border-radius: 12px;
@@ -2721,9 +2761,13 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   padding-right: 16px;
   font-size: 12px;
   font-weight: 500;
-  white-space: nowrap;
+  /* Duas linhas no máximo: cabe o nome inteiro sem deixar um rótulo comprido
+     esticar o ladrilho pra fora da coluna. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
   overflow: hidden;
-  text-overflow: ellipsis;
 }.nlm-lad .seta { position: absolute; right: 8px; top: 50%; transform: translateY(-50%) rotate(-90deg); opacity: 0.75; }.nlm-lad.ocupado { opacity: 0.55; }.nlm-feito {
   display: flex;
   align-items: center;
@@ -2798,7 +2842,10 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   color: var(--nlm-txt2);
   text-align: left;
 }.nlm-tab td { padding: 8px 12px; font-size: 14px; color: var(--nlm-txt2); }.nlm-tab tbody tr { height: 52px; cursor: pointer; }.nlm-tab tbody tr:hover { background: var(--nlm-campo); }.nlm-tab tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }.nlm-tab tbody tr td:first-child { border-radius: 12px 0 0 12px; }.nlm-tab tbody tr td:last-child { border-radius: 0 12px 12px 0; }.nlm-tab .nome { display: flex; align-items: center; gap: 12px; }.nlm-tab .nome b { display: block; font-size: 14px; font-weight: 500; color: var(--nlm-txt); }.nlm-tab .nome small { font-size: 12px; color: var(--nlm-txt2); }.nlm-tab .nome .est-foto { width: 28px; height: 28px; font-size: 12px; flex: 0 0 auto; }.nlm-tab .col-n { width: 110px; white-space: nowrap; }.nlm-tab .col-q { width: 260px; }.nlm-tab .col-s { width: 120px; white-space: nowrap; }.nlm-tab .col-q.q-hoje,
-.nlm-tab .col-q.q-perto { color: var(--warn); }.nlm-tab .fraco { opacity: 0.55; }.nlm-ok { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); }
+.nlm-tab .col-q.q-perto { color: var(--warn); }/* "nenhuma marcada" e "ainda não" são informação, não enfeite: a 0.55 de
+   opacidade davam 2.4:1 no tema claro, e a coluna virava um borrão. Cinza de
+   verdade em vez de texto apagado — a hierarquia continua, a leitura volta. */
+.nlm-tab .fraco { color: var(--nlm-txt2); }.nlm-ok { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); }
 @media (max-width: 760px) {.nlm-tab .col-n,
 .nlm-tab .col-s { display: none; }.nlm-tab .col-q { width: auto; font-size: 12.5px; }.nlm-casa-rolo { padding: 12px 16px 40px; }
 }/* O que abre na coluna do meio é a coluna do meio: a folha de prova, o resumo
