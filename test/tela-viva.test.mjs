@@ -591,3 +591,18 @@ test('foto que sumiu do disco responde 404, não 500', async () => {
   const estudos = ler('server/estudos.mjs');
   assert.match(estudos, /if \(!existsSync\(caminho\)\) throw erroHttp\(404,/, 'diz 404 com todas as letras');
 });
+
+test('a busca de professor filtra sem repintar, e por isso não perde o cursor', () => {
+  // Repintar a cada letra recriava o campo e o cursor ia junto: dava pra
+  // digitar UMA letra e o foco sumia. Devolver o foco depois não resolve — a
+  // repintura é assíncrona e acontece depois. E filtrar nos dois lugares punha
+  // dois filtros na mesma lista: o desenho tirava a linha do DOM e a busca não
+  // tinha mais o que devolver ao apagar o que estava escrito.
+  const v = ler('web/view-estudos.js');
+  const fio = v.slice(v.indexOf("const campoBusca ="), v.indexOf("const ordem ="));
+  assert.match(fio, /linha\.hidden = !bate;/, 'esconde linha em vez de redesenhar');
+  assert.doesNotMatch(fio, /switchView/, 'e não repinta a tela a cada letra');
+  // Um filtro só: a lista vem inteira do servidor e quem tira linha é a busca.
+  const lista = v.slice(v.indexOf('async function telaDaLista'), v.indexOf('const campoBusca ='));
+  assert.doesNotMatch(lista, /\.filter\(\(p\) => !busca/, 'o desenho não filtra também');
+});

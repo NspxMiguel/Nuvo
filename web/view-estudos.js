@@ -301,12 +301,12 @@ export function sairDeEstudos() {
 
 async function telaDaLista(el, ctx) {
   document.querySelector('#app')?.removeAttribute('data-nlm');
-  const todos = await api('/professores');
-  // Buscar e ordenar acontecem aqui: são dois professores hoje, e uma ida ao
-  // servidor pra filtrar duas linhas seria latência sem nada em troca.
-  const busca = aqui.busca.trim().toLowerCase();
-  const professores = todos
-    .filter((p) => !busca || `${p.nome} ${p.materia || ''}`.toLowerCase().includes(busca))
+  // A lista vem inteira e SEMPRE: quem filtra é a busca, escondendo linha na
+  // tela. Filtrar aqui também punha dois filtros em cima da mesma lista — o
+  // desenho tirava a linha do DOM e a busca não tinha mais o que devolver ao
+  // apagar o que estava escrito. Ordenar continua aqui: mudar a ordem é
+  // redesenhar mesmo.
+  const professores = (await api('/professores'))
     .sort((a, b) => {
       if (aqui.ordem === 'nome') return a.nome.localeCompare(b.nome);
       if (aqui.ordem === 'prova') {
@@ -371,6 +371,7 @@ async function telaDaLista(el, ctx) {
                 'Um professor por vez. O app lê as provas dele e devolve o material recortado pelo jeito dele cobrar.'
               )}</p>`
         }
+        <p id="est-sem-busca" class="nlm-nada" hidden>${t('Nenhum professor com esse nome.')}</p>
         <div id="est-form"></div>
       </div>
     </div>
@@ -395,17 +396,31 @@ async function telaDaLista(el, ctx) {
   el.querySelector('#est-novo').onclick = () => formularioDeProfessor(el.querySelector('#est-form'), ctx);
   const campoBusca = el.querySelector('#est-busca');
   if (campoBusca) {
+    // Filtra as linhas que já estão na tela, sem repintar.
+    //
+    // Repintar a cada letra recriava o campo, e o cursor ia junto: dava pra
+    // digitar UMA letra e o foco sumia — devolver o foco depois não resolvia,
+    // porque a repintura é assíncrona e acontecia depois. Esconder linha é o
+    // que a busca precisa fazer, e ela nunca perde o cursor assim.
+    const linhas = [...el.querySelectorAll('.nlm-tab tbody tr')];
+    const vazio = el.querySelector('#est-sem-busca');
+    const filtrar = () => {
+      const q = aqui.busca.trim().toLowerCase();
+      let achou = 0;
+      for (const linha of linhas) {
+        const bate = !q || linha.textContent.toLowerCase().includes(q);
+        linha.hidden = !bate;
+        if (bate) achou += 1;
+      }
+      if (vazio) vazio.hidden = achou > 0;
+    };
     campoBusca.oninput = () => {
       aqui.busca = campoBusca.value;
-      ctx.switchView('estudos');
-      // Repintar recria o campo: devolver o cursor pra ele é o que deixa
-      // continuar digitando sem clicar de novo a cada letra.
-      const novo = document.querySelector('#est-busca');
-      if (novo) {
-        novo.focus();
-        novo.setSelectionRange(novo.value.length, novo.value.length);
-      }
+      filtrar();
     };
+    // Trocar a ordem redesenha a tabela: sem reaplicar, o que estava escrito na
+    // busca continuava no campo e a lista voltava inteira por baixo dele.
+    filtrar();
   }
   const ordem = el.querySelector('#est-ordem');
   if (ordem) {
