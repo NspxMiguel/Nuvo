@@ -254,3 +254,17 @@ writeFileSync(join(DIST, 'SHA256SUMS.txt'), `${somas}\n`);
 
 console.log(`\nresumo em ${join(DIST, 'pacotes.json')}`);
 console.log(`somas em  ${join(DIST, 'SHA256SUMS.txt')}`);
+
+// Pacote de versão passada não serve pra nada aqui: ele já está publicado no
+// GitHub e sai de qualquer tag de novo. Sem esta limpeza a pasta só crescia —
+// chegou a 7,3 GB com todas as versões desde a 0.1.0 guardadas em disco, e
+// ninguém tinha motivo pra ir olhar. Fica só a rodada de agora.
+const desta = new Set(feitos.map((f) => f.pacote.split('/').pop()));
+let liberados = 0;
+for (const nome of readdirSync(DIST)) {
+  if (!/\.(tar\.gz|zip)$/.test(nome) || desta.has(nome)) continue;
+  const caminho = join(DIST, nome);
+  liberados += statSync(caminho).size;
+  rmSync(caminho, { force: true });
+}
+if (liberados) console.log(`apagados os pacotes de versões antigas — ${(liberados / 1e9).toFixed(1)} GB livres`);
