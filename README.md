@@ -249,6 +249,11 @@ Cada arquivo tem um papel, e a tela diz qual em todo lugar em que ele aparece:
 | conteúdo | o que aquela prova cobrou de verdade |
 | aula | o que ele ensinou no período |
 
+Clicar num arquivo abre ele: o texto como o extrator guardou, na coluna do meio.
+É onde uma extração ruim se denuncia — PDF que virou salada de caracteres
+aparece aqui, e não três telas depois, num simulado que sai estranho sem motivo
+aparente.
+
 **O retrato do professor** sai das provas passadas em duas passadas: uma leitura
 por prova, depois uma síntese sobre todas. O esqueleto não foi inventado — é a
 tabela de especificações que se usa pra montar prova de verdade: conteúdo ×
