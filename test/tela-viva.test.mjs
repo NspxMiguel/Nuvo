@@ -268,7 +268,11 @@ test('todo arquivo diz se é prova, se caiu na prova, ou se é só aula', () => 
   assert.match(v, /const selo = \(papel\)/, 'e viram etiqueta');
   assert.match(v, /function contagemDePapeis/, 'a pasta fechada diz quantos de cada');
   assert.match(v, /class="nlm-arqs"/, 'a pasta aberta lista os arquivos');
-  assert.match(v, /class="nlm-arq"[^`]*\$\{selo\(a\.papel\)\}/, 'com o papel em cada um');
+  assert.match(v, /class="nlm-arq\$\{[^`]*\$\{selo\(a\.papel\)\}/, 'com o papel em cada um');
+  // E clicar nele abre a fonte, como no NotebookLM: era um <div> morto, e o
+  // arquivo que entrava no app não podia mais ser lido em lugar nenhum dele.
+  assert.match(v, /data-arquivo="\$\{escapeHtml\(a\.id\)\}"/, 'e dá pra abrir o arquivo');
+  assert.match(v, /function desenharArquivo\(a\)/, 'que abre no meio, com o texto lido');
   // Fechada, a fonte diz a mesma coisa em palavra na segunda linha: sem isso a
   // cópia do NotebookLM teria apagado a única informação que o app tem e eles não.
   assert.match(v, /papeis\.map\(\(\[papel, k\]\)/, 'e a fechada conta por papel');

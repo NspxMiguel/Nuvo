@@ -43,6 +43,7 @@ import { importConversations } from './importers.mjs';
 import {
   addAttachment,
   listAttachments,
+  readAttachment,
   publicAttachment,
   deleteAttachment,
   deleteAttachmentsOf
@@ -1213,6 +1214,15 @@ export async function handleApi(req, res, url) {
   }
 
   // --- anexos --------------------------------------------------------------
+  // Abrir a fonte, como o NotebookLM faz ao clicar num documento da coluna.
+  // Sem isto o arquivo entrava no app e nunca mais podia ser lido: a tela sabia
+  // o nome e quantos trechos ele virou, e o conteúdo só existia dentro das
+  // respostas geradas.
+  if (method === 'GET' && seg[0] === 'attachments' && seg[1] && seg.length === 2) {
+    const anexo = readAttachment(seg[1]);
+    if (!anexo) throw erroHttp(404, 'este arquivo não existe mais');
+    return json(res, anexo);
+  }
   if (method === 'GET' && path === '/attachments') {
     return json(
       res,

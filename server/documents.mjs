@@ -226,6 +226,23 @@ export function publicAttachment(row) {
   return fora;
 }
 
+/**
+ * Um anexo com o texto dentro — o que a tela mostra ao abrir uma fonte.
+ *
+ * `text` fica fora de `CAMPOS_PUBLICOS` de propósito: repetir o documento
+ * inteiro a cada listagem custaria quilobytes por linha. Aqui é o contrário —
+ * pediram este arquivo, e é justamente o conteúdo que se quer ver.
+ */
+export function readAttachment(id) {
+  const campos = CAMPOS_PUBLICOS.map((c) => `a.${c}`).join(', ');
+  return one(
+    `SELECT ${campos}, a.text,
+            (SELECT COUNT(*) FROM chunks WHERE attachment_id = a.id) AS chunks
+       FROM attachments a WHERE a.id = ?`,
+    id
+  );
+}
+
 export function listAttachments({ chatId = null, projectId = null, pastaId = null } = {}) {
   const campos = CAMPOS_PUBLICOS.map((c) => `a.${c}`).join(', ');
   const contagem = '(SELECT COUNT(*) FROM chunks WHERE attachment_id = a.id) AS chunks';

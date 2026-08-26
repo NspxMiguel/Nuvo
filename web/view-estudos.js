@@ -25,6 +25,8 @@ const aqui = {
   regiao: 'conversa',    // material | conversa | estudio, só usado no estreito
   pastaAberta: null,
   saidaAberta: null,
+  /** O arquivo aberto no meio. Como no NotebookLM, clicar na fonte mostra ela. */
+  arquivoAberto: null,
   revisando: false,
   cartao: 0,
   /** Devolver o foco pra aba depois da repintura. Ver `ligarProfessor`. */
@@ -473,11 +475,19 @@ async function telaDoProfessor(el, ctx) {
     return telaDaLista(el, ctx);
   }
 
-  const [saidas, cartoes, conversas] = await Promise.all([
+  // O arquivo aberto vem numa chamada própria: o texto inteiro fica de fora da
+  // listagem de propósito (são quilobytes por linha), e aqui é justamente ele
+  // que se quer ver. Sumiu do banco — apagado noutra aba — a tela volta pra
+  // conversa em vez de ficar com um título sem corpo.
+  const [saidas, cartoes, conversas, arquivo] = await Promise.all([
     api(`/professores/${prof.id}/saidas`),
     api(`/professores/${prof.id}/cartoes`).catch(() => ({ contagem: { hoje: 0 }, cartoes: [] })),
-    api(`/professores/${prof.id}/conversas`).catch(() => [])
+    api(`/professores/${prof.id}/conversas`).catch(() => []),
+    aqui.arquivoAberto
+      ? api(`/attachments/${aqui.arquivoAberto}`).catch(() => null)
+      : Promise.resolve(null)
   ]);
+  if (aqui.arquivoAberto && !arquivo) aqui.arquivoAberto = null;
 
   // A conversa do professor: a mais recente, ou nenhuma até a primeira pergunta.
   if (!aqui.conversaId && conversas[0]) aqui.conversaId = conversas[0].id;
@@ -528,14 +538,18 @@ async function telaDoProfessor(el, ctx) {
   // cima do bate-papo. Fechar volta pra conversa, não pra outra tela.
   const meio = saida
     ? desenharSaida(saida)
-    : pasta
-      ? avaliacaoAberta(prof, pasta)
-      : desenharConversa(prof, proxima);
+    : arquivo
+      ? desenharArquivo(arquivo)
+      : pasta
+        ? avaliacaoAberta(prof, pasta)
+        : desenharConversa(prof, proxima);
   const meioTitulo = saida
     ? escapeHtml(saida.titulo)
-    : pasta
-      ? escapeHtml(pasta.nome)
-      : t('Conversa');
+    : arquivo
+      ? escapeHtml(arquivo.name)
+      : pasta
+        ? escapeHtml(pasta.nome)
+        : t('Conversa');
 
   el.innerHTML = `<div class="nlm">
     <header class="nlm-topo">
@@ -622,7 +636,7 @@ async function telaDoProfessor(el, ctx) {
         <header class="nlm-cab">
           <h2>${meioTitulo}</h2>
           ${
-            saida || pasta
+            saida || pasta || arquivo
               ? `<button class="nlm-x" data-fechar-meio title="${t('fechar')}"
                    aria-label="${t('fechar')}">${icon('close', 17)}</button>`
               : ''
@@ -630,7 +644,7 @@ async function telaDoProfessor(el, ctx) {
         </header>
         <div class="nlm-rolo nlm-corpo">${meio}</div>
         ${
-          saida || pasta
+          saida || pasta || arquivo
             ? ''
             : `<form class="nlm-escrever" id="est-form">
                  <input id="est-pergunta" autocomplete="off"
@@ -727,9 +741,14 @@ function linhaDeFonte(pasta) {
     aberta && n
       ? `<div class="nlm-arqs">${pasta.anexos
           .map(
-            (a) => `<div class="nlm-arq" style="--t:var(--${papelDe(a.papel).cor})">
+            // Clicar abre a fonte no meio, como no NotebookLM: era um <div>
+            // morto, e o arquivo que entrava no app não podia mais ser lido em
+            // lugar nenhum dele.
+            (a) => `<button type="button" class="nlm-arq${
+              a.id === aqui.arquivoAberto ? ' sel' : ''
+            }" data-arquivo="${escapeHtml(a.id)}" style="--t:var(--${papelDe(a.papel).cor})">
               <span class="nm">${escapeHtml(a.name)}</span>${selo(a.papel)}
-            </div>`
+            </button>`
           )
           .join('')}</div>`
       : ''
@@ -1087,6 +1106,45 @@ function achadosEmHtml(r) {
 
 // ------------------------------------------------------- a avaliação aberta
 
+/**
+ * A fonte aberta: o documento como o app o leu.
+ *
+ * É o que o NotebookLM faz ao clicar num documento da coluna, e o que faltava
+ * aqui: o arquivo entrava, virava trechos, e o conteúdo só reaparecia dentro
+ * das respostas geradas. Sem poder abri-lo, "cita o arquivo de onde tirou" era
+ * uma promessa que não dava pra conferir.
+ *
+ * O texto sai como o extrator o guardou — sem markdown, sem cortar. Ele é a
+ * prova de que a leitura deu certo: PDF que virou salada de caracteres se
+ * denuncia aqui, e não três telas depois, num simulado estranho.
+ */
+function desenharArquivo(a) {
+  const tamanho = a.bytes >= 1e6 ? `${(a.bytes / 1e6).toFixed(1)} MB` : `${Math.round(a.bytes / 1e3)} kB`;
+  const texto = (a.text || '').trim();
+  return `
+    <header class="est-cabeca-av">
+      <div class="sub">${selo(a.papel)} ${escapeHtml(
+        [
+          tamanho,
+          a.chunks ? plural(a.chunks, '1 trecho', '{n} trechos') : '',
+          formatarData(a.created_at, { day: '2-digit', month: 'short' })
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      )}</div>
+    </header>
+    ${
+      a.status && a.status !== 'ok'
+        ? `<p class="est-nada">${escapeHtml(a.note || t('não deu pra ler este arquivo'))}</p>`
+        : ''
+    }
+    ${
+      texto
+        ? `<pre class="est-arquivo">${escapeHtml(texto)}</pre>`
+        : `<p class="est-nada">${t('Este arquivo não guardou texto nenhum.')}</p>`
+    }`;
+}
+
 function avaliacaoAberta(prof, pasta) {
   const conta = (papel) => pasta.anexos.filter((a) => a.papel === papel);
   const provas = conta('prova');
@@ -1369,12 +1427,24 @@ function ligarProfessor(el, prof, saidas, ctx) {
   q('[data-fechar-meio]')?.addEventListener('click', () => {
     aqui.pastaAberta = null;
     aqui.saidaAberta = null;
+    aqui.arquivoAberto = null;
     repintar();
   });
+  // Clicar de novo no mesmo arquivo fecha, que é como a saída e a pasta já se
+  // comportam — a coluna do meio tem um dono de cada vez.
+  for (const b of el.querySelectorAll('[data-arquivo]')) {
+    b.onclick = () => {
+      aqui.arquivoAberto = aqui.arquivoAberto === b.dataset.arquivo ? null : b.dataset.arquivo;
+      aqui.saidaAberta = null;
+      aqui.regiao = 'conversa';
+      repintar();
+    };
+  }
   for (const b of el.querySelectorAll('[data-abrir-pasta]')) {
     b.onclick = () => {
       aqui.pastaAberta = b.dataset.abrirPasta;
       aqui.saidaAberta = null;
+      aqui.arquivoAberto = null;
       aqui.regiao = 'conversa';
       repintar();
     };
@@ -1410,6 +1480,7 @@ function ligarProfessor(el, prof, saidas, ctx) {
     b.onclick = () => {
       aqui.saidaAberta = aqui.saidaAberta === b.dataset.saida ? null : b.dataset.saida;
       aqui.pastaAberta = null;
+      aqui.arquivoAberto = null;
       aqui.regiao = 'conversa';
       repintar();
     };

@@ -2672,9 +2672,33 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   gap: 7px;
   padding: 5px 8px;
   border-left: 2px solid color-mix(in srgb, var(--t) 55%, transparent);
+  border-radius: 0 6px 6px 0;
+  background: none;
+  min-height: 0;
   font-size: 12px;
   color: var(--nlm-txt2);
-}.nlm-arq .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }/* --- coluna do meio: a conversa --- */
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}.nlm-arq:hover { background: var(--nlm-campo); }
+.nlm-arq.sel { background: var(--nlm-campo); color: var(--nlm-txt); }
+/* O documento como o extrator o guardou: fonte de largura fixa e quebra por
+   palavra. Sem `white-space: pre-wrap` um TXT sem quebra vira uma linha só e
+   empurra a coluna inteira pro lado. */
+.est-arquivo {
+  margin: 14px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.nlm-arq .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }/* --- coluna do meio: a conversa --- */
 .nlm-corpo { padding-top: 4px; }.nlm-msgs { display: grid; gap: 18px; padding: 4px 0 8px; }.nlm-msg { display: flex; gap: 11px; }.nlm-msg.eu { justify-content: flex-end; }.nlm-msg.eu .corpo {
   max-width: 78%;
   padding: 10px 15px;
