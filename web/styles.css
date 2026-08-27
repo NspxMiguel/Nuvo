@@ -2797,7 +2797,14 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   color: var(--nlm-txt);
   font: inherit;
   font-size: 14.5px;
-}.nlm-escrever input::placeholder { color: var(--nlm-txt2); }.nlm-escrever input:focus { outline: none; box-shadow: none; }.nlm-enviar {
+}.nlm-escrever input::placeholder { color: var(--nlm-txt2); }
+/* O anel sai do campo e vai pra pílula inteira, que é o que a pessoa enxerga
+   como controle. Ele estava saindo do campo e não indo pra lugar nenhum: quem
+   anda de Tab não tinha como saber onde estava. Mesma coisa na busca e no
+   seletor de IA logo abaixo. */
+.nlm-escrever input:focus { outline: none; box-shadow: none; }
+.nlm-escrever:focus-within { box-shadow: 0 0 0 2px var(--accent-line); }
+.nlm-enviar {
   display: grid;
   place-items: center;
   width: 36px;
@@ -2827,7 +2834,10 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   font: inherit;
   font-size: 12.5px;
   padding: 0;
-}.nlm-quem select:focus { outline: none; box-shadow: none; }.nlm-lads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }/* O par tinta/letra é o deles: o fundo é a cor bem escurecida sobre o painel,
+}
+/* O <select> É o controle aqui, então o anel fica nele mesmo. */
+.nlm-quem select:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 3px; border-radius: 6px; }
+.nlm-lads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }/* O par tinta/letra é o deles: o fundo é a cor bem escurecida sobre o painel,
    e a letra é a mesma cor bem clara. Medido: fundo rgb(50,52,62) com letra
    rgb(212,218,250) no ladrilho de áudio. */
 .nlm-lad {
@@ -2898,7 +2908,8 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   border-radius: 100px;
   background: var(--nlm-campo);
   color: var(--nlm-txt2);
-}.nlm-busca input { width: 200px; border: 0; background: none; color: var(--nlm-txt); font: inherit; font-size: 14px; }.nlm-busca input:focus { outline: none; box-shadow: none; }.nlm-busca input::-webkit-search-cancel-button { filter: invert(0.6); }.nlm-ordem {
+}.nlm-busca input { width: 200px; border: 0; background: none; color: var(--nlm-txt); font: inherit; font-size: 14px; }.nlm-busca input:focus { outline: none; box-shadow: none; }
+.nlm-busca:focus-within { box-shadow: 0 0 0 2px var(--accent-line); }.nlm-busca input::-webkit-search-cancel-button { filter: invert(0.6); }.nlm-ordem {
   height: 40px;
   padding: 0 12px;
   border: 1px solid var(--nlm-fio);

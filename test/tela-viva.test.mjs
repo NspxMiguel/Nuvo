@@ -772,3 +772,15 @@ test('o retrato mostra a evidência de cada tema e dá pra discordar dele', () =
   assert.match(r, /O que quem tem aula com ele já corrigiu/, 'e a correção entra no pedido da regeração');
   assert.match(r, /valem MAIS que a sua leitura das provas/, 'como regra que o modelo obedece');
 });
+
+test('nada tira o anel de foco sem pôr outro no lugar', () => {
+  // Três controles do Estudos apagavam o `outline` e não davam nada em troca:
+  // quem anda de Tab não tinha como saber onde estava. Campo dentro de pílula
+  // devolve o anel pra pílula, que é o que a pessoa enxerga como controle; o
+  // <select> é o próprio controle, então o anel fica nele.
+  const css = ler('web/styles.css');
+  assert.match(css, /\.nlm-escrever:focus-within \{ box-shadow:/, 'a pílula de perguntar acende');
+  assert.match(css, /\.nlm-busca:focus-within \{ box-shadow:/, 'a de buscar também');
+  assert.match(css, /\.nlm-quem select:focus-visible \{ outline: 2px solid/, 'e o seletor de IA tem anel próprio');
+  assert.doesNotMatch(css, /\.nlm-quem select:focus \{ outline: none; box-shadow: none; \}/, 'sem apagar e não repor');
+});
