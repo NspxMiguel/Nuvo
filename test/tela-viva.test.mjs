@@ -747,3 +747,28 @@ test('os perfis prontos nascem no idioma da máquina, e não mandam responder em
   const i18n = ler('web/i18n.js');
   assert.match(i18n, /const candidatos = \[forcado, escolhido,/, 'e ele ganha até da escolha guardada');
 });
+
+test('o retrato mostra a evidência de cada tema e dá pra discordar dele', () => {
+  // A promessa que separa este retrato do que os concorrentes vendem: eles
+  // adivinham numa caixa preta. Aqui faltavam as duas metades.
+  //
+  // A evidência: o modelo devolve, por tema, em que provas ele apareceu e um
+  // trecho literal — e a legenda mostrava só "osmose 13%", um número sem
+  // origem que não dá pra conferir.
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /onde: c\.apareceu_em,\s*\n\s*citacao: c\.citacao/, 'a evidência chega na legenda');
+  const leg = v.slice(v.indexOf('const legenda = (itens) =>'), v.indexOf('function fatiar'));
+  assert.match(leg, /caiu em \{provas\}/, 'e a faixa diz em que prova caiu');
+  assert.match(leg, /ret-cita/, 'com a citação do lado');
+
+  // A correção: o campo existia no arquivo, a rota aceitava e nada escrevia
+  // nem lia. Uma promessa dentro do código, cumprida por ninguém.
+  assert.match(v, /function correcoesEmHtml\(r\)/, 'a seção de correções existe');
+  assert.match(v, /id="est-corrigir"/, 'com o botão de discordar');
+  assert.match(v, /professores\/\$\{prof\.id\}\/retrato`, \{ method: 'PATCH', body: \{ correcoes/,
+    'e ela grava na rota certa, com as correções no topo do corpo');
+
+  const r = ler('server/retrato.mjs');
+  assert.match(r, /O que quem tem aula com ele já corrigiu/, 'e a correção entra no pedido da regeração');
+  assert.match(r, /valem MAIS que a sua leitura das provas/, 'como regra que o modelo obedece');
+});

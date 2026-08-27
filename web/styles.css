@@ -1569,7 +1569,36 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   gap: 10px;
   min-height: 34px;
   font-size: 15.5px;
-}.est-leg .pt { width: 9px; height: 9px; border-radius: 3px; background: var(--t); flex: 0 0 auto; }.est-leg .nm { flex: 1; min-width: 0; }.est-leg b { font-variant-numeric: tabular-nums; font-weight: 600; }.est-leg small { color: var(--muted); font-size: 14px; }/* verbos de comando */
+}
+/* A faixa que tem evidência vira um <details>: o <li> deixa de ser a linha e
+   passa a ser a caixa, e quem faz a linha é o <summary>. Sem isto o flex do
+   <li> empilhava o resumo e o corpo lado a lado. */
+.est-leg li.tem-prova { display: block; min-height: 0; padding: 0; }
+.est-leg li.tem-prova summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  cursor: pointer;
+  list-style: none;
+}
+.est-leg li.tem-prova summary::-webkit-details-marker { display: none; }
+.est-leg li.tem-prova summary::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--d1) var(--ease);
+  flex: 0 0 auto;
+}
+/* `open` é atributo do <details>, não do <li> que o embrulha. */
+.est-leg li.tem-prova details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.est-leg li.tem-prova summary:hover { color: var(--text); }
+.est-prova-do-tema { margin: 0 0 10px 19px; display: grid; gap: 5px; }
+.est-prova-do-tema .meta { margin: 0; font-size: 13.5px; color: var(--muted); }
+.est-leg .pt { width: 9px; height: 9px; border-radius: 3px; background: var(--t); flex: 0 0 auto; }.est-leg .nm { flex: 1; min-width: 0; }.est-leg b { font-variant-numeric: tabular-nums; font-weight: 600; }.est-leg small { color: var(--muted); font-size: 14px; }/* verbos de comando */
 .est-verbos { display: flex; flex-wrap: wrap; gap: 8px; }.est-verbo {
   display: inline-flex;
   align-items: center;
@@ -1598,8 +1627,10 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   margin-top: 7px;
   font-style: normal;
   font-size: 13.5px;
+  /* Sem opacidade em cima do cinza: ela multiplicava com o `.sem` do pai e a
+     etiqueta que diz se o achado é pegadinha ou mania caía pra 2.1:1 — o único
+     texto que restava quando não havia trecho pra citar. */
   color: var(--muted);
-  opacity: 0.8;
 }
 @container (min-width: 700px) { .est-achado { grid-template-columns: 1fr 300px; } }/* o que ensina e nunca cobrou: a diferença é o produto */
 .est-nunca { display: flex; flex-wrap: wrap; gap: 8px; }.est-nunca span {
@@ -2039,6 +2070,22 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   line-height: 1.5;
 }.prova-fim { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 9px; justify-items: start; }.prova-fim .hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; max-width: 40em; }/* Entregue, o botão sai: reentregar não existe numa prova. */
 .prova[data-entregue] .prova-fim > .primary { display: none; }.prova[data-modo='gabarito'] .prova-fim { display: none; }/* --- resumo --- */
+/* A seção em que a pessoa responde ao app, separada do que o app afirmou. */
+.est-correcoes { border-top: 1px solid var(--line-soft); padding-top: 4px; }
+/* O que a pessoa corrigiu: lista curta, cada linha com o seu jeito de sair. */
+.est-corr-lista { list-style: none; margin: 10px 0 12px; padding: 0; display: grid; gap: 4px; }
+.est-corr-lista li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--panel);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.est-corr-lista li span { flex: 1; min-width: 0; text-wrap: pretty; }
+.est-corr-lista li button { flex: 0 0 auto; padding: 4px; margin: -2px -4px 0 0; }
 .est-nada {
   margin: 18px 0;
   padding: 14px 16px;
@@ -2321,7 +2368,9 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
   .imprimindo-prova .prova-pautado i { display: block; height: 9mm; border-bottom: 1px solid #999; }
 }/* --- mapa mental: o texto do SVG --- */
 .mapa-centro { fill: var(--accent-cheio); }.mapa-centro-txt { fill: var(--on-accent); font-size: 13px; font-weight: 650; }.mapa-traco { fill: none; stroke-width: 1.6; opacity: 0.55; }.mapa-ramo { fill: var(--text); font-size: 12.5px; font-weight: 650; }.mapa-folha { fill: var(--muted); font-size: 11.5px; }/* Frase de apoio nas colunas: pequena, cinza, sem virar parágrafo. */
-.est-explica { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 46em; text-wrap: pretty; }.est-achado blockquote.sem { opacity: 0.6; }.est-cabeca-av { margin: 10px 0 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }.est-cabeca-av h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.03em; }.est-cabeca-av .sub { font-size: 15px; color: var(--muted); }.est-cabeca-av .acoes { margin-left: auto; display: flex; gap: 6px; }.est-saida { margin-top: 18px; }/* O que está sendo lido enquanto o retrato é montado, e o cabeçalho de Estudos
+.est-explica { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 46em; text-wrap: pretty; }/* Achado sem trecho literal: a diferença já é a falta da citação, e apagar o
+   bloco apagava junto a etiqueta que diz o que ele é. */
+.est-achado blockquote.sem { border-style: dashed; }.est-cabeca-av { margin: 10px 0 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }.est-cabeca-av h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.03em; }.est-cabeca-av .sub { font-size: 15px; color: var(--muted); }.est-cabeca-av .acoes { margin-left: auto; display: flex; gap: 6px; }.est-saida { margin-top: 18px; }/* O que está sendo lido enquanto o retrato é montado, e o cabeçalho de Estudos
    no celular: nome e ações em linhas separadas, porque em 390px eles colidiam —
    o nome ficava espremido contra o botão de revisar e o título era cortado. */
 .est-andar { min-height: 20px; font-size: 14.5px; color: var(--muted); margin-top: 8px; }.est-conf #est-montar { margin-left: auto; flex: 0 0 auto; }/* Histórico não "chega": ele já estava lá. A subida é pra mensagem nova. */

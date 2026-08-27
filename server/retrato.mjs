@@ -416,15 +416,32 @@ export async function* montarRetrato({ professorId, ref, signal }) {
   // --- passada 2: a síntese ------------------------------------------------
   yield { type: 'sintetizando' };
 
+  // O que a pessoa já corrigiu à mão entra no pedido, e não só no arquivo.
+  //
+  // Ela é quem tem aula com o professor: quando ela diz "isso ele não cobra",
+  // ela está certa e a leitura da prova está errada. As correções sobreviviam a
+  // toda regeração e nunca chegavam ao modelo — ficavam guardadas sem servir
+  // pra nada, e a regeração seguinte trazia de volta exatamente o que ela tinha
+  // consertado.
+  const corrigido = (professor.retrato?.correcoes || [])
+    .map((c) => (typeof c === 'string' ? c : c && c.texto))
+    .filter((c) => typeof c === 'string' && c.trim())
+    .map((c) => `- ${c.trim()}`);
+
   const monta = (teto) => {
     const universo = teto ? bloco(materiais, teto) : { texto: '' };
     return [
       `Professor: ${professor.nome}${professor.materia ? ` (${professor.materia})` : ''}`,
+      corrigido.length
+        ? `\n# O que quem tem aula com ele já corrigiu\nEstas frases vêm de quem assiste às aulas e valem MAIS que a sua leitura das provas. Obedeça a todas:\n${corrigido.join('\n')}`
+        : '',
       `\n# Leitura das provas\n${emTexto(leituras)}`,
       universo.texto
         ? `\n# O que ele ensina em aula\n${universo.texto}`
         : '\n# O que ele ensina em aula\n(nada foi anexado)'
-    ].join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
   };
 
   // O pedido encolhe quando não cabe. Modelo de cota apertada recusa 9 mil
@@ -467,7 +484,9 @@ export async function* montarRetrato({ professorId, ref, signal }) {
   retrato.confianca = confianca({ provas: leituras.length, materiais: materiais.length });
   retrato.fontes = leituras.map((l) => ({ prova: l.nome, questoes: lista(l.questoes).length }));
   retrato.gerado_em = now();
-  // O que a pessoa corrigiu à mão sobrevive: a máquina propõe, ela decide.
+  // O que a pessoa corrigiu à mão sobrevive, e agora ele também entrou no
+  // pedido lá em cima: a máquina propõe, ela decide, e a decisão vale na
+  // próxima leitura.
   retrato.correcoes = professor.retrato?.correcoes || [];
 
   run(

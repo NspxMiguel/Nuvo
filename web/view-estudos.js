@@ -17,6 +17,8 @@ import {
   umDeCada
 } from './core.js';
 import { icon } from './icons.js';
+// `perguntar` daqui é perguntar pra IA; o do diálogo é perguntar pra pessoa.
+import { perguntar as pedirTexto } from './dialogo.js';
 import { renderMarkdown } from './md.js';
 import { t, plural, formatarNumero, formatarData } from './i18n.js';
 
@@ -248,14 +250,38 @@ const barra = (itens) =>
     .map((i) => `<i style="--t:var(--${i.cor});width:${i.pct}%"></i>`)
     .join('')}</div>`;
 
+/**
+ * A legenda da barra, e a evidência de cada faixa.
+ *
+ * "Osmose, 13%" sozinho é a caixa preta que os concorrentes vendem: o número
+ * aparece e não há como conferir de onde ele saiu. O modelo devolve, por tema,
+ * em que provas ele apareceu e um trecho literal — e nada disso chegava à tela.
+ * Agora a faixa abre e mostra os dois, que é o que deixa o retrato ser
+ * discutido em vez de acreditado.
+ */
 const legenda = (itens) =>
   `<ul class="est-leg">${itens
-    .map(
-      (i) => `<li><span class="pt" style="--t:var(--${i.cor})"></span>
+    .map((i) => {
+      const provas = (i.onde || []).filter(Boolean);
+      const tem = provas.length || i.citacao;
+      const cabeca = `<span class="pt" style="--t:var(--${i.cor})"></span>
       <span class="nm">${escapeHtml(i.nome)}${
         i.exp ? ` <small>· ${escapeHtml(i.exp)}</small>` : ''
-      }</span><b>${formatarNumero(i.pct)}%</b></li>`
-    )
+      }</span><b>${formatarNumero(i.pct)}%</b>`;
+      if (!tem) return `<li>${cabeca}</li>`;
+      return `<li class="tem-prova"><details><summary>${cabeca}</summary>
+        <div class="est-prova-do-tema">
+          ${
+            provas.length
+              ? `<p class="meta">${escapeHtml(
+                  t('caiu em {provas}', { provas: provas.join(', ') })
+                )}</p>`
+              : ''
+          }
+          ${i.citacao ? `<p class="ret-cita">${escapeHtml(i.citacao)}</p>` : ''}
+        </div>
+      </details></li>`;
+    })
     .join('')}</ul>`;
 
 /**
@@ -269,6 +295,9 @@ function fatiar(itens, quantas = 5) {
   const cabeca = ordenado.slice(0, quantas).map((x, i) => ({
     nome: x.nome,
     exp: x.exp,
+    // A evidência viaja junto: sem ela a legenda vira número sem origem.
+    onde: x.onde,
+    citacao: x.citacao,
     pct: porcento(x.peso),
     cor: CORES[i % CORES.length]
   }));
@@ -975,7 +1004,14 @@ function desenharRetrato(prof) {
   }
 
   const conf = r.confianca || {};
-  const cobra = fatiar((r.conteudo || []).map((c) => ({ nome: c.tema, peso: c.peso })));
+  const cobra = fatiar(
+    (r.conteudo || []).map((c) => ({
+      nome: c.tema,
+      peso: c.peso,
+      onde: c.apareceu_em,
+      citacao: c.citacao
+    }))
+  );
   const pede = fatiar(
     (r.cognitivo || []).map((c) => ({
       nome: (NIVEIS[c.nivel]?.nome || (() => c.nivel))(),
@@ -1027,6 +1063,7 @@ function desenharRetrato(prof) {
         : ''
     }
     ${achadosEmHtml(r)}
+    ${correcoesEmHtml(r)}
     ${
       r.so_na_aula?.length
         ? `<div class="est-sec">
@@ -1084,6 +1121,46 @@ function fatosDoFormato(f) {
 }
 
 /** Pegadinhas e manias, cada achado com o trecho literal da prova ao lado. */
+/**
+ * O que a pessoa corrigiu à mão, e o botão de corrigir.
+ *
+ * É a diferença entre este retrato e o que os concorrentes vendem: eles
+ * adivinham numa caixa preta e não deixam discordar. Quem tem aula com o
+ * professor sabe coisas que a prova não mostra — "isso ele avisou que não cai",
+ * "ele mudou o formato neste ano" —, e essas frases valem mais que a leitura
+ * de qualquer modelo.
+ *
+ * O campo `correcoes` já existia no arquivo do retrato e já sobrevivia a toda
+ * regeração; o que não existia era como escrever uma, nem quem as lesse. Agora
+ * elas entram no pedido da regeração como regra que o modelo obedece.
+ */
+function correcoesEmHtml(r) {
+  const feitas = (r.correcoes || [])
+    .map((c) => (typeof c === 'string' ? c : c && c.texto))
+    .filter((c) => typeof c === 'string' && c.trim());
+  return `<div class="est-sec est-correcoes">
+    <h3>${t('O que você corrigiu')}</h3>
+    <p class="est-explica">${t(
+      'Você tem aula com ele; o app só leu as provas. O que você escrever aqui vale mais que a leitura, e entra em toda vez que o retrato for refeito.'
+    )}</p>
+    ${
+      feitas.length
+        ? `<ul class="est-corr-lista">${feitas
+            .map(
+              (c, i) =>
+                `<li><span>${escapeHtml(c)}</span>
+                  <button class="icon danger" data-tirar-correcao="${i}"
+                    title="${t('apagar')}" aria-label="${t('apagar')}">${icon('trash', 16)}</button></li>`
+            )
+            .join('')}</ul>`
+        : ''
+    }
+    <div class="row">
+      <button class="ghost" id="est-corrigir">${icon('plus', 16)} ${t('Não é bem assim')}</button>
+    </div>
+  </div>`;
+}
+
 function achadosEmHtml(r) {
   const achados = [
     ...(r.pegadinhas || []).map((p) => ({ tipo: t('pegadinha'), tit: p.padrao, trecho: p.exemplo })),
@@ -1452,6 +1529,41 @@ function ligarProfessor(el, prof, saidas, ctx) {
   }
   q('#est-primeira-prova')?.addEventListener('click', () => criarPasta(prof, ctx, q('.nlm-fontes')));
   q('#est-montar')?.addEventListener('click', (ev) => montarRetrato(el, prof, ev.currentTarget, q('#est-modelo').value, ctx));
+
+  // Corrigir o retrato à mão. O que ela escreve vale mais que a leitura das
+  // provas e entra em toda regeração — ver `correcoesEmHtml`.
+  const salvarCorrecoes = async (lista) => {
+    // A rota é `/retrato`, e as correções vão no topo do corpo: dentro de
+    // `retrato` elas seriam apagadas pelo `limparRetrato`, que só conhece os
+    // campos que o modelo devolve.
+    await api(`/professores/${prof.id}/retrato`, { method: 'PATCH', body: { correcoes: lista } });
+    repintar();
+  };
+  const correcoesAgora = () =>
+    (prof.retrato?.correcoes || [])
+      .map((c) => (typeof c === 'string' ? c : c && c.texto))
+      .filter((c) => typeof c === 'string' && c.trim());
+
+  q('#est-corrigir')?.addEventListener('click', async () => {
+    const texto = await pedirTexto({
+      titulo: t('Não é bem assim'),
+      rotulo: t('O que o app entendeu errado sobre ele?'),
+      placeholder: t('ele avisou que esse assunto não cai na próxima'),
+      multilinha: true
+    });
+    if (!texto || !texto.trim()) return;
+    await salvarCorrecoes([...correcoesAgora(), texto.trim()]);
+    toast(t('correção guardada'), 'ok');
+  });
+
+  for (const b of el.querySelectorAll('[data-tirar-correcao]')) {
+    b.onclick = async () => {
+      const i = Number(b.dataset.tirarCorrecao);
+      const lista = correcoesAgora();
+      if (!(i >= 0 && i < lista.length)) return;
+      await salvarCorrecoes(lista.filter((_, k) => k !== i));
+    };
+  }
 
   for (const b of el.querySelectorAll('[data-add]')) {
     b.onclick = () => enviarArquivos(aqui.pastaAberta, b.dataset.add, ctx);
