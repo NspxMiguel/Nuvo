@@ -554,7 +554,7 @@ export async function handleApi(req, res, url) {
   // --- busca global --------------------------------------------------------
   if (method === 'GET' && path === '/search') {
     const q = ftsQuery(url.searchParams.get('q') || '');
-    if (!q) return json(res, { chats: [], memories: [] });
+    if (!q) return json(res, { chats: [], memories: [], documentos: [] });
     const chats = all(
       `SELECT m.id, m.chat_id, m.role, m.created_at,
               snippet(messages_fts, 0, '«', '»', '…', 14) AS excerpt,
@@ -573,7 +573,31 @@ export async function handleApi(req, res, url) {
        ORDER BY bm25(memories_fts) LIMIT 20`,
       q
     );
-    return json(res, { chats, memories });
+    // Os documentos também. O texto deles já estava indexado no `chunks_fts`
+    // desde sempre — é por ele que a IA acha o trecho pra citar —, e a busca da
+    // tela nunca o consultava: quem anexava cinco provas e procurava
+    // "plasmólise" recebia "nada encontrado", enquanto a mesma palavra estava
+    // indexada e ao alcance do modelo.
+    //
+    // Um resultado por arquivo, e não por trecho: cinco linhas do mesmo PDF
+    // empurram a conversa e a memória pra fora da lista.
+    //
+    // A dedupe é em JS, e não com `GROUP BY`: `snippet()` e `bm25()` são funções
+    // auxiliares do FTS5 e não podem ser chamadas dentro de agregação — a
+    // consulta com `MIN(snippet(...))` responde 500.
+    const trechos = all(
+      `SELECT a.id, a.name, a.chat_id, a.project_id, a.pasta_id,
+              snippet(chunks_fts, 0, '«', '»', '…', 14) AS excerpt
+       FROM chunks_fts
+       JOIN chunks k ON k.rowid = chunks_fts.rowid
+       JOIN attachments a ON a.id = k.attachment_id
+       WHERE chunks_fts MATCH ?
+       ORDER BY bm25(chunks_fts) LIMIT 120`,
+      q
+    );
+    const vistos = new Set();
+    const documentos = trechos.filter((d) => !vistos.has(d.id) && vistos.add(d.id)).slice(0, 20);
+    return json(res, { chats, memories, documentos });
   }
 
   // --- reindexação da busca por significado --------------------------------

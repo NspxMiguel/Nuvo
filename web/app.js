@@ -386,7 +386,7 @@ let buscaAtual = 0;
 async function deepSearch(query) {
   const minha = ++buscaAtual;
   if (query.trim().length < 3) return renderSidebar(query);
-  const { chats, memories } = await api(`/search?q=${encodeURIComponent(query)}`);
+  const { chats, memories, documentos = [] } = await api(`/search?q=${encodeURIComponent(query)}`);
   // Chegou tarde: alguém digitou outra coisa enquanto isto voltava.
   if (minha !== buscaAtual) return;
   const list = $('#chat-list');
@@ -414,7 +414,29 @@ async function deepSearch(query) {
       list.appendChild(item);
     }
   }
-  if (!chats.length && !memories.length) {
+  // Nos documentos. O texto dos anexos sempre esteve indexado — é por ele que a
+  // IA acha o trecho pra citar —, e a busca da tela não o consultava: quem
+  // anexava provas e procurava uma palavra que estava dentro delas recebia
+  // "nada encontrado".
+  if (documentos.length) {
+    list.insertAdjacentHTML('beforeend', `<div class="list-label">${t('Nos documentos')}</div>`);
+    for (const d of documentos) {
+      const item = document.createElement('div');
+      item.className = 'chat-item';
+      item.innerHTML = `<span class="label" title="${escapeHtml(d.excerpt)}">${escapeHtml(
+        d.name
+      )} — ${escapeHtml(d.excerpt)}</span>`;
+      // O anexo vive numa conversa, num projeto ou na pasta de um professor:
+      // o clique leva pra onde ele está, e não pra lugar nenhum.
+      item.onclick = () => {
+        if (d.chat_id) return openChat(d.chat_id);
+        if (d.pasta_id) return switchView('estudos');
+        switchView('projects');
+      };
+      list.appendChild(item);
+    }
+  }
+  if (!chats.length && !memories.length && !documentos.length) {
     list.insertAdjacentHTML('beforeend', `<div class="list-label">${t('nada encontrado')}</div>`);
   }
 }

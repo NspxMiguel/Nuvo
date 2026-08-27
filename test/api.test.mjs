@@ -1142,3 +1142,44 @@ test('corpo vazio continua valendo como objeto vazio', async () => {
   });
   assert.equal(res.status, 200);
 });
+
+test('a busca procura dentro dos documentos, não só nas conversas', async () => {
+  // O texto dos anexos sempre esteve no `chunks_fts` — é por ele que a IA acha
+  // o trecho pra citar. A busca da tela nunca o consultava: quem anexava cinco
+  // provas e procurava uma palavra que estava dentro delas recebia "nada
+  // encontrado", enquanto a mesma palavra estava indexada e ao alcance do
+  // modelo.
+  const chat = await app.api('/chats', { method: 'POST', body: { title: 'Busca' } });
+  await app.raw(`/api/attachments?name=prova.txt&chat=${chat.data.id}`, {
+    method: 'POST',
+    headers: { 'x-nuvo-token': app.token, 'content-type': 'text/plain' },
+    body: 'PROVA: explique a osmose e a plasmólise celular.'
+  });
+
+  const achou = await app.api('/search?q=plasmolise');
+  assert.equal(achou.status, 200);
+  assert.equal(achou.data.documentos.length, 1, 'acha o anexo');
+  assert.equal(achou.data.documentos[0].name, 'prova.txt');
+  assert.match(achou.data.documentos[0].excerpt, /plasm/i, 'e devolve o trecho');
+
+  // Um resultado por arquivo: cinco trechos do mesmo PDF empurrariam a conversa
+  // e a memória pra fora da lista.
+  const muitos = await app.api('/search?q=osmose');
+  const ids = muitos.data.documentos.map((d) => d.id);
+  assert.equal(new Set(ids).size, ids.length, 'sem arquivo repetido');
+
+  // Consulta que não casa com nada não inventa resultado.
+  const nada = await app.api('/search?q=palavraquenaoexisteemlugarnenhum');
+  assert.equal(nada.data.documentos.length, 0);
+});
+
+test('consulta torta na busca não derruba o servidor', async () => {
+  // `snippet()` e `bm25()` são funções auxiliares do FTS5 e não podem ser
+  // chamadas dentro de agregação: a primeira versão desta busca usava
+  // `MIN(snippet(...))` com `GROUP BY` e respondia 500.
+  for (const q of ['osmose AND', '"aspas abertas', 'a OR', 'NEAR(', '*', 'a*b', 'a AND OR b']) {
+    const res = await app.api(`/search?q=${encodeURIComponent(q)}`);
+    assert.equal(res.status, 200, `busca por ${JSON.stringify(q)}`);
+    assert.ok(Array.isArray(res.data.documentos), 'e ainda devolve a forma certa');
+  }
+});
