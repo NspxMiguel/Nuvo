@@ -725,3 +725,25 @@ test('botão que cria coisa dispara uma vez e exige nome', () => {
   const e = ler('web/view-estudos.js');
   assert.match(e, /umDeCada\(host\.querySelector\('#pf-criar'\)/, 'o professor também');
 });
+
+test('os perfis prontos nascem no idioma da máquina, e não mandam responder em português', () => {
+  // Eles são dado do usuário — dá pra renomear e reescrever —, então não passam
+  // pelo dicionário do cliente: traduzi-los ao desenhar desfaria o que a pessoa
+  // mudasse. Num app aberto em inglês apareciam quatro perfis em português, e o
+  // "Assistente" carregava "Responde em português do Brasil" na instrução: a IA
+  // obedecia e respondia em português a quem tinha escrito em inglês.
+  const db = ler('server/db.mjs');
+  assert.match(db, /const SEMENTES = \{/, 'as sementes existem em três idiomas');
+  for (const nome of ['Assistant', 'Asistente', 'Assistente']) {
+    assert.ok(db.includes(`'${nome}'`), `${nome} está entre as sementes`);
+  }
+  assert.doesNotMatch(db, /Responde em português do Brasil/, 'a instrução não prende o idioma');
+  assert.match(db, /idiomaDaMaquina\(\)/, 'e a escolha é a da máquina');
+
+  // `NUVO_LANG` força a tela inteira: é como se confere a tradução sem mexer no
+  // idioma da máquina de quem está usando.
+  const api = ler('server/api.mjs');
+  assert.match(api, /idiomaForcado: process\.env\.NUVO_LANG \? idiomaDaMaquina\(\) : null/, 'o /state entrega o forçado');
+  const i18n = ler('web/i18n.js');
+  assert.match(i18n, /const candidatos = \[forcado, escolhido,/, 'e ele ganha até da escolha guardada');
+});

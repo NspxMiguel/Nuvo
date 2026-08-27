@@ -29,6 +29,18 @@ function frasesDoCodigo() {
     for (const [, , texto] of fonte.matchAll(/\bt\(\s*(['"])((?:\\.|(?!\1).)*)\1/g)) {
       chaves.add(texto.replace(/\\(['"])/g, '$1'));
     }
+    // `t(` que abre com expressão, e não com aspas: o ternário
+    // `t(x == null ? 'a' : 'b')` guarda frases de tela e escapava inteiro desta
+    // varredura — quatro delas ficaram sem inglês e sem espanhol por meses,
+    // aparecendo em português dentro do app em inglês. Toda aspas simples de
+    // tamanho de frase dentro da chamada conta como chave.
+    for (const m of fonte.matchAll(/\bt\(\s*[^'"`\s)][^;]{0,400}?\)/g)) {
+      for (const [, literal] of m[0].matchAll(/'([^'\\]{4,160})'/g)) {
+        // Nome de classe, id e chave de objeto não são frase: frase de tela tem
+        // espaço ou acento.
+        if (/\s/.test(literal) || /[ãáâàéêíóôõúçÃÁÂÉÊÍÓÔÕÚÇ]/.test(literal)) chaves.add(literal);
+      }
+    }
     for (const m of fonte.matchAll(
       /\bplural\(\s*[^,]+,\s*(['"])((?:\\.|(?!\1).)*)\1\s*,\s*(['"])((?:\\.|(?!\3).)*)\3/g
     )) {

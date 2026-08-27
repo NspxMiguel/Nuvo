@@ -3,7 +3,7 @@
 
 import { all, one, run, uid, now, parseJSON } from './db.mjs';
 import { loadConfig, patchConfig, setSecret, listSecretNames } from './config.mjs';
-import { escolherIdioma, IDIOMAS } from './idioma.mjs';
+import { escolherIdioma, idiomaDaMaquina, IDIOMAS } from './idioma.mjs';
 import { estadoDoOllama, ligarOllama, instalarOllama, receitaManual } from './instalar.mjs';
 import { catalogoEmCache, medirModelo } from './catalogo-hf.mjs';
 import { CATEGORIAS, lojaEmCache, nota } from './loja.mjs';
@@ -344,7 +344,11 @@ function settingsView(req) {
     idiomaSugerido: escolherIdioma({
       escolhido: cfg.idioma,
       aceito: req?.headers?.['accept-language']
-    })
+    }),
+    // `NUVO_LANG=en` força o idioma da tela, e é como se confere a tradução sem
+    // mexer no idioma da máquina de quem está usando. Vem separado do palpite
+    // porque ele ganha do navegador: quem exportou a variável quer aquilo.
+    idiomaForcado: process.env.NUVO_LANG ? idiomaDaMaquina() : null
   };
 }
 

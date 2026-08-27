@@ -105,7 +105,7 @@ async function load() {
   await refreshState();
   // O idioma entra antes do primeiro desenho: trocar depois faria a tela
   // aparecer em português e piscar pro idioma certo.
-  await iniciarIdioma(state.settings?.idiomaSugerido);
+  await iniciarIdioma(state.settings?.idiomaSugerido, state.settings?.idiomaForcado);
   traduzirDocumento();
   // Depois do estado, porque a configuração da gaveta vem com ele — e antes do
   // primeiro desenho, senão o menu pisca na ordem antiga.

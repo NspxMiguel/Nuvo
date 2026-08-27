@@ -121,7 +121,7 @@ async function carregar(alvo) {
  * O navegador já carrega a resposta em todo pedido, de graça e mais certa: quem
  * usa VPN tem o IP num país e o idioma no dele.
  */
-export async function iniciarIdioma(sugestao) {
+export async function iniciarIdioma(sugestao, forcado) {
   const escolhido = idiomaEscolhido();
   const doNavegador = (navigator.languages || [navigator.language || ''])
     .map((l) => String(l))
@@ -131,7 +131,13 @@ export async function iniciarIdioma(sugestao) {
   // computador em inglês e mora em outro país, e a pergunta que importa é onde
   // a pessoa está. Quem discordar troca no seletor, e a escolha à mão — que é a
   // primeira da lista — vence tudo daí em diante.
-  const candidatos = [escolhido, idiomaDoLugar(), sugestao, doNavegador, 'pt-BR'].filter(Boolean);
+  // `NUVO_LANG` no servidor vem primeiro de tudo, inclusive da escolha guardada:
+  // ela existe pra conferir a tradução sem mexer no idioma da máquina de quem
+  // está usando, e uma escolha antiga no localStorage anularia isso justo em
+  // quem já usou o app.
+  const candidatos = [forcado, escolhido, idiomaDoLugar(), sugestao, doNavegador, 'pt-BR'].filter(
+    Boolean
+  );
   const disponiveis = Object.keys(NOMES);
   let alvo = 'pt-BR';
   for (const c of candidatos) {

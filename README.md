@@ -447,4 +447,21 @@ Sem etapa de build: HTML, CSS e ES modules servidos direto.
 - tema claro e escuro, paleta de comandos (Ctrl/Cmd+K) e atalhos;
 - ícones próprios em SVG — nada de emoji, que muda de desenho a cada sistema.
 
+### Idiomas
+
+Português, inglês e espanhol. O padrão sai, nesta ordem, do que a pessoa
+escolheu no seletor, do país deduzido do fuso horário, do `Accept-Language` do
+navegador e do idioma do sistema — nenhuma consulta de IP em passo nenhum.
+
+`NUVO_LANG` força o idioma, do servidor e da tela, acima de tudo isso:
+
+```sh
+NUVO_LANG=en nuvo
+```
+
+Serve para conferir a tradução sem mexer no idioma da máquina. Ela decide
+também o idioma dos quatro perfis que vêm prontos no primeiro start — eles são
+gravados no banco como dado de quem usa, então nascem certos em vez de serem
+traduzidos ao desenhar, o que desfaria qualquer renomeação.
+
 O desenho de produção vem depois, por cima da mesma API.

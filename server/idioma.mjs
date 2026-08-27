@@ -66,6 +66,35 @@ function normalizar(etiqueta) {
  *          disponiveis?: string[]}} opcoes
  * @returns {string} uma etiqueta de `disponiveis`
  */
+/**
+ * O idioma da máquina onde o servidor roda.
+ *
+ * Serve para o que nasce antes de existir tela: os perfis prontos do primeiro
+ * start são gravados no banco como dado do usuário — dá pra renomear e editar
+ * depois —, então traduzi-los na hora de desenhar desfaria o que a pessoa
+ * mudasse. Eles precisam nascer certos, e nesse momento o `Accept-Language` de
+ * ninguém chegou ainda.
+ *
+ * `NUVO_LANG` força, e é também o que a tela usa pra conferir tradução sem
+ * mexer no idioma da máquina de quem está usando.
+ */
+export function idiomaDaMaquina() {
+  const forcado = process.env.NUVO_LANG;
+  const doSistema = process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG;
+  for (const bruto of [forcado, doSistema]) {
+    if (!bruto) continue;
+    // `pt_BR.UTF-8`, `en-US`, `es` — do jeito que o sistema escreve.
+    const achado = escolherIdioma({ escolhido: String(bruto).split('.')[0] });
+    // `escolherIdioma` cai em `pt-BR` quando não reconhece; aqui isso seria
+    // errado, porque quem tem a máquina em francês tem mais chance de ler
+    // inglês do que português.
+    const lingua = String(bruto).split(/[._@-]/)[0].toLowerCase();
+    if (['pt', 'en', 'es'].includes(lingua)) return achado;
+    return 'en';
+  }
+  return PADRAO;
+}
+
 export function escolherIdioma({ escolhido = null, aceito = undefined, disponiveis = IDIOMAS } = {}) {
   const lista = disponiveis.length ? disponiveis : [PADRAO];
   const mapa = new Map(lista.map((d) => [normalizar(d), d]));
