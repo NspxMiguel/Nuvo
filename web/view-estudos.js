@@ -13,7 +13,8 @@
 // e sem isso as três colunas não cabem num 1280. Sair devolve a gaveta.
 
 import {
-  api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel, TOKEN
+  api, stream, state, escapeHtml, paintIcons, toast, iconPicker, modelOptions, modelLabel, TOKEN,
+  umDeCada
 } from './core.js';
 import { icon } from './icons.js';
 import { renderMarkdown } from './md.js';
@@ -2631,7 +2632,7 @@ function formularioDeProfessor(host, ctx) {
 
   const cor = iconPicker(host.querySelector('#pf-cor'), { icon: 'book', color: 'indigo' });
 
-  host.querySelector('#pf-criar').onclick = async () => {
+  umDeCada(host.querySelector('#pf-criar'), async () => {
     const nome = host.querySelector('#pf-nome').value.trim();
     if (!nome) return toast(t('o professor precisa de um nome'), 'err');
     const org = acharOrganizacao(escolhida.id);
@@ -2656,7 +2657,7 @@ function formularioDeProfessor(host, ctx) {
     aqui.fora.clear();
     ctx.switchView('estudos');
     toast(t('professor criado'), 'ok');
-  };
+  });
 
   paintIcons(host);
 }

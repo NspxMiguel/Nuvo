@@ -206,6 +206,27 @@ export function modelLabel(ref) {
 
 // ------------------------------------------------------------------- peças
 
+/**
+ * Um clique de cada vez num botão que cria coisa.
+ *
+ * Os `onclick = async () => …` das telas não desligam o botão enquanto o pedido
+ * está no ar: clicar duas vezes depressa manda dois POST e nascem dois perfis,
+ * dois projetos, duas memórias. Não é hipótese — foi o que apareceu clicando
+ * pela tela. O botão fica desligado até a resposta voltar, e volta ao normal
+ * mesmo se ela vier com erro.
+ */
+export function umDeCada(botao, acao) {
+  botao.onclick = async () => {
+    if (botao.disabled) return;
+    botao.disabled = true;
+    try {
+      await acao();
+    } finally {
+      botao.disabled = false;
+    }
+  };
+}
+
 export function escapeHtml(text) {
   // Nada vira nada. `String(undefined)` devolve a palavra "undefined", e ela
   // chegava na tela como se fosse conteúdo: um campo que faltou no JSON de uma

@@ -585,7 +585,10 @@ test('a foto do professor leva o token, senão ela nunca aparece', () => {
   const v = ler('web/view-estudos.js');
   const foto = v.slice(v.indexOf('function fotoDo('), v.indexOf('// ------', v.indexOf('function fotoDo(')));
   assert.match(foto, /token=\$\{encodeURIComponent\(TOKEN\)\}/, 'o token vai na URL da foto');
-  assert.match(v, /modelLabel, TOKEN\n\} from '\.\/core\.js'/, 'e vem do core');
+  // A lista de imports muda quando a tela ganha ajudante novo; o que importa é
+  // o TOKEN vir do core, não a posição dele na linha.
+  const imports = v.slice(v.indexOf('import {'), v.indexOf("} from './core.js';"));
+  assert.match(imports, /\bTOKEN\b/, 'e vem do core');
 });
 
 test('foto que sumiu do disco responde 404, não 500', async () => {
@@ -694,4 +697,31 @@ test('a prova impressa é branca com tinta preta, marcado ou não o fundo', () =
   // claro, que é o que `--text-2` vale no tema escuro.
   assert.match(bloco, /\.imprimindo-prova \.prova-conf p \} ?|\.imprimindo-prova \.prova-conf,\n  \.imprimindo-prova \.prova-conf p \{ color: #000; \}/,
     'a resposta esperada sai em preto');
+});
+
+test('botão que cria coisa dispara uma vez e exige nome', () => {
+  // Dois defeitos que andavam juntos. O primeiro: `name: campo.value.trim() ||
+  // t('Novo perfil')` fazia um clique sem querer — e o formulário fica sempre
+  // aberto logo acima do botão — nascer um perfil chamado "Novo perfil", sem
+  // dizer nada. O mesmo no projeto. A memória, duas telas adiante, já recusava
+  // e explicava; agora as três fazem igual.
+  //
+  // O segundo: os `onclick = async () => …` não desligavam o botão enquanto o
+  // POST estava no ar, então três cliques depressa criavam três.
+  const core = ler('web/core.js');
+  assert.match(core, /export function umDeCada\(botao, acao\)/, 'o guarda mora no core');
+  assert.match(core, /botao\.disabled = true;[\s\S]{0,120}finally \{\s*botao\.disabled = false;/,
+    'e devolve o botão mesmo se der erro');
+
+  const v = ler('web/views.js');
+  for (const id of ['#btn-add-gem', '#btn-add-proj', '#btn-add-mem']) {
+    assert.match(v, new RegExp(`umDeCada\\(inner\\.querySelector\\('${id}'\\)`), `${id} passa pelo guarda`);
+  }
+  assert.doesNotMatch(v, /value\.trim\(\) \|\| t\('Novo perfil'\)/, 'perfil sem nome não nasce');
+  assert.doesNotMatch(v, /value\.trim\(\) \|\| t\('Novo projeto'\)/, 'projeto sem nome não nasce');
+  assert.match(v, /dê um nome ao perfil/, 'e o perfil diz o que falta');
+  assert.match(v, /dê um nome ao projeto/, 'e o projeto também');
+
+  const e = ler('web/view-estudos.js');
+  assert.match(e, /umDeCada\(host\.querySelector\('#pf-criar'\)/, 'o professor também');
 });

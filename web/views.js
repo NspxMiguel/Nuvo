@@ -2,7 +2,7 @@
 
 import {
   $, api, stream, state, refreshState, chatModels, embeddingModels, modelOptions, modelLabel,
-  escapeHtml, badge, toast, iconPicker, paintIcons, TOKEN, origemDoFato, escopoDoFato
+  escapeHtml, badge, toast, iconPicker, paintIcons, TOKEN, origemDoFato, escopoDoFato, umDeCada
 } from './core.js';
 import { icon } from './icons.js';
 import { avisar, confirmar, perguntar } from './dialogo.js';
@@ -765,11 +765,21 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
 
   const picker = iconPicker(inner.querySelector('#g-picker'));
 
-  inner.querySelector('#btn-add-gem').onclick = async () => {
+  umDeCada(inner.querySelector('#btn-add-gem'), async () => {
+    const campoNome = inner.querySelector('#g-name');
+    const nome = campoNome.value.trim();
+    // Sem nome nascia um perfil chamado "Novo perfil". Clicar sem querer — e o
+    // botão fica logo abaixo do formulário, sempre aberto — enchia a lista de
+    // perfis iguais e sem nome, e ninguém descobria que o campo era o problema.
+    // É a mesma recusa que a memória já faz duas telas adiante.
+    if (!nome) {
+      campoNome.focus();
+      return toast(t('dê um nome ao perfil'), 'err');
+    }
     await api('/gems', {
       method: 'POST',
       body: {
-        name: inner.querySelector('#g-name').value.trim() || t('Novo perfil'),
+        name: nome,
         icon: picker.icon,
         color: picker.color,
         system_prompt: inner.querySelector('#g-prompt').value,
@@ -784,7 +794,7 @@ views.gems = function renderGems(el, { switchView, startChatWithGem }) {
     await refreshState();
     switchView('gems');
     toast(t('perfil criado'), 'ok');
-  };
+  });
 
   paintIcons(el);
 };
@@ -923,11 +933,17 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
 
   const picker = iconPicker(inner.querySelector('#p-picker'), { icon: 'folder', color: 'slate' });
 
-  inner.querySelector('#btn-add-proj').onclick = async () => {
+  umDeCada(inner.querySelector('#btn-add-proj'), async () => {
+    const campoNome = inner.querySelector('#p-name');
+    const nome = campoNome.value.trim();
+    if (!nome) {
+      campoNome.focus();
+      return toast(t('dê um nome ao projeto'), 'err');
+    }
     await api('/projects', {
       method: 'POST',
       body: {
-        name: inner.querySelector('#p-name').value.trim() || t('Novo projeto'),
+        name: nome,
         icon: picker.icon,
         color: picker.color,
         instructions: inner.querySelector('#p-inst').value,
@@ -937,7 +953,7 @@ views.projects = function renderProjects(el, { switchView, startChatInProject })
     await refreshState();
     switchView('projects');
     toast(t('projeto criado'), 'ok');
-  };
+  });
 
   paintIcons(el);
 };
@@ -1131,7 +1147,7 @@ views.memory = async function renderMemory(el, { switchView }) {
     list.appendChild(mais);
   }
 
-  inner.querySelector('#btn-add-mem').onclick = async () => {
+  umDeCada(inner.querySelector('#btn-add-mem'), async () => {
     const campo = inner.querySelector('#m-text');
     const text = campo.value.trim();
     // Sair calado é o que faz o botão parecer quebrado: quem clica com o campo
@@ -1145,7 +1161,7 @@ views.memory = async function renderMemory(el, { switchView }) {
       body: { text, pinned: inner.querySelector('#m-pin').checked }
     });
     switchView('memory');
-  };
+  });
 
   inner.querySelector('#m-file').onchange = async (ev) => {
     const file = ev.target.files[0];
