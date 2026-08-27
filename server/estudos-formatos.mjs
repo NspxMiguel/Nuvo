@@ -85,6 +85,39 @@ function avaliacaoEmPalavras(alvo) {
  * isso saía duas vezes — uma como frase corrida dentro das instruções, e outra
  * como o campo com régua de verdade que a folha desenha em cima.
  */
+/**
+ * Faz os valores das questões somarem o total da prova.
+ *
+ * Prova de escola vale 10, e o modelo entrega 9,0 ou 10,5 com frequência: ele
+ * escolhe o peso de cada questão de um jeito razoável e não confere a soma. Uma
+ * prova que soma 9 é inútil pra quem imprime e faz — a nota não dá pra comparar
+ * com a do professor.
+ *
+ * O que se ajusta é aritmética, não julgamento: os pesos relativos que o modelo
+ * escolheu ficam de pé, escalados pro total e arredondados a meio ponto, que é
+ * como prova de escola é escrita. A sobra vai pra questão de maior valor, que é
+ * onde meio ponto some sem distorcer nada.
+ *
+ * Deriva grande é outra coisa: se o total vier a mais de 40% do alvo, o modelo
+ * ignorou a instrução, e mexer nisso esconderia o problema em vez de mostrá-lo.
+ */
+function ajustarValores(questoes, total = 10) {
+  const com = questoes.filter((q) => Number(q.valor) > 0);
+  if (com.length !== questoes.length) return; // nem toda questão tem valor: não é prova pontuada
+  const soma = com.reduce((s, q) => s + q.valor, 0);
+  if (!soma || Math.abs(soma - total) < 0.005) return;
+  if (soma < total * 0.6 || soma > total * 1.4) return;
+
+  const fator = total / soma;
+  for (const q of com) q.valor = Math.max(0.5, Math.round(q.valor * fator * 2) / 2);
+  // Arredondar meio ponto por questão deixa sobra; ela vai pra maior.
+  const resto = Math.round((total - com.reduce((s, q) => s + q.valor, 0)) * 100) / 100;
+  if (resto) {
+    const maior = com.reduce((a, b) => (b.valor > a.valor ? b : a));
+    maior.valor = Math.round((maior.valor + resto) * 100) / 100;
+  }
+}
+
 function semCamposEmBranco(v) {
   return String(v || '')
     // "Nome: ______", "Nº ____", "Turma: ___", "Nota: ____", "Data: __/__/__"
@@ -251,6 +284,9 @@ Regras:
   repetidos saem duas vezes no papel. Cabeçalho de escola, matéria, professor e
   data pode.
 - "tempo" é a duração em minutos que essa prova pediria.
+- Os "valor" das questões TÊM que somar o total da prova — 10, salvo se o
+  retrato disser outro. Prova que soma 9 não existe: quem imprime e faz não
+  consegue comparar a nota com a do professor.
 - "probabilidade" é o quanto aquele tema pesa no retrato: alta acima de 20%, média entre 8 e 20%, baixa abaixo disso.
 - "alternativas" só existe em múltipla escolha e verdadeiro ou falso, e vem SEM
   "a)", "b)", "( )" nem numeração: quem escreve a letra é a folha de prova.
@@ -281,6 +317,7 @@ ${REGRAS_DE_FONTE}`,
         }))
         .filter((q) => q.enunciado);
       if (!questoes.length) return null;
+      ajustarValores(questoes);
       return {
         instrucoes: semCamposEmBranco(texto(bruto.instrucoes, 600)),
         tempo: Math.min(Math.max(Number(bruto.tempo) || 0, 0), 600) || null,

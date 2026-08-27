@@ -301,3 +301,35 @@ test('o cabeçalho da prova não repete os campos que a folha já desenha', () =
   assert.equal(emLinhas.split('\n')[1], '2º Trimestre · A2 — 28/08/2026');
   assert.match(emLinhas, /\n\nLeia com atenção\.$/, 'a linha do campo some, a estrutura fica');
 });
+
+test('os valores do simulado somam o total da prova', () => {
+  // Prova de escola vale 10, e o modelo entrega 9,0 com frequência: escolhe um
+  // peso razoável por questão e não confere a soma. Duas gerações seguidas com
+  // material de verdade deram 9,0 nas duas. Uma prova que soma 9 não serve pra
+  // quem imprime e faz — a nota não dá pra comparar com a do professor.
+  const prova = (valores) => ({
+    instrucoes: 'x',
+    tempo: 50,
+    questoes: valores.map((v, i) => ({ n: i + 1, enunciado: `q${i + 1}`, valor: v, gabarito: 'g' }))
+  });
+  const somar = (r) => Math.round(r.questoes.reduce((s, q) => s + q.valor, 0) * 100) / 100;
+
+  assert.equal(somar(FORMATOS.simulado.conferir(prova([3, 2, 2, 2]))), 10, 'sobe 9 pra 10');
+  assert.equal(somar(FORMATOS.simulado.conferir(prova([3, 3, 3, 3]))), 10, 'desce 12 pra 10');
+  assert.deepEqual(
+    FORMATOS.simulado.conferir(prova([3, 2, 2.5, 2.5])).questoes.map((q) => q.valor),
+    [3, 2, 2.5, 2.5],
+    'e não mexe no que já soma 10'
+  );
+
+  // Deriva grande é o modelo ignorando a instrução, não arredondamento: ajustar
+  // esconderia o problema em vez de mostrá-lo.
+  assert.equal(somar(FORMATOS.simulado.conferir(prova([1, 1, 1]))), 3, 'deixa 3 como está');
+  assert.equal(somar(FORMATOS.simulado.conferir(prova([5, 5, 5, 5]))), 20, 'e 20 também');
+
+  // Questão sem valor nenhum não é prova pontuada: não inventa peso.
+  const semValor = FORMATOS.simulado.conferir({
+    questoes: [{ n: 1, enunciado: 'a', gabarito: 'g' }, { n: 2, enunciado: 'b', valor: 5, gabarito: 'g' }]
+  });
+  assert.equal(semValor.questoes[1].valor, 5, 'mistura de com e sem valor fica intacta');
+});
