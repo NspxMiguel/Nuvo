@@ -122,6 +122,13 @@ export async function addAttachment({
     }
   }
 
+  // Arquivo vazio entrava com status "erro" e nota nenhuma: a tela caía no
+  // "não deu pra ler", que faz pensar em formato estranho ou PDF protegido —
+  // quando a explicação é a mais simples que existe e ninguém a dizia.
+  if (!text && !note && !buffer.length) {
+    note = textoTraduzivel('note', 'este arquivo está vazio').note;
+  }
+
   let path = null;
   try {
     // A pasta pode não existir ainda: quem chama `addAttachment` sem ter

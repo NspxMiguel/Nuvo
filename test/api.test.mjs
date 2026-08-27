@@ -1111,3 +1111,34 @@ test('IA desligada não continua sendo chamada por conversa antiga', async () =>
 
   await app.api(`/providers/${fakeProviderId}`, { method: 'PATCH', body: { enabled: true } });
 });
+
+test('corpo JSON que não é objeto vira 400, não 500', async () => {
+  // `null`, `[]` e `"texto"` passam pelo JSON.parse e nenhum deles é um pedido:
+  // toda rota daqui lê campo por nome. Um corpo `null` estourava no primeiro
+  // `b.title` e o cliente recebia 500 com "Cannot read properties of null" —
+  // um erro em inglês, sobre o interior do servidor, para quem mandou o pedido
+  // errado. Seis rotas faziam isso.
+  for (const corpo of ['null', '[]', '"texto"', '42']) {
+    for (const caminho of ['/api/chats', '/api/projects', '/api/gems', '/api/professores']) {
+      const res = await app.raw(caminho, {
+        method: 'POST',
+        headers: { 'x-nuvo-token': app.token, 'content-type': 'application/json' },
+        body: corpo
+      });
+      assert.equal(res.status, 400, `${caminho} com ${corpo}`);
+      const { error } = await res.json();
+      assert.match(error, /objeto JSON|JSON object|objeto JSON/, `${caminho} com ${corpo}: ${error}`);
+    }
+  }
+});
+
+test('corpo vazio continua valendo como objeto vazio', async () => {
+  // A checagem acima não pode ter matado o PATCH sem campos, que é como a tela
+  // "salva" sem mudar nada.
+  const res = await app.raw('/api/settings', {
+    method: 'PATCH',
+    headers: { 'x-nuvo-token': app.token, 'content-type': 'application/json' },
+    body: ''
+  });
+  assert.equal(res.status, 200);
+});

@@ -129,13 +129,22 @@ async function readBody(req, limit) {
 async function readJSON(req) {
   const raw = await readBody(req);
   if (!raw.trim()) return {};
+  let corpo;
   try {
-    return JSON.parse(raw);
+    corpo = JSON.parse(raw);
   } catch {
     // Corpo torto é erro de quem mandou, não defeito daqui: 500 mandava a
     // pessoa procurar um problema no servidor que não existe.
     throw erroHttp(400, 'o corpo do pedido não é JSON válido');
   }
+  // `null`, `[]` e `"texto"` são JSON válido e nenhum deles é um pedido: toda
+  // rota daqui lê campo por nome. Sem esta linha, um corpo `null` passava pelo
+  // `JSON.parse` e estourava no primeiro `b.title` — 500 e um erro em inglês
+  // sobre propriedade de null, que não diz nada a quem mandou.
+  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) {
+    throw erroHttp(400, 'o corpo do pedido precisa ser um objeto JSON');
+  }
+  return corpo;
 }
 
 // Um comentário SSE a cada 15 s. Modelo local pensando, pesquisa lendo página:
