@@ -207,6 +207,9 @@ if !verificando && (!argumentos.isEmpty || isatty(STDOUT_FILENO) == 1) {
     exit(127)
 }
 
+// As fontes de sinal precisam sobreviver ao fim do escopo, senão param de ouvir.
+var sinais: [DispatchSourceSignal] = []
+
 let cfg = configuracao()
 var token = cfg.token
 var levantado: Process? = nil
@@ -219,6 +222,11 @@ if !ehNuvo(cfg.porta) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: bin)
         p.arguments = ["--port", String(cfg.porta)]
+        // O servidor vigia este processo e sai quando ele sumir — inclusive
+        // quando a janela é derrubada sem executar mais nada.
+        var ambiente = ProcessInfo.processInfo.environment
+        ambiente["NUVO_JANELA_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+        p.environment = ambiente
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try? p.run()
@@ -269,4 +277,16 @@ app.setActivationPolicy(.regular)
 let dono = Janela(endereco: URL(string: endereco)!)
 dono.servidor = levantado
 app.delegate = dono
+
+// `pkill`, `launchctl` e o desligamento do sistema mandam SIGTERM, e o AppKit
+// não o transforma em "encerrar": o processo simplesmente ficava de pé. Sem
+// isto, fechar o app por fora deixava a janela e o servidor vivos.
+for sinal in [SIGTERM, SIGINT] {
+    signal(sinal, SIG_IGN)
+    let fonte = DispatchSource.makeSignalSource(signal: sinal, queue: .main)
+    fonte.setEventHandler { NSApp.terminate(nil) }
+    fonte.resume()
+    sinais.append(fonte)
+}
+
 app.run()

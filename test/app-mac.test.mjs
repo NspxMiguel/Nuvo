@@ -205,3 +205,23 @@ test('a janela avisa a página que os botões do sistema flutuam sobre ela', () 
   assert.match(css, /html\[data-janela-nativa\] \.side-head \{ padding-top: 22px; \}/, 'a barra desce');
   assert.match(css, /html\[data-janela-nativa\] #app\.recolhido #topbar/, 'e o topo também, com a gaveta recolhida');
 });
+
+test('o servidor que a janela levantou morre com ela', () => {
+  // `Process.terminate()` só chega se o processo da janela sair direitinho, e
+  // ele nem sempre sai: derrubado à força, um crash, o sistema desligando. O
+  // servidor ficava no ar sozinho, e o sintoma aparecia longe da causa — a
+  // pessoa atualizava o app, abria de novo, a janela encontrava alguém
+  // atendendo na porta e se ligava NELE: o servidor velho, servindo os
+  // arquivos da versão anterior. Versão nova instalada, versão antiga rodando.
+  const swift = readFileSync(new URL('../build/janela.swift', import.meta.url), 'utf8');
+  assert.match(swift, /ambiente\["NUVO_JANELA_PID"\]/, 'a janela se identifica pro filho');
+  // SIGTERM não vira "encerrar" sozinho no AppKit: `pkill` e o desligamento do
+  // sistema deixavam janela e servidor de pé.
+  assert.match(swift, /for sinal in \[SIGTERM, SIGINT\]/, 'e trata os sinais de fora');
+  assert.match(swift, /var sinais: \[DispatchSourceSignal\]/, 'guardando as fontes, senão elas param de ouvir');
+
+  const cli = readFileSync(new URL('../bin/nuvo.mjs', import.meta.url), 'utf8');
+  assert.match(cli, /process\.env\.NUVO_JANELA_PID/, 'o servidor vigia quem o levantou');
+  assert.match(cli, /process\.kill\(pai, 0\)/, 'com o sinal 0, que só pergunta se ele existe');
+  assert.match(cli, /olho\.unref\(\)/, 'e o relógio não segura o processo de pé sozinho');
+});

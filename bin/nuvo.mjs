@@ -24,6 +24,31 @@ if (flag('home')) process.env.NUVO_HOME = resolve(flag('home'));
 // texto da ajuda, que é um template literal.
 async function main() {
 
+// Quem foi levantado pela janela nativa morre com ela.
+//
+// `Process.terminate()` do lado de lá só chega se o processo da janela sair
+// direitinho — e ele nem sempre sai: fechar à força, um crash, ou o próprio
+// sistema derrubando deixavam este servidor no ar sozinho. O sintoma é feio e
+// silencioso: a pessoa atualiza o app, abre de novo, a janela encontra alguém
+// atendendo na porta e se liga NELE — o servidor velho, com os arquivos da
+// versão anterior. Ela vê a versão nova instalada e a antiga rodando.
+//
+// Vigiar o pai é o único jeito que cobre todas as saídas, inclusive a que não
+// executa código nenhum do outro lado.
+if (process.env.NUVO_JANELA_PID) {
+  const pai = Number(process.env.NUVO_JANELA_PID);
+  const olho = setInterval(() => {
+    try {
+      // Sinal 0 não faz nada: só pergunta se o processo ainda existe.
+      process.kill(pai, 0);
+    } catch {
+      process.exit(0);
+    }
+  }, 1500);
+  // `unref` pra este relógio não segurar o processo de pé sozinho.
+  olho.unref();
+}
+
 const { loadConfig, patchConfig, DATA_DIR, TRABALHO_DIR } = await import('../server/config.mjs');
 
 // App aberto pelo Finder herda a RAIZ do disco como diretório de trabalho, e
