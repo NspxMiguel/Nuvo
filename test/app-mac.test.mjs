@@ -150,3 +150,17 @@ test('a janela do pacote é nativa, e o servidor fica ao lado dela', () => {
   // Link pra fora abre no navegador de verdade, não dentro da janela do app.
   assert.match(fonte, /NSWorkspace\.shared\.open\(url\)/, 'link externo sai pro navegador');
 });
+
+test('a janela sai da frente quando quem chama é a linha de comando', () => {
+  // `Nuvo.app/Contents/MacOS/Nuvo` era o binário do Node, e é o caminho que
+  // script e atalho antigos conhecem. Trocá-lo por uma janela e mais nada
+  // quebraria em silêncio quem escreveu `.../MacOS/Nuvo backup`: abriria uma
+  // janela e o backup não aconteceria.
+  const fonte = readFileSync(new URL('../build/janela.swift', import.meta.url), 'utf8');
+  assert.match(fonte, /isatty\(STDOUT_FILENO\) == 1/, 'terminal do outro lado é linha de comando');
+  assert.match(fonte, /!argumentos\.isEmpty/, 'e argumento também');
+  assert.match(fonte, /execv\(bin, &argv\)/, 'a vez passa pro servidor, sem processo no meio');
+  // Sem o servidor ao lado, dizer o que faltou vale mais que abrir uma janela
+  // que não vai funcionar.
+  assert.match(fonte, /não achei o servidor ao lado da janela/, 'e sem ele, diz o que faltou');
+});

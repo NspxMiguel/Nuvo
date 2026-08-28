@@ -11,6 +11,7 @@
 // e o derruba ao fechar se foi ele quem levantou.
 
 import AppKit
+import Foundation
 import WebKit
 
 let PORTA_PADRAO = 4747
@@ -165,6 +166,25 @@ func caminhoDoServidor() -> String? {
     let meu = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
     let irmao = meu.deletingLastPathComponent().appendingPathComponent("nuvo-servidor")
     return FileManager.default.isExecutableFile(atPath: irmao.path) ? irmao.path : nil
+}
+
+// Quem chama isto de dentro de um terminal quer a linha de comando.
+//
+// `Nuvo.app/Contents/MacOS/Nuvo` era o binário do Node, e continua sendo o
+// caminho que script e atalho antigos conhecem. Trocá-lo por uma janela sem
+// mais nada quebraria em silêncio quem escreveu `.../MacOS/Nuvo backup` — abre
+// uma janela e o backup não acontece. Com argumento, ou com terminal do outro
+// lado, este processo sai da frente e entrega a vez pro servidor.
+let verificando = CommandLine.arguments.contains("--verificar")
+let argumentos = Array(CommandLine.arguments.dropFirst()).filter { $0 != "--verificar" }
+if !verificando && (!argumentos.isEmpty || isatty(STDOUT_FILENO) == 1) {
+    if let bin = caminhoDoServidor() {
+        var argv: [UnsafeMutablePointer<CChar>?] = ([bin] + argumentos).map { strdup($0) }
+        argv.append(nil)
+        execv(bin, &argv)
+    }
+    FileHandle.standardError.write(Data("nuvo: não achei o servidor ao lado da janela\n".utf8))
+    exit(127)
 }
 
 let cfg = configuracao()
