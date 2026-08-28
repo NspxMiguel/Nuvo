@@ -41,6 +41,8 @@ const aqui = {
   rodada: [],
   /** Fontes desmarcadas. Guardar o que está FORA deixa o padrão ser "tudo entra". */
   fora: new Set(),
+  /** Criar professor é uma página, não um formulário no fim da rolagem. */
+  criando: false,
   /** Busca e ordem da lista de professores — a barra da casa deles. */
   busca: '',
   ordem: 'recente',
@@ -325,6 +327,7 @@ export async function renderEstudos(el, ctx) {
     sairDeEstudos();
   }
 
+  if (aqui.criando) return telaDeCriar(el, ctx);
   if (!aqui.professorId) return telaDaLista(el, ctx);
   return telaDoProfessor(el, ctx);
 }
@@ -336,6 +339,52 @@ export function sairDeEstudos() {
   if (!app?.dataset.recolhiPorEstudos) return;
   delete app.dataset.recolhiPorEstudos;
   app.classList.remove('recolhido');
+}
+
+/**
+ * Criar professor tem página própria.
+ *
+ * O formulário abria no fim da lista, e com quatro professores já era preciso
+ * rolar até o rodapé pra ver o campo que tinha acabado de aparecer — a tela
+ * mostrava a lista e o começo de um formulário ao mesmo tempo, e nenhum dos
+ * dois inteiro. Uma página só faz uma coisa: cabeçalho com a volta, o
+ * formulário no meio, e nada em volta pra rolar.
+ */
+function telaDeCriar(el, ctx) {
+  document.querySelector('#app')?.removeAttribute('data-nlm');
+  el.className = 'view';
+  el.innerHTML = `<div class="nlm nlm-casa">
+    <header class="nlm-casa-topo">
+      <button class="nlm-voltar" id="est-voltar" aria-label="${t('voltar')}"
+        title="${t('voltar')}">${icon('chevron', 18)}</button>
+      <h2 class="nlm-topo-titulo">${t('Professor novo')}</h2>
+    </header>
+    <div class="nlm-casa-rolo">
+      <div class="nlm-casa-meio nlm-so-forma">
+        <div id="est-form"></div>
+      </div>
+    </div>
+  </div>`;
+
+  const voltar = () => {
+    aqui.criando = false;
+    ctx.switchView('estudos');
+  };
+  el.querySelector('#est-voltar').onclick = voltar;
+  // Esc sai daqui, como sai de qualquer coisa que abre.
+  el.onkeydown = (ev) => {
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      voltar();
+    }
+  };
+  // O formulário já existia; o que mudou é onde ele mora. `aberto = 0` porque
+  // `formularioDeProfessor` alterna, e aqui ele tem que abrir sempre.
+  const host = el.querySelector('#est-form');
+  host.dataset.aberto = '0';
+  formularioDeProfessor(host, ctx);
+  el.querySelector('#pf-nome')?.focus();
+  paintIcons(el);
 }
 
 async function telaDaLista(el, ctx) {
@@ -411,7 +460,6 @@ async function telaDaLista(el, ctx) {
               )}</p>`
         }
         <p id="est-sem-busca" class="nlm-nada" hidden>${t('Nenhum professor com esse nome.')}</p>
-        <div id="est-form"></div>
       </div>
     </div>
   </div>`;
@@ -436,7 +484,10 @@ async function telaDaLista(el, ctx) {
       ctx.switchView('estudos');
     };
   }
-  el.querySelector('#est-novo').onclick = () => formularioDeProfessor(el.querySelector('#est-form'), ctx);
+  el.querySelector('#est-novo').onclick = () => {
+    aqui.criando = true;
+    ctx.switchView('estudos');
+  };
   const campoBusca = el.querySelector('#est-busca');
   if (campoBusca) {
     // Filtra as linhas que já estão na tela, sem repintar.
@@ -2709,9 +2760,10 @@ function formularioDeProfessor(host, ctx) {
     return;
   }
   host.dataset.aberto = '1';
+  // Sem `<h3>`: o título já está no cabeçalho da página, e repetido virava
+  // "Professor novo" duas vezes na mesma tela.
   host.innerHTML = `
     <div class="card">
-      <h3>${t('Professor novo')}</h3>
       <label class="field">${t('Nome')} <input id="pf-nome" placeholder="${t('Marcos')}" /></label>
       <label class="field">${t('Matéria')} <input id="pf-materia" placeholder="${t('Biologia')}" /></label>
       <label class="field">${t('Cor')}<div id="pf-cor"></div></label>
@@ -2762,6 +2814,8 @@ function formularioDeProfessor(host, ctx) {
     // escrevia num nome que ninguém lê. Professor novo abre na conversa, que
     // é o meio da tela; a pasta se abre com um clique na coluna da esquerda.
     aqui.professorId = novo.id;
+    // A página de criar cumpriu o papel dela: o próximo desenho é o professor.
+    aqui.criando = false;
     aqui.pastaAberta = null;
     aqui.saidaAberta = null;
     aqui.conversaId = null;

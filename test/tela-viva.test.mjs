@@ -316,7 +316,10 @@ test('nenhuma classe do Estudos fica sem regra de estilo', () => {
   const usadas = new Set();
   for (const [, lista] of js.matchAll(/class="([^"$]*)"/g)) {
     for (const nome of lista.split(/\s+/)) {
-      if (/^(est|ret|mapa|quiz|info|slide|q)-/.test(nome)) usadas.add(nome);
+      // `nlm-` e `org-` entraram depois: `.org-op` chegou a existir só no JS,
+      // herdou o `button` genérico e saiu com o nome centralizado como legenda
+      // de foto — exatamente o defeito que esta guarda existe pra pegar.
+      if (/^(est|ret|mapa|quiz|info|slide|q|nlm|org|prova)-/.test(nome)) usadas.add(nome);
     }
   }
   assert.ok(usadas.size > 40, `só ${usadas.size} classes encontradas — a varredura quebrou`);
@@ -800,4 +803,23 @@ test('conexão que cai fala a língua da tela', () => {
   // Nenhum fetch cru sobrou nos dois caminhos que a tela usa o tempo todo.
   const apiFn = core.slice(core.indexOf('export async function api('), core.indexOf('export async function stream('));
   assert.doesNotMatch(apiFn, /await fetch\(/, 'o api() passa pelo tradutor');
+});
+
+test('criar professor é uma página, não um formulário no fim da lista', () => {
+  // O formulário abria embaixo da tabela: com meia dúzia de professores era
+  // preciso rolar até o rodapé pra ver o campo que tinha acabado de aparecer,
+  // e a tela mostrava metade da lista e metade do formulário ao mesmo tempo.
+  const v = ler('web/view-estudos.js');
+  assert.match(v, /if \(aqui\.criando\) return telaDeCriar\(el, ctx\);/, 'há uma página só pra isso');
+  assert.match(v, /function telaDeCriar\(el, ctx\)/, 'com desenho próprio');
+  // A lista não desenha mais o hospedeiro do formulário.
+  const lista = v.slice(v.indexOf('async function telaDaLista'), v.indexOf('for (const botao of el.querySelectorAll'));
+  assert.doesNotMatch(lista, /id="est-form"/, 'e a lista não hospeda mais o formulário');
+  // Voltar existe, pelo botão e pelo Esc.
+  const pagina = v.slice(v.indexOf('function telaDeCriar'), v.indexOf('async function telaDaLista'));
+  assert.match(pagina, /id="est-voltar"/, 'tem botão de voltar');
+  assert.match(pagina, /ev\.key === 'Escape'/, 'e Esc também volta');
+  assert.match(pagina, /#pf-nome'\)\?\.focus\(\)/, 'e o cursor já nasce no nome');
+  // Criar sai da página: sem isto o desenho seguinte volta pro formulário.
+  assert.match(v, /aqui\.criando = false;\n    aqui\.pastaAberta = null;/, 'criar fecha a página');
 });

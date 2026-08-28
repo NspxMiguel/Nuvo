@@ -1925,6 +1925,10 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
 }/* Na tela o título já está no cabeçalho da saída, com a data e a IA que fez —
    repetir dentro da folha era o mesmo nome duas vezes em 60px. No papel não há
    cabeçalho nenhum, e prova sem título não é prova. */
+/* O cabeçalho da prova é um bloco só: título, instruções e a linha de Nome,
+   Data e Nota. Impresso, ele não pode partir no meio — meia identificação numa
+   folha e metade na outra é o defeito clássico de prova em papel. */
+.prova-cabeca { display: block; break-inside: avoid; page-break-inside: avoid; }
 .prova-titulo { display: none; }
 @media print {.imprimindo-prova .prova-titulo { display: block; } }.prova-titulo {
   margin: 0;
@@ -2071,6 +2075,42 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
 }.prova-fim { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 9px; justify-items: start; }.prova-fim .hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; max-width: 40em; }/* Entregue, o botão sai: reentregar não existe numa prova. */
 .prova[data-entregue] .prova-fim > .primary { display: none; }.prova[data-modo='gabarito'] .prova-fim { display: none; }/* --- resumo --- */
 /* A seção em que a pessoa responde ao app, separada do que o app afirmou. */
+/* As três organizações de prova. Elas nunca tiveram regra própria: herdavam o
+   `button` genérico, e o nome e a explicação disputavam a mesma linha — num
+   formulário de 560px "Pastas que eu crio" quebrava no meio e o texto saía
+   centralizado, como legenda. Empilhado e à esquerda, cada opção se lê de uma
+   olhada. */
+.org-lista { display: grid; gap: 8px; margin-top: 8px; }
+.org-op {
+  display: grid;
+  /* O `button` genérico centraliza o conteúdo, e em grade isso centraliza a
+     coluna inteira: sem estas duas linhas o nome e a explicação saíam no meio,
+     com cara de legenda de foto. */
+  justify-content: stretch;
+  justify-items: start;
+  gap: 3px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  min-height: 0;
+}
+.org-op b { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.org-op .meta { font-size: 13.5px; line-height: 1.45; color: var(--muted); text-wrap: pretty; }
+.org-op:hover { background: var(--panel-2); }
+.org-op.sel { border-color: var(--accent-line); background: var(--accent-soft); }
+.org-op.sel .meta { color: var(--text-2); }
+
+/* A página de criar professor: o cabeçalho tem a volta e o nome do que se está
+   fazendo, e o meio é só o formulário — sem lista embaixo pra rolar. */
+.nlm-topo-titulo { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--nlm-txt); }
+/* Mais específico que `.nlm-casa-meio`, que vale 1000px: campo de nome com
+   um metro de largura é campo de planilha, não de formulário. */
+.nlm-casa-rolo .nlm-casa-meio.nlm-so-forma { max-width: 560px; padding-top: 26px; }
+.nlm-so-forma .card { margin: 0; }
 .est-correcoes { border-top: 1px solid var(--line-soft); padding-top: 4px; }
 /* O que a pessoa corrigiu: lista curta, cada linha com o seu jeito de sair. */
 .est-corr-lista { list-style: none; margin: 10px 0 12px; padding: 0; display: grid; gap: 4px; }

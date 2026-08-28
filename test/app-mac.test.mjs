@@ -123,3 +123,30 @@ test('o ícone entra no pacote', { skip: !NO_MAC }, () => {
   // Sobra da conversão não pode ir junto no download.
   assert.ok(!existsSync(join(app, 'Contents', 'Resources', 'nuvo.iconset')), 'a pasta de conversão ficou pra trás');
 });
+
+test('a janela do pacote é nativa, e o servidor fica ao lado dela', () => {
+  // O pacote abria o Chrome em `--app=`: janela sem aba e sem barra de
+  // endereço, mas ainda o Chrome — o Dock mostrava o ícone dele e o Cmd+Tab
+  // dizia "Google Chrome". Agora o executável do pacote é uma WKWebView e o
+  // binário Node vai ao lado, como `nuvo-servidor`.
+  const app = pacote();
+  const macos = join(app, 'Contents', 'MacOS');
+  const janela = join(macos, 'Nuvo');
+  assert.ok(existsSync(janela), 'o executável existe');
+
+  // Sem swiftc na máquina o pacote volta a ser o binário sozinho, e isso
+  // continua sendo um app que abre: o que não pode é sair sem executável.
+  const temNativa = existsSync(join(macos, 'nuvo-servidor'));
+  if (!temNativa) return;
+
+  const tipo = execFileSync('file', ['-b', janela], { encoding: 'utf8' });
+  assert.match(tipo, /Mach-O/, 'a janela é binário nativo');
+  assert.doesNotMatch(tipo, /x86_64.*arm64|arm64.*x86_64/, 'e de uma arquitetura só, como o servidor');
+
+  // A janela precisa saber achar o servidor: o nome do irmão está no código.
+  const fonte = readFileSync(new URL('../build/janela.swift', import.meta.url), 'utf8');
+  assert.match(fonte, /appendingPathComponent\("nuvo-servidor"\)/, 'ela procura o irmão pelo nome certo');
+  assert.match(fonte, /obj\["app"\] as\? String\) == "nuvo"/, 'e confere que quem atende é um Nuvo');
+  // Link pra fora abre no navegador de verdade, não dentro da janela do app.
+  assert.match(fonte, /NSWorkspace\.shared\.open\(url\)/, 'link externo sai pro navegador');
+});

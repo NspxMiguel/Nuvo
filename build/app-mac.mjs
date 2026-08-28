@@ -40,8 +40,28 @@ export function montarAppMac(binario, versao, destinoPai) {
   //   executável = script #!/bin/sh -> (x86_64, arm64)
   //
   // Sem interpretador no meio não há de onde tirar x86_64, e some o aviso.
+  //
+  // Quem abre a janela é uma WKWebView nativa, quando dá pra compilá-la.
+  //
+  // Antes o pacote abria o Chrome em `--app=`: janela sem aba e sem barra de
+  // endereço, mas ainda o Chrome — no Dock aparecia o ícone dele, no Cmd+Tab
+  // aparecia "Google Chrome", e clicar no Nuvo na barra abria o navegador. Um
+  // app que abre outro app não é um app. Agora o executável do pacote é a
+  // janela, e o servidor Node fica ao lado dela como `nuvo-servidor`.
+  //
+  // Sem `swiftc` na máquina que empacota, o pacote volta a ser o binário Node
+  // sozinho — que abre a janela do jeito antigo. Ninguém fica sem app; quem
+  // empacota sem as ferramentas da Apple é que fica sem a janela nativa.
+  const janela = compilarJanela(macos, arquiteturaDe(binario));
   const lancador = join(macos, 'Nuvo');
-  copyFileSync(binario, lancador);
+  if (janela) {
+    copyFileSync(binario, join(macos, 'nuvo-servidor'));
+    chmodSync(join(macos, 'nuvo-servidor'), 0o755);
+    copyFileSync(janela, lancador);
+    rmSync(janela, { force: true });
+  } else {
+    copyFileSync(binario, lancador);
+  }
   chmodSync(lancador, 0o755);
 
   writeFileSync(join(conteudo, 'PkgInfo'), 'APPL????');
@@ -73,6 +93,40 @@ export function montarAppMac(binario, versao, destinoPai) {
     console.warn('  aviso: não deu pra assinar o Nuvo.app (só afeta macOS)');
   }
   return app;
+}
+
+/** arm64 ou x86_64, lido do próprio binário: a janela tem que casar com ele. */
+function arquiteturaDe(binario) {
+  try {
+    const saida = execFileSync('file', ['-b', binario], { encoding: 'utf8' });
+    if (/arm64/.test(saida)) return 'arm64';
+    if (/x86_64/.test(saida)) return 'x86_64';
+  } catch {
+    // `file` é do sistema; se faltar, o palpite é a máquina que empacota.
+  }
+  return process.arch === 'x64' ? 'x86_64' : 'arm64';
+}
+
+/**
+ * Compila `build/janela.swift` pra dentro do pacote.
+ *
+ * Devolve o caminho do binário, ou `null` quando não dá — sem `swiftc`, sem o
+ * fonte, ou compilando pra uma arquitetura que esta máquina não alcança.
+ */
+export function compilarJanela(destino, arquitetura = 'arm64') {
+  const fonte = join(RAIZ, 'build', 'janela.swift');
+  if (process.platform !== 'darwin' || !existsSync(fonte)) return null;
+  const saida = join(destino, 'janela-tmp');
+  try {
+    sh('swiftc', ['-O', '-target', `${arquitetura}-apple-macos11.0`, '-o', saida, fonte], {
+      stdio: 'ignore'
+    });
+    return saida;
+  } catch {
+    console.warn('  aviso: sem swiftc — o app abre a janela pelo navegador');
+    rmSync(saida, { force: true });
+    return null;
+  }
 }
 
 /** O ícone do PWA vira o ícone do pacote. Sem as ferramentas da Apple, segue sem. */
