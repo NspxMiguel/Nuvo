@@ -1,479 +1,505 @@
+<div align="center">
+
 # Nuvo
 
-Servidor de IA para rodar na própria máquina. Junta modelo local, modelo de API
-e IA de linha de comando numa interface só — e dá a todos eles **a mesma
-memória**. O que você contou pro Claude, o GPT sabe na próxima conversa.
+**An AI server for your own machine — local models, API models and terminal AIs
+in one interface, all sharing the same memory.**
 
-Roda em Windows, macOS e Linux. Abre no navegador do PC e instala como app no
-celular pela rede local.
+What you told Claude, GPT knows in the next conversation.
 
-## Requisitos
+[![Dependencies](https://img.shields.io/badge/dependencies-none-3fb950)](#requirements)
+[![Node](https://img.shields.io/badge/node-22.5%2B-5fa04e?logo=node.js&logoColor=white)](#requirements)
+[![Tests](https://img.shields.io/badge/tests-203_on_node%3Atest-0a84ff)](#tests)
+[![Platforms](https://img.shields.io/badge/platforms-macOS_·_Linux_·_Windows-black)](#running-it)
+[![Languages](https://img.shields.io/badge/UI-EN_·_PT_·_ES-8a63d2)](#languages)
+[![License](https://img.shields.io/github/license/NspxMiguel/Nuvo?color=lightgrey)](LICENSE)
 
-Node 22.5 ou mais novo. Nada além disso: o projeto usa `node:sqlite`, embutido
-no Node, então **não há dependência para instalar** e não há compilação nativa.
+<img src="docs/img/nuvo.jpg" alt="Nuvo running in the browser: chat, sidebar and model picker" width="820">
 
-## Rodar
+</div>
+
+---
+
+Runs on Windows, macOS and Linux. Open it in the browser on your computer, and
+install it as an app on your phone over the local network.
+
+<img src="docs/img/nuvo-mobile.jpg" alt="Nuvo installed as an app on a phone" width="260" align="right">
+
+## Requirements
+
+Node 22.5 or newer. Nothing else: the project uses `node:sqlite`, built into
+Node, so **there is nothing to install** and no native compilation.
+
+## Running it
 
 ```bash
 node bin/nuvo.mjs
 ```
 
-O servidor imprime o endereço local e o da rede, já com o token de acesso:
+The server prints the local address and the network one, access token included:
 
 ```
-Nuvo no ar
-local:  http://localhost:4747/?token=...
-rede:   http://10.0.0.72:4747/?token=...
+Nuvo is up
+local:    http://localhost:4747/?token=...
+network:  http://10.0.0.72:4747/?token=...
 ```
 
-Abrir o endereço de rede no celular e usar "Adicionar à Tela de Início" instala
-como app.
+Open the network address on your phone and use "Add to Home Screen" to install
+it as an app.
 
-| Opção | Efeito |
+| Option | Effect |
 | --- | --- |
-| `--port 4747` | troca a porta |
-| `--host 0.0.0.0` | troca o endereço de escuta |
-| `--token` | imprime o token e sai |
-| `--no-token` | desliga o token (só em rede confiável) |
-| `--com-token` | religa o token |
+| `--port 4747` | change the port |
+| `--host 0.0.0.0` | change the listening address |
+| `--token` | print the token and exit |
+| `--no-token` | turn the token off (trusted networks only) |
+| `--com-token` | turn it back on |
 
-Tudo do usuário fica em `~/.nuvo`: banco (`data.db`), configuração
-(`config.json`, criado com permissão 600), anexos (`uploads/`) e as cópias
-automáticas (`backups/`).
+Everything of yours lives in `~/.nuvo`: the database (`data.db`), the
+configuration (`config.json`, created with permission 600), attachments
+(`uploads/`) and the automatic copies (`backups/`).
 
-## Operação
+## Operating it
 
 ```bash
-node bin/nuvo.mjs instalar-servico   # sobe junto com a máquina
-node bin/nuvo.mjs servico            # instalado? rodando?
+node bin/nuvo.mjs instalar-servico   # start with the machine
+node bin/nuvo.mjs servico            # installed? running?
 node bin/nuvo.mjs remover-servico
 ```
 
-launchd no macOS, `systemd --user` no Linux, Agendador de Tarefas no Windows —
-tudo no escopo do usuário, sem pedir senha de administrador. No Linux o comando
-tenta `loginctl enable-linger`; sem ele o servidor só fica de pé enquanto houver
-sessão aberta, e isso é dito na saída.
+launchd on macOS, `systemd --user` on Linux, Task Scheduler on Windows — all in
+the user's scope, no administrator password. On Linux the command tries
+`loginctl enable-linger`; without it the server only stays up while a session is
+open, and the output says so.
 
-### Ícone no dock
+### An icon in the dock
 
 ```bash
-node bin/nuvo.mjs instalar-app   # Linux e Windows: atalho com ícone
+node bin/nuvo.mjs instalar-app   # Linux and Windows: shortcut with an icon
 node bin/nuvo.mjs remover-app
 ```
 
-Não é Electron: empacotar um Chromium por aparência custaria centenas de
-megabytes e a primeira dependência do projeto.
+This is not Electron: bundling a Chromium for the sake of appearance would cost
+hundreds of megabytes and become the project's first dependency.
 
-No macOS, o `Nuvo.app` baixado das releases abre uma **janela nativa** — uma
-`WKWebView` num `NSWindow`, 136 kB compilados de `build/janela.swift` na hora de
-empacotar. É o ícone do Nuvo no Dock e "Nuvo" no Cmd+Tab; o Chrome não entra na
-história. Ela sobe o servidor se ninguém estiver atendendo na porta e só o
-derruba ao fechar se foi ela quem subiu — quem tem um `nuvo` rodando no terminal
-não perde a sessão fechando a janela. Link pra fora de `127.0.0.1` abre no
-navegador de verdade. Empacotar sem `swiftc` na máquina devolve o pacote antigo,
-que abre pelo navegador.
+On macOS, the `Nuvo.app` from the releases opens a **native window** — a
+`WKWebView` in an `NSWindow`, 136 kB compiled from `build/janela.swift` at
+packaging time. It is Nuvo's icon in the Dock and "Nuvo" in Cmd+Tab; Chrome is
+not part of the story. It starts the server if nobody is answering on the port,
+and only shuts it down on close if it was the one that started it — someone with
+`nuvo` running in a terminal does not lose the session by closing the window. A
+link outside `127.0.0.1` opens in the real browser. Packaging without `swiftc`
+on the machine returns the older bundle, which opens through the browser.
 
-O `instalar-app` é o outro caminho, e continua sendo o único no Linux e no
-Windows. No macOS ele reconhece o pacote das releases e não escreve por cima —
-os dois moram em `~/Applications/Nuvo.app`, e trocar um pelo outro devolveria a
-janela do navegador sem ninguém entender por quê. Ele: abre o navegador que você já tem em modo aplicativo — janela sem barra
-de endereço e sem abas — apontado pro servidor. No Linux sai um `.desktop` no
-menu; no Windows, um atalho no Menu Iniciar. Sem Chrome/Edge/Brave instalado,
-abre numa aba comum do navegador padrão.
+`instalar-app` is the other route, and remains the only one on Linux and
+Windows. On macOS it recognises the release bundle and does not write over it —
+both live at `~/Applications/Nuvo.app`, and swapping one for the other would
+give back the browser window with nobody understanding why. What it does: open
+the browser you already have in app mode — a window with no address bar and no
+tabs — pointed at the server. On Linux it writes a `.desktop` entry in the menu;
+on Windows, a Start Menu shortcut. With no Chrome/Edge/Brave installed, it opens
+in an ordinary tab of the default browser.
 
-Os dois confirmam que quem atende na porta é mesmo o Nuvo (`GET /api/ping`,
-a única rota sem token) antes de abrir a janela — o endereço carrega o token de
-acesso, e mandá-lo pra qualquer programa que tenha tomado a porta seria entregar
-a chave da casa.
+Both confirm that whoever is answering on the port really is Nuvo
+(`GET /api/ping`, the only route without a token) before opening the window: the
+address carries the access token, and handing it to any program that happened to
+take the port would be handing over the key to the house.
 
 ### Backup
 
 ```bash
-node bin/nuvo.mjs backup [arquivo.zip]   # banco + config + anexos
-node bin/nuvo.mjs restore arquivo.zip
-node bin/nuvo.mjs backups                # as cópias automáticas
+node bin/nuvo.mjs backup [file.zip]   # database + config + attachments
+node bin/nuvo.mjs restore file.zip
+node bin/nuvo.mjs backups             # the automatic copies
 ```
 
-Uma cópia por dia é feita sozinha quando o servidor sobe, e as sete últimas
-ficam guardadas. Na interface, a mesma coisa fica em Config → Backup.
+One copy a day is made on its own when the server starts, and the last seven are
+kept. In the interface, the same thing lives under Settings → Backup.
 
-O banco sai por `VACUUM INTO`, não por cópia do arquivo: com WAL ligado, o
-`.db` sozinho pode estar atrás do que já foi gravado. A restauração valida
-assinatura e cabeçalho antes de tocar em qualquer coisa, guarda o banco atual
-como `data.db.antes-da-restauracao` e pede reinício — o processo em execução
-ainda tem o banco antigo aberto.
+The database comes out through `VACUUM INTO`, not a file copy: with WAL on, the
+`.db` by itself can be behind what has already been written. Restoring validates
+signature and header before touching anything, keeps the current database as
+`data.db.antes-da-restauracao` and asks for a restart — the running process
+still has the old database open.
 
-### Token de acesso
+### Access token
 
-O token é exigido por padrão e vale para tudo, menos `GET /api/ping`. Desligar é
-possível — `--no-token`, ou a chave em Config → Acesso — mas a decisão fica
-gravada e vale nas próximas subidas, então o servidor avisa em todo start
-enquanto estiver desligado. Religar: `--com-token` ou a mesma chave na tela.
+The token is required by default and covers everything except `GET /api/ping`.
+Turning it off is possible — `--no-token`, or the switch under Settings → Access
+— but the decision is recorded and applies to later starts, so the server warns
+on every start while it is off. To turn it back on: `--com-token`, or the same
+switch on screen.
 
-Religando pela tela, o servidor devolve o token na resposta e o navegador o
-guarda. Sem isso o botão seria armadilha: o pedido seguinte da própria aba que
-apertou o botão levaria 401. Os outros aparelhos precisam do token, que aparece
-no terminal e em `nuvo --token`.
+When turned back on from the screen, the server returns the token in the
+response and the browser stores it. Without that the button would be a trap: the
+next request from the very tab that pressed it would get a 401. Other devices
+need the token, which shows in the terminal and in `nuvo --token`.
 
-### Quando não vem resposta
+### When no answer comes back
 
-Em Provedores, **Testar todos** fala com cada um e escreve o resultado no
-cartão dele. Provedor de CLI é testado disparando o binário, não lendo a
-configuração; API é testada listando modelos.
+Under Providers, **Test all** talks to each one and writes the result on its
+card. A CLI provider is tested by running the binary, not by reading the
+configuration; an API is tested by listing models.
 
-O erro que aparece na conversa é traduzido em instrução: "o Ollama não
-respondeu em localhost:11434, abra o app do Ollama", "a chave foi recusada,
-gere uma nova", "o provedor pediu pra esperar, ou troque de modelo". A mensagem
-crua do provedor vai junto, entre parênteses.
+The error that reaches the conversation is translated into an instruction:
+"Ollama did not answer on localhost:11434, open the Ollama app", "the key was
+refused, generate a new one", "the provider asked you to wait, or switch
+models". The provider's raw message goes along, in parentheses.
 
-Modelo que trava é cortado: 240 s até o primeiro pedaço da resposta (modelo
-local grande demora pra subir na memória) e 120 s entre pedaços. O que já tinha
-chegado é gravado como resposta interrompida. Os dois prazos ficam em
-`config.json`, em `limits`.
+A model that hangs is cut off: 240 s until the first chunk of the answer (a
+large local model takes a while to load into memory) and 120 s between chunks.
+Whatever had already arrived is stored as an interrupted answer. Both deadlines
+live in `config.json`, under `limits`.
 
-## Testes
+## Tests
 
 ```bash
 npm test
 ```
 
-203 testes com o runner do próprio Node, sem dependência de teste. Cada arquivo
-roda num `NUVO_HOME` temporário e substitui o `fetch` global, então nada
-toca o banco real nem a rede.
+203 tests on Node's own runner, with no test dependency. Each file runs in a
+temporary `NUVO_HOME` and replaces the global `fetch`, so nothing touches the
+real database or the network.
 
-## Provedores
+## Providers
 
-No primeiro start o servidor varre a máquina sozinho: portas conhecidas de
-servidores locais e binários de IA no `PATH`.
+On the first start the server scans the machine on its own: known ports of local
+servers and AI binaries on the `PATH`.
 
-| Tipo | Cobre |
+| Type | Covers |
 | --- | --- |
 | `openai` | OpenAI, Groq, DeepSeek, OpenRouter, xAI, Mistral, LM Studio, llama.cpp, vLLM, LocalAI |
-| `anthropic` | API da Anthropic |
+| `anthropic` | Anthropic's API |
 | `google` | Gemini |
 | `ollama` | Ollama |
-| `cli` | Claude Code, Codex, Gemini CLI, OpenCode — qualquer binário que aceite prompt |
+| `cli` | Claude Code, Codex, Gemini CLI, OpenCode — any binary that takes a prompt |
 
-A chave de API é gravada em `config.json` e **nunca sai do servidor**: a API
-expõe apenas se existe chave (`has_secret`), jamais o valor.
+The API key is written to `config.json` and **never leaves the server**: the API
+exposes only whether a key exists (`has_secret`), never the value.
 
-Provedor de CLI é configurado por JSON, com `{{prompt}}` e `{{model}}` nos
-argumentos:
+A CLI provider is configured with JSON, using `{{prompt}}` and `{{model}}` in
+the arguments:
 
 ```json
 { "command": "claude", "args": ["-p", "{{prompt}}"], "stdin": true, "models": ["default"] }
 ```
 
-## Memória compartilhada
+## Shared memory
 
-É o núcleo do projeto. Um único banco de fatos, lido e escrito por qualquer
-modelo, independente de quem respondeu.
+This is the core of the project. A single store of facts, read and written by
+any model, regardless of which one answered.
 
-- **Recuperação híbrida** — FTS5 (BM25) sempre, mais similaridade de cosseno
-  quando há modelo de embedding configurado. Sem embedding o app continua
-  funcionando, só com menos precisão;
-- **Escrita automática** — depois de cada resposta, um extrator lê a troca e
-  guarda o que é duradouro. Sem modelo extrator configurado, cai numa heurística
-  local que não faz nenhuma chamada de rede;
-- **Fixar** um fato o injeta em toda conversa, sem disputar pontuação;
-- **Escopo** — fato global vale em tudo; fato de projeto só naquele projeto;
-- **Importação** — export do ChatGPT ou do Claude (`conversations.json`) vira
-  memória. Só os turnos do usuário são lidos.
+- **Hybrid retrieval** — FTS5 (BM25) always, plus cosine similarity when an
+  embedding model is configured. Without embeddings the app keeps working, just
+  with less precision;
+- **Automatic writing** — after each answer, an extractor reads the exchange and
+  keeps what is durable. With no extractor model configured, it falls back to a
+  local heuristic that makes no network call at all;
+- **Pinning** a fact injects it into every conversation, without competing for a
+  score;
+- **Scope** — a global fact applies everywhere; a project fact only inside that
+  project;
+- **Import** — a ChatGPT or Claude export (`conversations.json`) becomes memory.
+  Only the user's turns are read.
 
-A interface mostra, em cada resposta, o que foi lembrado e o que foi aprendido.
+The interface shows, on every answer, what was remembered and what was learned.
 
-## Documentos (RAG)
+## Documents (RAG)
 
-Anexo entra pelo clipe, arrastando pra cima da conversa ou colando no campo de
-texto. Arquivo do projeto vale em toda conversa dele.
+An attachment goes in through the clip, by dragging onto the conversation, or by
+pasting into the text field. A project file applies to every conversation in it.
 
-Lê texto e código, PDF, DOCX, PPTX e EPUB — os quatro últimos com extrator
-próprio, sem dependência. PDF digitalizado em imagem não tem texto pra extrair e
-o app diz isso em vez de fingir que leu.
+It reads text and code, PDF, DOCX, PPTX and EPUB — the last four with an
+extractor of its own, no dependency. A PDF scanned as images has no text to
+extract, and the app says so instead of pretending it read it.
 
-Arquivo curto entra inteiro no prompt. Arquivo grande é quebrado em trechos,
-indexado em FTS5 (mais embeddings quando houver) e só o trecho relevante entra —
-com o nome do arquivo junto, pra resposta poder citar a fonte.
+A short file goes into the prompt whole. A large one is split into passages,
+indexed in FTS5 (plus embeddings when available), and only the relevant passage
+goes in — with the file name attached, so the answer can cite its source.
 
-## Busca na web e pesquisa profunda
+## Web search and deep research
 
-Sem chave de API: a busca sai pelo endpoint HTML do DuckDuckGo e a leitura de
-página derruba script, estilo e navegação antes de virar texto.
+With no API key: search goes out through DuckDuckGo's HTML endpoint, and page
+reading strips script, style and navigation before turning it into text.
 
-- **Busca no chat** — o botão do globo liga a busca na conversa: cada pergunta
-  passa por uma busca, três páginas são lidas e entram no prompt numeradas;
-- **Pesquisa profunda** — o modelo planeja de 3 a 6 consultas, o servidor busca
-  e lê as páginas, e o relatório final cita cada afirmação pelo número da fonte.
-  Página que não abre aparece como não aberta; sem fonte, não há relatório.
+- **Search in chat** — the globe button turns search on for the conversation:
+  every question goes through a search, three pages are read and enter the
+  prompt numbered;
+- **Deep research** — the model plans 3 to 6 queries, the server searches and
+  reads the pages, and the final report cites each claim by source number. A
+  page that does not open shows as not opened; with no sources, there is no
+  report.
 
-## Conselho de IAs
+## AI council
 
-O mesmo prompt em vários modelos ao mesmo tempo, em três modos:
+The same prompt to several models at once, in three modes:
 
-| Modo | O que faz |
+| Mode | What it does |
 | --- | --- |
-| comparar | as respostas lado a lado, você julga |
-| conselho | as respostas mais uma síntese feita por um modelo juiz |
-| votação cega | cada modelo avalia as respostas dos outros sem saber de quem é cada uma, e o resultado é a nota média |
+| compare | the answers side by side, you judge |
+| council | the answers plus a synthesis written by a judge model |
+| blind vote | each model rates the others' answers without knowing whose is whose, and the result is the average score |
 
-A votação é cega de propósito: modelo que sabe qual resposta é a dele tende a
-votar nela. A ordem das candidatas muda por jurado, derivada do índice — sem
-sorteio, o que mantém o resultado reproduzível.
+The vote is blind on purpose: a model that knows which answer is its own tends
+to vote for it. The order of the candidates changes per juror, derived from the
+index — no random draw, which keeps the result reproducible.
 
-## Gerenciar modelos
+## Managing models
 
-Provedor Ollama tem baixar e apagar modelo pela interface, com barra de
-progresso lida do stream do próprio Ollama.
+An Ollama provider can pull and delete models from the interface, with a
+progress bar read from Ollama's own stream.
 
-## Gems e projetos
+## Gems and projects
 
-**Gem** é a personalidade: instruções, modelo preferido, temperatura, modo
-(`chat` ou `coding`) e se lê/grava memória. **Projeto** agrupa conversas, tem
-instrução própria, memória de escopo próprio e um diretório de trabalho, usado
-pelas IAs de CLI no modo coding.
+A **gem** is the personality: instructions, preferred model, temperature, mode
+(`chat` or `coding`) and whether it reads/writes memory. A **project** groups
+conversations, has its own instruction, its own scoped memory and a working
+directory, used by the CLI AIs in coding mode.
 
-Cada gem tem um sinalizador `unfiltered`, que troca o prompt de sistema por um
-sem restrição e, no Gemini, envia `safetySettings: BLOCK_NONE`. Em modelo local
-isso remove o filtro de fato. Em API hospedada, o provedor continua aplicando a
-política dele — o sinalizador não muda isso.
+Each gem has an `unfiltered` flag, which swaps the system prompt for one without
+restrictions and, on Gemini, sends `safetySettings: BLOCK_NONE`. On a local
+model this genuinely removes the filter. On a hosted API, the provider still
+applies its own policy — the flag does not change that.
 
-## Estudos
+## Study
 
-Um professor por vez. Dentro dele, as avaliações passadas e o material de aula —
-e a diferença entre os dois é o produto.
+One teacher at a time. Inside it, the past assessments and the class material —
+and the difference between the two is the product.
 
-**A tela é a do NotebookLM, copiada de propósito e medida no navegador**: barra
-de 64px, colunas de 270 | resto | 270 com vão de 16, painel de raio 16 sobre
-`#22262b`, linha de fonte de 48px, ladrilho de 56px com rótulo de 12px. Fontes à
-esquerda, **conversa no meio**, estúdio à direita. A conversa responde com o
-material daquele professor e cita o arquivo de onde tirou — é o que dá sentido
-às outras duas colunas. As laterais recolhem pra 56px quando a resposta precisa
-de espaço.
+**The screen is NotebookLM's, copied on purpose and measured in the browser**:
+64px bar, 270 | rest | 270 columns with a 16 gap, radius-16 panel over `#22262b`,
+48px source row, 56px tile with a 12px label. Sources on the left, **conversation
+in the middle**, studio on the right. The conversation answers from that
+teacher's material and cites the file it came from — that is what gives the
+other two columns their point. The sides collapse to 56px when the answer needs
+the room.
 
-O que a cópia literal jogaria fora ficou: a fonte fechada continua dizendo
-quantos arquivos são a prova, o que a prova cobrou e o que só foi dado em aula.
+What a literal copy would have thrown away stayed: a collapsed source still says
+how many files are past papers, what those papers actually asked, and what was
+only covered in class.
 
-Cada arquivo tem um papel, e a tela diz qual em todo lugar em que ele aparece:
+Every file has a role, and the screen says which one everywhere it appears:
 
-| Papel | O que é |
+| Role | What it is |
 | --- | --- |
-| prova | o documento como o professor entregou |
-| conteúdo | o que aquela prova cobrou de verdade |
-| aula | o que ele ensinou no período |
+| paper | the document as the teacher handed it out |
+| content | what that paper actually asked for |
+| class | what they taught during the term |
 
-Clicar num arquivo abre ele: o texto como o extrator guardou, na coluna do meio.
-É onde uma extração ruim se denuncia — PDF que virou salada de caracteres
-aparece aqui, e não três telas depois, num simulado que sai estranho sem motivo
-aparente.
+Clicking a file opens it: the text as the extractor stored it, in the middle
+column. This is where a bad extraction gives itself away — a PDF that turned
+into character soup shows up here, and not three screens later, in a mock exam
+that comes out strange for no visible reason.
 
-**O retrato do professor** sai das provas passadas em duas passadas: uma leitura
-por prova, depois uma síntese sobre todas. O esqueleto não foi inventado — é a
-tabela de especificações que se usa pra montar prova de verdade: conteúdo ×
-nível cognitivo (Bloom) × formato de questão × peso. Ela é verificável, o que
-"estilo do professor" não é: cada achado vem com o trecho literal da prova que o
-sustenta, e a tela mostra esse trecho do lado.
+**The teacher's portrait** comes out of the past papers in two passes: one read
+per paper, then a synthesis over all of them. The skeleton was not invented — it
+is the table of specifications used to build a real exam: content × cognitive
+level (Bloom) × question format × weight. It is verifiable, which "the teacher's
+style" is not: every finding comes with the literal passage from the paper that
+supports it, and the screen shows that passage beside it.
 
-Prova é amostra; material de aula é o universo. A distância entre os dois é o que
-o retrato chama de "ensina e nunca cobrou".
+A paper is a sample; the class material is the universe. The distance between
+the two is what the portrait calls "teaches and has never asked".
 
-A leitura de cada prova fica guardada com a impressão digital dos arquivos e do
-modelo: ler cinco provas leva minutos, e uma falha na síntese não pode jogar isso
-fora. Trocar de modelo ou anexar outra prova muda a impressão digital, então a
-leitura é refeita.
+Each paper's reading is stored with a fingerprint of the files and the model:
+reading five papers takes minutes, and a failure in the synthesis cannot throw
+that away. Changing the model or attaching another paper changes the
+fingerprint, so the reading is redone.
 
-**O estúdio** gera dez formatos: simulado, guia de estudo, cartões, quiz, resumo,
-mapa mental, linha do tempo, conversa em áudio, infográfico e slides. A geração
-tem duas mãos: o NotebookLM lê o material e rascunha, e a IA escolhida reescreve
-o rascunho com o retrato por cima — é esse segundo passo que transforma "um
-simulado de biologia" em "a prova que este professor faria". Nenhuma das duas é
-ponto único de falha: sem NotebookLM ligado, a segunda mão lê os arquivos direto;
-escolhendo o NotebookLM no seletor, não há segunda mão.
+**The studio** generates ten formats: mock exam, study guide, flashcards, quiz,
+summary, mind map, timeline, audio conversation, infographic and slides.
+Generation has two hands: NotebookLM reads the material and drafts, and the
+chosen AI rewrites the draft with the portrait on top — it is that second step
+that turns "a biology mock exam" into "the exam this teacher would set". Neither
+is a single point of failure: with NotebookLM off, the second hand reads the
+files directly; picking NotebookLM in the selector means there is no second hand.
 
-**O simulado é uma prova, não um relatório.** Ele sai em folha, com dois modos e
-um botão de imprimir: assinalar na tela — e aí o app corrige a objetiva sozinha,
-pelo índice da alternativa certa que o gerador devolve, e mostra o que o
-professor esperava ao lado do que você escreveu na discursiva — ou imprimir em
-branco, com Nome, Data, Nota e linhas pautadas pra escrever à mão. O que o
-retrato descobriu (peso do tema, nível, por que a questão existe) fica no
-gabarito: numa prova pra fazer, dizer "esta cai com 30%" é entregar metade da
-resposta.
+**The mock exam is an exam, not a report.** It comes out as a sheet, with two
+modes and a print button: answer on screen — and the app marks the
+multiple-choice itself, from the index of the correct option the generator
+returns, and shows what the teacher expected next to what you wrote for the
+open questions — or print it blank, with Name, Date, Grade and ruled lines to
+write by hand. What the portrait found (topic weight, level, why the question
+exists) stays in the answer key: on an exam you are meant to sit, saying "this
+one is worth 30%" hands over half the answer.
 
-**A prova que vem** abre a tela do professor, com quanto falta e os três
-geradores que servem pra estudar pra uma. Abrir uma avaliação põe o estúdio a
-serviço dela, e o que for gerado fica arquivado ali. Prova de ano anterior tem
-lugar próprio, separado da agenda: ela é a melhor amostra que existe da forma
-como aquele professor cobra, e a pior fonte de conteúdo — o programa do ano pode
-ter mudado.
+**The next exam** opens the teacher's screen, with how long is left and the three
+generators worth using to study for it. Opening an assessment puts the studio at
+its service, and whatever is generated is filed there. A previous year's paper
+has its own place, separate from the calendar: it is the best sample there is of
+how that teacher asks, and the worst source of content — the syllabus may have
+changed.
 
-**A revisão** usa FSRS-4.5 — dificuldade, estabilidade e recuperabilidade por
-cartão. É o que o NotebookLM e os concorrentes não têm: eles geram material e
-param ali.
+**Review** uses FSRS-4.5 — difficulty, stability and retrievability per card. It
+is what NotebookLM and the competitors do not have: they generate material and
+stop there.
 
-## Estrutura
+## Structure
 
 ```
-bin/nuvo.mjs      entrada de linha de comando
+bin/nuvo.mjs      command-line entry point
 server/
-  index.mjs            HTTP: estáticos, autenticação por token, roteamento
-  api.mjs              rotas /api
-  config.mjs           ~/.nuvo, segredos, token
-  db.mjs               esquema SQLite + FTS5 e migrações
-  pending-restore.mjs  troca do banco na abertura, quando há restauração pendente
+  index.mjs            HTTP: static files, token authentication, routing
+  api.mjs              /api routes
+  config.mjs           ~/.nuvo, secrets, token
+  db.mjs               SQLite + FTS5 schema and migrations
+  pending-restore.mjs  swapping the database at startup, when a restore is pending
 
-  chat.mjs             uma rodada de conversa, como gerador assíncrono
-  complete.mjs         chamada avulsa a um modelo, com recuo em erro de cota
-  council.mjs          conselho de IAs e votação cega
-  memory.mjs           recuperação híbrida, extração, escrita
-  vectors.mjs          embeddings, cosseno e consulta FTS
-  documents.mjs        anexo, chunking, recuperação por trecho
-  extract.mjs          texto de PDF, DOCX, PPTX, EPUB e código
-  visao.mjs            imagem lida por modelo que enxerga
-  texto-do-modelo.mjs  tira a marcação que o modelo inventa
+  chat.mjs             one conversation turn, as an async generator
+  complete.mjs         a one-off call to a model, backing off on quota errors
+  council.mjs          AI council and blind voting
+  memory.mjs           hybrid retrieval, extraction, writing
+  vectors.mjs          embeddings, cosine and FTS querying
+  documents.mjs        attachment, chunking, passage retrieval
+  extract.mjs          text from PDF, DOCX, PPTX, EPUB and code
+  visao.mjs            an image read by a model that can see
+  texto-do-modelo.mjs  strips the markup a model invents
 
-  estudos.mjs          professor, pastas, saídas e a leitura guardada de cada prova
-  retrato.mjs          o retrato do professor: tabela de especificações a partir das provas
-  estudos-formatos.mjs os dez formatos do estúdio, em duas mãos
-  cartoes.mjs          cartões e a fila de revisão
-  fsrs.mjs             FSRS-4.5, função pura
+  estudos.mjs          teacher, folders, outputs and each paper's stored reading
+  retrato.mjs          the teacher's portrait: specification table from the papers
+  estudos-formatos.mjs the studio's ten formats, in two hands
+  cartoes.mjs          flashcards and the review queue
+  fsrs.mjs             FSRS-4.5, a pure function
 
-  web.mjs              busca e leitura de página
-  research.mjs         pesquisa profunda com relatório
-  navegador.mjs        Chrome dirigido por CDP, com perfil próprio
-  agente-web.mjs       o agente que navega: IA barata pra andar, boa pra responder
-  notebooklm.mjs       o NotebookLM dirigido pela tela dele
-  chromium.mjs         baixar o Chrome for Testing quando não há navegador
+  web.mjs              search and page reading
+  research.mjs         deep research with a report
+  navegador.mjs        Chrome driven over CDP, with its own profile
+  agente-web.mjs       the browsing agent: cheap AI to walk, good AI to answer
+  notebooklm.mjs       NotebookLM driven through its own screen
+  chromium.mjs         downloading Chrome for Testing when no browser is present
 
-  loja.mjs             vitrine de MCPs e skills, puxada do GitHub
-  catalogo-hf.mjs      catálogo de modelos locais do Hugging Face
-  machine.mjs          o que a máquina aguenta rodar
-  discovery.mjs        varredura de portas e binários
-  importers.mjs        leitura de export do ChatGPT/Claude/Gemini
-  backup.mjs           zip escrito à mão, cópia e restauração
-  service.mjs          launchd, systemd e Agendador de Tarefas
-  desktop.mjs          atalho com ícone, em janela de aplicativo
-  instalar.mjs         instalação do Ollama e companhia
-  errors.mjs           erro do provedor traduzido em instrução
-  erro-traduzivel.mjs  erro que chega na tela no idioma dela
-  idioma.mjs           idioma do servidor
-  projeto-arquivos.mjs árvore de arquivos e anexo dentro do projeto
-  eventos-cli.mjs      passo a passo lido do stream de uma IA de terminal
-  empacotado.mjs       o que muda quando é executável único
-  providers/           um adaptador por tipo de provedor
+  loja.mjs             storefront of MCPs and skills, pulled from GitHub
+  catalogo-hf.mjs      catalogue of local models from Hugging Face
+  machine.mjs          what the machine can actually run
+  discovery.mjs        port and binary scanning
+  importers.mjs        reading ChatGPT/Claude/Gemini exports
+  backup.mjs           zip written by hand, copy and restore
+  service.mjs          launchd, systemd and Task Scheduler
+  desktop.mjs          shortcut with an icon, in an app window
+  instalar.mjs         installing Ollama and friends
+  errors.mjs           a provider error translated into an instruction
+  erro-traduzivel.mjs  an error that reaches the screen in the screen's language
+  idioma.mjs           the server's language
+  projeto-arquivos.mjs file tree and attachments inside a project
+  eventos-cli.mjs      step by step read from a terminal AI's stream
+  empacotado.mjs       what changes when it is a single executable
+  providers/           one adapter per provider type
 web/
-  index.html           casca
-  app.js               chat, barra lateral, paleta, atalhos
-  core.js              estado, API, SSE, peças de interface
-  views.js             painéis
-  view-estudos.js      a tela de Estudos e as dez saídas
-  view-code.js         a tela Programar e o painel de trabalho
-  view-loja.js         a loja
-  dialogo.js           diálogo próprio, sobre <dialog>
-  i18n.js              tradução da tela
-  lugar.js             de onde a pessoa está, pelo fuso
-  md.js                Markdown e destaque de código
-  icons.js             ícones SVG
-  glow.js              o sinal de convergência
+  index.html           the shell
+  app.js               chat, sidebar, palette, shortcuts
+  core.js              state, API, SSE, interface pieces
+  views.js             panels
+  view-estudos.js      the Study screen and the ten outputs
+  view-code.js         the Code screen and the work panel
+  view-loja.js         the store
+  dialogo.js           a dialog of its own, over <dialog>
+  i18n.js              screen translation
+  lugar.js             where the person is, from the time zone
+  md.js                Markdown and code highlighting
+  icons.js             SVG icons
+  glow.js              the convergence signal
   sw.js                service worker
 ```
-bin/nuvo.mjs      entrada de linha de comando
-server/
-  index.mjs            HTTP: estáticos, autenticação por token, roteamento
-  api.mjs              rotas /api
-  config.mjs           ~/.nuvo, segredos, token
-  db.mjs               esquema SQLite + FTS5 e migrações
-  chat.mjs             uma rodada de conversa, como gerador assíncrono
-  complete.mjs         chamada avulsa a um modelo, sem conversa por trás
-  memory.mjs           recuperação híbrida, extração, escrita
-  vectors.mjs          embeddings, cosseno e consulta FTS
-  documents.mjs        anexo, chunking, recuperação por trecho
-  extract.mjs          texto de PDF, DOCX, PPTX, EPUB e código
-  web.mjs              busca e leitura de página
-  research.mjs         pesquisa profunda com relatório
-  council.mjs          conselho de IAs e votação cega
-  importers.mjs        leitura de export do ChatGPT/Claude
-  discovery.mjs        varredura de portas e binários
-  backup.mjs           zip escrito à mão, cópia e restauração
-  service.mjs          launchd, systemd e Agendador de Tarefas
-  desktop.mjs          atalho com ícone, em janela de aplicativo
-  errors.mjs           erro do provedor traduzido em instrução
-  providers/           um adaptador por tipo de provedor
-web/
-  index.html           casca
-  app.js               chat, barra lateral, paleta, atalhos
-  core.js              estado, API, SSE, peças de interface
-  views.js             painéis
-  icons.js             ícones SVG
-  md.js                Markdown e destaque de código
-```
 
-Adaptador de provedor implementa `listModels(ctx)` e `stream(ctx, req)` — um
-gerador assíncrono que emite `{delta}`, `{reasoning}` e `{usage}` — e
-opcionalmente `embed(ctx, req)` e `check(ctx)`, quando listar modelos não prova
-que o provedor funciona.
+A provider adapter implements `listModels(ctx)` and `stream(ctx, req)` — an
+async generator emitting `{delta}`, `{reasoning}` and `{usage}` — and optionally
+`embed(ctx, req)` and `check(ctx)`, for when listing models does not prove the
+provider works.
 
 ## API
 
-Todas as rotas exigem o cabeçalho `x-nuvo-token` (ou `?token=`).
+Every route requires the `x-nuvo-token` header (or `?token=`).
 
-| Rota | Faz |
+| Route | Does |
 | --- | --- |
-| `GET /api/state` | provedores, gems, projetos, conversas e configuração |
-| `POST /api/discover` | varre a máquina atrás de IA local |
-| `POST /api/providers` | cadastra provedor (`secretValue` é gravado, não devolvido) |
-| `POST /api/chats/:id/stream` | resposta em SSE |
-| `GET/POST /api/memories` | lista e grava fatos |
-| `POST /api/memories/import` | importa export de outra IA |
-| `POST /api/chats/:id/regenerate` | refaz a última resposta (SSE) |
-| `POST /api/chats/:id/attachments` | anexa arquivo (corpo cru, nome na query) |
-| `GET /api/chats/:id/export` | exporta em `md` ou `json` |
-| `POST /api/research` | pesquisa profunda (SSE) |
-| `POST /api/council` | conselho de IAs (SSE) |
-| `POST /api/providers/:id/pull` | baixa modelo do Ollama (SSE) |
-| `GET /api/search` | busca em mensagens e memória |
-| `GET/PATCH /api/settings` | configuração de memória e acesso |
-| `GET /api/ping` | única rota sem token: diz só que é um Nuvo |
-| `GET /api/health` | testa cada provedor e diz o que está errado |
-| `GET /api/backup` | baixa o zip com banco, configuração e anexos |
-| `POST /api/restore` | restaura de um zip (corpo cru); pede reinício |
+| `GET /api/state` | providers, gems, projects, conversations and configuration |
+| `POST /api/discover` | scans the machine for local AI |
+| `POST /api/providers` | registers a provider (`secretValue` is stored, never returned) |
+| `POST /api/chats/:id/stream` | the answer over SSE |
+| `GET/POST /api/memories` | lists and writes facts |
+| `POST /api/memories/import` | imports another AI's export |
+| `POST /api/chats/:id/regenerate` | redoes the last answer (SSE) |
+| `POST /api/chats/:id/attachments` | attaches a file (raw body, name in the query) |
+| `GET /api/chats/:id/export` | exports as `md` or `json` |
+| `POST /api/research` | deep research (SSE) |
+| `POST /api/council` | AI council (SSE) |
+| `POST /api/providers/:id/pull` | pulls an Ollama model (SSE) |
+| `GET /api/search` | searches messages and memory |
+| `GET/PATCH /api/settings` | memory and access configuration |
+| `GET /api/ping` | the only route without a token: says only that this is a Nuvo |
+| `GET /api/health` | tests each provider and says what is wrong |
+| `GET /api/backup` | downloads the zip with database, configuration and attachments |
+| `POST /api/restore` | restores from a zip (raw body); asks for a restart |
 
-O stream do chat emite `user`, `memory-used`, `docs-used`, `web-used`, `phase`,
-`reasoning`, `delta`, `stats`, `done`, `memory-new`, `error` e `end`.
+The chat stream emits `user`, `memory-used`, `docs-used`, `web-used`, `phase`,
+`reasoning`, `delta`, `stats`, `done`, `memory-new`, `error` and `end`.
 
 ## Interface
 
-Sem etapa de build: HTML, CSS e ES modules servidos direto.
+No build step: HTML, CSS and ES modules served directly.
 
-- Markdown de verdade — título, lista, tabela, citação, link, e bloco de código
-  com destaque e botão copiar;
-- raciocínio do modelo em bloco recolhido, quando o provedor expõe;
-- medição por resposta: tempo até o primeiro token, tokens por segundo e total
-  (marcado como estimado quando o provedor não devolve a contagem);
-- regenerar, editar, copiar e apagar mensagem;
-- ajustes por conversa: prompt de sistema, temperatura, top_p, limite de tokens;
-- busca em tudo que já foi conversado, e na memória, pelo índice FTS5;
-- exportar conversa em Markdown ou JSON;
-- voz: ditado e leitura da resposta, pelas APIs do próprio navegador;
-- renomear conversa no lugar do rótulo, fixar e arquivar, com lista própria
-  para as arquivadas;
-- primeira abertura guiada quando ainda não há modelo nenhum;
-- tema claro e escuro, paleta de comandos (Ctrl/Cmd+K) e atalhos;
-- ícones próprios em SVG — nada de emoji, que muda de desenho a cada sistema.
+- Real Markdown — heading, list, table, quote, link, and code block with
+  highlighting and a copy button;
+- the model's reasoning in a collapsed block, when the provider exposes it;
+- measurement per answer: time to first token, tokens per second and total
+  (marked as estimated when the provider does not return the count);
+- regenerate, edit, copy and delete a message;
+- per-conversation settings: system prompt, temperature, top_p, token limit;
+- search across everything ever discussed, and across memory, through the FTS5
+  index;
+- export a conversation as Markdown or JSON;
+- voice: dictation and reading the answer aloud, through the browser's own APIs;
+- rename a conversation in place of its label, pin and archive, with a separate
+  list for the archived ones;
+- a guided first run when there is no model at all yet;
+- light and dark themes, a command palette (Ctrl/Cmd+K) and shortcuts;
+- its own SVG icons — no emoji, which are drawn differently on every system.
 
-### Idiomas
+### Languages
 
-Português, inglês e espanhol. O padrão sai, nesta ordem, do que a pessoa
-escolheu no seletor, do país deduzido do fuso horário, do `Accept-Language` do
-navegador e do idioma do sistema — nenhuma consulta de IP em passo nenhum.
+Portuguese, English and Spanish. The default comes, in this order, from what the
+person picked in the selector, the country inferred from the time zone, the
+browser's `Accept-Language`, and the system language — with no IP lookup at any
+step.
 
-`NUVO_LANG` força o idioma, do servidor e da tela, acima de tudo isso:
+`NUVO_LANG` forces the language, for both server and screen, above all of that:
 
 ```sh
 NUVO_LANG=en nuvo
 ```
 
-Serve para conferir a tradução sem mexer no idioma da máquina. Ela decide
-também o idioma dos quatro perfis que vêm prontos no primeiro start — eles são
-gravados no banco como dado de quem usa, então nascem certos em vez de serem
-traduzidos ao desenhar, o que desfaria qualquer renomeação.
+It exists to check a translation without changing the machine's language. It
+also decides the language of the four profiles that ship on first start — they
+are written to the database as user data, so they are born correct instead of
+being translated at draw time, which would undo any renaming.
 
-O desenho de produção vem depois, por cima da mesma API.
+## What it does not do
+
+- **It ships no model.** Nuvo drives what is on the machine or behind a key you
+  already have. With nothing installed and no key, the first-run screen has
+  nothing to offer.
+- **It is not multi-user.** One person, one machine, one token. There are no
+  accounts and no per-user separation.
+- **It is not hardened for the open internet.** The token protects a home
+  network; exposing the port to the world is not a supported setup.
+- **A hosted provider's policy still applies.** The `unfiltered` flag changes
+  Nuvo's prompt, not the vendor's rules.
+- **A scanned PDF has no text.** There is no OCR; the app says so rather than
+  returning nothing and calling it a read.
+- **NotebookLM is driven through its own screen**, so a change on Google's side
+  can break that path. Everything else keeps working without it.
+
+## Links
+
+- Project page: <https://www.nspx.dev/Nuvo/>
+- Releases: <https://github.com/NspxMiguel/Nuvo/releases>
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+<div align="center">
+
+Made by [@NspxMiguel](https://github.com/NspxMiguel) · [nspx.dev](https://www.nspx.dev)
+
+</div>
