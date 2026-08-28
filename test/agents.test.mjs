@@ -484,3 +484,65 @@ test('página montada por JavaScript diz que está vazia, em vez de sair calada'
     stub.restore();
   }
 });
+
+test('buscador que barra a gente não vira "nenhum resultado"', async () => {
+  // Zero resultados tem duas causas muito diferentes e a tela dizia a mesma
+  // frase pras duas. O DuckDuckGo responde 200 com uma página de desafio
+  // anti-robô — sem um resultado dentro —, então `res.ok` não denuncia nada, e
+  // quem pesquisava "osmose" recebia "nenhum resultado" e concluía que o app
+  // estava quebrado, quando bastava esperar.
+  const bloqueio = stubFetch(() =>
+    fakeResponse(
+      '<html><body><div class="anomaly-modal__title">Unfortunately, bots use DuckDuckGo too.</div>' +
+        '<form class="challenge-form"></form></body></html>',
+      { headers: { 'content-type': 'text/html' } }
+    )
+  );
+  try {
+    await assert.rejects(
+      () => web.search('osmose'),
+      (err) => /barrou o pedido|robô/i.test(err.message),
+      'diz que foi barrado, não que não achou nada'
+    );
+  } finally {
+    bloqueio.restore();
+  }
+
+  // Página de resultado de verdade e vazia continua sendo lista vazia: nem toda
+  // busca sem resultado é bloqueio.
+  const vazio = stubFetch(() =>
+    fakeResponse('<html><body><div class="results"></div></body></html>', {
+      headers: { 'content-type': 'text/html' }
+    })
+  );
+  try {
+    assert.deepEqual(await web.search('palavraquenaoexiste'), [], 'sem resultado é lista vazia');
+  } finally {
+    vazio.restore();
+  }
+});
+
+test('a pesquisa diz por que não achou fonte, e não só que não achou', async () => {
+  // "nenhum resultado de busca" descreve o sintoma e esconde a causa —
+  // inclusive quando a causa é temporária e bastaria tentar de novo.
+  const bloqueio = stubFetch(() =>
+    fakeResponse(
+      '<html><body><div class="anomaly-modal__title">bot</div><form class="challenge-form"></form></body></html>',
+      { headers: { 'content-type': 'text/html' } }
+    )
+  );
+  try {
+    const eventos = await collect(
+      runResearch({ question: 'o que é osmose', ref: 'nao-importa', breadth: 1, depth: 1 })
+    );
+    const erro = eventos.find((e) => e.type === 'error');
+    assert.ok(erro, 'termina em erro');
+    assert.match(
+      erro.error || erro.message || '',
+      /barrou o pedido|robô/i,
+      'e o erro é o do buscador, não o genérico'
+    );
+  } finally {
+    bloqueio.restore();
+  }
+});

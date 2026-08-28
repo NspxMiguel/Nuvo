@@ -1292,6 +1292,12 @@ export async function handleApi(req, res, url) {
   // --- pesquisa profunda ---------------------------------------------------
   if (method === 'POST' && path === '/research') {
     const b = await readJSON(req);
+    // Pergunta vazia rodava o caminho inteiro e morria nove segundos depois em
+    // "nenhum resultado de busca", que culpa o buscador por um pedido que
+    // chegou sem pergunta. Recusar na porta diz o que faltou.
+    if (!String(b.question || '').trim()) {
+      throw erroHttp(400, 'a pesquisa precisa de uma pergunta');
+    }
     const stream = openStream(req, res);
     await pump(
       stream,
@@ -1332,6 +1338,9 @@ export async function handleApi(req, res, url) {
 
   if (method === 'POST' && path === '/council') {
     const b = await readJSON(req);
+    if (!String(b.prompt || '').trim()) {
+      throw erroHttp(400, 'o conselho precisa de uma pergunta');
+    }
     const stream = openStream(req, res);
     await pump(
       stream,

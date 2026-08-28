@@ -98,6 +98,16 @@ export async function search(query, { limit = 6, signal } = {}) {
     });
     if (out.length >= limit) break;
   }
+  // Zero resultados tem duas causas muito diferentes, e a tela dizia a mesma
+  // frase pras duas: ou a palavra não existe em lugar nenhum, ou o buscador
+  // barrou a gente. Ele responde 200 com uma página de desafio anti-robô — sem
+  // um resultado dentro —, então `res.ok` não denuncia nada, e quem pesquisava
+  // "osmose" recebia "nenhum resultado" e concluía que o app estava quebrado.
+  if (!out.length && /\banomaly[-_]?modal|challenge-form|unfortunately, bots use/i.test(html)) {
+    throw erroTraduzivel(
+      'o buscador barrou o pedido achando que somos um robô — tente daqui a pouco'
+    );
+  }
   return out;
 }
 

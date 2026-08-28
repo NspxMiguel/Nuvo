@@ -9,7 +9,11 @@ import { complete, parseJsonArray } from './complete.mjs';
 import { search, readPage } from './web.mjs';
 import { corpoDoErro, textoTraduzivel } from './erro-traduzivel.mjs';
 
-const PLAN_PROMPT = `Você planeja uma pesquisa na web.
+const PLAN_PROMPT = `Você planeja uma pesquisa na web, e é uma função que
+devolve JSON: o que sai daqui é lido por um programa, não por uma pessoa. Nada
+antes do array, nada depois dele, e nenhum comentário sobre como você chegou
+nele — uma IA de terminal que narra o próprio raciocínio aqui derruba a
+leitura, e a pesquisa cai pra uma consulta só.
 
 Devolva SOMENTE um array JSON de strings: as consultas de busca que respondem à
 pergunta do usuário. Entre 3 e 6 consultas, cada uma num ângulo diferente
@@ -19,6 +23,12 @@ internas. Use o idioma que mais provavelmente tem boas fontes para o assunto.`;
 
 const REPORT_PROMPT = `Você escreve um relatório de pesquisa a partir de páginas que já foram lidas.
 
+O que sai daqui é o relatório e mais nada. Sem preâmbulo, sem dizer que a tarefa
+é simples ou difícil, sem falar das suas ferramentas ou do seu jeito de
+trabalhar. Uma IA de terminal narrou o próprio planejamento aqui —
+"tarefa simples de redação, não cabe fan-out de agentes" — e isso saiu impresso
+no relatório de quem só queria a resposta.
+
 Regras:
 - cite a fonte pelo número entre colchetes, assim: [3]. Todo dado que veio das
   páginas precisa de citação;
@@ -27,7 +37,7 @@ Regras:
 - quando a pergunta não for respondida pelas páginas, escreva isso claramente;
 - estrutura: resumo de duas ou três linhas, seções com subtítulo, e uma lista
   final "Fontes" numerada com título e endereço;
-- português do Brasil, direto, sem enrolação.`;
+- responda no idioma em que a pergunta foi feita, direto, sem enrolação.`;
 
 /**
  * Gerador assíncrono: emite o andamento pra interface e termina com o relatório.
@@ -61,6 +71,11 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
   // Busca: cada consulta traz seus resultados, e o conjunto é desduplicado por
   // endereço antes de gastar tempo lendo página repetida.
   const found = new Map();
+  // Por que a busca não trouxe nada, quando não trouxe nada. Sem guardar isto, a
+  // única frase que sobrava era "nenhum resultado de busca", que descreve o
+  // sintoma e esconde a causa — inclusive quando a causa é o buscador ter
+  // barrado a gente e bastaria esperar.
+  let porQueFalhou = null;
   for (const query of queries) {
     if (signal?.aborted) return;
     yield { type: 'phase', phase: 'busca', ...textoTraduzivel('text', 'buscando: {busca}', { busca: query }) };
@@ -69,6 +84,7 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
         if (!found.has(hit.url)) found.set(hit.url, { ...hit, query });
       }
     } catch (err) {
+      porQueFalhou = err;
       yield {
         type: 'note',
         ...textoTraduzivel('text', 'busca falhou em "{busca}": {causa}', { busca: query, causa: err.message })
@@ -101,7 +117,9 @@ export async function* runResearch({ question, ref, breadth = 4, depth = 3, sign
 
   yield { type: 'hits', hits: hits.map((h) => ({ title: h.title, url: h.url, host: h.host })) };
   if (!hits.length) {
-    yield { type: 'error', message: 'nenhum resultado de busca — sem fonte não escrevo relatório' };
+    yield porQueFalhou
+      ? { type: 'error', ...corpoDoErro(porQueFalhou) }
+      : { type: 'error', message: 'nenhum resultado de busca — sem fonte não escrevo relatório' };
     return;
   }
 
