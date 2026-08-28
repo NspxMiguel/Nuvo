@@ -2075,6 +2075,14 @@ textarea:focus { outline: none; box-shadow: 0 0 0 1px var(--accent-line); }texta
 }.prova-fim { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 9px; justify-items: start; }.prova-fim .hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; max-width: 40em; }/* Entregue, o botão sai: reentregar não existe numa prova. */
 .prova[data-entregue] .prova-fim > .primary { display: none; }.prova[data-modo='gabarito'] .prova-fim { display: none; }/* --- resumo --- */
 /* A seção em que a pessoa responde ao app, separada do que o app afirmou. */
+/* Dentro da janela nativa do macOS, os três botões do sistema flutuam sobre o
+   canto superior esquerdo do conteúdo — e ali mora a marca. Os 22px são a
+   altura que eles ocupam; a barra lateral desce, e o resto da tela fica onde
+   estava. Fora da janela nativa nada disto existe. */
+html[data-janela-nativa] .side-head { padding-top: 22px; }
+/* Com a gaveta recolhida, quem fica embaixo dos botões é o topo do conteúdo. */
+html[data-janela-nativa] #app.recolhido #topbar { padding-top: 22px; }
+
 /* As três organizações de prova. Elas nunca tiveram regra própria: herdavam o
    `button` genérico, e o nome e a explicação disputavam a mesma linha — num
    formulário de 560px "Pastas que eu crio" quebrava no meio e o texto saía

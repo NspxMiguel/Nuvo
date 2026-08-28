@@ -62,11 +62,31 @@ final class Janela: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         super.init()
     }
 
-    func applicationDidFinishLaunching(_ note: Notification) {
+    /// A configuração da web, uma só: o `--verificar` tem que ver exatamente o
+    /// que a janela vê, senão ele prova outra coisa.
+    static func configuracaoDaWeb() -> WKWebViewConfiguration {
         let config = WKWebViewConfiguration()
+        // A barra de título é transparente e o conteúdo sobe até o topo — é o
+        // que deixa a janela com cara de app e não de navegador. Só que os três
+        // botões do macOS flutuam sobre o canto superior esquerdo, e ali mora a
+        // marca do Nuvo: fechar, minimizar e tela cheia apareciam em cima do
+        // logo. A página não tem como adivinhar isso, então a janela avisa e o
+        // CSS abre o espaço que eles ocupam.
+        config.userContentController.addUserScript(
+            WKUserScript(
+                source: "document.documentElement.dataset.janelaNativa = '1';",
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
         // O app é servido de 127.0.0.1: mídia e microfone (o ditado) não podem
         // pedir gesto do usuário a cada vez, senão a fala não começa.
         config.mediaTypesRequiringUserActionForPlayback = []
+        return config
+    }
+
+    func applicationDidFinishLaunching(_ note: Notification) {
+        let config = Janela.configuracaoDaWeb()
         web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = self
         web.uiDelegate = self
@@ -221,15 +241,20 @@ if let t = token, !t.isEmpty {
 // `--verificar` carrega a página, diz o que veio e sai. É como o teste confere
 // que a janela nativa mostra o app de verdade sem depender de olhar a tela.
 if CommandLine.arguments.contains("--verificar") {
-    let conf = WKWebViewConfiguration()
-    let w = WKWebView(frame: NSRect(x: 0, y: 0, width: 1180, height: 820), configuration: conf)
+    let w = WKWebView(frame: NSRect(x: 0, y: 0, width: 1180, height: 820),
+                      configuration: Janela.configuracaoDaWeb())
     w.load(URLRequest(url: URL(string: endereco)!))
     let limite = Date().addingTimeInterval(25)
     var pronto = false
     while Date() < limite && !pronto {
         RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         let espera = DispatchSemaphore(value: 0)
-        w.evaluateJavaScript("[document.title, !!document.querySelector('#app'), document.querySelectorAll('[data-view]').length].join('|')") { r, _ in
+        w.evaluateJavaScript("""
+            [document.title,
+             !!document.querySelector('#app'),
+             document.querySelectorAll('[data-view]').length,
+             getComputedStyle(document.querySelector('.side-head')).paddingTop].join('|')
+            """) { r, _ in
             if let t = r as? String, t.hasSuffix("|true|") == false, t.contains("|true|") { print(t); pronto = true }
             espera.signal()
         }

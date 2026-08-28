@@ -185,3 +185,23 @@ test('instalar-app não escreve por cima do pacote das releases', () => {
   const cli = readFileSync(new URL('../bin/nuvo.mjs', import.meta.url), 'utf8');
   assert.match(cli, /if \(done\.jaEstava\)/, 'a linha de comando diz o que aconteceu');
 });
+
+test('a janela avisa a página que os botões do sistema flutuam sobre ela', () => {
+  // A barra de título é transparente e o conteúdo sobe até o topo — é o que dá
+  // cara de app em vez de navegador. Só que fechar, minimizar e tela cheia
+  // flutuam sobre o canto superior esquerdo, e ali mora a marca do Nuvo: os
+  // três botões apareciam em cima do logo. A página não tem como adivinhar
+  // isso, então a janela avisa.
+  const swift = readFileSync(new URL('../build/janela.swift', import.meta.url), 'utf8');
+  assert.match(swift, /dataset\.janelaNativa = '1'/, 'a janela marca a página');
+  assert.match(swift, /injectionTime: \.atDocumentStart/, 'antes de ela desenhar');
+  // A mesma configuração nos dois lugares: `--verificar` que usa outra prova
+  // outra coisa.
+  assert.match(swift, /static func configuracaoDaWeb\(\)/, 'a configuração é uma só');
+  const usos = swift.match(/Janela\.configuracaoDaWeb\(\)/g) || [];
+  assert.equal(usos.length, 2, 'usada pela janela e pela verificação');
+
+  const css = readFileSync(new URL('../web/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /html\[data-janela-nativa\] \.side-head \{ padding-top: 22px; \}/, 'a barra desce');
+  assert.match(css, /html\[data-janela-nativa\] #app\.recolhido #topbar/, 'e o topo também, com a gaveta recolhida');
+});
