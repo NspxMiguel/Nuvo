@@ -4,6 +4,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { useTempHome, stubFetch, fakeResponse } from './helpers.mjs';
 
 const home = useTempHome();
@@ -1182,4 +1183,20 @@ test('consulta torta na busca não derruba o servidor', async () => {
     assert.equal(res.status, 200, `busca por ${JSON.stringify(q)}`);
     assert.ok(Array.isArray(res.data.documentos), 'e ainda devolve a forma certa');
   }
+});
+
+test('o conselho lê a mesma memória que a conversa lê', async () => {
+  // "Uma memória só, lida por todas as IAs" é a frase que abre o app, e o
+  // conselho — a tela que pergunta pra várias ao mesmo tempo — era a única que
+  // não lia nada: `runCouncil` recebia só o `system` que a tela mandasse.
+  //
+  // A pesquisa na web continua sem memória de propósito: ela transforma o
+  // pedido em consulta de buscador, e fato pessoal não sai da máquina.
+  const council = await import('../server/council.mjs');
+  const fonte = readFileSync(new URL('../server/council.mjs', import.meta.url), 'utf8');
+  assert.match(fonte, /import \{ recall, renderForPrompt \} from '\.\/memory\.mjs'/, 'puxa a memória');
+  assert.match(fonte, /const memories = await recall\(prompt\)/, 'com a própria pergunta');
+  assert.match(fonte, /system: comMemoria/, 'e ela vai junto no system de cada IA');
+  assert.match(fonte, /yield \{ type: 'memory-used', items: memories \}/, 'e a tela fica sabendo');
+  assert.ok(council.runCouncil, 'o módulo continua exportando runCouncil');
 });

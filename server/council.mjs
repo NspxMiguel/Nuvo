@@ -11,6 +11,7 @@
 
 import { complete, describeModel, parseJsonArray } from './complete.mjs';
 import { corpoDoErro, erroTraduzivel, textoTraduzivel } from './erro-traduzivel.mjs';
+import { recall, renderForPrompt } from './memory.mjs';
 
 const SYNTH_PROMPT = `Você recebe várias respostas independentes à mesma pergunta e escreve a resposta final.
 
@@ -40,12 +41,24 @@ export async function* runCouncil({ prompt, system, refs, mode = 'council', judg
 
   yield { type: 'start', models: models.map((ref) => ({ ref, label: describeModel(ref) })), mode };
 
+  // A memória entra aqui também.
+  //
+  // "Uma memória só, lida por todas as IAs" é a frase que abre o app, e esta é
+  // a tela em que ela mais importa — a que pergunta pra várias ao mesmo tempo.
+  // Ela era a única que não lia: `runCouncil` recebia só o `system` que a tela
+  // mandasse, e nada mais. Numa prova disso, perguntando o nome do aluno, uma
+  // IA respondeu certo por acaso e a outra respondeu, corretamente, que não
+  // tinha como saber.
+  const memories = await recall(prompt).catch(() => []);
+  if (memories.length) yield { type: 'memory-used', items: memories };
+  const comMemoria = [renderForPrompt(memories), system].filter(Boolean).join('\n\n') || null;
+
   // Todos respondem ao mesmo tempo: o custo em tempo é o do modelo mais lento,
   // não a soma.
   const answers = await Promise.all(
     models.map(async (ref) => {
       try {
-        const out = await complete(ref, { system, prompt, temperature, signal });
+        const out = await complete(ref, { system: comMemoria, prompt, temperature, signal });
         return { ref, label: describeModel(ref), text: out.text, ms: out.ms, error: null };
       } catch (err) {
         return { ref, label: describeModel(ref), text: '', ms: 0, ...corpoDoErro(err) };
