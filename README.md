@@ -62,14 +62,24 @@ node bin/nuvo.mjs remover-app
 ```
 
 Não é Electron: empacotar um Chromium por aparência custaria centenas de
-megabytes e a primeira dependência do projeto. O atalho abre o navegador que
-você já tem em modo aplicativo — janela sem barra de endereço e sem abas —
-apontado pro servidor, subindo ele antes se não estiver de pé. No macOS sai um
-`Nuvo.app` em `~/Applications` com ícone próprio; no Linux, um `.desktop`
-no menu; no Windows, um atalho no Menu Iniciar. Sem Chrome/Edge/Brave instalado,
+megabytes e a primeira dependência do projeto.
+
+No macOS, o `Nuvo.app` baixado das releases abre uma **janela nativa** — uma
+`WKWebView` num `NSWindow`, 136 kB compilados de `build/janela.swift` na hora de
+empacotar. É o ícone do Nuvo no Dock e "Nuvo" no Cmd+Tab; o Chrome não entra na
+história. Ela sobe o servidor se ninguém estiver atendendo na porta e só o
+derruba ao fechar se foi ela quem subiu — quem tem um `nuvo` rodando no terminal
+não perde a sessão fechando a janela. Link pra fora de `127.0.0.1` abre no
+navegador de verdade. Empacotar sem `swiftc` na máquina devolve o pacote antigo,
+que abre pelo navegador.
+
+O `instalar-app` é o outro caminho, e continua sendo o único no Linux e no
+Windows: abre o navegador que você já tem em modo aplicativo — janela sem barra
+de endereço e sem abas — apontado pro servidor. No Linux sai um `.desktop` no
+menu; no Windows, um atalho no Menu Iniciar. Sem Chrome/Edge/Brave instalado,
 abre numa aba comum do navegador padrão.
 
-O atalho confirma que quem atende na porta é mesmo o Nuvo (`GET /api/ping`,
+Os dois confirmam que quem atende na porta é mesmo o Nuvo (`GET /api/ping`,
 a única rota sem token) antes de abrir a janela — o endereço carrega o token de
 acesso, e mandá-lo pra qualquer programa que tenha tomado a porta seria entregar
 a chave da casa.
