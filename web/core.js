@@ -85,8 +85,28 @@ function traduzirDoServidor(dado, fundo = 0) {
   return dado;
 }
 
+/**
+ * `fetch` que fala a língua da tela quando a conexão cai.
+ *
+ * O `fetch` do navegador estoura com "Failed to fetch" (Chrome) ou "network
+ * error" (os outros) — em inglês, sempre, e sem dicionário que alcance. Isso
+ * aparecia na conversa em letra vermelha no meio de uma tela em português, e
+ * não dizia à pessoa a única coisa que importa: o servidor é o dela, e ele
+ * parou. Erro que o servidor devolve continua vindo do servidor, traduzido
+ * como sempre; isto cobre só o caso em que não houve resposta nenhuma.
+ */
+async function buscar(url, opcoes) {
+  try {
+    return await fetch(url, opcoes);
+  } catch (err) {
+    // Cancelar não é falha: quem apertou "parar" não quer ver aviso de rede.
+    if (err?.name === 'AbortError') throw err;
+    throw new Error(t('o app perdeu contato com o servidor — ele ainda está rodando?'));
+  }
+}
+
 export async function api(path, { method = 'GET', body, raw } = {}) {
-  const res = await fetch(`/api${path}`, {
+  const res = await buscar(`/api${path}`, {
     method,
     headers: {
       'x-nuvo-token': TOKEN,
@@ -117,7 +137,7 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
  * EventSource não serve porque não faz POST.
  */
 export async function stream(path, body, onEvent, signal) {
-  const res = await fetch(`/api${path}`, {
+  const res = await buscar(`/api${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-nuvo-token': TOKEN },
     body: JSON.stringify(body),
@@ -130,7 +150,17 @@ export async function stream(path, body, onEvent, signal) {
   let buffer = '';
 
   while (true) {
-    const { value, done } = await reader.read();
+    let value, done;
+    try {
+      ({ value, done } = await reader.read());
+    } catch (err) {
+      // A resposta começou e a conexão morreu no meio: o `read()` estoura com a
+      // mesma frase em inglês do `fetch`, e ela ia parar na conversa em letra
+      // vermelha. Aqui já há texto na tela, então o que falta dizer é que ele
+      // parou pela metade.
+      if (err?.name === 'AbortError') throw err;
+      throw new Error(t('a resposta parou no meio — o servidor caiu?'));
+    }
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     let idx;

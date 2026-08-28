@@ -784,3 +784,20 @@ test('nada tira o anel de foco sem pôr outro no lugar', () => {
   assert.match(css, /\.nlm-quem select:focus-visible \{ outline: 2px solid/, 'e o seletor de IA tem anel próprio');
   assert.doesNotMatch(css, /\.nlm-quem select:focus \{ outline: none; box-shadow: none; \}/, 'sem apagar e não repor');
 });
+
+test('conexão que cai fala a língua da tela', () => {
+  // `fetch` estoura com "Failed to fetch" no Chrome e "network error" nos
+  // outros — em inglês sempre, e sem dicionário que alcance. Isso aparecia em
+  // letra vermelha no meio de uma conversa em português, e não dizia a única
+  // coisa que importa: o servidor é o da própria pessoa, e ele parou.
+  const core = ler('web/core.js');
+  assert.match(core, /async function buscar\(url, opcoes\)/, 'há um fetch que traduz a queda');
+  assert.match(core, /o app perdeu contato com o servidor/, 'e diz o que aconteceu');
+  assert.match(core, /a resposta parou no meio/, 'inclusive quando o stream morre no meio');
+  // Cancelar não é falha: quem apertou "parar" não quer ver aviso de rede.
+  const matches = core.match(/if \(err\?\.name === 'AbortError'\) throw err;/g) || [];
+  assert.equal(matches.length, 2, 'e abortar continua sendo abortar nos dois lugares');
+  // Nenhum fetch cru sobrou nos dois caminhos que a tela usa o tempo todo.
+  const apiFn = core.slice(core.indexOf('export async function api('), core.indexOf('export async function stream('));
+  assert.doesNotMatch(apiFn, /await fetch\(/, 'o api() passa pelo tradutor');
+});

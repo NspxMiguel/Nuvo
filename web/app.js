@@ -914,16 +914,30 @@ function renderFirstRun() {
 
   // IA cadastrada mas sem nada que responda é outro problema: aí não falta
   // descobrir nada, falta ligar ou atualizar o que já está lá.
+  // O verbo tem que casar com a contagem.
+  //
+  // A frase era "Você já ligou {N}, mas nenhuma está pronta — {N} estão
+  // desligadas", com o mesmo N nas duas metades: ela dizia, na mesma linha, que
+  // a pessoa tinha ligado duas IAs e que as duas estavam desligadas. E o "você
+  // já ligou" a culpava por uma coisa que ela não fez — as IAs de terminal
+  // entram sozinhas quando o app acha o programa na máquina.
   const desligados = state.providers.filter((p) => !p.enabled).length;
-  const quantas = plural(state.providers.length, '1 IA', '{n} IAs');
+  const ligados = state.providers.length - desligados;
   const explicacao = !state.providers.length
     ? t('O app roda na sua máquina. Vou procurar IA instalada nela — nada sai daqui.')
-    : desligados
-      ? t('Você já ligou {quantas}, mas nenhuma está pronta pra responder — {desligadas}.', {
-          quantas,
-          desligadas: plural(desligados, '1 está desligada', '{n} estão desligadas')
+    : !ligados
+      ? t('Há {cadastradas} aqui e {desligadas}.', {
+          cadastradas: plural(state.providers.length, '1 IA cadastrada', '{n} IAs cadastradas'),
+          desligadas: plural(desligados, 'ela está desligada', 'todas estão desligadas')
         })
-      : t('Você já ligou {quantas}, mas nenhuma está pronta pra responder.', { quantas });
+      : desligados
+        ? t('{ligadas}, e nenhuma respondeu — as outras {desligadas}.', {
+            ligadas: plural(ligados, '1 IA está ligada', '{n} IAs estão ligadas'),
+            desligadas: plural(desligados, 'está desligada', 'estão desligadas')
+          })
+        : t('{ligadas}, e nenhuma está pronta pra responder.', {
+            ligadas: plural(ligados, '1 IA está ligada', '{n} IAs estão ligadas')
+          });
 
   $('#messages').innerHTML = `
     <div class="first-run">
