@@ -164,3 +164,24 @@ test('a janela sai da frente quando quem chama é a linha de comando', () => {
   // que não vai funcionar.
   assert.match(fonte, /não achei o servidor ao lado da janela/, 'e sem ele, diz o que faltou');
 });
+
+test('instalar-app não escreve por cima do pacote das releases', () => {
+  // Os dois moram no mesmo caminho: `~/Applications/Nuvo.app`. O pacote das
+  // releases é um app de verdade — janela nativa, servidor ao lado; o
+  // `instalar-app` escreve um atalho pro navegador. Quem instalasse pelo site e
+  // rodasse `instalar-app` depois, achando que era assim que se põe o ícone no
+  // Dock, trocava a janela nativa por uma do Chrome e não entendia por quê.
+  const fonte = readFileSync(new URL('../server/desktop.mjs', import.meta.url), 'utf8');
+  const mac = fonte.slice(fonte.indexOf('function macInstall()'), fonte.indexOf('function macIcon'));
+  assert.match(mac, /existsSync\(join\(MAC_APP, 'Contents', 'MacOS', 'nuvo-servidor'\)\)/,
+    'reconhece o pacote de verdade pelo servidor ao lado');
+  assert.match(mac, /jaEstava: true/, 'e avisa em vez de escrever por cima');
+  // A checagem tem que vir ANTES do rmSync, senão ela chega tarde.
+  assert.ok(
+    mac.indexOf('nuvo-servidor') < mac.indexOf('rmSync'),
+    'e vem antes de apagar qualquer coisa'
+  );
+
+  const cli = readFileSync(new URL('../bin/nuvo.mjs', import.meta.url), 'utf8');
+  assert.match(cli, /if \(done\.jaEstava\)/, 'a linha de comando diz o que aconteceu');
+});

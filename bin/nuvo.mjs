@@ -146,6 +146,13 @@ if (command === 'instalar-app' || command === 'install-app') {
   const { installDesktopApp, appUrl } = await import('../server/desktop.mjs');
   try {
     const done = installDesktopApp();
+    // O pacote das releases já é o app: escrever um atalho por cima dele seria
+    // trocar a janela nativa por uma do navegador.
+    if (done.jaEstava) {
+      console.log(`o Nuvo já está instalado em ${done.path}`);
+      console.log('ele abre em janela própria, com ícone no Dock — não há atalho a criar.');
+      process.exit(0);
+    }
     console.log(`atalho criado em ${done.path}`);
     console.log(`abre em: ${done.browser}${done.icon ? ' · com ícone próprio' : ''}`);
     console.log(`endereço: ${appUrl()}`);

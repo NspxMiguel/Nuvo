@@ -208,6 +208,20 @@ const MAC_APP = join(homedir(), 'Applications', 'Nuvo.app');
 const MAC_APP_ANTIGO = join(homedir(), 'Applications', 'IAUnifier.app');
 
 function macInstall() {
+  // O pacote das releases já é um app de verdade: janela nativa, ícone próprio
+  // no Dock, e o servidor ao lado. Este comando escreve um atalho pro navegador
+  // no MESMO caminho — quem instalasse pelo site e rodasse `instalar-app`
+  // depois, achando que era assim que se põe o ícone no Dock, trocava a janela
+  // nativa por uma janela do Chrome e não entendia por quê.
+  if (existsSync(join(MAC_APP, 'Contents', 'MacOS', 'nuvo-servidor'))) {
+    return {
+      system: 'macOS',
+      path: MAC_APP,
+      jaEstava: true,
+      browser: null,
+      icon: true
+    };
+  }
   rmSync(MAC_APP_ANTIGO, { recursive: true, force: true });
   const macos = join(MAC_APP, 'Contents', 'MacOS');
   const resources = join(MAC_APP, 'Contents', 'Resources');

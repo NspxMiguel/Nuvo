@@ -57,7 +57,7 @@ sessão aberta, e isso é dito na saída.
 ### Ícone no dock
 
 ```bash
-node bin/nuvo.mjs instalar-app   # atalho com ícone, janela sem abas
+node bin/nuvo.mjs instalar-app   # Linux e Windows: atalho com ícone
 node bin/nuvo.mjs remover-app
 ```
 
@@ -74,7 +74,9 @@ navegador de verdade. Empacotar sem `swiftc` na máquina devolve o pacote antigo
 que abre pelo navegador.
 
 O `instalar-app` é o outro caminho, e continua sendo o único no Linux e no
-Windows: abre o navegador que você já tem em modo aplicativo — janela sem barra
+Windows. No macOS ele reconhece o pacote das releases e não escreve por cima —
+os dois moram em `~/Applications/Nuvo.app`, e trocar um pelo outro devolveria a
+janela do navegador sem ninguém entender por quê. Ele: abre o navegador que você já tem em modo aplicativo — janela sem barra
 de endereço e sem abas — apontado pro servidor. No Linux sai um `.desktop` no
 menu; no Windows, um atalho no Menu Iniciar. Sem Chrome/Edge/Brave instalado,
 abre numa aba comum do navegador padrão.
