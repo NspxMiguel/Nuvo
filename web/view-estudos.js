@@ -177,7 +177,7 @@ const ORGANIZACOES = [
     id: 'pastas',
     nome: () => t('Pastas que eu crio'),
     dica: () => t('Você dá o nome de cada uma. Serve pra qualquer escola.'),
-    semear: () => [{ nome: t('Material da aula'), tipo: 'material' }]
+    semear: () => [{ nome: t('Aulas'), tipo: 'material' }]
   },
   {
     id: 'periodo',
@@ -190,7 +190,7 @@ const ORGANIZACOES = [
           tipo: 'prova'
         }))
       ),
-      { nome: t('Material da aula'), tipo: 'material' }
+      { nome: t('Aulas'), tipo: 'material' }
     ]
   },
   {
@@ -204,7 +204,7 @@ const ORGANIZACOES = [
     dica: () => t('Uma pasta de prova e uma de aula. Você separa depois, se quiser.'),
     semear: () => [
       { nome: t('Provas'), tipo: 'prova' },
-      { nome: t('Material da aula'), tipo: 'material' }
+      { nome: t('Aulas'), tipo: 'material' }
     ]
   }
 ];
@@ -1533,8 +1533,10 @@ function ligarProfessor(el, prof, saidas, ctx) {
     };
   }
 
-  q('#est-nova-pasta').onclick = () => criarPasta(prof, ctx, q('.nlm-fontes'));
-  q('#est-prova-antiga').onclick = () => criarPasta(prof, ctx, q('.nlm-fontes'), { anterior: true });
+  q('#est-nova-pasta').onclick = () =>
+    criarPasta(prof, ctx, q('.nlm-fontes'), { entaoEnviar: 'prova' });
+  q('#est-prova-antiga').onclick = () =>
+    criarPasta(prof, ctx, q('.nlm-fontes'), { anterior: true, entaoEnviar: 'prova' });
   // Uma caixa liga e desliga TODAS as fontes de uma vez, como a deles.
   for (const b of el.querySelectorAll('[data-encolhe]')) {
     b.onclick = () => {
@@ -1578,7 +1580,9 @@ function ligarProfessor(el, prof, saidas, ctx) {
       repintar();
     };
   }
-  q('#est-primeira-prova')?.addEventListener('click', () => criarPasta(prof, ctx, q('.nlm-fontes')));
+  q('#est-primeira-prova')?.addEventListener('click', () =>
+    criarPasta(prof, ctx, q('.nlm-fontes'), { entaoEnviar: 'prova' })
+  );
   q('#est-montar')?.addEventListener('click', (ev) => montarRetrato(el, prof, ev.currentTarget, q('#est-modelo').value, ctx));
 
   // Corrigir o retrato à mão. O que ela escreve vale mais que a leitura das
@@ -1919,7 +1923,7 @@ function desenharSaida(saida) {
  * amostra que existe do jeito dele — mas ela não é uma prova marcada, então
  * entra separada da agenda e o nome já vem com o ano do ano passado.
  */
-function criarPasta(prof, ctx, host, { anterior = false } = {}) {
+function criarPasta(prof, ctx, host, { anterior = false, entaoEnviar = null } = {}) {
   const anoPassado = new Date().getFullYear() - 1;
   pedirNome(host, {
     valor: anterior ? t('Prova de {ano}', { ano: String(anoPassado) }) : '',
@@ -1931,6 +1935,10 @@ function criarPasta(prof, ctx, host, { anterior = false } = {}) {
       });
       aqui.pastaAberta = pasta.id;
       ctx.switchView('estudos');
+      // Quem clicou em "adicionar" quer o arquivo dentro, não uma gaveta com
+      // nome: a pasta vazia é meio do caminho, e parar nela obriga a pessoa a
+      // procurar sozinha onde se envia. O seletor abre na sequência.
+      if (entaoEnviar) enviarArquivos(pasta.id, entaoEnviar, ctx);
     }
   });
 }

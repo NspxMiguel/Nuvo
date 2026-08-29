@@ -119,7 +119,7 @@ export function criarProfessor(dados = {}) {
       agora
     );
     const pedidas = Array.isArray(dados.pastas) ? dados.pastas : [];
-    const semente = pedidas.length ? pedidas : [{ nome: texto(dados.pastaMaterial) || 'Material da aula', tipo: 'material' }];
+    const semente = pedidas.length ? pedidas : [{ nome: texto(dados.pastaMaterial) || 'Aulas', tipo: 'material' }];
     semente.forEach((pasta, i) => inserirPasta(id, pasta, i));
     return verProfessor(id);
   });

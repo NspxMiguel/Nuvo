@@ -114,7 +114,7 @@ async function palco({ comRetrato = true } = {}) {
   const prof = criarProfessor({
     nome: 'Ricardo Alves',
     materia: 'Biologia',
-    pastas: [{ nome: 'Material da aula', tipo: 'material' }]
+    pastas: [{ nome: 'Aulas', tipo: 'material' }]
   });
   if (comRetrato) {
     run('UPDATE professores SET retrato = ? WHERE id = ?', JSON.stringify(RETRATO), prof.id);

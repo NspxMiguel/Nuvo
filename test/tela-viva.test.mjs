@@ -823,3 +823,20 @@ test('criar professor é uma página, não um formulário no fim da lista', () =
   // Criar sai da página: sem isto o desenho seguinte volta pro formulário.
   assert.match(v, /aqui\.criando = false;\n    aqui\.pastaAberta = null;/, 'criar fecha a página');
 });
+
+test('quem pede pra adicionar uma prova recebe o seletor de arquivo, não uma gaveta vazia', () => {
+  // Os três botões de adicionar prometiam arquivo — inclusive com ícone de
+  // upload — e entregavam um campo de nome. A pasta nascia vazia e a pessoa
+  // ficava procurando sozinha onde se envia o arquivo.
+  const v = ler('web/view-estudos.js');
+  assert.match(
+    v,
+    /function criarPasta\(prof, ctx, host, \{ anterior = false, entaoEnviar = null \} = \{\}\)/,
+    'criarPasta sabe continuar depois de criar'
+  );
+  assert.match(v, /if \(entaoEnviar\) enviarArquivos\(pasta\.id, entaoEnviar, ctx\);/, 'e continua no seletor');
+  for (const id of ['est-nova-pasta', 'est-prova-antiga', 'est-primeira-prova']) {
+    const trecho = v.slice(v.indexOf(`q('#${id}')`), v.indexOf(`q('#${id}')`) + 200);
+    assert.match(trecho, /entaoEnviar: 'prova'/, `${id} leva até o arquivo`);
+  }
+});

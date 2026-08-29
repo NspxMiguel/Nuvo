@@ -142,13 +142,13 @@ test('reordenar respeita só as pastas do próprio professor', () => {
   const alheia = estudos.criarPasta(b.id, { nome: 'C', tipo: 'prova' });
 
   const fora = estudos.reordenarPastas(a.id, [p2.id, p1.id, alheia.id]);
-  assert.deepEqual(fora.map((x) => x.nome), ['B', 'A', 'Material da aula']);
+  assert.deepEqual(fora.map((x) => x.nome), ['B', 'A', 'Aulas']);
   assert.ok(!fora.some((x) => x.id === alheia.id), 'pasta de outro professor não pode entrar');
 
   // Lista parcial não pode largar as outras com o número antigo: sem isso duas
   // pastas empatavam em zero e a ordem saía por desempate de data.
   const dePonta = estudos.reordenarPastas(a.id, [p1.id]);
-  assert.deepEqual(dePonta.map((x) => x.nome), ['A', 'B', 'Material da aula']);
+  assert.deepEqual(dePonta.map((x) => x.nome), ['A', 'B', 'Aulas']);
   assert.deepEqual(dePonta.map((x) => x.ord), [0, 1, 2]);
 });
 
