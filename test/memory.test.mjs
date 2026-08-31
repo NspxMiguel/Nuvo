@@ -106,7 +106,7 @@ test('bloco do prompt sai vazio sem fatos e nomeado com fatos', () => {
 // ------------------------------------------------------------- heurística
 
 test('heurística pega identidade e preferência em português', () => {
-  const fatos = extractHeuristic('Oi, me chamo Miguel Moretti e eu gosto de café sem açúcar.');
+  const fatos = extractHeuristic('Oi, me chamo Ana Souza e eu gosto de café sem açúcar.');
   assert.ok(fatos.some((f) => /me chamo Miguel/i.test(f)));
   assert.ok(fatos.some((f) => /gosto de café/i.test(f)));
 });
