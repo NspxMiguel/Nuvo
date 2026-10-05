@@ -494,6 +494,10 @@ being translated at draw time, which would undo any renaming.
 - Project page: <https://www.nspx.dev/Nuvo/>
 - Releases: <https://github.com/NspxMiguel/Nuvo/releases>
 
+## Support
+
+Free and open source. If it saved you time, pay what it was worth at [nspx.dev/loja](https://www.nspx.dev/loja/) — any amount, no account.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
